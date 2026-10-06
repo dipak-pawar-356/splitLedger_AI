@@ -1,0 +1,41 @@
+name: SplitLedger AI Enterprise CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  validate-and-build:
+    name: Lint, Test & Build Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/splitledger
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_sample_ci_key
+      CLERK_SECRET_KEY: sk_test_sample_ci_key
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run TypeScript Verification
+        run: npx tsc --noEmit
+
+      - name: Run Automated Vitest Test Suite (100% Coverage Target)
+        run: npx vitest run
+
+      - name: Build Next.js Production App
+        run: npm run build
