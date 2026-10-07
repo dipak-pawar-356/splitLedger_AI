@@ -111,15 +111,15 @@ export default function Home() {
           <div className="relative mx-auto max-w-4xl rounded-3xl p-3 sm:p-4 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 shadow-2xl shadow-primary/5">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
               {/* Card 1: Balance Card */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 space-y-3">
+              <div className="group p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 space-y-3 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-emerald-500/10 hover:border-emerald-500/50 transition-all duration-300 cursor-pointer">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Net Position</span>
-                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
+                  <span className="text-xs font-semibold text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">Net Position</span>
+                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 group-hover:scale-110 transition-transform duration-200">
                     <TrendingUp className="h-4 w-4" />
                   </div>
                 </div>
                 <div>
-                  <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                  <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform duration-200 origin-left">
                     +₹14,850.00
                   </div>
                   <span className="text-[11px] text-slate-500 font-medium">You are owed in total</span>
@@ -131,13 +131,13 @@ export default function Home() {
               </div>
 
               {/* Card 2: Group Expense Split */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 space-y-3">
+              <div className="group p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 space-y-3 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-500/50 transition-all duration-300 cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600">
+                    <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 group-hover:scale-110 transition-transform duration-200">
                       <Compass className="h-4 w-4" />
                     </div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">Goa Road Trip</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Goa Road Trip</span>
                   </div>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                     4 Members
@@ -160,19 +160,19 @@ export default function Home() {
               </div>
 
               {/* Card 3: Instant UPI Settlement */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 space-y-3">
+              <div className="group p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 space-y-3 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-amber-500/10 hover:border-amber-500/50 transition-all duration-300 cursor-pointer">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500">Instant Settle</span>
-                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600">
+                  <span className="text-xs font-semibold text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">Instant Settle</span>
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 group-hover:scale-110 transition-transform duration-200">
                     <QrCode className="h-4 w-4" />
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 group-hover:border-amber-400/50 transition-colors">
                     <QrCode className="h-9 w-9 text-slate-900 dark:text-slate-100" />
                   </div>
                   <div className="text-xs">
-                    <div className="font-bold text-slate-900 dark:text-white">Scan with UPI</div>
+                    <div className="font-bold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Scan with UPI</div>
                     <div className="text-[11px] text-slate-500">GPay, PhonePe, Paytm</div>
                     <div className="text-[11px] font-bold text-primary">₹2,450 to Rahul</div>
                   </div>
@@ -193,19 +193,19 @@ export default function Home() {
       <section className="py-6 border-y border-slate-200/80 dark:border-slate-800 bg-white/60 dark:bg-slate-950/60 backdrop-blur-sm">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-xs font-semibold text-slate-500 dark:text-slate-400">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer">
               <ShieldCheck className="h-4 w-4 text-emerald-500" />
               <span>256-Bit Bank Grade Encryption</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">
               <Lock className="h-4 w-4 text-blue-500" />
               <span>Zero-Knowledge Privacy</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 hover:text-primary transition-colors cursor-pointer">
               <Smartphone className="h-4 w-4 text-primary" />
               <span>Standard NPCI Dynamic UPI</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 hover:text-amber-600 dark:hover:text-amber-400 transition-colors cursor-pointer">
               <Zap className="h-4 w-4 text-amber-500" />
               <span>Fast Neon Cloud Architecture</span>
             </div>
@@ -231,19 +231,19 @@ export default function Home() {
               return (
                 <div
                   key={idx}
-                  className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-200 space-y-4"
+                  className="group p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1.5 hover:border-primary/40 transition-all duration-300 space-y-4 cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
-                    <div className={`p-3 rounded-2xl border ${item.color}`}>
+                    <div className={`p-3 rounded-2xl border transition-transform duration-300 group-hover:scale-110 ${item.color}`}>
                       <Icon className="h-6 w-6" />
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                       {item.tag}
                     </span>
                   </div>
 
                   <div className="space-y-1.5">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
                       {item.title}
                     </h3>
                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">

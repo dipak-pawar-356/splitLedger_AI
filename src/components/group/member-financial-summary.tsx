@@ -97,17 +97,17 @@ export function MemberFinancialSummary({
 
   return (
     <>
-      <Card className={`w-full hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden bg-card rounded-3xl ${
+      <Card className={`w-full group hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden bg-card rounded-3xl ${
         isReceivable 
-          ? "border-2 border-emerald-500 shadow-sm shadow-emerald-500/10 dark:border-emerald-500" 
+          ? "border-2 border-emerald-500 shadow-sm shadow-emerald-500/10 dark:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/15 hover:border-emerald-400 dark:hover:border-emerald-400" 
           : isPayable 
-          ? "border-2 border-rose-500 shadow-sm shadow-rose-500/10 dark:border-rose-500" 
-          : "border border-slate-200/90 dark:border-slate-800"
+          ? "border-2 border-rose-500 shadow-sm shadow-rose-500/10 dark:border-rose-500 hover:shadow-xl hover:shadow-rose-500/15 hover:border-rose-400 dark:hover:border-rose-400" 
+          : "border border-slate-200/90 dark:border-slate-800 hover:shadow-xl hover:border-primary/40"
       }`}>
         <div>
           {/* Card Header: Avatar, Name, Role, Badges */}
           <CardHeader className="flex flex-row items-center gap-3.5 pb-3 pt-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30">
-            <Avatar className="h-12 w-12 border-2 border-white/50 shadow-xs shrink-0">
+            <Avatar className="h-12 w-12 border-2 border-white/50 shadow-xs shrink-0 group-hover:scale-105 transition-transform duration-300">
               <AvatarImage src={member.avatar || undefined} />
               <AvatarFallback className="font-bold bg-primary text-white text-base">
                 {member.name.charAt(0).toUpperCase()}
@@ -116,7 +116,7 @@ export function MemberFinancialSummary({
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <CardTitle className="text-sm font-bold tracking-tight truncate text-slate-900 dark:text-slate-100">
+                <CardTitle className="text-sm font-bold tracking-tight truncate text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors">
                   {member.name}
                 </CardTitle>
                 <Badge className="text-[10px] py-0 px-1.5 font-semibold capitalize bg-primary/20 text-primary border-primary/30">
@@ -151,11 +151,11 @@ export function MemberFinancialSummary({
 
           <CardContent className="p-4 space-y-3">
             {/* Net Position Status Banner (SECTIONS 2 & 4) */}
-            <div className={`p-3.5 rounded-2xl border-2 transition-colors ${
+            <div className={`p-3.5 rounded-2xl border-2 transition-all duration-200 group-hover:shadow-xs ${
               isReceivable 
-                ? "bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-500/40 dark:border-emerald-500/50" 
+                ? "bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-500/40 dark:border-emerald-500/50 group-hover:border-emerald-500/70" 
                 : isPayable 
-                ? "bg-rose-50/60 dark:bg-rose-950/25 border-rose-500/40 dark:border-rose-500/50" 
+                ? "bg-rose-50/60 dark:bg-rose-950/25 border-rose-500/40 dark:border-rose-500/50 group-hover:border-rose-500/70" 
                 : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
             }`}>
               <div className="flex items-center justify-between">
@@ -187,7 +187,7 @@ export function MemberFinancialSummary({
 
             {/* Paid vs Own Share Grid (SECTION 4) */}
             <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80">
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200">
                 <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Paid</span>
                 <span className="text-xs font-black text-slate-900 dark:text-slate-100 mt-0.5 block">
                   {formatCurrency(member.totalPaid)}
@@ -195,7 +195,7 @@ export function MemberFinancialSummary({
                 <span className="text-[10px] text-slate-400">{member.expenseCount} expenses</span>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80">
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200">
                 <span className="text-[10px] text-slate-400 font-semibold uppercase block">Own Share</span>
                 <span className="text-xs font-black text-slate-900 dark:text-slate-100 mt-0.5 block">
                   {formatCurrency(member.ownShare)}
@@ -210,7 +210,7 @@ export function MemberFinancialSummary({
             {hasFullSettlementAccess ? (
               <>
                 {member.receivesFrom.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1">
+                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors">
                     <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Receives from:</span>
                     {member.receivesFrom.map((r, i) => (
                       <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -222,7 +222,7 @@ export function MemberFinancialSummary({
                 )}
 
                 {member.owesTo.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1">
+                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1 hover:border-rose-300 dark:hover:border-rose-800 transition-colors">
                     <span className="font-semibold text-rose-700 dark:text-rose-400 block">Needs to pay:</span>
                     {member.owesTo.map((o, i) => (
                       <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -236,7 +236,7 @@ export function MemberFinancialSummary({
             ) : (
               <>
                 {mutualReceives.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1">
+                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors">
                     <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Settlement with you:</span>
                     {mutualReceives.map((r, i) => (
                       <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -248,7 +248,7 @@ export function MemberFinancialSummary({
                 )}
 
                 {mutualOwes.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1">
+                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1 hover:border-rose-300 dark:hover:border-rose-800 transition-colors">
                     <span className="font-semibold text-rose-700 dark:text-rose-400 block">Settlement with you:</span>
                     {mutualOwes.map((o, i) => (
                       <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
@@ -260,7 +260,7 @@ export function MemberFinancialSummary({
                 )}
 
                 {mutualReceives.length === 0 && mutualOwes.length === 0 && (
-                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 text-center">
+                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 text-center hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
                     <span>Settlement details visible to owner & member</span>
                   </div>
                 )}

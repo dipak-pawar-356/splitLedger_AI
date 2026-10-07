@@ -51,7 +51,7 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
   return (
     <div className="space-y-4">
       {/* Top Banner Card */}
-      <Card className="rounded-3xl border shadow-sm bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white overflow-hidden relative">
+      <Card className="rounded-3xl border shadow-sm bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white overflow-hidden relative hover:shadow-xl transition-all duration-300">
         <div className="absolute right-0 top-0 w-80 h-full bg-primary/20 blur-3xl pointer-events-none" />
 
         <CardContent className="p-6 sm:p-7 space-y-6 relative z-10">
@@ -97,12 +97,12 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
           </div>
 
           {/* User's Exact Financial Position in this Group (SECTION 1 & 2) */}
-          <div className={`p-4 rounded-2xl transition-all ${
+          <div className={`p-4 rounded-2xl transition-all duration-300 ${
             isReceive 
-              ? "bg-emerald-950/40 border-2 border-emerald-500 text-emerald-100 shadow-sm shadow-emerald-500/20"
+              ? "bg-emerald-950/40 border-2 border-emerald-500 text-emerald-100 shadow-sm shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:border-emerald-400"
               : isPay
-              ? "bg-rose-950/40 border-2 border-rose-500 text-rose-100 shadow-sm shadow-rose-500/20"
-              : "bg-white/10 border border-white/20 text-slate-200"
+              ? "bg-rose-950/40 border-2 border-rose-500 text-rose-100 shadow-sm shadow-rose-500/20 hover:shadow-rose-500/30 hover:border-rose-400"
+              : "bg-white/10 border border-white/20 text-slate-200 hover:bg-white/15"
           }`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-0.5">
@@ -134,21 +134,21 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
 
           {/* Quick Metrics Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1 border-t border-white/10">
-            <div>
+            <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] hover:border-white/15 transition-all duration-200 cursor-pointer">
               <span className="text-[10px] text-slate-400 uppercase block">Settled Amount</span>
               <span className="font-bold text-sm text-teal-400">{formatCurrency(overview.totalSettlements)}</span>
             </div>
-            <div>
+            <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] hover:border-white/15 transition-all duration-200 cursor-pointer">
               <span className="text-[10px] text-slate-400 uppercase block">Pending Settlements</span>
               <span className="font-bold text-sm text-amber-400">
                 {formatCurrency(overview.pendingSettlementsAmount)} ({overview.pendingSettlementsCount})
               </span>
             </div>
-            <div>
+            <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] hover:border-white/15 transition-all duration-200 cursor-pointer">
               <span className="text-[10px] text-slate-400 uppercase block">Active Members</span>
               <span className="font-bold text-sm text-white">{overview.activeMembers} Users</span>
             </div>
-            <div>
+            <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] hover:border-white/15 transition-all duration-200 cursor-pointer">
               <span className="text-[10px] text-slate-400 uppercase block">Guest Members</span>
               <span className="font-bold text-sm text-white">{overview.guestMembers} Guests</span>
             </div>

@@ -85,19 +85,19 @@ export function WhoPaysWhomCard({
             {visibleSuggestions.map((s, idx) => (
               <div
                 key={idx}
-                className="group p-4 sm:p-5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800/90 flex flex-col gap-3 transition-all duration-200 hover:-translate-y-[2px] hover:shadow-lg hover:border-emerald-500/50 hover:bg-slate-50 dark:hover:bg-slate-900/80"
+                className="group p-4 sm:p-5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800/90 flex flex-col gap-3 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-emerald-500/50 hover:bg-slate-50 dark:hover:bg-slate-900/80 cursor-pointer"
               >
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                   {/* Payer (Debtor) */}
                   <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto">
-                    <Avatar className="h-11 w-11 border-2 border-rose-500/30 shadow-xs shrink-0 ring-2 ring-rose-500/10">
+                    <Avatar className="h-11 w-11 border-2 border-rose-500/30 shadow-xs shrink-0 ring-2 ring-rose-500/10 group-hover:scale-105 transition-transform duration-200">
                       <AvatarImage src={s.fromAvatar || undefined} />
                       <AvatarFallback className="text-sm font-bold bg-slate-200 dark:bg-slate-800 text-rose-500">
                         {s.fromName.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <p className="text-[16px] sm:text-[17px] font-semibold text-slate-900 dark:text-slate-100 truncate tracking-tight">
+                      <p className="text-[16px] sm:text-[17px] font-semibold text-slate-900 dark:text-slate-100 truncate tracking-tight group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
                         {s.fromName}
                       </p>
                       <span className="text-[11px] text-rose-500 font-medium block uppercase tracking-wider mt-0.5">
@@ -108,7 +108,7 @@ export function WhoPaysWhomCard({
 
                   {/* Amount & Visual Transfer Indicator */}
                   <div className="flex flex-col items-center justify-center shrink-0 px-2 py-1 my-1 sm:my-0">
-                    <span className="text-[20px] sm:text-[21px] font-bold text-slate-900 dark:text-slate-100 tracking-tight text-center block">
+                    <span className="text-[20px] sm:text-[21px] font-bold text-slate-900 dark:text-slate-100 tracking-tight text-center block group-hover:scale-105 transition-transform duration-200">
                       {formatCurrency(s.amount)}
                     </span>
                     <div className="flex items-center gap-1.5 text-emerald-500 mt-1">
@@ -120,14 +120,14 @@ export function WhoPaysWhomCard({
                   {/* Recipient (Creditor) */}
                   <div className="flex items-center gap-3.5 min-w-0 w-full sm:w-auto sm:justify-end">
                     <div className="min-w-0 sm:text-right order-2 sm:order-1 flex-1 sm:flex-initial">
-                      <p className="text-[16px] sm:text-[17px] font-semibold text-slate-900 dark:text-slate-100 truncate tracking-tight">
+                      <p className="text-[16px] sm:text-[17px] font-semibold text-slate-900 dark:text-slate-100 truncate tracking-tight group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                         {s.toName}
                       </p>
                       <span className="text-[11px] text-emerald-500 font-medium block uppercase tracking-wider mt-0.5">
                         Recipient
                       </span>
                     </div>
-                    <Avatar className="h-11 w-11 border-2 border-emerald-500/30 shadow-xs shrink-0 ring-2 ring-emerald-500/10 order-1 sm:order-2">
+                    <Avatar className="h-11 w-11 border-2 border-emerald-500/30 shadow-xs shrink-0 ring-2 ring-emerald-500/10 order-1 sm:order-2 group-hover:scale-105 transition-transform duration-200">
                       <AvatarImage src={s.toAvatar || undefined} />
                       <AvatarFallback className="text-sm font-bold bg-slate-200 dark:bg-slate-800 text-emerald-500">
                         {s.toName.charAt(0).toUpperCase()}

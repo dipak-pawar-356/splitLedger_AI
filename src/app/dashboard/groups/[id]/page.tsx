@@ -292,11 +292,11 @@ export default async function GroupDetailPage({
               {groupExpenses.length > 0 ? (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {groupExpenses.map((exp) => (
-                    <div key={exp.id} className="p-4 flex items-center justify-between gap-3 hover:bg-slate-50/60 dark:hover:bg-slate-900/30 transition-colors">
+                    <div key={exp.id} className="group p-4 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-all duration-200">
                       <div className="min-w-0">
                         <Link
                           href={`/dashboard/transactions/${exp.publicId}`}
-                          className="font-bold text-xs text-slate-900 dark:text-slate-100 hover:text-primary transition-colors truncate block"
+                          className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors truncate block"
                         >
                           {exp.title || exp.description}
                         </Link>
@@ -367,10 +367,10 @@ export default async function GroupDetailPage({
                     {visiblePendingSettlements.map((st) => (
                       <div
                         key={st.id}
-                        className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
+                        className="group p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:shadow-md hover:border-amber-400/60 hover:-translate-y-0.5 transition-all duration-200"
                       >
                         <div>
-                          <p className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                          <p className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                             {st.fromName} owes {st.toName}
                           </p>
                           <span className="text-[11px] text-slate-400">Created {formatDate(st.createdAt)}</span>
@@ -411,10 +411,10 @@ export default async function GroupDetailPage({
                     {visibleSettlementSuggestions.map((sg, idx) => (
                       <div
                         key={idx}
-                        className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-emerald-500/40 transition-colors"
+                        className="group p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-emerald-500/60 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                       >
                         <div>
-                          <p className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                          <p className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                             {sg.fromName} owes {sg.toName}
                           </p>
                           <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 block mt-0.5">

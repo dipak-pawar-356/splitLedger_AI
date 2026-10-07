@@ -43,7 +43,7 @@ export function GroupExpenseInsights({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* SECTION 8: Group Expense Summary */}
-      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden hover:shadow-lg transition-all duration-300">
         <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400">
@@ -61,21 +61,21 @@ export function GroupExpenseInsights({
         <CardContent className="p-5 space-y-4">
           {/* Top 3 Stat Tiles */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200 cursor-pointer">
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Today</span>
               <span className="text-base font-black text-slate-900 dark:text-slate-100 block mt-0.5">
                 {formatCurrency(expenseSummary.todayExpense)}
               </span>
             </div>
 
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200 cursor-pointer">
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">This Month</span>
               <span className="text-base font-black text-slate-900 dark:text-slate-100 block mt-0.5">
                 {formatCurrency(expenseSummary.thisMonthExpense)}
               </span>
             </div>
 
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200 cursor-pointer">
               <span className="text-[10px] text-slate-400 font-semibold uppercase block">Avg / Member</span>
               <span className="text-base font-black text-primary block mt-0.5">
                 {formatCurrency(expenseSummary.averagePerMember)}
@@ -86,7 +86,7 @@ export function GroupExpenseInsights({
           {/* Highest vs Lowest Expense */}
           <div className="grid grid-cols-2 gap-3 pt-1">
             {expenseSummary.highestExpense && (
-              <div className="p-3 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
+              <div className="p-3 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 hover:border-emerald-500/50 hover:shadow-sm transition-all duration-200 cursor-pointer">
                 <div className="flex items-center justify-between text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">
                   <span>Highest Expense</span>
                   <TrendingUp className="h-3.5 w-3.5" />
@@ -102,7 +102,7 @@ export function GroupExpenseInsights({
             )}
 
             {expenseSummary.lowestExpense && (
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200 cursor-pointer">
                 <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold uppercase">
                   <span>Lowest Expense</span>
                   <TrendingDown className="h-3.5 w-3.5" />
@@ -126,7 +126,7 @@ export function GroupExpenseInsights({
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {expenseSummary.categoryBreakdown.slice(0, 5).map((cat, i) => (
-                  <Badge key={i} variant="outline" className="text-xs py-1 px-2.5 rounded-xl font-medium">
+                  <Badge key={i} variant="outline" className="text-xs py-1 px-2.5 rounded-xl font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
                     {cat.name}: <strong className="ml-1 text-slate-900 dark:text-slate-100">{formatCurrency(cat.amount)}</strong>
                   </Badge>
                 ))}
@@ -137,7 +137,7 @@ export function GroupExpenseInsights({
       </Card>
 
       {/* SECTION 12: Group Insights */}
-      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden hover:shadow-lg transition-all duration-300">
         <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
@@ -156,7 +156,7 @@ export function GroupExpenseInsights({
           <div className="grid grid-cols-2 gap-3">
             {/* Highest Contributor */}
             {insights.highestContributor ? (
-              <div className="p-3.5 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40">
+              <div className="p-3.5 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 hover:border-amber-500/50 hover:shadow-sm transition-all duration-200 cursor-pointer">
                 <div className="flex items-center justify-between text-[10px] text-amber-700 dark:text-amber-400 font-semibold uppercase">
                   <span>Top Contributor</span>
                   <Award className="h-3.5 w-3.5" />
@@ -179,7 +179,7 @@ export function GroupExpenseInsights({
 
             {/* Most Active Member */}
             {insights.mostActiveMember ? (
-              <div className="p-3.5 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40">
+              <div className="p-3.5 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40 hover:border-indigo-500/50 hover:shadow-sm transition-all duration-200 cursor-pointer">
                 <div className="flex items-center justify-between text-[10px] text-indigo-700 dark:text-indigo-400 font-semibold uppercase">
                   <span>Most Active</span>
                   <Activity className="h-3.5 w-3.5" />
@@ -201,7 +201,7 @@ export function GroupExpenseInsights({
 
           {/* Group Debt Pool */}
           <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 hover:border-emerald-500/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-all duration-200 cursor-pointer">
               <div className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold uppercase">
                 <ArrowUpRight className="h-3 w-3 text-emerald-500" />
                 <span>Group Receivables</span>
@@ -211,7 +211,7 @@ export function GroupExpenseInsights({
               </span>
             </div>
 
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 hover:border-rose-500/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-all duration-200 cursor-pointer">
               <div className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold uppercase">
                 <ArrowDownLeft className="h-3 w-3 text-rose-500" />
                 <span>Group Payables</span>

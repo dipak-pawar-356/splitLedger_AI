@@ -376,7 +376,7 @@ function GroupCardItem({ group, userId }: { group: any; userId: number }) {
     : "Settled up";
 
   return (
-    <Card className="card-lift h-full overflow-hidden hover:shadow-xl transition-all duration-300 border-slate-200/90 dark:border-slate-800 flex flex-col justify-between group bg-card rounded-2xl cursor-pointer">
+    <Card className="card-lift h-full overflow-hidden hover:shadow-xl transition-all duration-300 border-slate-200/90 dark:border-slate-800 flex flex-col justify-between group bg-card rounded-2xl cursor-pointer hover:border-primary/40">
       <div>
         {/* Header Visual Banner */}
         {group.coverImage ? (
@@ -415,7 +415,7 @@ function GroupCardItem({ group, userId }: { group: any; userId: number }) {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <Link href={`/dashboard/groups/${group.publicId}`} prefetch={true}>
-                <CardTitle className="text-lg font-black text-slate-900 dark:text-slate-100 hover:text-primary transition-colors truncate tracking-tight">
+                <CardTitle className="text-lg font-black text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors truncate tracking-tight">
                   {group.name}
                 </CardTitle>
               </Link>
@@ -487,7 +487,7 @@ function GroupCardItem({ group, userId }: { group: any; userId: number }) {
 
           {/* Group 3-Metric Stats Grid */}
           <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/80">
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/90 dark:hover:bg-slate-800/90 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200">
               <p className="text-[10px] font-medium text-slate-500">Members</p>
               <p className="font-bold text-slate-900 dark:text-slate-100 mt-0.5">
                 <AnimatedCounter value={group.memberCount} />
@@ -497,14 +497,14 @@ function GroupCardItem({ group, userId }: { group: any; userId: number }) {
               </p>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/80">
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/90 dark:hover:bg-slate-800/90 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200">
               <p className="text-[10px] font-medium text-slate-500">Expenses</p>
               <p className="font-bold text-slate-900 dark:text-slate-100 mt-0.5">
                 <AnimatedCounter value={formatCurrency(group.totalExpenses / 100)} />
               </p>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/80">
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/90 dark:hover:bg-slate-800/90 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200">
               <p className="text-[10px] font-medium text-slate-500">Your Share</p>
               <p className="font-bold text-slate-900 dark:text-slate-100 mt-0.5">
                 <AnimatedCounter value={formatCurrency(group.yourShare / 100)} />
