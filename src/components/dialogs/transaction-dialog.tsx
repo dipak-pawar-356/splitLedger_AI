@@ -85,12 +85,25 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
     try {
       console.log("Submitting transaction:", data);
 
-      // If receipt file is selected, upload it first (placeholder for now)
+      // If receipt file is selected, upload it via /api/upload
       let receiptUrl = data.receiptUrl;
       if (receiptFile) {
-        // TODO: Implement file upload to S3/cloud storage
-        // For now, just use a placeholder
-        receiptUrl = `https://example.com/receipts/${receiptFile.name}`;
+        const formData = new FormData();
+        formData.append("file", receiptFile);
+        formData.append("folder", "receipts");
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to upload receipt image");
+        }
+
+        const uploadData = await uploadRes.json();
+        receiptUrl = uploadData.url;
       }
 
       const result = await createTransaction({ ...data, receiptUrl });

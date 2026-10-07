@@ -44,8 +44,44 @@ export function ReceiptManager({
   const router = useRouter();
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [uploadUrlInput, setUploadUrlInput] = useState("");
   const [isInputOpen, setIsInputOpen] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "receipts");
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Upload failed");
+      }
+
+      const data = await res.json();
+      await updateTransaction(transactionPublicId, {
+        receiptUrl: data.url,
+        reason: "Receipt document uploaded to Cloudinary",
+      });
+      toast.success("Receipt uploaded and attached successfully!");
+      setIsInputOpen(false);
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload receipt");
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
 
   const handleAttachReceipt = async () => {
     if (!uploadUrlInput.trim()) {
@@ -219,14 +255,35 @@ export function ReceiptManager({
 
       {/* Input Drawer for Upload / Replace */}
       {isInputOpen && (
-        <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-          <p className="font-medium text-xs text-slate-700 dark:text-slate-300">
-            Enter Direct Receipt Image URL (e.g. from cloud storage or S3):
-          </p>
+        <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+          <div>
+            <label className="block font-medium text-xs text-slate-700 dark:text-slate-300 mb-1.5">
+              Upload from Device (Cloudinary):
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={handleFileUpload}
+                disabled={isUploadingFile || isUpdating}
+                className="text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:opacity-90 cursor-pointer"
+              />
+              {isUploadingFile && (
+                <span className="text-xs text-primary animate-pulse">Uploading to Cloudinary...</span>
+              )}
+            </div>
+          </div>
+
+          <div className="relative flex items-center">
+            <div className="flex-grow border-t border-slate-200 dark:border-slate-700" />
+            <span className="flex-shrink mx-2 text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Or enter image URL</span>
+            <div className="flex-grow border-t border-slate-200 dark:border-slate-700" />
+          </div>
+
           <div className="flex gap-2">
             <input
               type="url"
-              placeholder="https://..."
+              placeholder="https://res.cloudinary.com/..."
               value={uploadUrlInput}
               onChange={(e) => setUploadUrlInput(e.target.value)}
               className="flex-1 px-3 py-1.5 text-sm rounded-xl border border-input bg-background"
@@ -234,10 +291,10 @@ export function ReceiptManager({
             <Button
               size="sm"
               onClick={handleAttachReceipt}
-              disabled={isUpdating}
+              disabled={isUpdating || isUploadingFile}
               className="rounded-xl px-4 text-xs font-semibold"
             >
-              {isUpdating ? "Saving..." : "Save Receipt"}
+              {isUpdating ? "Saving..." : "Save URL"}
             </Button>
             <Button
               variant="outline"

@@ -43,14 +43,27 @@ export async function POST(req: NextRequest) {
       const timestamp = Date.now();
       const originalName = customName || file.name || (isVoice ? `Voice_Recording_${timestamp}.webm` : "attachment");
       const cleanName = originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const uniqueFilename = `${timestamp}_${cleanName}`;
 
-      const uploadDir = path.join(process.cwd(), "public", "uploads", "notes");
-      await fs.mkdir(uploadDir, { recursive: true });
-      const filePath = path.join(uploadDir, uniqueFilename);
-      await fs.writeFile(filePath, buffer);
+      let url: string;
+      const { uploadToCloudinary, isCloudinaryConfigured } = await import("@/lib/cloudinary");
 
-      const url = `/uploads/notes/${uniqueFilename}`;
+      if (isCloudinaryConfigured()) {
+        const uploadResult = await uploadToCloudinary(buffer, {
+          folder: "splitledger/notes",
+          resourceType: isVoice ? "video" : "auto",
+        });
+        url = uploadResult.url;
+      } else {
+        const uniqueFilename = `${timestamp}_${cleanName}`;
+
+        const uploadDir = path.join(process.cwd(), "public", "uploads", "notes");
+        await fs.mkdir(uploadDir, { recursive: true });
+        const filePath = path.join(uploadDir, uniqueFilename);
+        await fs.writeFile(filePath, buffer);
+
+        url = `/uploads/notes/${uniqueFilename}`;
+      }
+
       const publicId = generatePublicId("natt");
 
       let waveformData = null;

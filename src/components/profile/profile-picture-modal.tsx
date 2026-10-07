@@ -71,9 +71,30 @@ export function ProfilePictureModal({
     if (!preview) return;
     setIsUploading(true);
     try {
-      // In production with S3/Neon, we can upload file or persist data URI
-      await updateProfileAvatar(preview);
-      onAvatarUpdated(preview);
+      let avatarUrl = preview;
+
+      // Upload image to Cloudinary via /api/upload
+      if (preview.startsWith("data:")) {
+        try {
+          const blob = await fetch(preview).then((r) => r.blob());
+          const formData = new FormData();
+          formData.append("file", blob, "avatar.jpg");
+          formData.append("folder", "avatars");
+
+          const res = await fetch("/api/upload", { method: "POST", body: formData });
+          if (res.ok) {
+            const uploadData = await res.json();
+            if (uploadData.url) {
+              avatarUrl = uploadData.url;
+            }
+          }
+        } catch (_) {
+          // Fallback to preview data URI if upload fails
+        }
+      }
+
+      await updateProfileAvatar(avatarUrl);
+      onAvatarUpdated(avatarUrl);
       toast.success("Profile photo updated successfully!");
       onClose();
     } catch (e: any) {
