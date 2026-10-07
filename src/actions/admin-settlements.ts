@@ -24,7 +24,7 @@ import {
   AuthorizationError,
   DatabaseError,
 } from "@/lib/errors";
-import { generatePublicId, formatCurrency, formatDate } from "@/lib/utils";
+import { generatePublicId, formatCurrency, formatDate, getBaseAppUrl } from "@/lib/utils";
 import { sendEmailNotification } from "@/lib/notifications";
 import { getGroupFinancialDetails } from "@/actions/group-financials";
 
@@ -633,7 +633,7 @@ export async function generateDebtorReminderEmail(data: {
     )
     .join("");
 
-  const deepLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard/groups/${data.groupPublicId}`;
+  const deepLink = `${getBaseAppUrl()}/dashboard/groups/${data.groupPublicId}`;
 
   const html = `
     <!DOCTYPE html>
@@ -743,7 +743,7 @@ export async function generateCreditorUpdateEmail(data: {
     )
     .join("");
 
-  const deepLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/dashboard/groups/${data.groupPublicId}`;
+  const deepLink = `${getBaseAppUrl()}/dashboard/groups/${data.groupPublicId}`;
 
   const html = `
     <!DOCTYPE html>

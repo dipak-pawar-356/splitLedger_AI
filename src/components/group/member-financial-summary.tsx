@@ -35,6 +35,8 @@ interface MemberFinancialSummaryProps {
   groupName: string;
   isCurrentUserAdmin?: boolean;
   isGroupOwner?: boolean;
+  currentUserId?: number;
+  currentUserEmail?: string;
   onAddExpenseWithMember?: (member: MemberFinancialDetail) => void;
 }
 
@@ -45,15 +47,27 @@ export function MemberFinancialSummary({
   groupName,
   isCurrentUserAdmin = false,
   isGroupOwner = false,
+  currentUserId,
+  currentUserEmail,
   onAddExpenseWithMember 
 }: MemberFinancialSummaryProps) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
+  const isCurrentUser = Boolean(
+    (member.userId && currentUserId && member.userId === currentUserId) ||
+    (member.email && currentUserEmail && member.email.toLowerCase().trim() === currentUserEmail.toLowerCase().trim())
+  );
+
   const isReceivable = member.netPosition > 0.01;
   const isPayable = member.netPosition < -0.01;
   const isSettled = !isReceivable && !isPayable;
+  const hasPendingSettlement =
+    member.needToPay > 0.01 ||
+    member.willReceive > 0.01 ||
+    member.owesTo.length > 0 ||
+    member.receivesFrom.length > 0;
 
   const handleRemove = async () => {
     if (!confirm(`Are you sure you want to remove ${member.name} from this group?`)) return;
@@ -97,6 +111,11 @@ export function MemberFinancialSummary({
                 ) : (
                   <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                     User
+                  </Badge>
+                )}
+                {isCurrentUser && (
+                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-bold bg-primary/10 text-primary border-primary/30">
+                    You
                   </Badge>
                 )}
                 {member.isPaymentVerified && (
@@ -210,17 +229,24 @@ export function MemberFinancialSummary({
               <span>Profile</span>
             </Button>
 
-            {member.needToPay > 0 && (
+            {/* Remind Action: Never show for respective current user. Show for group owner & other members when there are pending or incoming settlement amounts */}
+            {!isCurrentUser && hasPendingSettlement && (
               <ReminderDialog
                 recipientEmail={member.email || undefined}
+                recipientPhone={member.phone || undefined}
                 recipientName={member.name}
-                amount={member.needToPay}
+                amount={member.needToPay > 0 ? member.needToPay : member.willReceive}
+                groupId={groupId}
+                groupPublicId={groupPublicId}
+                groupName={groupName}
+                owesToList={member.owesTo}
+                receivesFromList={member.receivesFrom}
                 trigger={
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="rounded-xl text-[11px] h-7 px-2 gap-1 text-amber-600 hover:text-amber-700"
+                    className="rounded-xl text-[11px] h-7 px-2 gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
                   >
                     <Bell className="h-3 w-3" />
                     <span>Remind</span>

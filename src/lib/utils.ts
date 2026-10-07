@@ -119,8 +119,13 @@ export function generateScheduleId(): string {
   return generatePublicId("sch");
 }
 
+export function getBaseAppUrl(): string {
+  const rawUrl = process.env.NEXT_PUBLIC_APP_URL || "https://split-ledger-ai.vercel.app";
+  return rawUrl.trim().replace(/\/+$/, "");
+}
+
 export function generateInvitationUrl(token: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseUrl = getBaseAppUrl();
   return `${baseUrl}/invite/${token}`;
 }
 

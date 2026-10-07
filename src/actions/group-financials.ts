@@ -48,8 +48,8 @@ export interface MemberFinancialDetail {
   isPaymentVerified?: boolean;
   joinedAt: Date | string;
   lastActivity?: Date | string | null;
-  receivesFrom: Array<{ name: string; amount: number; userId?: number; contactId?: number }>;
-  owesTo: Array<{ name: string; amount: number; userId?: number; contactId?: number }>;
+  receivesFrom: Array<{ name: string; amount: number; userId?: number; contactId?: number; email?: string; phone?: string }>;
+  owesTo: Array<{ name: string; amount: number; userId?: number; contactId?: number; email?: string; phone?: string }>;
 }
 
 export interface GroupFinancialSummary {
@@ -176,6 +176,22 @@ export interface GroupFinancialSummary {
       details?: any;
     }>;
   };
+  expenses: Array<{
+    id: number;
+    publicId: string;
+    title: string | null;
+    description?: string | null;
+    type: string;
+    amount: number;
+    currency: string;
+    date: Date;
+    status: string;
+    receiptUrl?: string | null;
+    paymentMethod?: string | null;
+    categoryName?: string | null;
+    paidByName?: string | null;
+    paidByContactName?: string | null;
+  }>;
 }
 
 /**
@@ -524,21 +540,35 @@ export async function getGroupFinancialDetails(
 
       m.receivesFrom = optimalSettlements
         .filter((s) => (memberId && s.toUserId === memberId) || (contactId && s.toContactId === contactId))
-        .map((s) => ({
-          name: s.fromName || "Member",
-          amount: s.amount / 100,
-          userId: s.fromUserId,
-          contactId: s.fromContactId,
-        }));
+        .map((s) => {
+          const fromMember = processedMembers.find(
+            (pm) => (s.fromUserId && pm.userId === s.fromUserId) || (s.fromContactId && pm.contactId === s.fromContactId)
+          );
+          return {
+            name: s.fromName || "Member",
+            amount: s.amount / 100,
+            userId: s.fromUserId,
+            contactId: s.fromContactId,
+            email: fromMember?.email || undefined,
+            phone: fromMember?.phone || undefined,
+          };
+        });
 
       m.owesTo = optimalSettlements
         .filter((s) => (memberId && s.fromUserId === memberId) || (contactId && s.fromContactId === contactId))
-        .map((s) => ({
-          name: s.toName || "Member",
-          amount: s.amount / 100,
-          userId: s.toUserId,
-          contactId: s.toContactId,
-        }));
+        .map((s) => {
+          const toMember = processedMembers.find(
+            (pm) => (s.toUserId && pm.userId === s.toUserId) || (s.toContactId && pm.contactId === s.toContactId)
+          );
+          return {
+            name: s.toName || "Member",
+            amount: s.amount / 100,
+            userId: s.toUserId,
+            contactId: s.toContactId,
+            email: toMember?.email || undefined,
+            phone: toMember?.phone || undefined,
+          };
+        });
     });
 
     // 8. Current Logged-in User Overview in this Group (SECTION 1 & 2)
@@ -678,7 +708,7 @@ export async function getGroupFinancialDetails(
           .from(settlementHistory)
           .where(eq(settlementHistory.groupId, groupId))
           .orderBy(desc(settlementHistory.approvedDate))
-          .limit(100),
+          .limit(25),
         db
           .select()
           .from(settlementReminderSettings)
@@ -689,13 +719,13 @@ export async function getGroupFinancialDetails(
           .from(settlementEmailLogs)
           .where(eq(settlementEmailLogs.groupId, groupId))
           .orderBy(desc(settlementEmailLogs.sentAt))
-          .limit(100),
+          .limit(25),
         db
           .select()
           .from(adminActions)
           .where(eq(adminActions.groupId, groupId))
           .orderBy(desc(adminActions.createdAt))
-          .limit(50),
+          .limit(25),
       ]);
 
       adminData = {
@@ -830,6 +860,22 @@ export async function getGroupFinancialDetails(
         totalPayableInGroup,
       },
       adminData,
+      expenses: expensesList.map((e) => ({
+        id: e.id,
+        publicId: e.publicId,
+        title: e.title,
+        description: e.description,
+        type: e.type,
+        amount: e.amount,
+        currency: e.currency,
+        date: e.date,
+        status: e.status,
+        receiptUrl: e.receiptUrl,
+        paymentMethod: e.paymentMethod,
+        categoryName: e.categoryName,
+        paidByName: e.payerName,
+        paidByContactName: e.payerContactName,
+      })),
     };
   } catch (error) {
     if (error instanceof ValidationError || error instanceof AuthorizationError) throw error;

@@ -2,34 +2,118 @@ import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { notifications } from "@/lib/db/schema/schema";
 
+import nodemailer from "nodemailer";
+
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
+export interface EmailSendResult {
+  success: boolean;
+  provider?: "smtp" | "resend";
+  error?: string;
+  isSandboxRestriction?: boolean;
+}
+
+function getSmtpTransporter() {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT) || 587;
+  const user = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+
+  if (user && pass) {
+    if (process.env.GMAIL_USER || (host && host.includes("gmail"))) {
+      return nodemailer.createTransport({
+        service: "gmail",
+        auth: { user, pass },
+      });
+    }
+    return nodemailer.createTransport({
+      host: host || "smtp.gmail.com",
+      port,
+      secure,
+      auth: { user, pass },
+    });
+  }
+  return null;
+}
+
+export async function sendEmailWithStatus(
+  to: string,
+  subject: string,
+  html: string
+): Promise<EmailSendResult> {
+  const cleanTo = to.trim();
+  const smtp = getSmtpTransporter();
+
+  // 1. If SMTP is configured, use SMTP (delivers to ANY organization/domain)
+  if (smtp) {
+    try {
+      const from = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.GMAIL_USER || "SplitLedger AI <no-reply@splitledger.ai>";
+      await smtp.sendMail({
+        from,
+        to: cleanTo,
+        subject,
+        html,
+      });
+      console.log(`[Email] Delivered successfully via SMTP to ${cleanTo}`);
+      return { success: true, provider: "smtp" };
+    } catch (smtpErr: any) {
+      console.error("[Email] SMTP send failed:", smtpErr?.message);
+      if (!resend) {
+        return { success: false, error: smtpErr?.message || "SMTP delivery failed", provider: "smtp" };
+      }
+    }
+  }
+
+  // 2. Dispatch via Resend
+  if (resend) {
+    try {
+      const fromEmail = process.env.RESEND_FROM_EMAIL || "SplitLedger AI <onboarding@resend.dev>";
+      const result = await resend.emails.send({
+        from: fromEmail,
+        to: cleanTo,
+        subject,
+        html,
+      });
+
+      if (result.error) {
+        const errorMsg = result.error.message || JSON.stringify(result.error);
+        console.error("[Email] Resend API error:", errorMsg);
+
+        const isSandbox = errorMsg.toLowerCase().includes("only send testing emails to your own email address") ||
+                          errorMsg.toLowerCase().includes("verify a domain");
+
+        return {
+          success: false,
+          error: isSandbox
+            ? "Resend test domain (onboarding@resend.dev) is restricted to your registered account email (dipakpawar3747@gmail.com). To send to all organizations and email IDs, add and verify a custom domain at resend.com/domains (set RESEND_FROM_EMAIL in .env) OR configure SMTP_USER & SMTP_PASS (or Gmail App Password) in .env."
+            : errorMsg,
+          isSandboxRestriction: isSandbox,
+          provider: "resend",
+        };
+      }
+
+      console.log(`[Email] Delivered successfully via Resend to ${cleanTo}`);
+      return { success: true, provider: "resend" };
+    } catch (resendErr: any) {
+      console.error("[Email] Resend exception:", resendErr);
+      return { success: false, error: resendErr?.message || "Resend delivery error", provider: "resend" };
+    }
+  }
+
+  return {
+    success: false,
+    error: "No email service configured. Please set RESEND_API_KEY or SMTP credentials in .env.",
+  };
+}
 
 export async function sendEmailNotification(
   to: string,
   subject: string,
   html: string
-) {
-  try {
-    if (!resend) {
-      console.warn("RESEND_API_KEY not configured, skipping email notification");
-      return false;
-    }
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "SplitLedger AI <onboarding@resend.dev>";
-    const result = await resend.emails.send({
-      from: fromEmail,
-      to,
-      subject,
-      html,
-    });
-    if (result.error) {
-      console.error("Resend API error sending email:", result.error);
-      return false;
-    }
-    return true;
-  } catch (error) {
-    console.error("Email notification failed:", error);
-    return false;
-  }
+): Promise<boolean> {
+  const res = await sendEmailWithStatus(to, subject, html);
+  return res.success;
 }
 
 export async function createNotification(data: {

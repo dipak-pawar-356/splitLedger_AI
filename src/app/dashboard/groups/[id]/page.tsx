@@ -67,39 +67,14 @@ export default async function GroupDetailPage({
   try {
     [financialData, groupActivities] = await Promise.all([
       getGroupFinancialDetails(publicId),
-      getGroupActivityTimeline(publicId, 50),
+      getGroupActivityTimeline(publicId, 20),
     ]);
   } catch (error) {
     redirect("/dashboard/groups");
   }
 
-  const { group, overview, members, settlements, expenseSummary, insights, adminData } = financialData;
-
-  // Fetch full expenses for Expenses Tab
-  const payerUser = alias(users, "payer_user");
-  const groupExpenses = await db
-    .select({
-      id: transactions.id,
-      publicId: transactions.publicId,
-      title: transactions.title,
-      description: transactions.description,
-      type: transactions.type,
-      amount: transactions.amount,
-      currency: transactions.currency,
-      date: transactions.date,
-      status: transactions.status,
-      receiptUrl: transactions.receiptUrl,
-      paymentMethod: transactions.paymentMethod,
-      categoryName: categories.name,
-      paidByName: payerUser.name,
-      paidByContactName: contacts.name,
-    })
-    .from(transactions)
-    .leftJoin(payerUser, eq(transactions.paidBy, payerUser.id))
-    .leftJoin(contacts, eq(transactions.paidByContact, contacts.id))
-    .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(and(eq(transactions.groupId, group.id), eq(transactions.isDeleted, false)))
-    .orderBy(desc(transactions.date));
+  const { group, overview, members, settlements, expenseSummary, insights, adminData, expenses } = financialData;
+  const groupExpenses = expenses || [];
 
   const mappedMembersForDialog = members.map((m) => ({
     id: m.id,
@@ -115,7 +90,7 @@ export default async function GroupDetailPage({
       {/* Top Header Navigation & Quick Actions (SECTION 10) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard/groups">
+          <Link href="/dashboard/groups" prefetch={true}>
             <Button variant="ghost" size="sm" className="rounded-xl text-xs gap-1">
               <ArrowLeft className="h-4 w-4" />
               <span>Back to Groups</span>
@@ -257,6 +232,8 @@ export default async function GroupDetailPage({
                 groupName={group.name}
                 isCurrentUserAdmin={group.isAdmin}
                 isGroupOwner={group.isOwner}
+                currentUserId={user.id}
+                currentUserEmail={user.email}
               />
             ))}
           </div>

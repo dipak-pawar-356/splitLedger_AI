@@ -4,7 +4,8 @@ import GlobalSearch from "@/components/global-search";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { NotificationBell } from "@/components/notification-bell";
 import { ProfileMenu } from "@/components/profile-menu";
-import { Menu } from "lucide-react";
+import Link from "next/link";
+import { Sparkles, Menu } from "lucide-react";
 import { useSidebar } from "@/components/layout/sidebar-context";
 
 export function Header() {
@@ -22,6 +23,16 @@ export function Header() {
         >
           <Menu className="h-5 w-5" />
         </button>
+
+        <Link href="/dashboard" className="lg:hidden flex items-center gap-1.5 shrink-0 mr-1">
+          <div className="p-1 rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="h-4 w-4 text-primary" />
+          </div>
+          <span className="font-bold text-xs tracking-tight text-slate-900 dark:text-slate-100">
+            SplitLedger <span className="text-primary text-[9px] font-bold px-1 py-0.2 rounded bg-primary/10">AI</span>
+          </span>
+        </Link>
+
         <GlobalSearch />
       </div>
 

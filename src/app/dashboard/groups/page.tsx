@@ -75,31 +75,35 @@ export default async function GroupsPage({
     let allUserSplits: { transactionId: number; amount: number }[] = [];
 
     if (groupIds.length > 0) {
-      allMembers = await db
-        .select({
-          groupId: groupMembers.groupId,
-          isGuest: groupMembers.isGuest,
-          isAdmin: groupMembers.isAdmin,
-          userId: groupMembers.userId,
-        })
-        .from(groupMembers)
-        .where(inArray(groupMembers.groupId, groupIds));
+      const [membersResult, expensesResult] = await Promise.all([
+        db
+          .select({
+            groupId: groupMembers.groupId,
+            isGuest: groupMembers.isGuest,
+            isAdmin: groupMembers.isAdmin,
+            userId: groupMembers.userId,
+          })
+          .from(groupMembers)
+          .where(inArray(groupMembers.groupId, groupIds)),
+        db
+          .select({
+            id: transactions.id,
+            groupId: transactions.groupId,
+            amount: transactions.amount,
+            paidBy: transactions.paidBy,
+            date: transactions.date,
+          })
+          .from(transactions)
+          .where(
+            and(
+              inArray(transactions.groupId, groupIds),
+              eq(transactions.isDeleted, false)
+            )
+          ),
+      ]);
 
-      allGroupExpenses = await db
-        .select({
-          id: transactions.id,
-          groupId: transactions.groupId,
-          amount: transactions.amount,
-          paidBy: transactions.paidBy,
-          date: transactions.date,
-        })
-        .from(transactions)
-        .where(
-          and(
-            inArray(transactions.groupId, groupIds),
-            eq(transactions.isDeleted, false)
-          )
-        );
+      allMembers = membersResult;
+      allGroupExpenses = expensesResult;
 
       const txIds = allGroupExpenses.map((t) => t.id);
       if (txIds.length > 0) {
@@ -410,7 +414,7 @@ function GroupCardItem({ group, userId }: { group: any; userId: number }) {
         <CardHeader className="pb-3 pt-3.5 px-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <Link href={`/dashboard/groups/${group.publicId}`}>
+              <Link href={`/dashboard/groups/${group.publicId}`} prefetch={true}>
                 <CardTitle className="text-lg font-black text-slate-900 dark:text-slate-100 hover:text-primary transition-colors truncate tracking-tight">
                   {group.name}
                 </CardTitle>
@@ -518,7 +522,7 @@ function GroupCardItem({ group, userId }: { group: any; userId: number }) {
 
       {/* Card Action Links Toolbar */}
       <div className="p-3 bg-slate-50/60 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
-        <Link href={`/dashboard/groups/${group.publicId}`} className="flex-1">
+        <Link href={`/dashboard/groups/${group.publicId}`} prefetch={true} className="flex-1">
           <Button size="sm" className="w-full text-xs font-bold shadow-sm">
             View Group Ledger
             <ArrowRight className="h-3.5 w-3.5 ml-1.5" />

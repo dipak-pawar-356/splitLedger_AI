@@ -116,16 +116,18 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     }
 
     try {
-      // Update invitation status
-      await db
-        .update(invitations)
-        .set({ 
-          status: 'accepted',
-          acceptedAt: new Date(),
-          mergedUserId: userToJoin.id,
-          updatedAt: new Date()
-        })
-        .where(eq(invitations.id, invitation.id));
+      // Update invitation status (only if dedicated personal invite, not general public share/QR link)
+      if (invitation.email !== "invite@splitledger.app") {
+        await db
+          .update(invitations)
+          .set({ 
+            status: 'accepted',
+            acceptedAt: new Date(),
+            mergedUserId: userToJoin.id,
+            updatedAt: new Date()
+          })
+          .where(eq(invitations.id, invitation.id));
+      }
 
       // If there was a guest contact, merge it
       if (invitation.guestContactId) {
@@ -196,31 +198,35 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
       revalidatePath(`/dashboard/groups/${group.id}`);
       revalidatePath('/dashboard/groups');
       revalidatePath('/dashboard');
-      redirect(`/dashboard/groups/${group.publicId}`);
     } catch (error) {
       console.error('Error joining group:', error);
       throw error;
     }
+
+    redirect(`/dashboard/groups/${group.publicId}`);
   }
 
   async function handleDecline() {
     "use server";
     try {
-      await db
-        .update(invitations)
-        .set({ 
-          status: 'rejected',
-          rejectedAt: new Date(),
-          updatedAt: new Date()
-        })
-        .where(eq(invitations.id, invitation.id));
+      if (invitation.email !== "invite@splitledger.app") {
+        await db
+          .update(invitations)
+          .set({ 
+            status: 'rejected',
+            rejectedAt: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(invitations.id, invitation.id));
+      }
 
       revalidatePath('/dashboard');
-      redirect('/dashboard');
     } catch (error) {
       console.error('Error declining invitation:', error);
       throw error;
     }
+
+    redirect('/dashboard');
   }
 
   return (

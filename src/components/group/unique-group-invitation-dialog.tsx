@@ -33,7 +33,7 @@ import {
   resendInvitation
 } from "@/actions/invitations";
 import { toast } from "sonner";
-import { formatDate, formatRelativeTime } from "@/lib/utils";
+import { formatDate, formatRelativeTime, generateInvitationUrl } from "@/lib/utils";
 
 interface UniqueGroupInvitationDialogProps {
   groupId: number | string;
@@ -166,13 +166,26 @@ export function UniqueGroupInvitationDialog({
     }
     setActionLoading(true);
     try {
-      await createInvitation({
+      const res = await createInvitation({
         groupId,
         email: email.trim(),
         name: name.trim() || undefined,
         phone: phone.trim() || undefined,
       });
-      toast.success(`Invitation sent to ${email.trim()}`);
+
+      if (res.emailSent) {
+        toast.success(`Invitation email delivered to ${email.trim()}!`);
+      } else if (res.isSandboxRestriction) {
+        toast.warning(
+          `Invite link created, but Resend is in free sandbox mode (only sends to account email). Add Gmail App Password in .env to email any address!`,
+          { duration: 8000 }
+        );
+      } else if (res.emailError) {
+        toast.warning(`Invite link created, but email dispatch failed: ${res.emailError}`, { duration: 6000 });
+      } else {
+        toast.success(`Invitation link created for ${email.trim()}`);
+      }
+
       setEmail("");
       setName("");
       setPhone("");
@@ -197,8 +210,16 @@ export function UniqueGroupInvitationDialog({
 
   const handleResendSingleInvite = async (inviteId: number) => {
     try {
-      await resendInvitation(inviteId);
-      toast.success("Invitation refreshed and resent");
+      const res = await resendInvitation(inviteId);
+      if (res.emailSent) {
+        toast.success("Invitation refreshed and email delivered!");
+      } else if (res.isSandboxRestriction) {
+        toast.warning("Invitation link refreshed. (Resend sandbox only sends to registered email. Configure Gmail SMTP in .env to email anyone)", { duration: 7000 });
+      } else if (res.emailError) {
+        toast.warning(`Invitation link refreshed, but email dispatch failed: ${res.emailError}`, { duration: 6000 });
+      } else {
+        toast.success("Invitation refreshed successfully");
+      }
       await loadHistoryData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to resend invitation");
@@ -433,6 +454,84 @@ export function UniqueGroupInvitationDialog({
             <TabsContent value="history" className="space-y-4 pt-4">
               {history ? (
                 <div className="space-y-4">
+                  {/* Pending Invitations */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      <span>Pending Invitations ({history.pending.length})</span>
+                    </div>
+                    {history.pending.length > 0 ? (
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800 border rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
+                        {history.pending.map((inv) => {
+                          const isPublicShare = inv.email === "invite@splitledger.app";
+                          const directUrl = inv.token ? generateInvitationUrl(inv.token) : "";
+                          return (
+                            <div key={inv.id} className="p-3 flex items-center justify-between text-xs gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="font-bold text-slate-900 dark:text-slate-100 truncate">
+                                    {isPublicShare ? "Public Share Link / QR Code" : inv.email}
+                                  </p>
+                                  {isPublicShare ? (
+                                    <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                                      Reusable Link / QR
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[10px] text-slate-500">
+                                      Email Invite
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  Expires: {formatDate(inv.expiresAt)}
+                                  {inv.name ? ` • Name: ${inv.name}` : ""}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {directUrl && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(directUrl);
+                                      toast.success("Invitation link copied!");
+                                    }}
+                                    className="h-7 text-[11px] px-2 gap-1 text-slate-600 dark:text-slate-300"
+                                    title="Copy Invite URL"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                    <span>Copy</span>
+                                  </Button>
+                                )}
+                                {!isPublicShare && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleResendSingleInvite(inv.id)}
+                                    className="h-7 text-[11px] px-2 text-primary hover:text-primary"
+                                  >
+                                    Resend
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleCancelSingleInvite(inv.id)}
+                                  className="h-7 text-[11px] px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic p-2 border rounded-2xl bg-slate-50/50 dark:bg-slate-900/30">
+                        No active pending invitations.
+                      </p>
+                    )}
+                  </div>
+
                   {/* Joined Members */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -453,44 +552,63 @@ export function UniqueGroupInvitationDialog({
                     </div>
                   </div>
 
-                  {/* Pending Invitations */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      <span>Pending Invitations ({history.pending.length})</span>
-                    </div>
-                    {history.pending.length > 0 ? (
-                      <div className="divide-y divide-slate-100 dark:divide-slate-800 border rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
-                        {history.pending.map((inv) => (
-                          <div key={inv.id} className="p-3 flex items-center justify-between text-xs">
-                            <div>
-                              <p className="font-bold text-slate-900 dark:text-slate-100">{inv.email}</p>
-                              <p className="text-[11px] text-slate-400">Expires: {formatDate(inv.expiresAt)}</p>
+                  {/* Past / Completed Invitations Log */}
+                  {((history.accepted && history.accepted.length > 0) ||
+                    (history.expired && history.expired.length > 0) ||
+                    (history.cancelled && history.cancelled.length > 0)) && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        <span>
+                          Past Invitations History (
+                          {(history.accepted?.length || 0) +
+                            (history.expired?.length || 0) +
+                            (history.cancelled?.length || 0)}
+                          )
+                        </span>
+                      </div>
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800 border rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30 max-h-48 overflow-y-auto">
+                        {history.accepted?.map((inv: any) => (
+                          <div key={inv.id} className="p-2.5 flex items-center justify-between text-xs">
+                            <div className="truncate mr-2">
+                              <p className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                                {inv.email === "invite@splitledger.app" ? "Public Link / QR" : inv.email}
+                              </p>
+                              <p className="text-[10px] text-slate-400">Accepted {formatDate(inv.acceptedAt)}</p>
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleResendSingleInvite(inv.id)}
-                                className="h-7 text-[11px] px-2"
-                              >
-                                Refresh
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleCancelSingleInvite(inv.id)}
-                                className="h-7 text-[11px] px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                              >
-                                Cancel
-                              </Button>
+                            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] shrink-0">
+                              Accepted
+                            </Badge>
+                          </div>
+                        ))}
+                        {history.cancelled?.map((inv: any) => (
+                          <div key={inv.id} className="p-2.5 flex items-center justify-between text-xs">
+                            <div className="truncate mr-2">
+                              <p className="font-medium text-slate-600 dark:text-slate-400 truncate">
+                                {inv.email === "invite@splitledger.app" ? "Public Link / QR" : inv.email}
+                              </p>
+                              <p className="text-[10px] text-slate-400">Cancelled {formatDate(inv.cancelledAt)}</p>
                             </div>
+                            <Badge variant="outline" className="text-[10px] text-rose-500 border-rose-200 dark:border-rose-900 shrink-0">
+                              Cancelled
+                            </Badge>
+                          </div>
+                        ))}
+                        {history.expired?.map((inv: any) => (
+                          <div key={inv.id} className="p-2.5 flex items-center justify-between text-xs">
+                            <div className="truncate mr-2">
+                              <p className="font-medium text-slate-500 truncate">
+                                {inv.email === "invite@splitledger.app" ? "Public Link / QR" : inv.email}
+                              </p>
+                              <p className="text-[10px] text-slate-400">Expired {formatDate(inv.expiresAt)}</p>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] text-slate-400 shrink-0">
+                              Expired
+                            </Badge>
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic p-2">No pending invitations.</p>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="py-8 text-center text-xs text-slate-400">

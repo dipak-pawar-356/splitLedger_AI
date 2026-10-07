@@ -3,7 +3,9 @@ import type { NextConfig } from "next";
 // Ensure Next.js internal Server Action forwarding connects via HTTP in dev mode, preventing HeadersTimeoutError
 if (!process.env.__NEXT_PRIVATE_ORIGIN) {
   process.env.__NEXT_PRIVATE_ORIGIN =
-    process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+    process.env.NODE_ENV === "production"
+      ? (process.env.NEXT_PUBLIC_APP_URL || "https://split-ledger-ai.vercel.app")
+      : `http://localhost:${process.env.PORT || 3000}`;
 }
 
 // Ensure valid Clerk publishable and secret keys format so static prerendering never fails in CI/CD without env vars

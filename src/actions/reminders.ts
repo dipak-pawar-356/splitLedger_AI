@@ -14,7 +14,7 @@ import { eq, and, desc, or, ilike, inArray, isNull } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, AuthorizationError, ForbiddenError, DatabaseError } from "@/lib/errors";
-import { sendEmailNotification } from "@/lib/notifications";
+import { sendEmailNotification, sendEmailWithStatus, type EmailSendResult } from "@/lib/notifications";
 import { generateWhatsAppLink, formatCurrency } from "@/lib/utils";
 
 export interface CreateReminderInput {
@@ -278,8 +278,14 @@ export async function createReminder(data: CreateReminderInput) {
     }
 
     // 8. If Email method requested, dispatch email asynchronously
+    let emailResult: EmailSendResult | null = null;
     if (data.method === "email" && data.recipientEmail) {
       try {
+        const rawEmails = data.recipientEmail
+          .split(/[,;]/)
+          .map((e) => e.trim())
+          .filter((e) => Boolean(e) && e.includes("@"));
+
         const subject = `Payment Reminder: ${data.amount ? formatCurrency(data.amount) : "Pending Shared Expense"}`;
         const html = `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
@@ -288,12 +294,12 @@ export async function createReminder(data: CreateReminderInput) {
             </div>
             <h2 style="color: #0f172a; margin-top: 0; font-size: 20px;">Payment Reminder from ${user.name || "A friend"}</h2>
             <div style="background-color: #f8fafc; border-radius: 12px; padding: 16px; margin: 16px 0; border: 1px solid #e2e8f0;">
-              <p style="font-size: 14px; color: #334155; line-height: 1.6; margin: 0;">${data.message.replace(/\n/g, "<br/>")}</p>
+              <p style="font-size: 14px; color: #334155; line-height: 1.6; margin: 0; white-space: pre-wrap;">${data.message.replace(/\n/g, "<br/>")}</p>
             </div>
             ${
               data.amount
                 ? `<div style="margin: 20px 0; padding: 16px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; border: 1px solid #bbf7d0;">
-                    <span style="font-size: 12px; color: #166534; font-weight: 600; text-transform: uppercase;">Amount Due</span>
+                    <span style="font-size: 12px; color: #166534; font-weight: 600; text-transform: uppercase;">Total Amount Due</span>
                     <div style="font-size: 24px; font-weight: 900; color: #15803d; margin-top: 4px;">${formatCurrency(data.amount)}</div>
                    </div>`
                 : ""
@@ -302,9 +308,27 @@ export async function createReminder(data: CreateReminderInput) {
             <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">Sent securely via SplitLedger AI</p>
           </div>
         `;
-        await sendEmailNotification(data.recipientEmail, subject, html);
-      } catch (err) {
+
+        if (rawEmails.length <= 1) {
+          const target = rawEmails[0] || data.recipientEmail.trim();
+          emailResult = await sendEmailWithStatus(target, subject, html);
+        } else {
+          let lastRes: EmailSendResult = { success: true };
+          for (const target of rawEmails) {
+            const res = await sendEmailWithStatus(target, subject, html);
+            if (!res.success) {
+              lastRes = res;
+            }
+          }
+          emailResult = lastRes;
+        }
+
+        if (!emailResult.success) {
+          console.warn("Reminder email dispatch returned failure:", emailResult.error);
+        }
+      } catch (err: any) {
         console.error("Non-fatal: Failed to send reminder email:", err);
+        emailResult = { success: false, error: err?.message || "Failed to dispatch email" };
       }
     }
 
@@ -326,6 +350,10 @@ export async function createReminder(data: CreateReminderInput) {
       success: true,
       reminder: newReminder,
       whatsappLink,
+      emailSent: emailResult ? emailResult.success : undefined,
+      emailError: emailResult?.error,
+      isSandboxRestriction: emailResult?.isSandboxRestriction,
+      emailProvider: emailResult?.provider,
     };
   } catch (error) {
     if (

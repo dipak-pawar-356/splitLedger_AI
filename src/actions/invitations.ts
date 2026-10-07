@@ -7,7 +7,7 @@ import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, ConflictError, AuthorizationError } from "@/lib/errors";
 import { generateSecureToken, generateInvitationUrl, generateInvitationId, generateWhatsAppLink } from "@/lib/utils";
-import { sendEmailNotification, getInvitationEmailTemplate, getInvitationWhatsAppMessage } from "@/lib/notifications";
+import { sendEmailNotification, sendEmailWithStatus, getInvitationEmailTemplate, getInvitationWhatsAppMessage, type EmailSendResult } from "@/lib/notifications";
 
 export async function getOrCreateGroupInviteLink(groupIdOrPublicId: string | number) {
   try {
@@ -131,23 +131,15 @@ export async function createInvitation(data: {
       throw new NotFoundError("Group");
     }
 
-    // Check if user is admin/owner of the group
-    if (group.createdBy !== user.id) {
-      const [adminMember] = await db
-        .select()
-        .from(groupMembers)
-        .where(
-          and(
-            eq(groupMembers.groupId, group.id),
-            eq(groupMembers.userId, user.id),
-            eq(groupMembers.isAdmin, true)
-          )
-        )
-        .limit(1);
+    // Check if user is a member/owner of the group
+    const [membership] = await db
+      .select()
+      .from(groupMembers)
+      .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userId, user.id)))
+      .limit(1);
 
-      if (!adminMember) {
-        throw new AuthorizationError("Only group admins or owners can send email invitations");
-      }
+    if (!membership && group.createdBy !== user.id) {
+      throw new AuthorizationError("You must be a member of this group to send invitations");
     }
 
     const cleanEmail = data.email.trim().toLowerCase();
@@ -165,39 +157,47 @@ export async function createInvitation(data: {
       )
       .limit(1);
 
-    if (existingInvitation) {
-      const invitationUrl = generateInvitationUrl(existingInvitation.token);
-      return {
-        invitation: existingInvitation,
-        invitationUrl,
-        whatsappLink: data.phone ? generateWhatsAppLink(data.phone, getInvitationWhatsAppMessage(group.name, user.name || "Someone", invitationUrl)) : null,
-      };
-    }
-
-    // Generate secure token
+    // Generate secure token and 7-day expiration
     const token = generateSecureToken();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Create invitation
-    const [invitation] = await db
-      .insert(invitations)
-      .values({
-        publicId: generateInvitationId(),
-        groupId: group.id,
-        invitedBy: user.id,
-        email: cleanEmail,
-        phone: data.phone?.trim() || null,
-        name: data.name?.trim() || null,
-        token,
-        status: "pending",
-        expiresAt,
-      })
-      .returning();
+    let invitationRecord: any;
+
+    if (existingInvitation) {
+      // Refresh token and expiration for existing pending invite
+      const [updated] = await db
+        .update(invitations)
+        .set({
+          token,
+          expiresAt,
+          updatedAt: new Date(),
+        })
+        .where(eq(invitations.id, existingInvitation.id))
+        .returning();
+      invitationRecord = updated;
+    } else {
+      const [inserted] = await db
+        .insert(invitations)
+        .values({
+          publicId: generateInvitationId(),
+          groupId: group.id,
+          invitedBy: user.id,
+          email: cleanEmail,
+          phone: data.phone?.trim() || null,
+          name: data.name?.trim() || null,
+          token,
+          status: "pending",
+          expiresAt,
+        })
+        .returning();
+      invitationRecord = inserted;
+    }
 
     const invitationUrl = generateInvitationUrl(token);
 
-    // Send email notification
+    // Send email notification with status tracking
+    let emailResult: EmailSendResult = { success: false };
     try {
       const { subject, html } = getInvitationEmailTemplate(
         group.name,
@@ -205,18 +205,22 @@ export async function createInvitation(data: {
         invitationUrl,
         expiresAt
       );
-      await sendEmailNotification(cleanEmail, subject, html);
-    } catch (err) {
+      emailResult = await sendEmailWithStatus(cleanEmail, subject, html);
+    } catch (err: any) {
       console.error("Non-fatal: Failed to send invitation email:", err);
+      emailResult = { success: false, error: err?.message || "Failed to dispatch email" };
     }
 
     revalidatePath(`/dashboard/groups/${group.publicId}`);
     revalidatePath(`/dashboard/groups/${group.id}`);
     
     return {
-      invitation,
+      invitation: invitationRecord,
       invitationUrl,
       whatsappLink: data.phone ? generateWhatsAppLink(data.phone, getInvitationWhatsAppMessage(group.name, user.name || "Someone", invitationUrl)) : null,
+      emailSent: emailResult.success,
+      emailError: emailResult.error,
+      isSandboxRestriction: emailResult.isSandboxRestriction,
     };
   } catch (error) {
     if (error instanceof ValidationError || error instanceof AuthorizationError || error instanceof ConflictError || error instanceof NotFoundError) {
@@ -428,10 +432,36 @@ export async function resendInvitation(invitationId: number) {
 
     const invitationUrl = generateInvitationUrl(newToken);
 
+    // Fetch group details to compose invitation email
+    const [group] = await db
+      .select({ name: groups.name })
+      .from(groups)
+      .where(eq(groups.id, invitation.groupId))
+      .limit(1);
+
+    let emailResult: EmailSendResult = { success: false };
+    if (group && updatedInvitation.email && updatedInvitation.email !== "invite@splitledger.app") {
+      try {
+        const { subject, html } = getInvitationEmailTemplate(
+          group.name,
+          user.name || "Someone",
+          invitationUrl,
+          newExpiresAt
+        );
+        emailResult = await sendEmailWithStatus(updatedInvitation.email, subject, html);
+      } catch (emailErr: any) {
+        console.error("Non-fatal: Failed to resend invitation email:", emailErr);
+        emailResult = { success: false, error: emailErr?.message || "Failed to dispatch email" };
+      }
+    }
+
     revalidatePath(`/dashboard/groups/${invitation.groupId}`);
     return {
       invitation: updatedInvitation,
       invitationUrl,
+      emailSent: emailResult.success,
+      emailError: emailResult.error,
+      isSandboxRestriction: emailResult.isSandboxRestriction,
     };
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof AuthorizationError || error instanceof ValidationError) {
