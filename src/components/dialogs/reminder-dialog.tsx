@@ -24,7 +24,7 @@ import {
   Info,
   CheckCircle2
 } from "lucide-react";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, cn, getBaseAppUrl } from "@/lib/utils";
 import { createReminder } from "@/actions/reminders";
 import { toast } from "sonner";
 
@@ -54,6 +54,11 @@ interface ReminderDialogProps {
   onSuccess?: () => void;
   owesToList?: CreditorDebtItem[];
   receivesFromList?: CreditorDebtItem[];
+  totalGroupExpense?: number;
+  totalMembers?: number;
+  memberPaidAmount?: number;
+  memberOwnShare?: number;
+  memberNetPosition?: number;
 }
 
 export function ReminderDialog({ 
@@ -73,6 +78,11 @@ export function ReminderDialog({
   onSuccess,
   owesToList = [],
   receivesFromList = [],
+  totalGroupExpense,
+  totalMembers,
+  memberPaidAmount,
+  memberOwnShare,
+  memberNetPosition,
 }: ReminderDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
@@ -106,67 +116,293 @@ export function ReminderDialog({
     creditorItem?: CreditorDebtItem | "all" | null,
     debtorsList?: CreditorDebtItem[]
   ) => {
-    const formattedAmt = amountVal > 0 ? formatCurrency(amountVal) : "the pending amount";
+    const formattedAmt = amountVal > 0 ? formatCurrency(amountVal) : "₹0.00";
     const groupText = groupName ? ` in "${groupName}"` : "";
+    const baseUrl = getBaseAppUrl();
+    const appUrl = groupPublicId ? `${baseUrl}/dashboard/groups/${groupPublicId}` : baseUrl;
 
-    // Multiple debtors selected for creditor (e.g. DIPAK PAWAR & Rahul)
-    if (debtorsList && debtorsList.length > 1 && recipientName) {
-      const namesList = debtorsList.map(d => d.name).join(" and ");
-      const breakdown = debtorsList.map(d => `• ${d.name}: ${formatCurrency(d.amount)}`).join("\n");
-      const totalFormatted = formatCurrency(debtorsList.reduce((sum, d) => sum + d.amount, 0));
+    const hasGroupStats = Boolean(totalGroupExpense && totalGroupExpense > 0);
+    const avgPerPerson = totalMembers && totalMembers > 0 && totalGroupExpense
+      ? totalGroupExpense / totalMembers 
+      : memberOwnShare || 0;
+    
+    const formattedTotalExp = hasGroupStats ? formatCurrency(totalGroupExpense!) : null;
+    const formattedAvgShare = avgPerPerson > 0 ? formatCurrency(avgPerPerson) : null;
+    const formattedPaid = memberPaidAmount !== undefined && memberPaidAmount > 0 ? formatCurrency(memberPaidAmount) : null;
 
-      if (type === "payment") {
-        return `Hey ${namesList}! 👋
+    // Thematic row emoji header and clean divider
+    const headerRow = `✨ ═══════ 💰 ═══════ ✨`;
+    const divider = `━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
-Friendly reminder from SplitLedger AI to settle your pending balances to ${recipientName} for shared expenses${groupText}.
+    // ─────────────────────────────────────────────────────────────
+    // SCENARIO 1: CREDITOR VIEW (Person who paid extra, e.g. Person A)
+    // ─────────────────────────────────────────────────────────────
+    const isCreditorCard = (receivesFromList && receivesFromList.length > 0) || (memberNetPosition !== undefined && memberNetPosition > 0.01);
 
-📋 Pending Payment Breakdown:
-${breakdown}
+    if (isCreditorCard && recipientName) {
+      const extraAmtVal = Math.max(0, memberNetPosition || (memberPaidAmount && avgPerPerson ? memberPaidAmount - avgPerPerson : amountVal));
+      const formattedExtra = formatCurrency(extraAmtVal > 0 ? extraAmtVal : amountVal);
 
-💰 Total Pending: ${totalFormatted}
+      // Subcase 1A: Multiple debtors selected (e.g. DIPAK PAWAR & Rahul)
+      if (debtorsList && debtorsList.length > 1) {
+        const namesList = debtorsList.map(d => d.name).join(" and ");
+        const breakdownLines = debtorsList.map(d => `▫️ *${d.name}:* *${formatCurrency(d.amount)}*`).join("\n");
+        const totalDebtorsAmt = formatCurrency(debtorsList.reduce((sum, d) => sum + d.amount, 0));
 
-${recipientName} is waiting for these payment credits. Please settle up your respective shares when convenient. Thanks!`;
-      } else if (type === "settlement") {
-        return `Hey ${namesList}! 👋
+        if (type === "settlement") {
+          return `${headerRow}
+⚡ *SPLITLEDGER AI — SETTLEMENT AUDIT*
+${divider}
+👥 *Group:* ${groupName || "Shared Expenses"}
+${formattedTotalExp ? `📊 *Total Group Expenses (T):* ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ *Average Fair Share (T/N):* ${formattedAvgShare} per member\n` : ""}${divider}
 
-Here is the settlement summary for our shared expenses${groupText}:
-${breakdown}
+🌟 *CREDIT SUMMARY FOR ${recipientName.toUpperCase()}:*
+*${recipientName}* paid a total of *${formattedPaid || formattedExtra}*, which is an extra *+${formattedExtra}* above the fair share.
 
-Total: ${totalFormatted} pending for ${recipientName}. Let's settle up when you get a chance!`;
-      } else {
-        return `Hey ${namesList}! Quick reminder about our shared expenses${groupText}:
-${breakdown}
+📋 *RECEIVABLES BREAKDOWN:*
+To settle this extra amount, the following members owe *${recipientName}*:
+${breakdownLines}
+${divider}
+💰 *Total Settlement Amount:* *${totalDebtorsAmt}*
 
-Total: ${totalFormatted} to be settled to ${recipientName}. Please check SplitLedger AI to review details. Thanks!`;
+📲 *HOW TO SETTLE:*
+1️⃣ *Pay in App:* Open SplitLedger AI to scan instant UPI QR:
+👉 ${appUrl}
+2️⃣ *Pay Manually:* Transfer via GPay / PhonePe / Paytm / UPI to *${recipientName}*.
+3️⃣ Mark as settled in the app once completed.
+
+🤝 _Please verify and complete payment to balance the ledger. Thanks!_`;
+        }
+
+        if (type === "general") {
+          return `${headerRow}
+🔔 *SPLITLEDGER AI — QUICK CHECK-IN*
+${divider}
+Hey ${namesList}! 👋 Quick reminder regarding our shared group expenses in *${groupName || "our group"}*.
+
+*${recipientName}* paid an extra *+${formattedExtra}* for the group. Pending shares to clear:
+${breakdownLines}
+
+💰 *Total Pending:* *${totalDebtorsAmt}*
+👉 Review & pay on SplitLedger AI: ${appUrl}
+Thanks! 🙏`;
+        }
+
+        // Default "payment" tone
+        return `${headerRow}
+🌟 *SPLITLEDGER AI — PAYMENT REMINDER* 🌟
+${divider}
+👥 *Group:* ${groupName || "Shared Expenses"}
+${formattedTotalExp ? `📊 *Total Group Spending:* ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ *Average Fair Share:* ${formattedAvgShare} per person\n` : ""}${divider}
+
+✨ *CREDIT SUMMARY FOR ${recipientName.toUpperCase()}:*
+*${recipientName}* paid a total of *${formattedPaid || formattedExtra}* (an extra *+${formattedExtra}* over the fair share) to cover our shared expenses.
+
+📋 *PENDING RECEIVABLES (WHO OWES ${recipientName.toUpperCase()}):*
+To settle this amount, *${recipientName}* is due to receive:
+${breakdownLines}
+${divider}
+💰 *Total to be Settled:* *${totalDebtorsAmt}*
+
+📲 *HOW TO SETTLE:*
+1️⃣ *Pay via SplitLedger App:* Open group to scan instant dynamic UPI QR:
+👉 ${appUrl}
+2️⃣ *Pay Manually:* Transfer via GPay / PhonePe / Paytm directly to *${recipientName}*.
+3️⃣ Confirm or record settlement in the group once paid.
+
+🙏 _Please clear your respective shares when convenient. Thank you!_`;
+      }
+
+      // Subcase 1B: Single debtor selected (e.g. DIPAK PAWAR owes Raj Pawar ₹490)
+      if (debtorsList && debtorsList.length === 1) {
+        const d = debtorsList[0];
+        const debtorAmt = formatCurrency(d.amount);
+
+        if (type === "settlement") {
+          return `${headerRow}
+⚡ *SPLITLEDGER AI — SETTLEMENT NOTICE*
+${divider}
+👋 Hi *${d.name}*,
+
+👥 *Group:* ${groupName || "Shared Expenses"}
+${formattedTotalExp ? `📊 *Total Group Spending:* ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ *Per Person Fair Share:* ${formattedAvgShare}\n` : ""}${divider}
+
+🌟 *EXPENSE AUDIT:*
+*${recipientName}* paid a total of *${formattedPaid || formattedExtra}* (an extra *+${formattedExtra}* over the fair share) to cover group costs.
+
+💳 *YOUR PENDING SHARE:*
+▫️ Payable to *${recipientName}:* *${debtorAmt}*
+${divider}
+💰 *Total Due from You:* *${debtorAmt}*
+
+📲 *HOW TO SETTLE:*
+1️⃣ *Pay in App:* Open SplitLedger AI to scan instant UPI QR:
+👉 ${appUrl}
+2️⃣ *Pay Manually:* Transfer directly to *${recipientName}* via GPay / PhonePe / Paytm / UPI.
+3️⃣ Record as settled in the app once paid.
+
+🤝 _Let's keep our group balances cleared. Thank you!_`;
+        }
+
+        if (type === "general") {
+          return `${headerRow}
+🔔 *SPLITLEDGER AI — FRIENDLY REMINDER*
+${divider}
+Hi *${d.name}*! 👋 Just a quick check-in for *${groupName || "our group"}*.
+*${recipientName}* paid extra for the group, and your share of *${debtorAmt}* is pending.
+👉 Settle up on SplitLedger AI: ${appUrl}
+Thank you! 🙏`;
+        }
+
+        // Default "payment" tone
+        return `${headerRow}
+🌟 *SPLITLEDGER AI — PAYMENT REMINDER* 🌟
+${divider}
+👋 Hi *${d.name}*,
+
+👥 *Group:* ${groupName || "Shared Expenses"}
+${formattedTotalExp ? `📊 *Total Group Spending:* ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ *Average Fair Share:* ${formattedAvgShare} per person\n` : ""}${divider}
+
+✨ *SUMMARY:*
+*${recipientName}* paid a total of *${formattedPaid || formattedExtra}* (an extra *+${formattedExtra}* over the fair share) to cover our shared expenses.
+
+💳 *YOUR PENDING SHARE:*
+▫️ Payable to *${recipientName}:* *${debtorAmt}*
+${divider}
+💰 *Total Payable by You:* *${debtorAmt}*
+
+📲 *HOW TO SETTLE:*
+1️⃣ *Pay in App:* Open SplitLedger AI to scan instant dynamic UPI QR:
+👉 ${appUrl}
+2️⃣ *Pay Manually:* Transfer directly to *${recipientName}* via GPay / PhonePe / Paytm / UPI.
+3️⃣ Mark as settled in the app once transferred.
+
+🤝 _Please settle up when convenient to keep group balances square. Thank you!_`;
       }
     }
 
-    // Single debtor selected for creditor
-    if (debtorsList && debtorsList.length === 1 && recipientName) {
-      const debtor = debtorsList[0];
-      const debtorAmt = formatCurrency(debtor.amount);
-      return `Hey ${debtor.name}! 👋 Friendly reminder from SplitLedger AI to settle ${debtorAmt} to ${recipientName} for shared expenses${groupText}. ${recipientName} is waiting for this payment credit. Please settle up when convenient. Thanks!`;
+    // ─────────────────────────────────────────────────────────────
+    // SCENARIO 2: DEBTOR VIEW (Person who paid less than share, e.g. Person B / C)
+    // ─────────────────────────────────────────────────────────────
+    const isDebtorCard = (owesToList && owesToList.length > 0) || (memberNetPosition !== undefined && memberNetPosition < -0.01);
+
+    if (isDebtorCard && recipientName) {
+      const shortfallVal = Math.abs(memberNetPosition || (avgPerPerson && memberPaidAmount ? avgPerPerson - memberPaidAmount : amountVal));
+      const formattedShortfall = formatCurrency(shortfallVal > 0 ? shortfallVal : amountVal);
+
+      let creditors: CreditorDebtItem[] = [];
+      if (creditorItem === "all" || !creditorItem) {
+        creditors = owesToList || [];
+      } else {
+        creditors = [creditorItem];
+      }
+
+      const creditorLines = creditors.length > 0
+        ? creditors.map(c => `▫️ Pay to *${c.name}:* *${formatCurrency(c.amount)}*`).join("\n")
+        : `▫️ Pay to *Creditor:* *${formattedAmt}*`;
+
+      const totalPayableAmt = creditors.length > 0
+        ? formatCurrency(creditors.reduce((sum, c) => sum + c.amount, 0))
+        : formattedAmt;
+
+      if (type === "settlement") {
+        return `${headerRow}
+⚡ *SPLITLEDGER AI — SETTLEMENT AUDIT*
+${divider}
+👋 Hi *${recipientName}*,
+
+Official settlement audit summary for *${groupName || "our group"}*.
+
+📊 *LEDGER BREAKDOWN:*
+${formattedTotalExp ? `▪️ Total Group Expenses: *${formattedTotalExp}*\n` : ""}${formattedAvgShare ? `▪️ Per Person Fair Share: *${formattedAvgShare}*\n` : ""}${formattedPaid ? `▪️ Amount You Paid: *${formattedPaid}*\n` : ""}⚠️ *Shortfall (You Paid Less Than You Owe):* *-${formattedShortfall}*
+${divider}
+
+💳 *ACTION REQUIRED (WHO TO PAY):*
+Please settle your pending share with the following member(s):
+${creditorLines}
+${divider}
+💰 *Total Payable Amount:* *${totalPayableAmt}*
+
+📲 *HOW TO SETTLE:*
+1️⃣ *Pay in App:* Open SplitLedger AI to scan instant UPI QR:
+👉 ${appUrl}
+2️⃣ *Pay Manually:* Transfer via GPay / PhonePe / Paytm / UPI to the payee(s).
+3️⃣ Confirm settlement in the app once transferred.
+
+🤝 _Let's balance the ledger. Thank you!_`;
+      }
+
+      if (type === "general") {
+        return `${headerRow}
+🔔 *SPLITLEDGER AI — FRIENDLY REMINDER*
+${divider}
+Hi *${recipientName}*! 👋 Just a quick reminder about *${groupName || "our group"}*.
+You have a pending settlement balance of *${totalPayableAmt}*.
+${creditorLines}
+👉 Pay & confirm in SplitLedger AI: ${appUrl}
+Thanks! 🙏`;
+      }
+
+      // Default "payment" tone
+      return `${headerRow}
+🌟 *SPLITLEDGER AI — SETTLEMENT REMINDER* 🌟
+${divider}
+👋 Hi *${recipientName}*,
+
+This is a friendly reminder regarding your pending balance in *${groupName || "our group"}*.
+
+📊 *EXPENSE & SHARE SUMMARY:*
+${formattedTotalExp ? `▪️ Total Group Spending: *${formattedTotalExp}*\n` : ""}${formattedAvgShare ? `▪️ Per Person Fair Share: *${formattedAvgShare}*\n` : ""}${formattedPaid ? `▪️ Amount You Paid: *${formattedPaid}*\n` : ""}⚠️ *Shortfall (You Paid Less Than You Owe):* *-${formattedShortfall}*
+${divider}
+
+💳 *PAYMENT BREAKDOWN (WHO TO PAY):*
+Please settle your pending share with the following member(s):
+${creditorLines}
+${divider}
+💰 *Total Payable Amount:* *${totalPayableAmt}*
+
+📲 *HOW TO PAY:*
+1️⃣ *Pay in App:* Open SplitLedger AI to scan instant dynamic UPI QR:
+👉 ${appUrl}
+2️⃣ *Pay Manually:* Transfer directly via GPay / PhonePe / Paytm / UPI.
+3️⃣ Mark as paid in the app once completed.
+
+🤝 _Let's keep our group balances cleared! Thank you!_`;
     }
 
-    const greetingName = nameVal ? nameVal : "there";
+    // ─────────────────────────────────────────────────────────────
+    // SCENARIO 3: GENERAL / CONTACT FALLBACK
+    // ─────────────────────────────────────────────────────────────
+    const greetingName = nameVal || recipientName || "Friend";
+    return `${headerRow}
+🌟 *SPLITLEDGER AI — PAYMENT REMINDER* 🌟
+${divider}
+👋 Hi *${greetingName}*,
 
-    // Debtor is being reminded to pay someone specific who gets credit
-    if (creditorItem && creditorItem !== "all") {
-      return `Hey ${greetingName}! 👋 Just a friendly reminder from SplitLedger AI to settle ${formattedAmt} to ${creditorItem.name} for shared expenses${groupText}. ${creditorItem.name} will receive this payment credit. Please settle up when convenient. Thanks!`;
-    }
+Just a friendly reminder regarding shared expenses${groupText}.
 
-    if (creditorItem === "all") {
-      return `Hey ${greetingName}! 👋 Friendly reminder from SplitLedger AI to settle your total pending dues of ${formattedAmt} for our shared expenses${groupText}. All respective members will receive their payment credit upon settlement. Thanks!`;
-    }
+💳 *PAYMENT DETAILS:*
+▫️ Total Pending Amount: *${formattedAmt}*
+${divider}
 
-    if (type === "payment") {
-      return `Hey ${greetingName}! 👋 Just a friendly reminder to settle ${formattedAmt} for our shared expenses${groupText} on SplitLedger. You can settle it when convenient. Thanks!`;
-    } else if (type === "settlement") {
-      return `Hey ${greetingName}! We have pending settlements totaling ${formattedAmt}${groupText}. Let's settle up when you get a chance!`;
-    } else {
-      return `Hey ${greetingName}! Just a quick reminder about our shared expenses${groupText}. Please check SplitLedger to review the breakdown.`;
-    }
-  }, [groupName, recipientName]);
+📲 *HOW TO SETTLE:*
+1️⃣ *Pay in App:* Open SplitLedger AI to view breakdown and scan UPI QR:
+👉 ${appUrl}
+2️⃣ *Pay Manually:* Transfer via GPay / PhonePe / Paytm / UPI.
+
+🙏 _Please settle when convenient. Thanks!_`;
+  }, [
+    groupName, 
+    groupPublicId, 
+    recipientName, 
+    totalGroupExpense, 
+    totalMembers, 
+    memberPaidAmount, 
+    memberOwnShare, 
+    memberNetPosition, 
+    receivesFromList, 
+    owesToList
+  ]);
 
   const applyDebtorSelection = useCallback((list: CreditorDebtItem[], currentType: "payment" | "settlement" | "general" = templateType) => {
     setSelectedDebtors(list);
@@ -213,11 +449,18 @@ Total: ${totalFormatted} to be settled to ${recipientName}. Please check SplitLe
         initCreditor = owesToList[0];
         initAmt = owesToList[0].amount;
       } else if (hasReceives) {
-        initDebtors = [receivesFromList[0]];
-        initName = receivesFromList[0].name;
-        initPhone = receivesFromList[0].phone || "";
-        initEmail = receivesFromList[0].email || "";
-        initAmt = receivesFromList[0].amount;
+        initDebtors = [...receivesFromList];
+        if (receivesFromList.length === 1) {
+          initName = receivesFromList[0].name;
+          initPhone = receivesFromList[0].phone || "";
+          initEmail = receivesFromList[0].email || "";
+          initAmt = receivesFromList[0].amount;
+        } else {
+          initName = receivesFromList.map((d) => d.name).join(" & ");
+          initPhone = receivesFromList.map((d) => d.phone).filter(Boolean).join(", ");
+          initEmail = receivesFromList.map((d) => d.email).filter(Boolean).join(", ");
+          initAmt = receivesFromList.reduce((sum, d) => sum + d.amount, 0);
+        }
       }
 
       setSelectedCreditor(initCreditor);
@@ -298,6 +541,10 @@ Total: ${totalFormatted} to be settled to ${recipientName}. Please check SplitLe
         message: message.trim(),
         amount: targetAmount,
         currency: "INR",
+        totalGroupExpense,
+        fairShare: memberOwnShare || (totalGroupExpense && totalMembers ? totalGroupExpense / totalMembers : undefined),
+        paidAmount: memberPaidAmount,
+        netPosition: memberNetPosition,
       });
 
       if (method === "whatsapp") {
@@ -371,29 +618,58 @@ Total: ${totalFormatted} to be settled to ${recipientName}. Please check SplitLe
 
         <div className="p-6 pt-4 space-y-4">
           {/* Recipient & Amount Preview Card */}
-          <div className="p-4 rounded-2xl bg-slate-900/90 dark:bg-slate-900/95 border border-slate-800 shadow-sm text-white flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center shrink-0">
-                <User className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Reminder To</span>
-                  {effectiveGroupName && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/60 truncate max-w-[150px]">
-                      {effectiveGroupName}
-                    </span>
-                  )}
+          <div className="p-4 rounded-2xl bg-slate-900/90 dark:bg-slate-900/95 border border-slate-800 shadow-sm text-white space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center shrink-0">
+                  <User className="h-5 w-5" />
                 </div>
-                <p className="font-black text-sm sm:text-base text-white truncate tracking-tight mt-0.5">
-                  {targetName}
-                </p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Reminder For</span>
+                    {effectiveGroupName && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/60 truncate max-w-[150px]">
+                        {effectiveGroupName}
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-black text-sm sm:text-base text-white truncate tracking-tight mt-0.5">
+                    {targetName}
+                  </p>
+                </div>
               </div>
+              {targetAmount > 0 && (
+                <div className="shrink-0 text-right">
+                  <div className="inline-flex items-center px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono font-black text-sm shadow-xs">
+                    {formatCurrency(targetAmount)}
+                  </div>
+                </div>
+              )}
             </div>
-            {targetAmount > 0 && (
-              <div className="shrink-0 text-right">
-                <div className="inline-flex items-center px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono font-black text-sm shadow-xs">
-                  {formatCurrency(targetAmount)}
+
+            {/* Financial Ledger Context Strip (If group financial figures are provided) */}
+            {(totalGroupExpense !== undefined && totalGroupExpense > 0) && (
+              <div className="pt-2.5 border-t border-slate-800/80 grid grid-cols-3 gap-2 text-[11px]">
+                <div className="bg-slate-800/60 p-2 rounded-xl border border-slate-700/50">
+                  <span className="text-slate-400 text-[10px] font-semibold block uppercase">Total Group (T)</span>
+                  <span className="font-bold text-white font-mono">{formatCurrency(totalGroupExpense)}</span>
+                </div>
+                <div className="bg-slate-800/60 p-2 rounded-xl border border-slate-700/50">
+                  <span className="text-slate-400 text-[10px] font-semibold block uppercase">Fair Share (T/N)</span>
+                  <span className="font-bold text-white font-mono">
+                    {formatCurrency(totalMembers ? totalGroupExpense / totalMembers : memberOwnShare || 0)}
+                  </span>
+                </div>
+                <div className="bg-slate-800/60 p-2 rounded-xl border border-slate-700/50">
+                  <span className="text-slate-400 text-[10px] font-semibold block uppercase">
+                    {memberNetPosition && memberNetPosition > 0 ? "Extra Paid" : "Shortfall"}
+                  </span>
+                  <span className={cn(
+                    "font-bold font-mono",
+                    memberNetPosition && memberNetPosition > 0 ? "text-emerald-400" : "text-rose-400"
+                  )}>
+                    {memberNetPosition && memberNetPosition > 0 ? `+${formatCurrency(memberNetPosition)}` : formatCurrency(Math.abs(memberNetPosition || targetAmount))}
+                  </span>
                 </div>
               </div>
             )}

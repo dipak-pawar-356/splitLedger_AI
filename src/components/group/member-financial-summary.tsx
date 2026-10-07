@@ -38,6 +38,8 @@ interface MemberFinancialSummaryProps {
   currentUserId?: number;
   currentUserEmail?: string;
   onAddExpenseWithMember?: (member: MemberFinancialDetail) => void;
+  totalGroupExpense?: number;
+  totalMembers?: number;
 }
 
 export function MemberFinancialSummary({ 
@@ -49,7 +51,9 @@ export function MemberFinancialSummary({
   isGroupOwner = false,
   currentUserId,
   currentUserEmail,
-  onAddExpenseWithMember 
+  onAddExpenseWithMember,
+  totalGroupExpense,
+  totalMembers
 }: MemberFinancialSummaryProps) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -241,6 +245,11 @@ export function MemberFinancialSummary({
                 groupName={groupName}
                 owesToList={member.owesTo}
                 receivesFromList={member.receivesFrom}
+                totalGroupExpense={totalGroupExpense}
+                totalMembers={totalMembers}
+                memberPaidAmount={member.totalPaid}
+                memberOwnShare={member.ownShare}
+                memberNetPosition={member.netPosition}
                 trigger={
                   <Button
                     type="button"

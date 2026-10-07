@@ -318,6 +318,176 @@ export function getSettlementReminderEmailTemplate(
   };
 }
 
+export interface RichReminderEmailParams {
+  groupName?: string;
+  recipientName: string;
+  senderName?: string;
+  amount?: number;
+  currency?: string;
+  message: string;
+  appUrl?: string;
+  totalGroupExpense?: number;
+  fairShare?: number;
+  paidAmount?: number;
+  netPosition?: number;
+}
+
+export function getRichSettlementReminderHtml(params: RichReminderEmailParams): {
+  subject: string;
+  html: string;
+} {
+  const currencySymbol = params.currency === "USD" ? "$" : "₹";
+  const formatAmt = (val?: number) =>
+    val !== undefined && val !== null ? `${currencySymbol}${val.toFixed(2)}` : null;
+
+  const formattedAmount = params.amount ? formatAmt(params.amount) : "Pending Dues";
+  const groupLabel = params.groupName || "Shared Expenses";
+  const appLink = params.appUrl || "https://split-ledger-ai.vercel.app";
+
+  const isExtraPaid = params.netPosition && params.netPosition > 0.01;
+  const isShortfall = params.netPosition && params.netPosition < -0.01;
+
+  const subject = `🔔 Settlement Reminder: ${formattedAmount} for ${groupLabel}`;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
+          
+          <!-- Header Banner -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 36px 32px; text-align: left; border-bottom: 2px solid #3b82f6;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td>
+                    <span style="display: inline-block; background-color: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; border-radius: 9999px; border: 1px solid rgba(96, 165, 250, 0.3);">
+                      ✨ SplitLedger AI • Settlement Reminder
+                    </span>
+                    <h1 style="color: #ffffff; margin: 14px 0 6px 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">
+                      Payment Settlement Notice
+                    </h1>
+                    <p style="color: #94a3b8; margin: 0; font-size: 13px;">
+                      Group: <strong style="color: #e2e8f0;">${groupLabel}</strong>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Financial Context Box (If available) -->
+          ${
+            params.totalGroupExpense || params.fairShare
+              ? `
+          <tr>
+            <td style="padding: 24px 32px 0 32px;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px;">
+                <tr>
+                  <td width="33%" align="center" style="border-right: 1px solid #e2e8f0; padding: 6px;">
+                    <span style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block;">Total Spending</span>
+                    <strong style="font-size: 14px; color: #0f172a; font-family: monospace; display: block; margin-top: 4px;">${formatAmt(params.totalGroupExpense) || "—"}</strong>
+                  </td>
+                  <td width="33%" align="center" style="border-right: 1px solid #e2e8f0; padding: 6px;">
+                    <span style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block;">Per Person Share</span>
+                    <strong style="font-size: 14px; color: #0f172a; font-family: monospace; display: block; margin-top: 4px;">${formatAmt(params.fairShare) || "—"}</strong>
+                  </td>
+                  <td width="33%" align="center" style="padding: 6px;">
+                    <span style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; display: block;">
+                      ${isExtraPaid ? "Extra Paid" : isShortfall ? "Shortfall" : "Status"}
+                    </span>
+                    <strong style="font-size: 14px; color: ${isExtraPaid ? "#059669" : "#e11d48"}; font-family: monospace; display: block; margin-top: 4px;">
+                      ${isExtraPaid ? `+${formatAmt(params.netPosition)}` : isShortfall ? `-${formatAmt(Math.abs(params.netPosition!))}` : formattedAmount}
+                    </strong>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          `
+              : ""
+          }
+
+          <!-- Main Content Body -->
+          <tr>
+            <td style="padding: 24px 32px;">
+              <p style="font-size: 14px; color: #475569; margin: 0 0 16px 0; line-height: 1.6;">
+                Hi <strong>${params.recipientName}</strong>,
+              </p>
+              
+              <!-- Formatted Message Box -->
+              <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 0 16px 16px 0; padding: 20px; margin: 16px 0; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                <div style="font-size: 13px; color: #1e293b; line-height: 1.7; white-space: pre-wrap; font-family: inherit;">
+${params.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+                </div>
+              </div>
+
+              <!-- Total Amount Highlight Tile -->
+              ${
+                params.amount
+                  ? `
+              <div style="margin: 20px 0; padding: 18px 24px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 16px; border: 1px solid #bbf7d0; text-align: center;">
+                <span style="font-size: 11px; color: #166534; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block;">
+                  Amount Due
+                </span>
+                <div style="font-size: 28px; font-weight: 900; color: #15803d; margin-top: 4px; font-family: monospace;">
+                  ${formatAmt(params.amount)}
+                </div>
+              </div>
+              `
+                  : ""
+              }
+
+              <!-- Settlement Action Button -->
+              <div style="text-align: center; margin: 28px 0 16px 0;">
+                <a href="${appLink}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 32px; border-radius: 14px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+                  Open Group &amp; Settle via UPI QR ➔
+                </a>
+              </div>
+
+              <!-- Payment Instructions -->
+              <div style="background-color: #f1f5f9; border-radius: 14px; padding: 16px 20px; margin-top: 20px;">
+                <strong style="font-size: 12px; color: #334155; display: block; margin-bottom: 8px;">
+                  📲 How to Complete Your Payment:
+                </strong>
+                <ol style="margin: 0; padding-left: 18px; font-size: 12px; color: #64748b; line-height: 1.6;">
+                  <li>Click the button above to view group settlements and scan the instant dynamic NPCI UPI QR code.</li>
+                  <li>Scan using any UPI app (Google Pay, PhonePe, Paytm, BHIM) with pre-filled amounts.</li>
+                  <li>Or transfer directly to the payee and confirm payment in the app.</li>
+                </ol>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; padding: 24px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="font-size: 11px; color: #94a3b8; margin: 0; line-height: 1.6;">
+                🔒 Secured with 256-Bit Bank-Grade Encryption • Standard NPCI Dynamic UPI<br>
+                Sent via <a href="https://split-ledger-ai.vercel.app" style="color: #3b82f6; text-decoration: none; font-weight: 600;">SplitLedger AI</a> • Smart Group Expense Ledger
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+
+  return { subject, html };
+}
+
 export function getMemberAddedEmailTemplate(
   groupName: string,
   memberName: string,

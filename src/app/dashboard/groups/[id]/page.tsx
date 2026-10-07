@@ -234,6 +234,8 @@ export default async function GroupDetailPage({
                 isGroupOwner={group.isOwner}
                 currentUserId={user.id}
                 currentUserEmail={user.email}
+                totalGroupExpense={overview.totalExpenses}
+                totalMembers={overview.totalMembers}
               />
             ))}
           </div>

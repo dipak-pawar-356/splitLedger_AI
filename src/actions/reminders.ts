@@ -14,8 +14,8 @@ import { eq, and, desc, or, ilike, inArray, isNull } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, AuthorizationError, ForbiddenError, DatabaseError } from "@/lib/errors";
-import { sendEmailNotification, sendEmailWithStatus, type EmailSendResult } from "@/lib/notifications";
-import { generateWhatsAppLink, formatCurrency } from "@/lib/utils";
+import { sendEmailNotification, sendEmailWithStatus, getRichSettlementReminderHtml, type EmailSendResult } from "@/lib/notifications";
+import { generateWhatsAppLink, formatCurrency, getBaseAppUrl } from "@/lib/utils";
 
 export interface CreateReminderInput {
   title?: string;
@@ -38,6 +38,10 @@ export interface CreateReminderInput {
   transactionId?: number | string;
   contactId?: number | string;
   groupId?: number | string;
+  totalGroupExpense?: number;
+  fairShare?: number;
+  paidAmount?: number;
+  netPosition?: number;
 }
 
 export interface UpdateReminderInput {
@@ -98,6 +102,7 @@ export async function createReminder(data: CreateReminderInput) {
 
     // 2. Resolve Group ID if group recipient or groupId is supplied
     let targetGroupId: number | null = null;
+    let targetGroup: typeof groups.$inferSelect | null = null;
     const rawGroupId = data.groupId || (data.recipientType === "group" ? data.recipientId : null);
 
     if (rawGroupId) {
@@ -136,6 +141,7 @@ export async function createReminder(data: CreateReminderInput) {
         throw new AuthorizationError("You must be a member of this group to create group reminders");
       }
 
+      targetGroup = group;
       targetGroupId = group.id;
     }
 
@@ -286,28 +292,23 @@ export async function createReminder(data: CreateReminderInput) {
           .map((e) => e.trim())
           .filter((e) => Boolean(e) && e.includes("@"));
 
-        const subject = `Payment Reminder: ${data.amount ? formatCurrency(data.amount) : "Pending Shared Expense"}`;
-        const html = `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
-            <div style="margin-bottom: 20px;">
-              <span style="background-color: #eff6ff; color: #2563eb; padding: 4px 10px; border-radius: 9999px; font-size: 12px; font-weight: 700; border: 1px solid #dbeafe;">SplitLedger AI Reminder</span>
-            </div>
-            <h2 style="color: #0f172a; margin-top: 0; font-size: 20px;">Payment Reminder from ${user.name || "A friend"}</h2>
-            <div style="background-color: #f8fafc; border-radius: 12px; padding: 16px; margin: 16px 0; border: 1px solid #e2e8f0;">
-              <p style="font-size: 14px; color: #334155; line-height: 1.6; margin: 0; white-space: pre-wrap;">${data.message.replace(/\n/g, "<br/>")}</p>
-            </div>
-            ${
-              data.amount
-                ? `<div style="margin: 20px 0; padding: 16px; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-radius: 12px; border: 1px solid #bbf7d0;">
-                    <span style="font-size: 12px; color: #166534; font-weight: 600; text-transform: uppercase;">Total Amount Due</span>
-                    <div style="font-size: 24px; font-weight: 900; color: #15803d; margin-top: 4px;">${formatCurrency(data.amount)}</div>
-                   </div>`
-                : ""
-            }
-            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-            <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">Sent securely via SplitLedger AI</p>
-          </div>
-        `;
+        const appUrl = targetGroup?.publicId
+          ? `${getBaseAppUrl()}/dashboard/groups/${targetGroup.publicId}`
+          : getBaseAppUrl();
+
+        const { subject, html } = getRichSettlementReminderHtml({
+          groupName: targetGroup?.name || undefined,
+          recipientName: data.recipientName || "Member",
+          senderName: user.name || "A friend",
+          amount: data.amount,
+          currency: data.currency || "INR",
+          message: data.message,
+          appUrl,
+          totalGroupExpense: data.totalGroupExpense,
+          fairShare: data.fairShare,
+          paidAmount: data.paidAmount,
+          netPosition: data.netPosition,
+        });
 
         if (rawEmails.length <= 1) {
           const target = rawEmails[0] || data.recipientEmail.trim();
