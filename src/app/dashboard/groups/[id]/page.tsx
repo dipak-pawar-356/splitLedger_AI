@@ -143,6 +143,8 @@ export default async function GroupDetailPage({
           {/* Settle All */}
           <SettleAllDialog
             groupId={group.id}
+            groupName={group.name}
+            suggestions={settlements.suggestions}
             trigger={
               <SettleUpButton label="Settle Up" />
             }
@@ -181,6 +183,9 @@ export default async function GroupDetailPage({
         suggestions={settlements.suggestions}
         groupId={group.id}
         groupName={group.name}
+        isAdmin={group.isAdmin}
+        adminName={user.name || "Admin"}
+        currentUserId={user.id}
       />
 
       {/* TABS VIEW: Financials, Expenses, Members, Settlements */}
@@ -196,7 +201,7 @@ export default async function GroupDetailPage({
             Expenses History ({groupExpenses.length})
           </TabsTrigger>
           <TabsTrigger value="settlements" className="rounded-xl text-xs font-semibold">
-            Settlement Audit ({settlements.pendingList.length} Pending)
+            Settlement Audit ({settlements.pendingList.length > 0 ? `${settlements.pendingList.length} Pending` : `${settlements.suggestions.length} Dues`})
           </TabsTrigger>
           <TabsTrigger value="activity" className="rounded-xl text-xs font-semibold">
             Group Activity ({groupActivities.length})
@@ -306,43 +311,124 @@ export default async function GroupDetailPage({
         <TabsContent value="settlements" className="space-y-4">
           <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
             <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
-              <CardTitle className="text-base font-bold">Pending Settlements</CardTitle>
-              <CardDescription className="text-xs">
-                Active settlement requests awaiting payment confirmation
-              </CardDescription>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <CardTitle className="text-base font-bold">Settlement Audit & Transfers</CardTitle>
+                  <CardDescription className="text-xs">
+                    Track pending settlement requests and execute calculated debt transfers
+                  </CardDescription>
+                </div>
+                {settlements.suggestions.length > 0 && (
+                  <SettleAllDialog
+                    groupId={group.id}
+                    groupName={group.name}
+                    suggestions={settlements.suggestions}
+                    trigger={
+                      <Button size="sm" className="h-8 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Settle All ({settlements.suggestions.length})</span>
+                      </Button>
+                    }
+                  />
+                )}
+              </div>
             </CardHeader>
 
-            <CardContent className="p-4">
-              {settlements.pendingList.length > 0 ? (
+            <CardContent className="p-4 space-y-5">
+              {/* 1. Pending Recorded Settlements (Awaiting confirmation) */}
+              {settlements.pendingList.length > 0 && (
                 <div className="space-y-3">
-                  {settlements.pendingList.map((st) => (
-                    <div
-                      key={st.id}
-                      className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
-                    >
-                      <div>
-                        <p className="font-bold text-xs text-slate-900 dark:text-slate-100">
-                          {st.fromName} owes {st.toName}
-                        </p>
-                        <span className="text-[11px] text-slate-400">Created {formatDate(st.createdAt)}</span>
-                      </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                      Pending Recorded Requests ({settlements.pendingList.length})
+                    </span>
+                    <Badge variant="outline" className="text-[11px] font-semibold text-amber-600 border-amber-300">
+                      Awaiting Confirmation
+                    </Badge>
+                  </div>
+                  <div className="space-y-2.5">
+                    {settlements.pendingList.map((st) => (
+                      <div
+                        key={st.id}
+                        className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
+                      >
+                        <div>
+                          <p className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                            {st.fromName} owes {st.toName}
+                          </p>
+                          <span className="text-[11px] text-slate-400">Created {formatDate(st.createdAt)}</span>
+                        </div>
 
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-black text-amber-600">
-                          {formatCurrency(st.amount)}
-                        </span>
-                        <MarkPaidButton
-                          settlementId={st.id}
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-black text-amber-600">
+                            {formatCurrency(st.amount)}
+                          </span>
+                          <MarkPaidButton
+                            settlementId={st.id}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Calculated Outstanding Dues (Calculated by the engine) */}
+              {settlements.suggestions.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                        Calculated Debts to Settle ({settlements.suggestions.length})
+                      </span>
+                      <p className="text-[11px] text-slate-400">
+                        Total pending dues: {formatCurrency(overview.pendingSettlementsAmount || settlements.suggestions.reduce((sum, s) => sum + s.amount, 0))}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {settlements.suggestions.map((sg, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-emerald-500/40 transition-colors"
+                      >
+                        <div>
+                          <p className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                            {sg.fromName} owes {sg.toName}
+                          </p>
+                          <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                            {formatCurrency(sg.amount)}
+                          </span>
+                        </div>
+                        <SettleAllDialog
+                          groupId={group.id}
+                          groupName={group.name}
+                          suggestions={[sg]}
+                          trigger={
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs font-semibold rounded-xl text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"
+                            >
+                              Settle
+                            </Button>
+                          }
                         />
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="py-10 text-center text-slate-400 space-y-1">
-                  <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500 mb-1" />
-                  <p className="font-semibold text-xs text-slate-800 dark:text-slate-200">
-                    No pending settlements in this group
+              )}
+
+              {/* 3. Empty State (Only if both are zero) */}
+              {settlements.pendingList.length === 0 && settlements.suggestions.length === 0 && (
+                <div className="py-12 text-center text-slate-400 space-y-2">
+                  <CheckCircle2 className="h-9 w-9 mx-auto text-emerald-500 mb-1" />
+                  <p className="font-bold text-sm text-slate-800 dark:text-slate-200">
+                    All Debts Are Settled Up!
+                  </p>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    No pending settlements or outstanding transfer requests in this group.
                   </p>
                 </div>
               )}

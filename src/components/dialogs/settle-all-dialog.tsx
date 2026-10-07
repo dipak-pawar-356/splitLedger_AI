@@ -1,103 +1,236 @@
 "use client";
 
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useState, useEffect, useMemo } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, ArrowRight, AlertCircle, History, Undo, FileText, DollarSign } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  CheckCircle,
+  ArrowRight,
+  AlertCircle,
+  History,
+  DollarSign,
+  Loader2,
+  Sparkles,
+  ShieldCheck,
+  Clock,
+  CheckCircle2,
+  Receipt,
+  Wallet,
+} from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import { calculateGroupSettlements, type SettlementResult } from "@/lib/settlements/calculator";
-import { createSettlementsBatch } from "@/actions/settlements";
+import { calculateOptimalSettlements } from "@/lib/settlements/calculator";
+import {
+  createSettlementsBatch,
+  getGroupSettlementDetailsAction,
+} from "@/actions/settlements";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { toast } from "sonner";
 
-const settleAllSchema = z.object({
-  notes: z.string().max(500, "Notes must be less than 500 characters").optional(),
-});
+export interface SettlementItem {
+  id: string;
+  fromUserId?: number;
+  fromContactId?: number;
+  fromName: string;
+  fromAvatar?: string | null;
+  toUserId?: number;
+  toContactId?: number;
+  toName: string;
+  toAvatar?: string | null;
+  amount: number; // in rupees
+  currency: string;
+}
 
-type SettleAllFormData = z.infer<typeof settleAllSchema>;
-
-interface SettleAllDialogProps {
+export interface SettleAllDialogProps {
   trigger?: React.ReactNode;
-  groupId?: number;
-  balances?: Array<{ userId: number; contactId?: number; amount: number }>;
+  groupId?: number | string;
+  groupName?: string;
+  balances?: Array<{
+    userId?: number;
+    contactId?: number;
+    name?: string;
+    amount: number; // Positive = receivable, Negative = payable (in rupees or paise)
+  }>;
+  suggestions?: Array<{
+    fromUserId?: number;
+    fromContactId?: number;
+    fromName: string;
+    fromAvatar?: string | null;
+    toUserId?: number;
+    toContactId?: number;
+    toName: string;
+    toAvatar?: string | null;
+    amount: number; // in rupees
+    currency: string;
+  }>;
   currency?: string;
   onSuccess?: () => void;
 }
 
-export function SettleAllDialog({ 
-  trigger, 
-  groupId, 
-  balances = [], 
+export function SettleAllDialog({
+  trigger,
+  groupId,
+  groupName,
+  balances = [],
+  suggestions = [],
   currency = "INR",
-  onSuccess 
+  onSuccess,
 }: SettleAllDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [settlementResult, setSettlementResult] = useState<SettlementResult | null>(null);
-  const [selectedSettlements, setSelectedSettlements] = useState<Set<string>>(new Set());
-  const [showHistory, setShowHistory] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-  } = useForm<SettleAllFormData>({
-    resolver: zodResolver(settleAllSchema),
-    defaultValues: {
-      notes: "",
-    },
-  });
+  const [settlementItems, setSettlementItems] = useState<SettlementItem[]>([]);
+  const [selectedSettlements, setSelectedSettlements] = useState<Set<string>>(
+    new Set()
+  );
+  const [settleMode, setSettleMode] = useState<"completed" | "pending">(
+    "completed"
+  );
+  const [paymentMethod, setPaymentMethod] = useState("UPI");
+  const [notes, setNotes] = useState("");
 
-  const calculateSettlements = () => {
-    if (balances.length === 0) {
-      setError("No balances to settle");
+  // Sync state whenever the dialog opens or external props change
+  useEffect(() => {
+    if (!open) return;
+
+    setError(null);
+
+    const mapSuggestionsToItems = (
+      list: NonNullable<SettleAllDialogProps["suggestions"]>
+    ): SettlementItem[] => {
+      return list.map((s, idx) => ({
+        id: `${s.fromUserId ?? `c${s.fromContactId}`}-${s.toUserId ?? `c${s.toContactId}`}-${idx}`,
+        fromUserId: s.fromUserId,
+        fromContactId: s.fromContactId,
+        fromName: s.fromName || "Member",
+        fromAvatar: s.fromAvatar,
+        toUserId: s.toUserId,
+        toContactId: s.toContactId,
+        toName: s.toName || "Member",
+        toAvatar: s.toAvatar,
+        amount: Math.abs(s.amount),
+        currency: s.currency || currency || "INR",
+      }));
+    };
+
+    // 1. If suggestions were explicitly passed and have entries
+    if (suggestions && suggestions.length > 0) {
+      const items = mapSuggestionsToItems(suggestions);
+      setSettlementItems(items);
+      setSelectedSettlements(new Set(items.map((i) => i.id)));
       return;
     }
 
-    // Convert balances to Expense format for the calculator
-    const expenses = balances.map(b => ({
-      paidBy: b.userId || 0,
-      paidByContact: b.contactId,
-      amount: Math.abs(b.amount),
-      currency,
-      splitType: "equal" as const,
-      splits: [{ userId: b.userId, contactId: b.contactId }],
-    }));
-
-    const result = calculateGroupSettlements(expenses);
-    setSettlementResult(result);
-    
-    // Select all settlements by default
-    setSelectedSettlements(new Set(result.settlements.map(s => 
-      `${s.fromUserId || 0}-${s.toUserId || 0}`
-    )));
-  };
-
-  const toggleSettlement = (fromUserId?: number, toUserId?: number) => {
-    const key = `${fromUserId || 0}-${toUserId || 0}`;
-    const newSet = new Set(selectedSettlements);
-    if (newSet.has(key)) {
-      newSet.delete(key);
-    } else {
-      newSet.add(key);
+    // 2. If balances array is passed with items
+    if (balances && balances.length > 0) {
+      const normalizedBalances = balances.map((b) => ({
+        userId: b.userId,
+        contactId: b.contactId,
+        name: b.name,
+        // If balance amount looks like paise (> 1000 and has cents) normalize if needed, otherwise use directly
+        amount: b.amount,
+      }));
+      const optimal = calculateOptimalSettlements(normalizedBalances, currency);
+      const items: SettlementItem[] = optimal.map((s, idx) => ({
+        id: `${s.fromUserId ?? `c${s.fromContactId}`}-${s.toUserId ?? `c${s.toContactId}`}-${idx}`,
+        fromUserId: s.fromUserId,
+        fromContactId: s.fromContactId,
+        fromName: s.fromName || `User #${s.fromUserId}`,
+        toUserId: s.toUserId,
+        toContactId: s.toContactId,
+        toName: s.toName || `User #${s.toUserId}`,
+        // In calculator amount is in base currency or paise
+        amount: s.amount > 1000 ? s.amount / 100 : s.amount,
+        currency: s.currency || currency,
+      }));
+      setSettlementItems(items);
+      setSelectedSettlements(new Set(items.map((i) => i.id)));
+      return;
     }
-    setSelectedSettlements(newSet);
+
+    // 3. If groupId is provided, fetch suggestions on-demand dynamically
+    if (groupId) {
+      setIsFetching(true);
+      getGroupSettlementDetailsAction(groupId)
+        .then((res) => {
+          if (res.success && res.suggestions && res.suggestions.length > 0) {
+            const items = mapSuggestionsToItems(res.suggestions);
+            setSettlementItems(items);
+            setSelectedSettlements(new Set(items.map((i) => i.id)));
+          } else {
+            setSettlementItems([]);
+            setSelectedSettlements(new Set());
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch settlement suggestions:", err);
+          setError("Failed to load group settlements. Please try again.");
+        })
+        .finally(() => {
+          setIsFetching(false);
+        });
+      return;
+    }
+
+    // 4. Default: No balances
+    setSettlementItems([]);
+    setSelectedSettlements(new Set());
+  }, [open, suggestions, balances, groupId, currency]);
+
+  const toggleSettlement = (id: string) => {
+    const next = new Set(selectedSettlements);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedSettlements(next);
   };
 
-  const onSubmit = async (data: SettleAllFormData) => {
-    if (!settlementResult || selectedSettlements.size === 0) {
-      setError("Please select at least one settlement");
+  const selectAll = () => {
+    setSelectedSettlements(new Set(settlementItems.map((s) => s.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedSettlements(new Set());
+  };
+
+  const selectedTotal = useMemo(() => {
+    return settlementItems
+      .filter((s) => selectedSettlements.has(s.id))
+      .reduce((sum, s) => sum + s.amount, 0);
+  }, [settlementItems, selectedSettlements]);
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const itemsToCreate = settlementItems.filter((s) =>
+      selectedSettlements.has(s.id)
+    );
+
+    if (itemsToCreate.length === 0) {
+      setError("Please select at least one settlement to execute");
       return;
     }
 
@@ -105,233 +238,376 @@ export function SettleAllDialog({
     setError(null);
 
     try {
-      // Create settlements for selected items
-      const settlementsToCreate = settlementResult.settlements.filter(s =>
-        selectedSettlements.has(`${s.fromUserId || 0}-${s.toUserId || 0}`)
-      );
+      const numericGroupId =
+        typeof groupId === "number"
+          ? groupId
+          : groupId && /^\d+$/.test(String(groupId))
+          ? Number(groupId)
+          : undefined;
 
-      // Use batch insert for better performance
       await createSettlementsBatch(
-        settlementsToCreate.map(settlement => ({
-          fromUserId: settlement.fromUserId || 0,
-          fromContactId: settlement.fromContactId,
-          toUserId: settlement.toUserId || 0,
-          toContactId: settlement.toContactId,
-          amount: settlement.amount,
-          currency: settlement.currency,
-          notes: data.notes,
-          groupId: groupId,
-        }))
+        itemsToCreate.map((st) => ({
+          fromUserId: st.fromUserId,
+          fromContactId: st.fromContactId,
+          toUserId: st.toUserId,
+          toContactId: st.toContactId,
+          amount: st.amount,
+          currency: st.currency || currency || "INR",
+          groupId: numericGroupId,
+          paymentMethod: settleMode === "completed" ? paymentMethod : undefined,
+          notes: notes.trim() || undefined,
+          status: settleMode,
+        })),
+        {
+          markAsCompleted: settleMode === "completed",
+          paymentMethod,
+          notes: notes.trim() || undefined,
+        }
       );
 
-      toast.success(`${selectedSettlements.size} settlements created successfully!`);
-      reset();
+      const successMessage =
+        settleMode === "completed"
+          ? `${itemsToCreate.length} settlement(s) successfully recorded as completed!`
+          : `${itemsToCreate.length} pending settlement request(s) created!`;
+
+      toast.success(successMessage);
       setOpen(false);
-      setSettlementResult(null);
-      setSelectedSettlements(new Set());
+      setNotes("");
       onSuccess?.();
       router.refresh();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to create settlements";
-      setError(errorMessage);
-      toast.error(errorMessage);
+      const msg =
+        err instanceof Error ? err.message : "Failed to execute settlements";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const selectAll = () => {
-    if (settlementResult) {
-      setSelectedSettlements(new Set(settlementResult.settlements.map(s => 
-        `${s.fromUserId || 0}-${s.toUserId || 0}`
-      )));
-    }
-  };
-
-  const deselectAll = () => {
-    setSelectedSettlements(new Set());
-  };
-
-  const selectedTotal = settlementResult 
-    ? settlementResult.settlements
-        .filter(s => selectedSettlements.has(`${s.fromUserId || 0}-${s.toUserId || 0}`))
-        .reduce((sum, s) => sum + s.amount, 0)
-    : 0;
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button>
-            <DollarSign className="h-4 w-4 mr-2" />
-            Settle All
+          <Button size="sm" className="gap-2 font-semibold">
+            <DollarSign className="h-4 w-4" />
+            <span>Settle Debts</span>
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Settle All Debts</DialogTitle>
+
+      <DialogContent className="sm:max-w-[650px] max-h-[92vh] overflow-y-auto rounded-3xl p-6">
+        <DialogHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-xl font-bold tracking-tight">
+                {groupName ? `Settle Debts - ${groupName}` : "Settle All Debts"}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Minimal transfer debt simplification powered by the greedy net-flow engine
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
-        <div className="space-y-4">
+
+        <div className="space-y-5 pt-2">
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm">
-              {error}
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-start gap-2.5 text-xs text-rose-600 dark:text-rose-400">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
 
-          {!settlementResult ? (
-            <div className="space-y-4">
-              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle className="h-5 w-5 text-orange-600" />
-                  <h3 className="font-semibold">Optimal Debt Simplification</h3>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                  This will calculate the minimum number of transactions needed to settle all debts using an optimal algorithm.
-                </p>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-slate-600 dark:text-slate-400">Total Balances</p>
-                    <p className="font-semibold">{balances.length}</p>
-                  </div>
-                  <div>
-                    <p className="text-slate-600 dark:text-slate-400">Currency</p>
-                    <p className="font-semibold">{currency}</p>
-                  </div>
-                </div>
+          {isFetching ? (
+            <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-400">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+              <p className="text-xs font-semibold">
+                Calculating optimal debt simplification...
+              </p>
+            </div>
+          ) : settlementItems.length === 0 ? (
+            <div className="py-10 text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto border border-emerald-500/20">
+                <CheckCircle2 className="h-7 w-7" />
               </div>
-
-              <Button onClick={calculateSettlements} className="w-full">
-                Calculate Settlements
+              <div>
+                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+                  All Debts Are Settled!
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                  No outstanding transfers or balances exist for this group. Everyone is currently even.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl mt-2"
+                onClick={() => setOpen(false)}
+              >
+                Close
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {/* Summary Card */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Settlement Summary</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">Total Amount</p>
-                      <p className="text-lg font-bold">{formatCurrency(settlementResult.totalAmount / 100)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">Transactions</p>
-                      <p className="text-lg font-bold">{settlementResult.transactionCount}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-600 dark:text-slate-400">Savings</p>
-                      <p className="text-lg font-bold text-green-600">{settlementResult.savings} fewer</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Selection Controls */}
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={selectAll}>
-                  Select All
-                </Button>
-                <Button variant="outline" size="sm" onClick={deselectAll}>
-                  Deselect All
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setShowHistory(!showHistory)}
-                  className="ml-auto"
-                >
-                  <History className="h-4 w-4 mr-2" />
-                  {showHistory ? "Hide" : "Show"} History
-                </Button>
+            <form onSubmit={onSubmit} className="space-y-5">
+              {/* Summary Metric Cards */}
+              <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800">
+                <div>
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    Selected Total
+                  </span>
+                  <span className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                    {formatCurrency(selectedTotal, currency)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    Transfers
+                  </span>
+                  <span className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 block mt-0.5">
+                    {selectedSettlements.size} / {settlementItems.length}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                    Settlement Mode
+                  </span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block mt-1.5 capitalize">
+                    {settleMode === "completed" ? "Paid Offline" : "Pending Request"}
+                  </span>
+                </div>
               </div>
 
-              {/* Settlements List */}
-              <div className="space-y-2">
-                <Label>Settlements to Execute</Label>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {settlementResult.settlements.map((settlement, index) => {
-                    const key = `${settlement.fromUserId || 0}-${settlement.toUserId || 0}`;
-                    const isSelected = selectedSettlements.has(key);
-                    return (
-                      <div
-                        key={index}
-                        className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                          isSelected ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" : "bg-slate-50 dark:bg-slate-900"
-                        }`}
-                        onClick={() => toggleSettlement(settlement.fromUserId, settlement.toUserId)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                              isSelected ? "bg-green-600 border-green-600" : "border-slate-300"
-                            }`}>
-                              {isSelected && <CheckCircle className="h-3 w-3 text-white" />}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">User {settlement.fromUserId}</span>
-                              <ArrowRight className="h-4 w-4 text-slate-400" />
-                              <span className="font-medium">User {settlement.toUserId}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold">{formatCurrency(settlement.amount / 100)}</p>
-                            <p className="text-xs text-slate-600 dark:text-slate-400">{settlement.currency}</p>
+              {/* Selection Controls */}
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Transfers to Execute ({selectedSettlements.size} selected)
+                </Label>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={selectAll}
+                    className="h-7 text-xs px-2.5 font-semibold text-primary"
+                  >
+                    Select All
+                  </Button>
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={deselectAll}
+                    className="h-7 text-xs px-2.5 font-semibold text-slate-500 hover:text-slate-700"
+                  >
+                    Deselect All
+                  </Button>
+                </div>
+              </div>
+
+              {/* Settlement Transfer Items */}
+              <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
+                {settlementItems.map((item) => {
+                  const isSelected = selectedSettlements.has(item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => toggleSettlement(item.id)}
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition-all duration-200 flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? "bg-emerald-500/5 border-emerald-500/40 shadow-xs"
+                          : "bg-card border-slate-200/80 dark:border-slate-800 opacity-60 hover:opacity-100"
+                      }`}
+                    >
+                      {/* Checkbox & Payer */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-5 h-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
+                            isSelected
+                              ? "bg-emerald-500 border-emerald-500 text-white"
+                              : "border-slate-300 dark:border-slate-700 bg-background"
+                          }`}
+                        >
+                          {isSelected && <CheckCircle className="h-3.5 w-3.5" />}
+                        </div>
+
+                        {/* Payer Avatar + Name */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Avatar className="h-8 w-8 border border-rose-500/20 shrink-0">
+                            <AvatarImage src={item.fromAvatar || undefined} />
+                            <AvatarFallback className="text-xs font-bold text-rose-500 bg-rose-500/10">
+                              {item.fromName.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                              {item.fromName}
+                            </p>
+                            <span className="text-[10px] text-rose-500 font-semibold uppercase">
+                              Payer
+                            </span>
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      {/* Directional Amount Indicator */}
+                      <div className="flex flex-col items-center justify-center shrink-0 px-2">
+                        <span className="text-xs sm:text-sm font-black text-slate-900 dark:text-slate-100">
+                          {formatCurrency(item.amount, item.currency)}
+                        </span>
+                        <div className="flex items-center gap-1 text-emerald-500">
+                          <div className="w-5 h-[1.5px] bg-gradient-to-r from-rose-400 to-emerald-400 rounded-full" />
+                          <ArrowRight className="h-3 w-3" />
+                        </div>
+                      </div>
+
+                      {/* Recipient */}
+                      <div className="flex items-center gap-2 min-w-0 text-right justify-end">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                            {item.toName}
+                          </p>
+                          <span className="text-[10px] text-emerald-500 font-semibold uppercase">
+                            Recipient
+                          </span>
+                        </div>
+                        <Avatar className="h-8 w-8 border border-emerald-500/20 shrink-0">
+                          <AvatarImage src={item.toAvatar || undefined} />
+                          <AvatarFallback className="text-xs font-bold text-emerald-500 bg-emerald-500/10">
+                            {item.toName.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Selected Total */}
-              <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">Selected Total:</span>
-                  <span className="text-lg font-bold">{formatCurrency(selectedTotal / 100)}</span>
-                </div>
-              </div>
+              {/* Settlement Configuration: Mode & Payment Method */}
+              <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Settlement Mode Selection */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Settlement Action
+                    </Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSettleMode("completed")}
+                        className={`p-2.5 rounded-xl border text-left text-xs font-semibold flex items-center gap-2 transition-all ${
+                          settleMode === "completed"
+                            ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20"
+                            : "bg-card border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+                        }`}
+                      >
+                        <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+                        <div>
+                          <p className="font-bold leading-tight">Paid Offline</p>
+                          <span className="text-[10px] opacity-75">Mark settled now</span>
+                        </div>
+                      </button>
 
-              {/* Notes and Receipt */}
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes (Optional)</Label>
+                      <button
+                        type="button"
+                        onClick={() => setSettleMode("pending")}
+                        className={`p-2.5 rounded-xl border text-left text-xs font-semibold flex items-center gap-2 transition-all ${
+                          settleMode === "pending"
+                            ? "bg-blue-500/10 border-blue-500/40 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20"
+                            : "bg-card border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50"
+                        }`}
+                      >
+                        <Clock className="h-4 w-4 shrink-0 text-blue-500" />
+                        <div>
+                          <p className="font-bold leading-tight">Pending Request</p>
+                          <span className="text-[10px] opacity-75">Awaiting payment</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Payment Method Selector (if completed mode) */}
+                  {settleMode === "completed" ? (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Payment Method
+                      </Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger className="rounded-xl h-10 text-xs">
+                          <SelectValue placeholder="Select payment method" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="UPI">UPI (Google Pay, PhonePe, Paytm)</SelectItem>
+                          <SelectItem value="Cash">Cash Handover</SelectItem>
+                          <SelectItem value="Bank Transfer">Bank NEFT / IMPS</SelectItem>
+                          <SelectItem value="Credit Card">Credit Card</SelectItem>
+                          <SelectItem value="Other">Other Mode</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 flex flex-col justify-end">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800">
+                        This creates verified pending requests in the group. Both parties can verify once funds transfer.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Optional Settlement Notes */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="settle-notes" className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                    Notes / Remarks (Optional)
+                  </Label>
                   <Textarea
-                    id="notes"
-                    {...register("notes")}
-                    placeholder="Add any notes about this settlement..."
+                    id="settle-notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="e.g., Summer Trip full account settlement via UPI..."
                     rows={2}
+                    className="rounded-xl text-xs resize-none"
                     disabled={isLoading}
                   />
                 </div>
+              </div>
 
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setOpen(false);
-                      setSettlementResult(null);
-                      setSelectedSettlements(new Set());
-                      reset();
-                    }}
-                    disabled={isLoading}
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={isLoading || selectedSettlements.size === 0}
-                  >
-                    {isLoading ? "Processing..." : `Execute ${selectedSettlements.size} Settlements`}
-                  </Button>
-                </div>
-              </form>
-            </div>
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                  disabled={isLoading}
+                  className="rounded-xl text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isLoading || selectedSettlements.size === 0}
+                  className="rounded-xl text-xs font-bold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white min-w-[170px]"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Recording...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      <span>
+                        {settleMode === "completed"
+                          ? `Settle ${selectedSettlements.size} (${formatCurrency(selectedTotal, currency)})`
+                          : `Create ${selectedSettlements.size} Requests`}
+                      </span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
           )}
         </div>
       </DialogContent>
