@@ -63,8 +63,6 @@ export interface SettleAllDialogProps {
   trigger?: React.ReactNode;
   groupId?: number | string;
   groupName?: string;
-  isOwner?: boolean;
-  currentUserId?: number;
   balances?: Array<{
     userId?: number;
     contactId?: number;
@@ -91,8 +89,6 @@ export function SettleAllDialog({
   trigger,
   groupId,
   groupName,
-  isOwner = true,
-  currentUserId,
   balances = [],
   suggestions = [],
   currency = "INR",
@@ -120,18 +116,10 @@ export function SettleAllDialog({
 
     setError(null);
 
-    const filterByAccess = (items: SettlementItem[]) => {
-      if (isOwner) return items;
-      if (!currentUserId) return items;
-      return items.filter(
-        (i) => i.fromUserId === currentUserId || i.toUserId === currentUserId
-      );
-    };
-
     const mapSuggestionsToItems = (
       list: NonNullable<SettleAllDialogProps["suggestions"]>
     ): SettlementItem[] => {
-      const mapped = list.map((s, idx) => ({
+      return list.map((s, idx) => ({
         id: `${s.fromUserId ?? `c${s.fromContactId}`}-${s.toUserId ?? `c${s.toContactId}`}-${idx}`,
         fromUserId: s.fromUserId,
         fromContactId: s.fromContactId,
@@ -144,7 +132,6 @@ export function SettleAllDialog({
         amount: Math.abs(s.amount),
         currency: s.currency || currency || "INR",
       }));
-      return filterByAccess(mapped);
     };
 
     // 1. If suggestions were explicitly passed and have entries
@@ -177,9 +164,8 @@ export function SettleAllDialog({
         amount: s.amount > 1000 ? s.amount / 100 : s.amount,
         currency: s.currency || currency,
       }));
-      const filteredItems = filterByAccess(items);
-      setSettlementItems(filteredItems);
-      setSelectedSettlements(new Set(filteredItems.map((i) => i.id)));
+      setSettlementItems(items);
+      setSelectedSettlements(new Set(items.map((i) => i.id)));
       return;
     }
 
@@ -210,7 +196,7 @@ export function SettleAllDialog({
     // 4. Default: No balances
     setSettlementItems([]);
     setSelectedSettlements(new Set());
-  }, [open, suggestions, balances, groupId, currency, isOwner, currentUserId]);
+  }, [open, suggestions, balances, groupId, currency]);
 
   const toggleSettlement = (id: string) => {
     const next = new Set(selectedSettlements);
@@ -318,14 +304,10 @@ export function SettleAllDialog({
             </div>
             <div>
               <DialogTitle className="text-xl font-bold tracking-tight">
-                {isOwner
-                  ? (groupName ? `Settle Debts - ${groupName}` : "Settle All Debts")
-                  : (groupName ? `Settle Your Debts - ${groupName}` : "Settle Your Debts")}
+                {groupName ? `Settle Debts - ${groupName}` : "Settle All Debts"}
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {isOwner
-                  ? "Minimal transfer debt simplification powered by the greedy net-flow engine"
-                  : "Personal settlement debt transfers involving your account"}
+                Minimal transfer debt simplification powered by the greedy net-flow engine
               </DialogDescription>
             </div>
           </div>

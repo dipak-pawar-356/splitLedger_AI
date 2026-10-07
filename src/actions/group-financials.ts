@@ -533,12 +533,12 @@ export async function getGroupFinancialDetails(
 
     const optimalSettlements = calculateOptimalSettlements(optimalBalances, "INR");
 
-    // Populate pairwise debts into members with privacy rules
+    // Populate pairwise debts into members
     processedMembers.forEach((m) => {
       const memberId = m.userId;
       const contactId = m.contactId;
 
-      const receivesList = optimalSettlements
+      m.receivesFrom = optimalSettlements
         .filter((s) => (memberId && s.toUserId === memberId) || (contactId && s.toContactId === contactId))
         .map((s) => {
           const fromMember = processedMembers.find(
@@ -554,7 +554,7 @@ export async function getGroupFinancialDetails(
           };
         });
 
-      const owesList = optimalSettlements
+      m.owesTo = optimalSettlements
         .filter((s) => (memberId && s.fromUserId === memberId) || (contactId && s.fromContactId === contactId))
         .map((s) => {
           const toMember = processedMembers.find(
@@ -569,33 +569,6 @@ export async function getGroupFinancialDetails(
             phone: toMember?.phone || undefined,
           };
         });
-
-      // PRIVACY RULE:
-      // Group Owner sees full settlement breakdown for all members.
-      // Respective user sees their own full settlement breakdown.
-      // Other members only see debts directly between that member and the logged-in user!
-      if (isOwner || memberId === user.id) {
-        m.receivesFrom = receivesList;
-        m.owesTo = owesList;
-      } else {
-        // For other members: only show mutual debts directly involving current logged-in user
-        m.receivesFrom = receivesList.filter((r) => r.userId === user.id);
-        m.owesTo = owesList.filter((o) => o.userId === user.id);
-
-        // Mask other members' overall settlement amounts so only owner and respective user know their true total:
-        const mutualOwes = m.owesTo.reduce((sum, o) => sum + o.amount, 0);
-        const mutualReceives = m.receivesFrom.reduce((sum, r) => sum + r.amount, 0);
-        m.needToPay = mutualOwes;
-        m.willReceive = mutualReceives;
-        m.netPosition = mutualReceives - mutualOwes;
-        if (m.netPosition > 0.01) {
-          m.settlementStatus = "will_receive";
-        } else if (m.netPosition < -0.01) {
-          m.settlementStatus = "needs_to_pay";
-        } else {
-          m.settlementStatus = "settled";
-        }
-      }
     });
 
     // 8. Current Logged-in User Overview in this Group (SECTION 1 & 2)
@@ -616,7 +589,7 @@ export async function getGroupFinancialDetails(
     }
 
     // 9. Who Pays Whom Suggestions (SECTION 6)
-    const allSettlementSuggestions = optimalSettlements.map((s) => {
+    const settlementSuggestions = optimalSettlements.map((s) => {
       const fromKey = s.fromUserId ? `user-${s.fromUserId}` : `contact-${s.fromContactId}`;
       const toKey = s.toUserId ? `user-${s.toUserId}` : `contact-${s.toContactId}`;
 
@@ -633,15 +606,6 @@ export async function getGroupFinancialDetails(
         currency: "INR",
       };
     });
-
-    // PRIVACY ENFORCEMENT:
-    // Only group owner sees all settlement suggestions across the group.
-    // Respective users only see settlement suggestions where they are the payer or recipient!
-    const visibleSettlementSuggestions = isOwner
-      ? allSettlementSuggestions
-      : allSettlementSuggestions.filter(
-          (s) => s.fromUserId === user.id || s.toUserId === user.id
-        );
 
     // 10. Group Expense Summary (SECTION 8)
     const now = new Date();
@@ -731,15 +695,7 @@ export async function getGroupFinancialDetails(
     const totalPayableInGroup = processedMembers
       .reduce((sum, m) => sum + m.needToPay, 0);
 
-    const pendingSettlementsAmount = isOwner
-      ? optimalSettlements.reduce((sum, s) => sum + s.amount, 0) / 100
-      : visibleSettlementSuggestions.reduce((sum, s) => sum + s.amount, 0);
-
-    const visiblePendingList = isOwner
-      ? pendingSettlementsList
-      : pendingSettlementsList.filter(
-          (s) => s.fromUserId === user.id || s.toUserId === user.id
-        );
+    const pendingSettlementsAmount = optimalSettlements.reduce((sum, s) => sum + s.amount, 0) / 100;
 
     const totalSettledAmount = completedSettlementsList.reduce((sum, s) => sum + Number(s.amount), 0) / 100;
 
@@ -865,7 +821,7 @@ export async function getGroupFinancialDetails(
         guestMembers: membersList.filter((m) => m.isGuest).length,
         totalExpenses: totalGroupExpenseRupees,
         totalSettlements: totalSettledAmount,
-        pendingSettlementsCount: visiblePendingList.length,
+        pendingSettlementsCount: pendingSettlementsList.length,
         pendingSettlementsAmount,
         userContribution,
         userShare,
@@ -875,8 +831,8 @@ export async function getGroupFinancialDetails(
       },
       members: processedMembers,
       settlements: {
-        suggestions: visibleSettlementSuggestions,
-        pendingList: visiblePendingList.map((s) => ({
+        suggestions: settlementSuggestions,
+        pendingList: pendingSettlementsList.map((s) => ({
           id: s.id,
           publicId: s.publicId,
           fromName: s.fromUserName || s.fromContactName || "Member",
@@ -900,8 +856,8 @@ export async function getGroupFinancialDetails(
         lowestContributor,
         mostActiveMember,
         largestExpense,
-        totalReceivableInGroup: isOwner ? totalReceivableInGroup : (currentUserDetail?.willReceive || 0),
-        totalPayableInGroup: isOwner ? totalPayableInGroup : (currentUserDetail?.needToPay || 0),
+        totalReceivableInGroup,
+        totalPayableInGroup,
       },
       adminData,
       expenses: expensesList.map((e) => ({

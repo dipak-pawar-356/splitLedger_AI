@@ -144,11 +144,9 @@ export default async function GroupDetailPage({
           <SettleAllDialog
             groupId={group.id}
             groupName={group.name}
-            isOwner={group.isOwner}
-            currentUserId={user.id}
             suggestions={settlements.suggestions}
             trigger={
-              <SettleUpButton label={group.isOwner ? "Settle Up" : "Settle My Debts"} />
+              <SettleUpButton label="Settle Up" />
             }
           />
 
@@ -186,7 +184,6 @@ export default async function GroupDetailPage({
         groupId={group.id}
         groupName={group.name}
         isAdmin={group.isAdmin}
-        isOwner={group.isOwner}
         adminName={user.name || "Admin"}
         currentUserId={user.id}
       />
@@ -204,7 +201,7 @@ export default async function GroupDetailPage({
             Expenses History ({groupExpenses.length})
           </TabsTrigger>
           <TabsTrigger value="settlements" className="rounded-xl text-xs font-semibold">
-            {group.isOwner ? "Settlement Audit" : "My Settlements"} ({settlements.pendingList.length > 0 ? `${settlements.pendingList.length} Pending` : `${settlements.suggestions.length} Dues`})
+            Settlement Audit ({settlements.pendingList.length > 0 ? `${settlements.pendingList.length} Pending` : `${settlements.suggestions.length} Dues`})
           </TabsTrigger>
           <TabsTrigger value="activity" className="rounded-xl text-xs font-semibold">
             Group Activity ({groupActivities.length})
@@ -316,30 +313,20 @@ export default async function GroupDetailPage({
             <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <CardTitle className="text-base font-bold">
-                    {group.isOwner ? "Settlement Audit & Transfers" : "Your Settlement Transfers"}
-                  </CardTitle>
+                  <CardTitle className="text-base font-bold">Settlement Audit & Transfers</CardTitle>
                   <CardDescription className="text-xs">
-                    {group.isOwner
-                      ? "Track pending settlement requests and execute calculated debt transfers across all group members"
-                      : "Track your pending settlement requests and execute your personal debt transfers"}
+                    Track pending settlement requests and execute calculated debt transfers
                   </CardDescription>
                 </div>
                 {settlements.suggestions.length > 0 && (
                   <SettleAllDialog
                     groupId={group.id}
                     groupName={group.name}
-                    isOwner={group.isOwner}
-                    currentUserId={user.id}
                     suggestions={settlements.suggestions}
                     trigger={
                       <Button size="sm" className="h-8 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs">
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>
-                          {group.isOwner
-                            ? `Settle All (${settlements.suggestions.length})`
-                            : `Settle My Debts (${settlements.suggestions.length})`}
-                        </span>
+                        <span>Settle All ({settlements.suggestions.length})</span>
                       </Button>
                     }
                   />
@@ -353,9 +340,7 @@ export default async function GroupDetailPage({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      {group.isOwner
-                        ? `Pending Recorded Requests (${settlements.pendingList.length})`
-                        : `Your Pending Requests (${settlements.pendingList.length})`}
+                      Pending Recorded Requests ({settlements.pendingList.length})
                     </span>
                     <Badge variant="outline" className="text-[11px] font-semibold text-amber-600 border-amber-300">
                       Awaiting Confirmation
@@ -394,9 +379,7 @@ export default async function GroupDetailPage({
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                        {group.isOwner
-                          ? `Calculated Debts to Settle (${settlements.suggestions.length})`
-                          : `Your Calculated Debts to Settle (${settlements.suggestions.length})`}
+                        Calculated Debts to Settle ({settlements.suggestions.length})
                       </span>
                       <p className="text-[11px] text-slate-400">
                         Total pending dues: {formatCurrency(overview.pendingSettlementsAmount || settlements.suggestions.reduce((sum, s) => sum + s.amount, 0))}
@@ -420,8 +403,6 @@ export default async function GroupDetailPage({
                         <SettleAllDialog
                           groupId={group.id}
                           groupName={group.name}
-                          isOwner={group.isOwner}
-                          currentUserId={user.id}
                           suggestions={[sg]}
                           trigger={
                             <Button

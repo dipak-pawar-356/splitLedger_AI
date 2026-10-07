@@ -23,9 +23,6 @@ interface MemberProfileModalProps {
   onOpenChange: (open: boolean) => void;
   member: MemberFinancialDetail | null;
   groupName: string;
-  isOwner?: boolean;
-  isCurrentUser?: boolean;
-  currentUserId?: number;
 }
 
 export function MemberProfileModal({
@@ -33,15 +30,8 @@ export function MemberProfileModal({
   onOpenChange,
   member,
   groupName,
-  isOwner = false,
-  isCurrentUser = false,
-  currentUserId,
 }: MemberProfileModalProps) {
   if (!member) return null;
-
-  const hasSettlementAccess = Boolean(isOwner || isCurrentUser);
-  const owesToCurrentUser = member.owesTo.find((o) => o.userId === currentUserId);
-  const receivesFromCurrentUser = member.receivesFrom.find((r) => r.userId === currentUserId);
 
   const isReceive = member.netPosition > 0;
   const isPay = member.netPosition < 0;
@@ -113,61 +103,37 @@ export function MemberProfileModal({
 
               {/* Net Balance */}
               <div className={`col-span-2 p-4 rounded-2xl border ${
-                hasSettlementAccess
-                  ? (isReceive 
-                      ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40" 
-                      : isPay 
-                      ? "bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40" 
-                      : "bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800")
-                  : (owesToCurrentUser
-                      ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40"
-                      : receivesFromCurrentUser
-                      ? "bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40"
-                      : "bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800")
+                isReceive 
+                  ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40" 
+                  : isPay 
+                  ? "bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40" 
+                  : "bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800"
               }`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-500 block">
-                      {hasSettlementAccess ? "Net Group Position" : "Settlement With You"}
+                      Net Group Position
                     </span>
                     <span className={`text-xl font-black mt-0.5 block ${
-                      hasSettlementAccess
-                        ? (isReceive ? "text-emerald-600 dark:text-emerald-400" : isPay ? "text-rose-600 dark:text-rose-400" : "text-slate-700")
-                        : (owesToCurrentUser ? "text-emerald-600 dark:text-emerald-400" : receivesFromCurrentUser ? "text-rose-600 dark:text-rose-400" : "text-slate-700")
+                      isReceive ? "text-emerald-600 dark:text-emerald-400" : isPay ? "text-rose-600 dark:text-rose-400" : "text-slate-700"
                     }`}>
-                      {hasSettlementAccess ? (
-                        isReceive 
-                          ? `Will Receive ${formatCurrency(member.willReceive)}` 
-                          : isPay 
-                          ? `Needs To Pay ${formatCurrency(member.needToPay)}` 
-                          : "Settled Up"
-                      ) : (
-                        owesToCurrentUser
-                          ? `Owes You ${formatCurrency(owesToCurrentUser.amount)}`
-                          : receivesFromCurrentUser
-                          ? `You Owe ${formatCurrency(receivesFromCurrentUser.amount)}`
-                          : "Settled With You"
-                      )}
+                      {isReceive 
+                        ? `Will Receive ${formatCurrency(member.willReceive)}` 
+                        : isPay 
+                        ? `Needs To Pay ${formatCurrency(member.needToPay)}` 
+                        : "Settled Up"}
                     </span>
                   </div>
 
                   <div className="text-right text-xs">
-                    {hasSettlementAccess ? (
-                      <>
-                        {member.receivesFrom.length > 0 && (
-                          <span className="text-emerald-600 font-semibold block">
-                            Receives from {member.receivesFrom.length} members
-                          </span>
-                        )}
-                        {member.owesTo.length > 0 && (
-                          <span className="text-rose-600 font-semibold block">
-                            Owes to {member.owesTo.length} members
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-[11px] text-slate-400 font-medium block">
-                        Private to owner & member
+                    {member.receivesFrom.length > 0 && (
+                      <span className="text-emerald-600 font-semibold block">
+                        Receives from {member.receivesFrom.length} members
+                      </span>
+                    )}
+                    {member.owesTo.length > 0 && (
+                      <span className="text-rose-600 font-semibold block">
+                        Owes to {member.owesTo.length} members
                       </span>
                     )}
                   </div>
