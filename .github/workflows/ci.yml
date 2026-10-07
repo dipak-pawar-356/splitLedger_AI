@@ -14,8 +14,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/splitledger
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_sample_ci_key
-      CLERK_SECRET_KEY: sk_test_sample_ci_key
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+      CLERK_SECRET_KEY: sk_test_sample_ci_secret_key
       NODE_ENV: test
 
     steps:
