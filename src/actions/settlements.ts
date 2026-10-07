@@ -147,7 +147,7 @@ export async function markSettlementAsPaid(publicIdOrId: string | number, paymen
       throw new NotFoundError("Settlement");
     }
 
-    // Check authorization: direct participant, group owner, or group admin
+    // Check authorization: only the group owner or direct participants have access
     let isAuthorized = existingSettlement.fromUserId === user.id || existingSettlement.toUserId === user.id;
 
     if (!isAuthorized && existingSettlement.groupId) {
@@ -159,26 +159,11 @@ export async function markSettlementAsPaid(publicIdOrId: string | number, paymen
 
       if (group?.createdBy === user.id) {
         isAuthorized = true;
-      } else {
-        const { groupMembers } = await import("@/lib/db/schema/schema");
-        const [membership] = await db
-          .select({ isAdmin: groupMembers.isAdmin })
-          .from(groupMembers)
-          .where(
-            and(
-              eq(groupMembers.groupId, existingSettlement.groupId),
-              eq(groupMembers.userId, user.id)
-            )
-          )
-          .limit(1);
-        if (membership) {
-          isAuthorized = true;
-        }
       }
     }
 
     if (!isAuthorized) {
-      throw new ValidationError("You do not have permission to mark this settlement as paid");
+      throw new ValidationError("Access denied: Only the group owner or respective user involved in this settlement has access.");
     }
 
     const resolvedPaymentMethod = paymentMethod || existingSettlement.paymentMethod || "UPI";
@@ -322,6 +307,25 @@ export async function createSettlementsBatch(
 
       if (settlement.fromUserId && settlement.toUserId && settlement.fromUserId === settlement.toUserId) {
         throw new ValidationError("Cannot create settlement with same user");
+      }
+
+      // PRIVACY & ACCESS CONTROL:
+      // Group owner has access to settle for any member.
+      // Non-owner regular members can ONLY settle their own transactions!
+      if (settlement.groupId) {
+        const [group] = await db
+          .select({ createdBy: groups.createdBy })
+          .from(groups)
+          .where(eq(groups.id, settlement.groupId))
+          .limit(1);
+
+        const isOwner = group?.createdBy === user.id;
+        if (!isOwner) {
+          const isDirectParty = settlement.fromUserId === user.id || settlement.toUserId === user.id;
+          if (!isDirectParty) {
+            throw new ValidationError("Access denied: You only have permission to execute your own settlements, not another member's settlement.");
+          }
+        }
       }
     }
 
@@ -573,6 +577,18 @@ export async function calculateGroupSettlements(groupId: number) {
   try {
     const user = await requireAuth();
 
+    const [groupRecord] = await db
+      .select({ id: groups.id, createdBy: groups.createdBy })
+      .from(groups)
+      .where(and(eq(groups.id, groupId), eq(groups.isDeleted, false)))
+      .limit(1);
+
+    if (!groupRecord) {
+      throw new NotFoundError("Group");
+    }
+
+    const isOwner = groupRecord.createdBy === user.id;
+
     // Get active transactions for the group
     const groupTransactions = await db
       .select({
@@ -629,9 +645,13 @@ export async function calculateGroupSettlements(groupId: number) {
     }));
 
     const optimalSettlements = calculateOptimalSettlements(balances, "INR");
+    if (!isOwner) {
+      // Non-owner only has access to their own settlement transfers
+      return optimalSettlements.filter(s => s.fromUserId === user.id || s.toUserId === user.id);
+    }
     return optimalSettlements;
   } catch (error) {
-    if (error instanceof NotFoundError) {
+    if (error instanceof NotFoundError || error instanceof ValidationError) {
       throw error;
     }
     throw new DatabaseError("Failed to calculate group settlements", { originalError: error });
@@ -641,6 +661,17 @@ export async function calculateGroupSettlements(groupId: number) {
 export async function createSettlementsFromCalculation(groupId: number) {
   try {
     const user = await requireAuth();
+
+    // Check that user is group owner
+    const [groupRecord] = await db
+      .select({ createdBy: groups.createdBy })
+      .from(groups)
+      .where(and(eq(groups.id, groupId), eq(groups.isDeleted, false)))
+      .limit(1);
+
+    if (groupRecord?.createdBy !== user.id) {
+      throw new ValidationError("Access denied: Only the group owner can generate and reset settlements for all members.");
+    }
 
     const optimalSettlements = await calculateGroupSettlements(groupId);
 

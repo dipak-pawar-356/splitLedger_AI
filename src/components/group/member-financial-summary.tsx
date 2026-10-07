@@ -64,6 +64,11 @@ export function MemberFinancialSummary({
     (member.email && currentUserEmail && member.email.toLowerCase().trim() === currentUserEmail.toLowerCase().trim())
   );
 
+  const hasSettlementAccess = Boolean(isGroupOwner || isCurrentUser);
+  const owesToCurrentUser = member.owesTo.find((o) => o.userId === currentUserId);
+  const receivesFromCurrentUser = member.receivesFrom.find((r) => r.userId === currentUserId);
+  const hasMutualDebtWithCurrentUser = Boolean(owesToCurrentUser || receivesFromCurrentUser);
+
   const isReceivable = member.netPosition > 0.01;
   const isPayable = member.netPosition < -0.01;
   const isSettled = !isReceivable && !isPayable;
@@ -138,25 +143,41 @@ export function MemberFinancialSummary({
           <CardContent className="p-4 space-y-3">
             {/* Net Position Status Banner (SECTIONS 2 & 4) */}
             <div className={`p-3.5 rounded-2xl border transition-colors ${
-              isReceivable 
-                ? "bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/60" 
-                : isPayable 
-                ? "bg-rose-50/60 dark:bg-rose-950/25 border-rose-200 dark:border-rose-900/60" 
-                : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
+              hasSettlementAccess
+                ? (isReceivable 
+                    ? "bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/60" 
+                    : isPayable 
+                    ? "bg-rose-50/60 dark:bg-rose-950/25 border-rose-200 dark:border-rose-900/60" 
+                    : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800")
+                : (owesToCurrentUser
+                    ? "bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/60"
+                    : receivesFromCurrentUser
+                    ? "bg-rose-50/60 dark:bg-rose-950/25 border-rose-200 dark:border-rose-900/60"
+                    : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800")
             }`}>
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Settlement Status
+                    {hasSettlementAccess ? "Settlement Status" : "Settlement With You"}
                   </span>
                   <span className={`text-base font-black tracking-tight mt-0.5 block ${
-                    isReceivable ? "text-emerald-600 dark:text-emerald-400" : isPayable ? "text-rose-600 dark:text-rose-400" : member.isPaymentVerified ? "text-emerald-600 dark:text-emerald-400" : "text-slate-600"
+                    hasSettlementAccess
+                      ? (isReceivable ? "text-emerald-600 dark:text-emerald-400" : isPayable ? "text-rose-600 dark:text-rose-400" : member.isPaymentVerified ? "text-emerald-600 dark:text-emerald-400" : "text-slate-600")
+                      : (owesToCurrentUser ? "text-emerald-600 dark:text-emerald-400" : receivesFromCurrentUser ? "text-rose-600 dark:text-rose-400" : "text-slate-600")
                   }`}>
-                    {isReceivable 
-                      ? `Will Receive ${formatCurrency(member.willReceive)}` 
-                      : isPayable 
-                      ? `Needs To Pay ${formatCurrency(member.needToPay)}` 
-                      : member.isPaymentVerified ? "Settled & Verified" : "Settled Up"}
+                    {hasSettlementAccess ? (
+                      isReceivable 
+                        ? `Will Receive ${formatCurrency(member.willReceive)}` 
+                        : isPayable 
+                        ? `Needs To Pay ${formatCurrency(member.needToPay)}` 
+                        : member.isPaymentVerified ? "Settled & Verified" : "Settled Up"
+                    ) : (
+                      owesToCurrentUser
+                        ? `Owes You ${formatCurrency(owesToCurrentUser.amount)}`
+                        : receivesFromCurrentUser
+                        ? `You Owe ${formatCurrency(receivesFromCurrentUser.amount)}`
+                        : "Settled With You"
+                    )}
                   </span>
                 </div>
 
@@ -193,27 +214,52 @@ export function MemberFinancialSummary({
             </div>
 
             {/* Pairwise Settlement Details (SECTION 6) */}
-            {member.receivesFrom.length > 0 && (
-              <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1">
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Receives from:</span>
-                {member.receivesFrom.map((r, i) => (
-                  <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
-                    <span>{r.name}</span>
-                    <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
+            {hasSettlementAccess ? (
+              <>
+                {member.receivesFrom.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1">
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Receives from:</span>
+                    {member.receivesFrom.map((r, i) => (
+                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
+                        <span>{r.name}</span>
+                        <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            {member.owesTo.length > 0 && (
-              <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1">
-                <span className="font-semibold text-rose-700 dark:text-rose-400 block">Needs to pay:</span>
-                {member.owesTo.map((o, i) => (
-                  <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
-                    <span>{o.name}</span>
-                    <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
+                {member.owesTo.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1">
+                    <span className="font-semibold text-rose-700 dark:text-rose-400 block">Needs to pay:</span>
+                    {member.owesTo.map((o, i) => (
+                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
+                        <span>{o.name}</span>
+                        <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+              </>
+            ) : hasMutualDebtWithCurrentUser ? (
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-[11px] space-y-1">
+                {owesToCurrentUser && (
+                  <div className="flex justify-between text-slate-700 dark:text-slate-300">
+                    <span className="text-emerald-600 font-semibold">Owes You Directly:</span>
+                    <strong className="text-emerald-600 font-mono">+{formatCurrency(owesToCurrentUser.amount)}</strong>
+                  </div>
+                )}
+                {receivesFromCurrentUser && (
+                  <div className="flex justify-between text-slate-700 dark:text-slate-300">
+                    <span className="text-rose-600 font-semibold">You Owe Directly:</span>
+                    <strong className="text-rose-600 font-mono">-{formatCurrency(receivesFromCurrentUser.amount)}</strong>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-2 rounded-xl bg-slate-50/60 dark:bg-slate-900/30 border border-dashed border-slate-200 dark:border-slate-800 text-center">
+                <span className="text-[10px] text-slate-400 font-medium">
+                  Settlement details private to member & group owner
+                </span>
               </div>
             )}
           </CardContent>
@@ -233,23 +279,27 @@ export function MemberFinancialSummary({
               <span>Profile</span>
             </Button>
 
-            {/* Remind Action: Never show for respective current user. Show for group owner & other members when there are pending or incoming settlement amounts */}
-            {!isCurrentUser && hasPendingSettlement && (
+            {/* Remind Action: Never show for respective current user. Group owner or members with mutual debts can send reminders */}
+            {!isCurrentUser && (isGroupOwner ? hasPendingSettlement : hasMutualDebtWithCurrentUser) && (
               <ReminderDialog
                 recipientEmail={member.email || undefined}
                 recipientPhone={member.phone || undefined}
                 recipientName={member.name}
-                amount={member.needToPay > 0 ? member.needToPay : member.willReceive}
+                amount={
+                  isGroupOwner
+                    ? (member.needToPay > 0 ? member.needToPay : member.willReceive)
+                    : (owesToCurrentUser ? owesToCurrentUser.amount : (receivesFromCurrentUser ? receivesFromCurrentUser.amount : 0))
+                }
                 groupId={groupId}
                 groupPublicId={groupPublicId}
                 groupName={groupName}
-                owesToList={member.owesTo}
-                receivesFromList={member.receivesFrom}
+                owesToList={isGroupOwner ? member.owesTo : (owesToCurrentUser ? [owesToCurrentUser] : [])}
+                receivesFromList={isGroupOwner ? member.receivesFrom : (receivesFromCurrentUser ? [receivesFromCurrentUser] : [])}
                 totalGroupExpense={totalGroupExpense}
                 totalMembers={totalMembers}
                 memberPaidAmount={member.totalPaid}
                 memberOwnShare={member.ownShare}
-                memberNetPosition={member.netPosition}
+                memberNetPosition={isGroupOwner ? member.netPosition : (owesToCurrentUser ? -owesToCurrentUser.amount : 0)}
                 trigger={
                   <Button
                     type="button"
@@ -286,6 +336,9 @@ export function MemberFinancialSummary({
         onOpenChange={setIsProfileModalOpen}
         member={member}
         groupName={groupName}
+        isOwner={isGroupOwner}
+        isCurrentUser={isCurrentUser}
+        currentUserId={currentUserId}
       />
     </>
   );
