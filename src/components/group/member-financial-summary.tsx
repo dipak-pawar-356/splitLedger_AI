@@ -87,9 +87,23 @@ export function MemberFinancialSummary({
     }
   };
 
+  const hasFullSettlementAccess = Boolean(isGroupOwner || isCurrentUser);
+  const mutualReceives = member.receivesFrom.filter(
+    (r) => currentUserId && r.userId === currentUserId
+  );
+  const mutualOwes = member.owesTo.filter(
+    (o) => currentUserId && o.userId === currentUserId
+  );
+
   return (
     <>
-      <Card className="w-full hover:shadow-md transition-all duration-200 border-slate-200/90 dark:border-slate-800 flex flex-col justify-between overflow-hidden bg-card rounded-3xl">
+      <Card className={`w-full hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden bg-card rounded-3xl ${
+        isReceivable 
+          ? "border-2 border-emerald-500 shadow-sm shadow-emerald-500/10 dark:border-emerald-500" 
+          : isPayable 
+          ? "border-2 border-rose-500 shadow-sm shadow-rose-500/10 dark:border-rose-500" 
+          : "border border-slate-200/90 dark:border-slate-800"
+      }`}>
         <div>
           {/* Card Header: Avatar, Name, Role, Badges */}
           <CardHeader className="flex flex-row items-center gap-3.5 pb-3 pt-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30">
@@ -137,11 +151,11 @@ export function MemberFinancialSummary({
 
           <CardContent className="p-4 space-y-3">
             {/* Net Position Status Banner (SECTIONS 2 & 4) */}
-            <div className={`p-3.5 rounded-2xl border transition-colors ${
+            <div className={`p-3.5 rounded-2xl border-2 transition-colors ${
               isReceivable 
-                ? "bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/60" 
+                ? "bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-500/40 dark:border-emerald-500/50" 
                 : isPayable 
-                ? "bg-rose-50/60 dark:bg-rose-950/25 border-rose-200 dark:border-rose-900/60" 
+                ? "bg-rose-50/60 dark:bg-rose-950/25 border-rose-500/40 dark:border-rose-500/50" 
                 : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
             }`}>
               <div className="flex items-center justify-between">
@@ -192,36 +206,72 @@ export function MemberFinancialSummary({
               </div>
             </div>
 
-            {/* Pairwise Settlement Details (SECTION 6) */}
-            {member.receivesFrom.length > 0 && (
-              <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1">
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Receives from:</span>
-                {member.receivesFrom.map((r, i) => (
-                  <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
-                    <span>{r.name}</span>
-                    <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
+            {/* Pairwise Settlement Details (SECTION 6) - Privacy & RBAC Protected */}
+            {hasFullSettlementAccess ? (
+              <>
+                {member.receivesFrom.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1">
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Receives from:</span>
+                    {member.receivesFrom.map((r, i) => (
+                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
+                        <span>{r.name}</span>
+                        <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                )}
 
-            {member.owesTo.length > 0 && (
-              <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1">
-                <span className="font-semibold text-rose-700 dark:text-rose-400 block">Needs to pay:</span>
-                {member.owesTo.map((o, i) => (
-                  <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
-                    <span>{o.name}</span>
-                    <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
+                {member.owesTo.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1">
+                    <span className="font-semibold text-rose-700 dark:text-rose-400 block">Needs to pay:</span>
+                    {member.owesTo.map((o, i) => (
+                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
+                        <span>{o.name}</span>
+                        <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
+            ) : (
+              <>
+                {mutualReceives.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1">
+                    <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Settlement with you:</span>
+                    {mutualReceives.map((r, i) => (
+                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
+                        <span>Receives from you</span>
+                        <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {mutualOwes.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1">
+                    <span className="font-semibold text-rose-700 dark:text-rose-400 block">Settlement with you:</span>
+                    {mutualOwes.map((o, i) => (
+                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
+                        <span>Owes to you</span>
+                        <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {mutualReceives.length === 0 && mutualOwes.length === 0 && (
+                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 text-center">
+                    <span>Settlement details visible to owner & member</span>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </div>
 
         {/* Card Footer Actions (SECTION 5) */}
         <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-between gap-1.5 flex-wrap">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Button
               type="button"
               variant="outline"
@@ -265,7 +315,7 @@ export function MemberFinancialSummary({
             )}
           </div>
 
-          {(isCurrentUserAdmin || isGroupOwner) && member.role !== "owner" && (
+          {(isCurrentUserAdmin || isGroupOwner) && !isCurrentUser && member.role !== "owner" && (
             <Button
               type="button"
               variant="ghost"
@@ -286,7 +336,10 @@ export function MemberFinancialSummary({
         onOpenChange={setIsProfileModalOpen}
         member={member}
         groupName={groupName}
+        isGroupOwner={isGroupOwner}
+        currentUserId={currentUserId}
       />
     </>
   );
 }
+

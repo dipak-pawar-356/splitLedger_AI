@@ -24,6 +24,7 @@ interface WhoPaysWhomCardProps {
   groupId: number;
   groupName: string;
   isAdmin?: boolean;
+  isOwner?: boolean;
   adminName?: string;
   currentUserId?: number;
 }
@@ -33,9 +34,21 @@ export function WhoPaysWhomCard({
   groupId,
   groupName,
   isAdmin,
+  isOwner,
   adminName,
   currentUserId,
 }: WhoPaysWhomCardProps) {
+  // Only the group owner has access to full settlement suggestions across all members.
+  // Respective users only see settlement suggestions that involve themselves.
+  const hasFullAccess = Boolean(isOwner);
+  const visibleSuggestions = hasFullAccess
+    ? suggestions
+    : suggestions.filter(
+        (s) =>
+          currentUserId &&
+          (s.fromUserId === currentUserId || s.toUserId === currentUserId)
+      );
+
   return (
     <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden bg-card">
       <CardHeader className="pb-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
@@ -47,15 +60,17 @@ export function WhoPaysWhomCard({
             <div>
               <CardTitle className="text-base sm:text-lg font-bold tracking-tight">Who Pays Whom</CardTitle>
               <CardDescription className="text-xs text-slate-500 dark:text-slate-400">
-                Minimal transfer settlement suggestions calculated by the engine
+                {hasFullAccess 
+                  ? "Minimal transfer settlement suggestions calculated by the engine"
+                  : "Your settlement transfers calculated by the engine"}
               </CardDescription>
             </div>
           </div>
-          {suggestions.length > 0 && (
+          {visibleSuggestions.length > 0 && (
             <SettleAllDialog
               groupId={groupId}
               groupName={groupName}
-              suggestions={suggestions}
+              suggestions={visibleSuggestions}
               trigger={
                 <SettleUpButton label="Settle Debts" size="sm" />
               }
@@ -65,9 +80,9 @@ export function WhoPaysWhomCard({
       </CardHeader>
 
       <CardContent className="p-4 sm:p-5">
-        {suggestions.length > 0 ? (
+        {visibleSuggestions.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {suggestions.map((s, idx) => (
+            {visibleSuggestions.map((s, idx) => (
               <div
                 key={idx}
                 className="group p-4 sm:p-5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800/90 flex flex-col gap-3 transition-all duration-200 hover:-translate-y-[2px] hover:shadow-lg hover:border-emerald-500/50 hover:bg-slate-50 dark:hover:bg-slate-900/80"
@@ -149,10 +164,14 @@ export function WhoPaysWhomCard({
           <div className="py-10 text-center text-slate-400 space-y-1.5">
             <CheckCircle2 className="h-9 w-9 mx-auto text-emerald-500 mb-2" />
             <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
-              All Debts Are Settled Up!
+              {suggestions.length > 0 && !hasFullAccess
+                ? "You Have No Pending Settlement Transfers"
+                : "All Debts Are Settled Up!"}
             </p>
             <p className="text-xs text-slate-400">
-              No pending transfers required between group members.
+              {suggestions.length > 0 && !hasFullAccess
+                ? "Full group settlement details are only accessible to the group owner."
+                : "No pending transfers required between group members."}
             </p>
           </div>
         )}

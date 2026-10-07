@@ -23,6 +23,8 @@ interface MemberProfileModalProps {
   onOpenChange: (open: boolean) => void;
   member: MemberFinancialDetail | null;
   groupName: string;
+  isGroupOwner?: boolean;
+  currentUserId?: number | string | null;
 }
 
 export function MemberProfileModal({
@@ -30,6 +32,8 @@ export function MemberProfileModal({
   onOpenChange,
   member,
   groupName,
+  isGroupOwner,
+  currentUserId,
 }: MemberProfileModalProps) {
   if (!member) return null;
 

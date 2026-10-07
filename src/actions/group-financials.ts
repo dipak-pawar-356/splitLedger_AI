@@ -98,6 +98,10 @@ export interface GroupFinancialSummary {
     pendingList: Array<{
       id: number;
       publicId: string;
+      fromUserId?: number | null;
+      fromContactId?: number | null;
+      toUserId?: number | null;
+      toContactId?: number | null;
       fromName: string;
       toName: string;
       amount: number; // in rupees
@@ -835,6 +839,10 @@ export async function getGroupFinancialDetails(
         pendingList: pendingSettlementsList.map((s) => ({
           id: s.id,
           publicId: s.publicId,
+          fromUserId: s.fromUserId,
+          fromContactId: s.fromContactId,
+          toUserId: s.toUserId,
+          toContactId: s.toContactId,
           fromName: s.fromUserName || s.fromContactName || "Member",
           toName: s.toUserName || "Member",
           amount: s.amount / 100,

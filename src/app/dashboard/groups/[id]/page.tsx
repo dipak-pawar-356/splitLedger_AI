@@ -85,6 +85,22 @@ export default async function GroupDetailPage({
     isGuest: m.isGuest,
   }));
 
+  const isGroupOwner = Boolean(group.isOwner);
+
+  // Settlement Privacy: Only group owner has access to all settlement details across members.
+  // Other members only have access to their own settlements (where they are payer or receiver).
+  const visiblePendingSettlements = isGroupOwner
+    ? settlements.pendingList
+    : settlements.pendingList.filter(
+        (st) => (st.fromUserId && st.fromUserId === user.id) || (st.toUserId && st.toUserId === user.id)
+      );
+
+  const visibleSettlementSuggestions = isGroupOwner
+    ? settlements.suggestions
+    : settlements.suggestions.filter(
+        (sg) => (sg.fromUserId && sg.fromUserId === user.id) || (sg.toUserId && sg.toUserId === user.id)
+      );
+
   return (
     <div className="space-y-6">
       {/* Top Header Navigation & Quick Actions (SECTION 10) */}
@@ -184,28 +200,29 @@ export default async function GroupDetailPage({
         groupId={group.id}
         groupName={group.name}
         isAdmin={group.isAdmin}
+        isOwner={group.isOwner}
         adminName={user.name || "Admin"}
         currentUserId={user.id}
       />
 
       {/* TABS VIEW: Financials, Expenses, Members, Settlements */}
       <Tabs defaultValue={activeTab} className="space-y-6">
-        <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview" className="rounded-xl text-xs font-semibold">
-            Member Financials ({members.length})
-          </TabsTrigger>
-          <TabsTrigger value="insights" className="rounded-xl text-xs font-semibold">
-            Expense Insights & Stats
-          </TabsTrigger>
-          <TabsTrigger value="expenses" className="rounded-xl text-xs font-semibold">
-            Expenses History ({groupExpenses.length})
-          </TabsTrigger>
-          <TabsTrigger value="settlements" className="rounded-xl text-xs font-semibold">
-            Settlement Audit ({settlements.pendingList.length > 0 ? `${settlements.pendingList.length} Pending` : `${settlements.suggestions.length} Dues`})
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="rounded-xl text-xs font-semibold">
-            Group Activity ({groupActivities.length})
-          </TabsTrigger>
+            <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl flex-wrap h-auto gap-1">
+              <TabsTrigger value="overview" className="rounded-xl text-xs font-semibold">
+                Member Financials ({members.length})
+              </TabsTrigger>
+              <TabsTrigger value="insights" className="rounded-xl text-xs font-semibold">
+                Expense Insights & Stats
+              </TabsTrigger>
+              <TabsTrigger value="expenses" className="rounded-xl text-xs font-semibold">
+                Expenses History ({groupExpenses.length})
+              </TabsTrigger>
+              <TabsTrigger value="settlements" className="rounded-xl text-xs font-semibold">
+                Settlement Audit ({visiblePendingSettlements.length > 0 ? `${visiblePendingSettlements.length} Pending` : `${visibleSettlementSuggestions.length} Dues`})
+              </TabsTrigger>
+              <TabsTrigger value="activity" className="rounded-xl text-xs font-semibold">
+                Group Activity ({groupActivities.length})
+              </TabsTrigger>
 
           {(group.isAdmin || group.isOwner) && (
             <>
@@ -318,15 +335,15 @@ export default async function GroupDetailPage({
                     Track pending settlement requests and execute calculated debt transfers
                   </CardDescription>
                 </div>
-                {settlements.suggestions.length > 0 && (
+                {visibleSettlementSuggestions.length > 0 && (
                   <SettleAllDialog
                     groupId={group.id}
                     groupName={group.name}
-                    suggestions={settlements.suggestions}
+                    suggestions={visibleSettlementSuggestions}
                     trigger={
                       <Button size="sm" className="h-8 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-xs">
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>Settle All ({settlements.suggestions.length})</span>
+                        <span>Settle All ({visibleSettlementSuggestions.length})</span>
                       </Button>
                     }
                   />
@@ -336,18 +353,18 @@ export default async function GroupDetailPage({
 
             <CardContent className="p-4 space-y-5">
               {/* 1. Pending Recorded Settlements (Awaiting confirmation) */}
-              {settlements.pendingList.length > 0 && (
+              {visiblePendingSettlements.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                      Pending Recorded Requests ({settlements.pendingList.length})
+                      Pending Recorded Requests ({visiblePendingSettlements.length})
                     </span>
                     <Badge variant="outline" className="text-[11px] font-semibold text-amber-600 border-amber-300">
                       Awaiting Confirmation
                     </Badge>
                   </div>
                   <div className="space-y-2.5">
-                    {settlements.pendingList.map((st) => (
+                    {visiblePendingSettlements.map((st) => (
                       <div
                         key={st.id}
                         className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3"
@@ -374,20 +391,24 @@ export default async function GroupDetailPage({
               )}
 
               {/* 2. Calculated Outstanding Dues (Calculated by the engine) */}
-              {settlements.suggestions.length > 0 && (
+              {visibleSettlementSuggestions.length > 0 && (
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                        Calculated Debts to Settle ({settlements.suggestions.length})
+                        Calculated Debts to Settle ({visibleSettlementSuggestions.length})
                       </span>
                       <p className="text-[11px] text-slate-400">
-                        Total pending dues: {formatCurrency(overview.pendingSettlementsAmount || settlements.suggestions.reduce((sum, s) => sum + s.amount, 0))}
+                        {isGroupOwner ? (
+                          <>Total pending dues: {formatCurrency(overview.pendingSettlementsAmount || settlements.suggestions.reduce((sum, s) => sum + s.amount, 0))}</>
+                        ) : (
+                          <>Your pending dues: {formatCurrency(visibleSettlementSuggestions.reduce((sum, s) => sum + s.amount, 0))}</>
+                        )}
                       </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {settlements.suggestions.map((sg, idx) => (
+                    {visibleSettlementSuggestions.map((sg, idx) => (
                       <div
                         key={idx}
                         className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-emerald-500/40 transition-colors"
@@ -421,14 +442,18 @@ export default async function GroupDetailPage({
               )}
 
               {/* 3. Empty State (Only if both are zero) */}
-              {settlements.pendingList.length === 0 && settlements.suggestions.length === 0 && (
+              {visiblePendingSettlements.length === 0 && visibleSettlementSuggestions.length === 0 && (
                 <div className="py-12 text-center text-slate-400 space-y-2">
                   <CheckCircle2 className="h-9 w-9 mx-auto text-emerald-500 mb-1" />
                   <p className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                    All Debts Are Settled Up!
+                    {!isGroupOwner && (settlements.pendingList.length > 0 || settlements.suggestions.length > 0)
+                      ? "You Have No Pending Settlement Transfers"
+                      : "All Debts Are Settled Up!"}
                   </p>
                   <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                    No pending settlements or outstanding transfer requests in this group.
+                    {!isGroupOwner && (settlements.pendingList.length > 0 || settlements.suggestions.length > 0)
+                      ? "Only the group owner has access to full settlement details between other members."
+                      : "No pending settlements or outstanding transfer requests in this group."}
                   </p>
                 </div>
               )}

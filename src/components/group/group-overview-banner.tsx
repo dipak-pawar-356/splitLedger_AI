@@ -97,12 +97,12 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
           </div>
 
           {/* User's Exact Financial Position in this Group (SECTION 1 & 2) */}
-          <div className={`p-4 rounded-2xl border transition-all ${
+          <div className={`p-4 rounded-2xl transition-all ${
             isReceive 
-              ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-100"
+              ? "bg-emerald-950/40 border-2 border-emerald-500 text-emerald-100 shadow-sm shadow-emerald-500/20"
               : isPay
-              ? "bg-rose-950/40 border-rose-500/40 text-rose-100"
-              : "bg-white/10 border-white/20 text-slate-200"
+              ? "bg-rose-950/40 border-2 border-rose-500 text-rose-100 shadow-sm shadow-rose-500/20"
+              : "bg-white/10 border border-white/20 text-slate-200"
           }`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-0.5">
