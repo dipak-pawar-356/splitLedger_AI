@@ -1,9 +1,13 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 export async function sendEmail(to: string, subject: string, html: string) {
   try {
+    if (!resend) {
+      console.warn("RESEND_API_KEY not configured, skipping email");
+      return null;
+    }
     const { data, error } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || "noreply@splitledger.ai",
       to,
@@ -15,7 +19,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
     return data;
   } catch (error) {
     console.error("Email send failed:", error);
-    throw error;
+    return null;
   }
 }
 
