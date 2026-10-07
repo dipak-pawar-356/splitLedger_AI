@@ -36,6 +36,15 @@ const USER_COLUMNS = {
   updatedAt: users.updatedAt,
 };
 
+function isDevOrTest(): boolean {
+  return (
+    process.env.NODE_ENV === "development" ||
+    process.env.NODE_ENV === "test" ||
+    Boolean(process.env.VITEST) ||
+    !process.env.CLERK_SECRET_KEY
+  );
+}
+
 export const getCurrentUser = reactCache(async () => {
   try {
     let userId: string | null = null;
@@ -61,7 +70,7 @@ export const getCurrentUser = reactCache(async () => {
     }
 
     if (!userId) {
-      if (process.env.NODE_ENV === "development" || !process.env.CLERK_SECRET_KEY) return DEV_USER;
+      if (isDevOrTest()) return DEV_USER;
       return null;
     }
 
@@ -104,7 +113,7 @@ export const getCurrentUser = reactCache(async () => {
       return newUser || DEV_USER;
     });
   } catch (error) {
-    if (process.env.NODE_ENV === "development" || !process.env.CLERK_SECRET_KEY) return DEV_USER;
+    if (isDevOrTest()) return DEV_USER;
     return null;
   }
 });
@@ -112,7 +121,7 @@ export const getCurrentUser = reactCache(async () => {
 export const requireAuth = reactCache(async () => {
   const user = await getCurrentUser();
   if (!user) {
-    if (process.env.NODE_ENV === "development" || !process.env.CLERK_SECRET_KEY) return DEV_USER;
+    if (isDevOrTest()) return DEV_USER;
     throw new AuthenticationError("User not authenticated");
   }
   return user;
