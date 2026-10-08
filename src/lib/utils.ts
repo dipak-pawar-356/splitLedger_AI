@@ -65,10 +65,47 @@ export function formatRelativeTime(date: Date | string | null | undefined): stri
   return formatDate(d);
 }
 
-export function generateSecureToken(): string {
-  const array = new Uint8Array(32);
-  crypto.getRandomValues(array);
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
+/**
+ * Generates an unpredictable, cryptographically random numeric string of 15 to 20 digits.
+ * Ensures the first digit is non-zero (1-9) so it does not lose precision or have leading zeros.
+ * Guarantees no sequential predictability and optional exclusion of conflicting IDs.
+ */
+export function generateRandomNumericId(length: number = 16, excludeIds: string[] = []): string {
+  const targetLength = Math.max(15, Math.min(20, length));
+  const maxAttempts = 100;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const bytes = new Uint8Array(targetLength);
+    crypto.getRandomValues(bytes);
+
+    // First digit is 1-9 to avoid leading zero
+    const firstDigit = ((bytes[0] % 9) + 1).toString();
+    const restDigits = Array.from(bytes.slice(1), (b) => (b % 10).toString()).join("");
+    const numericId = `${firstDigit}${restDigits}`;
+
+    if (!excludeIds.includes(numericId)) {
+      return numericId;
+    }
+  }
+
+  const timestamp = Date.now().toString();
+  const randomSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
+  return `${timestamp}${randomSuffix}`.slice(0, targetLength);
+}
+
+/**
+ * Checks whether an ID represents an internal PostgreSQL serial integer ID (1, 2, ... <= 2147483647).
+ * Randomized 15-20 digit public IDs and tokens will return false, preventing SQL integer overflow.
+ */
+export function isDbIntegerId(val: string | number | undefined | null): boolean {
+  if (val === undefined || val === null) return false;
+  if (typeof val === "number") return Number.isInteger(val) && val > 0 && val <= 2147483647;
+  const str = String(val).trim();
+  return /^\d{1,9}$/.test(str) && Number(str) <= 2147483647;
+}
+
+export function generateSecureToken(excludeIds: string[] = []): string {
+  return generateRandomNumericId(16, excludeIds);
 }
 
 export function generatePublicId(prefix?: string): string {
@@ -92,15 +129,19 @@ export function generateAuditId(): string {
 }
 
 export function generateGroupId(): string {
-  return generatePublicId("grp");
+  return generateRandomNumericId(16);
 }
 
 export function generateExpenseId(): string {
   return generatePublicId("txn");
 }
 
-export function generateInvitationId(): string {
-  return generatePublicId("inv");
+export function generateInvitationToken(excludeIds: string[] = []): string {
+  return generateRandomNumericId(16, excludeIds);
+}
+
+export function generateInvitationId(excludeIds: string[] = []): string {
+  return generateRandomNumericId(16, excludeIds);
 }
 
 export function generateContactId(): string {
@@ -119,14 +160,19 @@ export function generateScheduleId(): string {
   return generatePublicId("sch");
 }
 
+export const PRODUCTION_APP_URL = "https://split-ledger-ai.vercel.app";
+
 export function getBaseAppUrl(): string {
-  const rawUrl = process.env.NEXT_PUBLIC_APP_URL || "https://split-ledger-ai.vercel.app";
-  return rawUrl.trim().replace(/\/+$/, "");
+  // Always enforce production domain for external links (QR codes, invite links, emails, and shares)
+  return PRODUCTION_APP_URL;
+}
+
+export function generateGroupJoinUrl(groupIdentifier: string): string {
+  return `${PRODUCTION_APP_URL}/join-group/${groupIdentifier}`;
 }
 
 export function generateInvitationUrl(token: string): string {
-  const baseUrl = getBaseAppUrl();
-  return `${baseUrl}/invite/${token}`;
+  return `${PRODUCTION_APP_URL}/join-group/${token}`;
 }
 
 export function generateWhatsAppLink(phone: string, message: string): string {

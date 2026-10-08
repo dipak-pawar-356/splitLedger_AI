@@ -45,6 +45,26 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "10mb",
     },
   },
+  async rewrites() {
+    return [
+      {
+        source: "/groups",
+        destination: "/dashboard/groups",
+      },
+      {
+        source: "/groups/:id",
+        destination: "/dashboard/groups/:id",
+      },
+      {
+        source: "/groups/:id/expenses",
+        destination: "/dashboard/groups/:id/expenses",
+      },
+      {
+        source: "/groups/:id/settlements",
+        destination: "/dashboard/groups/:id/settlements",
+      },
+    ];
+  },
 };
 
 export default nextConfig;

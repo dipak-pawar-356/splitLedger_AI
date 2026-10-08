@@ -1,11 +1,11 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { invitations, groups, groupMembers, users, contacts, settlements, transactions, expenseSplits } from "@/lib/db/schema/schema";
+import { invitations, groups, groupMembers, users, contacts, settlements, transactions, expenseSplits, groupJoinRequests } from "@/lib/db/schema/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Users, DollarSign, Calendar, AlertTriangle, CheckCircle, XCircle, LogIn, ArrowRight, Shield } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, generatePublicId } from "@/lib/utils";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
@@ -187,9 +187,33 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
           await db.insert(groupMembers).values({
             groupId: group.id,
             userId: userToJoin.id,
+            membershipStatus: "pending",
             isAdmin: false,
             isGuest: false,
             joinedAt: new Date(),
+          });
+        }
+
+        // Create PENDING join request for owner approval (Requirement 1)
+        const [existingReq] = await db
+          .select()
+          .from(groupJoinRequests)
+          .where(
+            and(
+              eq(groupJoinRequests.groupId, group.id),
+              eq(groupJoinRequests.userId, userToJoin.id),
+              eq(groupJoinRequests.status, "pending")
+            )
+          )
+          .limit(1);
+
+        if (!existingReq) {
+          await db.insert(groupJoinRequests).values({
+            publicId: generatePublicId(),
+            groupId: group.id,
+            userId: userToJoin.id,
+            status: "pending",
+            includeInHistoricalExpenses: false,
           });
         }
       }

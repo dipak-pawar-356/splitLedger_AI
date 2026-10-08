@@ -1,15 +1,19 @@
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { groups, groupMembers, settlements, users, contacts } from "@/lib/db/schema/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { groups, groupMembers, settlements, users, contacts, groupJoinRequests } from "@/lib/db/schema/schema";
+import { eq, and, desc, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, CheckCircle, XCircle, Clock } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, isDbIntegerId } from "@/lib/utils";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { markSettlementAsPaid, markSettlementAsPaidFormAction } from "@/actions/settlements";
+import { GroupUpiSettlementHub } from "@/components/settlement/group-upi-settlement-hub";
+
+import { GroupRouteErrorView } from "@/components/group/group-route-error-view";
+import { PendingGroupAccessView } from "@/components/group/pending-group-access-view";
 
 export const dynamic = 'force-dynamic';
 
@@ -17,24 +21,69 @@ export default async function GroupSettlementsPage({ params }: { params: Promise
   const user = await requireAuth();
   const { id: publicId } = await params;
 
-  const isNumeric = /^\d+$/.test(publicId);
+  const strId = String(publicId).trim();
+  const isDbId = isDbIntegerId(publicId);
   const [groupRecord] = await db
     .select()
     .from(groups)
     .where(
-      and(
-        isNumeric ? eq(groups.id, Number(publicId)) : eq(groups.publicId, publicId),
-        eq(groups.isDeleted, false)
-      )
+      isDbId
+        ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+        : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId))
     )
     .limit(1);
 
   if (!groupRecord) {
-    redirect("/dashboard/groups");
+    return <GroupRouteErrorView errorType="not_found" groupIdentifier={publicId} />;
+  }
+
+  if (groupRecord.isDeleted) {
+    return <GroupRouteErrorView errorType="deleted" groupIdentifier={publicId} groupName={groupRecord.name} />;
   }
 
   const group = groupRecord;
   const groupId = group.id;
+  const isOwner = group.createdBy === user.id;
+
+  // Check user membership and pending request before fetching settlements (REQUIREMENT 2)
+  const [userMembership] = await db
+    .select({
+      id: groupMembers.id,
+      membershipStatus: groupMembers.membershipStatus,
+      isAdmin: groupMembers.isAdmin,
+    })
+    .from(groupMembers)
+    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, user.id)))
+    .limit(1);
+
+  const [userPendingRequest] = await db
+    .select({ id: groupJoinRequests.id })
+    .from(groupJoinRequests)
+    .where(
+      and(
+        eq(groupJoinRequests.groupId, groupId),
+        eq(groupJoinRequests.userId, user.id),
+        eq(groupJoinRequests.status, "pending")
+      )
+    )
+    .limit(1);
+
+  if (!isOwner) {
+    if (!userMembership && !userPendingRequest) {
+      return (
+        <GroupRouteErrorView 
+          errorType="access_denied" 
+          groupIdentifier={publicId} 
+          groupName={group.name} 
+          groupId={group.id} 
+        />
+      );
+    }
+
+    if (userMembership?.membershipStatus !== "active" || userPendingRequest) {
+      return <PendingGroupAccessView groupName={group.name} groupLogo={group.coverImage} />;
+    }
+  }
 
   // Create table aliases for self-joins
   const fromUsers = alias(users, "from_users");
@@ -91,13 +140,8 @@ export default async function GroupSettlementsPage({ params }: { params: Promise
       .orderBy(desc(settlements.createdAt)),
   ]);
 
-  // Check if current user is member
   const currentUserMember = members.find(m => m.userId === user.id);
-  if (!currentUserMember && group.createdBy !== user.id) {
-    redirect("/dashboard/groups");
-  }
-
-  const isAdmin = currentUserMember?.isAdmin || group.createdBy === user.id;
+  const isAdmin = currentUserMember?.isAdmin || isOwner;
 
   const pendingSettlements = settlementsList.filter(s => s.status === "pending");
   const completedSettlements = settlementsList.filter(s => s.status === "completed");
@@ -113,6 +157,14 @@ export default async function GroupSettlementsPage({ params }: { params: Promise
           <h1 className="text-3xl font-bold">{group.name} - Settlements</h1>
           <p className="text-slate-600 dark:text-slate-400">Track and manage group settlements</p>
         </div>
+      </div>
+
+      {/* Dynamic UPI Settlements Hub */}
+      <div className="mb-8">
+        <GroupUpiSettlementHub
+          groupId={group.id}
+          groupName={group.name}
+        />
       </div>
 
       {/* Pending Settlements */}

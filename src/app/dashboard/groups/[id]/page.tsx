@@ -2,10 +2,11 @@ import { requireAuth } from "@/lib/auth";
 import { getGroupFinancialDetails } from "@/actions/group-financials";
 import { getGroupActivityTimeline } from "@/actions/activity";
 import { db } from "@/lib/db";
-import { transactions, users, contacts, categories } from "@/lib/db/schema/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { groups, groupMembers, groupJoinRequests, transactions, users, contacts, categories } from "@/lib/db/schema/schema";
+import { eq, and, desc, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { redirect } from "next/navigation";
+import { isDbIntegerId } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,7 +29,8 @@ import {
   History,
   ShieldCheck,
   BellRing,
-  Mail
+  Mail,
+  Lock
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -47,6 +49,14 @@ import { AdminSettlementReminderCenter } from "@/components/admin/admin-settleme
 import { SettlementReminderLogsTab } from "@/components/admin/settlement-reminder-logs-tab";
 import { ActivityCard } from "@/components/activity/activity-card";
 import { UniqueGroupInvitationDialog } from "@/components/group/unique-group-invitation-dialog";
+import { GroupUpiSettlementHub } from "@/components/settlement/group-upi-settlement-hub";
+import { PendingJoinRequestsCard } from "@/components/group/pending-join-requests-card";
+import { getPendingJoinRequestsForGroupAction } from "@/actions/group-join-requests";
+import { PendingGroupAccessView } from "@/components/group/pending-group-access-view";
+import { ExpenseInactiveBanner } from "@/components/group/expense-inactive-banner";
+import { ExpenseActivationPromptCard } from "@/components/group/expense-activation-prompt-card";
+import { GroupRouteErrorView } from "@/components/group/group-route-error-view";
+import { hasDelegatedGroupPermission } from "@/lib/security/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -62,30 +72,164 @@ export default async function GroupDetailPage({
   const sParams = await searchParams;
   const activeTab = sParams?.tab || "overview";
 
+  const strId = String(publicId).trim();
+  const isDbId = isDbIntegerId(publicId);
+  const [groupRecord] = await db
+    .select({
+      id: groups.id,
+      publicId: groups.publicId,
+      name: groups.name,
+      coverImage: groups.coverImage,
+      createdBy: groups.createdBy,
+      isDeleted: groups.isDeleted,
+    })
+    .from(groups)
+    .where(
+      isDbId
+        ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+        : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId))
+    )
+    .limit(1);
+
+  if (!groupRecord) {
+    return <GroupRouteErrorView errorType="not_found" groupIdentifier={publicId} />;
+  }
+
+  if (groupRecord.isDeleted) {
+    return (
+      <GroupRouteErrorView 
+        errorType="deleted" 
+        groupIdentifier={publicId} 
+        groupName={groupRecord.name} 
+      />
+    );
+  }
+
+  const groupBase = groupRecord;
+  const isOwner = groupBase.createdBy === user.id;
+
+  // Check user's direct membership status in the group
+  const [userMembership] = await db
+    .select({
+      id: groupMembers.id,
+      membershipStatus: groupMembers.membershipStatus,
+      isAdmin: groupMembers.isAdmin,
+      delegatedPermissions: groupMembers.delegatedPermissions,
+    })
+    .from(groupMembers)
+    .where(and(eq(groupMembers.groupId, groupBase.id), eq(groupMembers.userId, user.id)))
+    .limit(1);
+
+  const [userPendingRequest] = await db
+    .select({ id: groupJoinRequests.id })
+    .from(groupJoinRequests)
+    .where(
+      and(
+        eq(groupJoinRequests.groupId, groupBase.id),
+        eq(groupJoinRequests.userId, user.id),
+        eq(groupJoinRequests.status, "pending")
+      )
+    )
+    .limit(1);
+
+  // 1. Pending & Non-active Member Access Restriction (Requirements 1, 2, 3):
+  // Non-owner members whose status is NOT 'active' or who have a pending request MUST see ONLY the waiting screen
+  if (!isOwner) {
+    if (!userMembership && !userPendingRequest) {
+      return (
+        <GroupRouteErrorView 
+          errorType="access_denied" 
+          groupIdentifier={publicId} 
+          groupName={groupBase.name} 
+          groupId={groupBase.id} 
+          groupPublicId={groupBase.publicId}
+        />
+      );
+    }
+
+    if (userMembership?.membershipStatus !== "active" || userPendingRequest) {
+      return <PendingGroupAccessView groupName={groupBase.name} groupLogo={groupBase.coverImage} />;
+    }
+  }
+
+  // 3. Load Group Financials & Activity Timeline using resolved canonical publicId
   let financialData;
-  let groupActivities = [];
+  let groupActivities: any[] = [];
   try {
     [financialData, groupActivities] = await Promise.all([
-      getGroupFinancialDetails(publicId),
-      getGroupActivityTimeline(publicId, 20),
+      getGroupFinancialDetails(groupBase.publicId),
+      getGroupActivityTimeline(groupBase.publicId, 20),
     ]);
-  } catch (error) {
-    redirect("/dashboard/groups");
+  } catch (error: any) {
+    console.error("Error loading group financial details:", error);
+    if (error?.name === "AuthorizationError" || error?.message?.toLowerCase().includes("access")) {
+      return (
+        <GroupRouteErrorView 
+          errorType="access_denied" 
+          groupIdentifier={publicId} 
+          groupName={groupBase.name} 
+          groupId={groupBase.id} 
+          groupPublicId={groupBase.publicId}
+        />
+      );
+    }
+    return (
+      <GroupRouteErrorView 
+        errorType="not_found" 
+        groupIdentifier={publicId} 
+      />
+    );
   }
 
   const { group, overview, members, settlements, expenseSummary, insights, adminData, expenses } = financialData;
   const groupExpenses = expenses || [];
 
-  const mappedMembersForDialog = members.map((m) => ({
-    id: m.id,
-    userId: m.userId || undefined,
-    contactId: m.contactId || undefined,
-    userName: m.name,
-    isAdmin: m.role === "admin" || m.role === "owner",
-    isGuest: m.isGuest,
-  }));
-
   const isGroupOwner = Boolean(group.isOwner);
+  const isExpenseInactive = group.userMembershipStatus === "expense_inactive";
+
+  const currentUserMember = members.find((m) => m.userId === user.id);
+  const userCanApprove = isGroupOwner || hasDelegatedGroupPermission(
+    group.createdBy,
+    user.id,
+    currentUserMember as any,
+    "group:approve_members"
+  );
+  const userCanViewJoinRequests = isGroupOwner || userCanApprove || hasDelegatedGroupPermission(
+    group.createdBy,
+    user.id,
+    currentUserMember as any,
+    "group:view_join_requests"
+  );
+  const userCanManageInvitations = isGroupOwner || hasDelegatedGroupPermission(
+    group.createdBy,
+    user.id,
+    currentUserMember as any,
+    "group:manage_invitations"
+  );
+
+  let pendingJoinRequests: any[] = [];
+  if (userCanViewJoinRequests) {
+    try {
+      pendingJoinRequests = await getPendingJoinRequestsForGroupAction(group.id);
+    } catch (e) {
+      console.warn("Failed to fetch pending join requests:", e);
+    }
+  }
+
+  const inactiveMembersForOwner = isGroupOwner
+    ? members.filter((m) => m.membershipStatus === "expense_inactive" && m.userId)
+    : [];
+
+  const mappedMembersForDialog = members
+    .filter((m) => m.membershipStatus === "active" || m.isGuest)
+    .map((m) => ({
+      id: m.id,
+      userId: m.userId || undefined,
+      contactId: m.contactId || undefined,
+      userName: m.name,
+      isAdmin: m.role === "admin" || m.role === "owner",
+      isGuest: m.isGuest,
+    }));
 
   // Settlement Privacy: Only group owner has access to all settlement details across members.
   // Other members only have access to their own settlements (where they are payer or receiver).
@@ -118,53 +262,72 @@ export default async function GroupDetailPage({
 
         {/* Action Buttons Toolbar */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Add Expense */}
-          <GroupExpenseDialog
-            groupId={group.id}
-            groupCurrency={group.currency}
-            members={mappedMembersForDialog}
-            currentUserId={user.id}
-            isAdmin={group.isAdmin}
-            trigger={
-              <Button size="sm" className="rounded-xl text-xs font-semibold gap-1.5 bg-primary">
-                <Plus className="h-3.5 w-3.5" />
-                <span>Add Expense</span>
-              </Button>
-            }
-          />
+          {/* Add Expense (Disabled / Locked if Expense Inactive - Requirement 5) */}
+          {!isExpenseInactive ? (
+            <GroupExpenseDialog
+              groupId={group.id}
+              groupCurrency={group.currency}
+              members={mappedMembersForDialog}
+              currentUserId={user.id}
+              isAdmin={group.isAdmin}
+              trigger={
+                <Button size="sm" className="rounded-xl text-xs font-semibold gap-1.5 bg-primary">
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Expense</span>
+                </Button>
+              }
+            />
+          ) : (
+            <Button
+              size="sm"
+              disabled
+              className="rounded-xl text-xs font-semibold gap-1.5 opacity-60 cursor-not-allowed bg-slate-200 dark:bg-slate-800 text-slate-500"
+              title="Your expense participation is awaiting Group Owner configuration"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              <span>Add Expense (Locked)</span>
+            </Button>
+          )}
 
           {/* Smart Add Member */}
-          <SmartAddMemberDialog
-            groupId={group.id}
-            trigger={
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1.5">
-                <UserPlus className="h-3.5 w-3.5 text-blue-500" />
-                <span>Add Member</span>
-              </Button>
-            }
-          />
+          {userCanManageInvitations && (
+            <SmartAddMemberDialog
+              groupId={group.id}
+              trigger={
+                <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1.5">
+                  <UserPlus className="h-3.5 w-3.5 text-blue-500" />
+                  <span>Add Member</span>
+                </Button>
+              }
+            />
+          )}
 
           {/* Unique Group Invitation Dialog */}
-          <UniqueGroupInvitationDialog
-            groupId={group.publicId}
-            groupName={group.name}
-            trigger={
-              <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10">
-                <Share2 className="h-3.5 w-3.5" />
-                <span>Invite Link & QR</span>
-              </Button>
-            }
-          />
+          {userCanManageInvitations && (
+            <UniqueGroupInvitationDialog
+              groupId={group.id}
+              publicId={group.publicId}
+              groupName={group.name}
+              trigger={
+                <Button size="sm" variant="outline" className="rounded-xl text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10">
+                  <Share2 className="h-3.5 w-3.5" />
+                  <span>Invite Link & QR</span>
+                </Button>
+              }
+            />
+          )}
 
           {/* Settle All */}
-          <SettleAllDialog
-            groupId={group.id}
-            groupName={group.name}
-            suggestions={settlements.suggestions}
-            trigger={
-              <SettleUpButton label="Settle Up" />
-            }
-          />
+          {!isExpenseInactive && (
+            <SettleAllDialog
+              groupId={group.id}
+              groupName={group.name}
+              suggestions={settlements.suggestions}
+              trigger={
+                <SettleUpButton label="Settle Up" />
+              }
+            />
+          )}
 
           {/* Group Settings / Edit / Delete Menu */}
           <GroupSettingsMenu
@@ -187,6 +350,29 @@ export default async function GroupDetailPage({
           />
         </div>
       </div>
+
+      {/* Expense Inactive Banner for members awaiting activation (Requirement 5) */}
+      {isExpenseInactive && (
+        <ExpenseInactiveBanner groupName={group.name} />
+      )}
+
+      {/* Owner Expense Activation Decision Center (Requirement 4 & 9) */}
+      {isGroupOwner && inactiveMembersForOwner.length > 0 && (
+        <ExpenseActivationPromptCard
+          groupId={group.id}
+          inactiveMembers={inactiveMembersForOwner}
+          isOwner={true}
+        />
+      )}
+
+      {/* Owner / Delegated Admin Join Requests Approval Center */}
+      <PendingJoinRequestsCard
+        groupId={group.id}
+        groupPublicId={group.publicId}
+        isOwner={isGroupOwner}
+        canApprove={userCanApprove}
+        initialRequests={pendingJoinRequests}
+      />
 
       {/* SECTION 1 & 2: Group Overview Banner with Exact Net Balance in INR (₹) */}
       <GroupOverviewBanner
@@ -226,6 +412,10 @@ export default async function GroupDetailPage({
 
           {(group.isAdmin || group.isOwner) && (
             <>
+              <TabsTrigger value="member-approvals" className="rounded-xl text-xs font-semibold text-amber-600 dark:text-amber-400 gap-1.5">
+                <UserPlus className="h-3.5 w-3.5" />
+                <span>Member Approvals ({pendingJoinRequests.length})</span>
+              </TabsTrigger>
               <TabsTrigger value="admin-approvals" className="rounded-xl text-xs font-semibold text-emerald-600 dark:text-emerald-400 gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 <span>Approval Center</span>
@@ -325,7 +515,25 @@ export default async function GroupDetailPage({
         </TabsContent>
 
         {/* TAB 4: Settlement Audit & Pending Transfers */}
-        <TabsContent value="settlements" className="space-y-4">
+        <TabsContent value="settlements" className="space-y-6">
+          {/* Dynamic UPI Settlement Hub */}
+          {!isExpenseInactive ? (
+            <GroupUpiSettlementHub
+              groupId={group.id}
+              groupName={group.name}
+            />
+          ) : (
+            <Card className="p-6 text-center border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 rounded-3xl">
+              <Lock className="h-8 w-8 text-amber-500 mx-auto mb-2" />
+              <h3 className="font-bold text-sm text-amber-900 dark:text-amber-200">
+                Settlement Hub Locked
+              </h3>
+              <p className="text-xs text-amber-700 dark:text-amber-300 mt-1 max-w-sm mx-auto">
+                Your expense participation is awaiting Group Owner configuration before you can generate UPI QR codes or settle debts.
+              </p>
+            </Card>
+          )}
+
           <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
             <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -497,6 +705,18 @@ export default async function GroupDetailPage({
 
         {(group.isAdmin || group.isOwner) && (
           <>
+            {/* ADMIN TAB 0: Member Approvals Center (REQUIREMENT 5, 6, 7, 8) */}
+            <TabsContent value="member-approvals" className="space-y-6">
+              <PendingJoinRequestsCard
+                groupId={group.id}
+                groupPublicId={group.publicId}
+                isOwner={isGroupOwner}
+                canApprove={userCanApprove}
+                initialRequests={pendingJoinRequests}
+                inTab={true}
+              />
+            </TabsContent>
+
             {/* ADMIN TAB 1: Admin Settlement Approval Center */}
             <TabsContent value="admin-approvals" className="space-y-6">
               <AdminSettlementApprovalCenter

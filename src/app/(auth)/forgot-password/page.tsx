@@ -1,8 +1,8 @@
-import { currentUser } from "@clerk/nextjs/server";
+import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 export default async function ForgotPasswordPage() {
-  const user = await currentUser();
+  const user = await getCurrentUser();
   if (user) {
     redirect("/dashboard");
   }

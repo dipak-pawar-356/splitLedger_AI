@@ -24,6 +24,7 @@ import {
   AuthorizationError,
   DatabaseError,
 } from "@/lib/errors";
+import { isDbIntegerId } from "@/lib/utils";
 import { generatePublicId, formatCurrency, formatDate, getBaseAppUrl } from "@/lib/utils";
 import { sendEmailNotification } from "@/lib/notifications";
 import { getGroupFinancialDetails } from "@/actions/group-financials";
@@ -34,17 +35,17 @@ import { getGroupFinancialDetails } from "@/actions/group-financials";
 async function requireGroupAdminOrOwner(groupIdOrPublicId: number | string) {
   const user = await requireAuth();
 
-  const isNumeric =
-    typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
+  const strId = String(groupIdOrPublicId).trim();
+  const isDbId = isDbIntegerId(groupIdOrPublicId);
 
   const [group] = await db
     .select()
     .from(groups)
     .where(
       and(
-        isNumeric
-          ? eq(groups.id, Number(groupIdOrPublicId))
-          : eq(groups.publicId, String(groupIdOrPublicId)),
+        isDbId
+          ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+          : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId)),
         eq(groups.isDeleted, false)
       )
     )

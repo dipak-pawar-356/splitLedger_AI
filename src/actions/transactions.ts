@@ -102,7 +102,11 @@ async function checkTransactionPermissions(
     }
 
     const [member] = await db
-      .select({ isAdmin: groupMembers.isAdmin, isGuest: groupMembers.isGuest })
+      .select({ 
+        isAdmin: groupMembers.isAdmin, 
+        isGuest: groupMembers.isGuest,
+        membershipStatus: groupMembers.membershipStatus,
+      })
       .from(groupMembers)
       .where(
         and(
@@ -114,6 +118,10 @@ async function checkTransactionPermissions(
 
     if (!member) {
       return false;
+    }
+
+    if (member.membershipStatus !== "active") {
+      return false; // Only active members can edit/delete transactions
     }
 
     if (member.isGuest) {
@@ -150,7 +158,7 @@ export async function createTransaction(data: CreateTransactionInput) {
 
     const isGroupTransaction = !!data.groupId;
 
-    // For group transactions, ensure the user is a member
+    // For group transactions, ensure the user is an active member (Requirement 5 & 6)
     if (isGroupTransaction) {
       const [member] = await db
         .select()
@@ -164,7 +172,15 @@ export async function createTransaction(data: CreateTransactionInput) {
         .limit(1);
 
       if (!member) {
-        throw new ValidationError("You must be a member of this group to create transactions");
+        throw new AuthorizationError("You must be a member of this group to create transactions");
+      }
+
+      if (member.membershipStatus === "pending") {
+        throw new AuthorizationError("Your join request is still pending Group Owner approval.");
+      }
+
+      if (member.membershipStatus === "expense_inactive") {
+        throw new AuthorizationError("Your expense participation is awaiting Group Owner configuration.");
       }
     }
 

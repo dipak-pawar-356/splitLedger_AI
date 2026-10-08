@@ -1,14 +1,15 @@
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { settlements, contacts, groups, transactions } from "@/lib/db/schema/schema";
+import { settlements, contacts, groups, transactions, groupMembers, users } from "@/lib/db/schema/schema";
 import { eq, desc, or, and, sql, gte, lte } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle, Clock, DollarSign, Calendar, TrendingUp, TrendingDown, Filter, Search, Calculator, Send, Bell, Plus } from "lucide-react";
+import { ArrowRight, CheckCircle, Clock, DollarSign, Calendar, TrendingUp, TrendingDown, Filter, Search, Calculator, Send, Bell, Plus, QrCode, AlertCircle, ArrowUpRight } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { calculateGroupSettlements, createSettlementsFromCalculation, markSettlementAsPaid, markSettlementAsPaidFormAction } from "@/actions/settlements";
 import { revalidatePath } from "next/cache";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
+import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ export default async function SettlementsPage() {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const [userSettlements, pendingStats, completedStats, monthlyStats] = await Promise.all([
+  const [userSettlements, pendingStats, completedStats, monthlyStats, userGroups, userDbRecord] = await Promise.all([
     db
       .select({
         id: settlements.id,
@@ -91,6 +92,21 @@ export default async function SettlementsPage() {
           gte(settlements.createdAt, startOfMonth)
         )
       ),
+    db
+      .select({
+        id: groups.id,
+        name: groups.name,
+        currency: groups.currency,
+      })
+      .from(groups)
+      .innerJoin(groupMembers, eq(groups.id, groupMembers.groupId))
+      .where(eq(groupMembers.userId, user.id))
+      .limit(10),
+    db
+      .select({ upiId: users.upiId })
+      .from(users)
+      .where(eq(users.id, user.id))
+      .limit(1),
   ]);
 
   const pendingCount = pendingStats[0]?.count || 0;
@@ -99,6 +115,7 @@ export default async function SettlementsPage() {
   const completedTotal = completedStats[0]?.total || 0;
   const monthlyCount = monthlyStats[0]?.count || 0;
   const monthlyTotal = monthlyStats[0]?.total || 0;
+  const hasUpi = Boolean(userDbRecord[0]?.upiId?.trim());
 
   return (
     <div>
@@ -116,6 +133,70 @@ export default async function SettlementsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Mandatory UPI ID Warning Alert */}
+      {!hasUpi && (
+        <div className="mb-8 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sm">UPI ID Missing in Payment Profile</p>
+              <p className="text-xs text-amber-700/90 dark:text-amber-400/90 mt-0.5">
+                Before group members can generate dynamic QR codes to settle debts with you, your primary UPI ID must be configured.
+              </p>
+            </div>
+          </div>
+          <Link href="/dashboard/profile" className="shrink-0 self-start sm:self-auto">
+            <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm">
+              Setup Primary UPI ID
+            </Button>
+          </Link>
+        </div>
+      )}
+
+      {/* Dynamic UPI Settlements by Group Card */}
+      {userGroups.length > 0 && (
+        <Card className="mb-8 rounded-2xl border bg-card/60 backdrop-blur-sm overflow-hidden shadow-sm">
+          <CardHeader className="pb-3 border-b border-border/40 bg-muted/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                  <QrCode className="w-4 h-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-semibold">Group UPI Settlement Hubs</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Settlements are calculated independently per group with strict data isolation.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {userGroups.map((g) => (
+                <Link
+                  key={g.id}
+                  href={`/dashboard/groups/${g.id}/settlements`}
+                  className="group block p-4 rounded-xl border border-border/60 hover:border-primary/50 hover:bg-muted/40 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
+                        {g.name}
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Dynamic QR & Debt Simplification
+                      </p>
+                    </div>
+                    <ArrowUpRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

@@ -274,3 +274,109 @@ export function hasOrganizationPermission(
   const normalized = (role || "member").toLowerCase() as EnterpriseRole;
   return ENTERPRISE_ROLE_PERMISSIONS[normalized]?.includes(permission) || false;
 }
+
+// ==========================================
+// DELEGATED GROUP ADMINISTRATIVE PERMISSIONS
+// ==========================================
+export type DelegatedGroupPermission =
+  | "group:approve_members"      // Approve or reject join requests
+  | "group:view_join_requests"   // View pending join requests
+  | "group:view_transactions"    // View transaction history
+  | "group:view_settlements"     // View settlement history
+  | "group:view_payments"        // View payment history
+  | "group:view_audit_logs"      // View audit logs
+  | "group:view_activity"        // View member activity
+  | "group:manage_invitations"   // Manage invitations
+  | "group:manage_permissions";  // Manage member permissions
+
+export interface DelegatedPermissionMeta {
+  key: DelegatedGroupPermission;
+  label: string;
+  description: string;
+  category: "membership" | "financials" | "audit" | "administration";
+}
+
+export const DELEGATED_PERMISSIONS_LIST: DelegatedPermissionMeta[] = [
+  {
+    key: "group:approve_members",
+    label: "Approve / Reject Requests",
+    description: "Authority to approve or reject pending member join requests",
+    category: "membership",
+  },
+  {
+    key: "group:view_join_requests",
+    label: "View Join Requests",
+    description: "Inspect pending member requests waiting for owner approval",
+    category: "membership",
+  },
+  {
+    key: "group:view_transactions",
+    label: "View Transaction History",
+    description: "Access full group transaction history, edit trails, and receipts",
+    category: "financials",
+  },
+  {
+    key: "group:view_settlements",
+    label: "View Settlement History",
+    description: "Inspect peer-to-peer settlement records and repayment suggestions",
+    category: "financials",
+  },
+  {
+    key: "group:view_payments",
+    label: "View Payment History",
+    description: "Access UPI transaction confirmations and payment history",
+    category: "financials",
+  },
+  {
+    key: "group:view_audit_logs",
+    label: "View Audit Logs",
+    description: "Inspect group security events, administrative updates, and activity logs",
+    category: "audit",
+  },
+  {
+    key: "group:view_activity",
+    label: "View Member Activity",
+    description: "Monitor member interactions and group activity timeline",
+    category: "audit",
+  },
+  {
+    key: "group:manage_invitations",
+    label: "Manage Invitations",
+    description: "Create, copy, and manage group invite links and QR codes",
+    category: "administration",
+  },
+  {
+    key: "group:manage_permissions",
+    label: "Manage Member Permissions",
+    description: "Configure delegated administrative permissions for fellow members",
+    category: "administration",
+  },
+];
+
+/**
+ * Check if a user possesses a specific delegated group permission.
+ * Group Owner always has 100% authority across all permissions.
+ * Approved members must have active status and the specific permission enabled.
+ */
+export function hasDelegatedGroupPermission(
+  groupOwnerId: number,
+  userId: number,
+  member: {
+    membershipStatus?: string | null;
+    delegatedPermissions?: Record<string, boolean> | null;
+  } | null | undefined,
+  permission: DelegatedGroupPermission
+): boolean {
+  // 1. Group Owner always possesses all permissions
+  if (groupOwnerId === userId) {
+    return true;
+  }
+
+  // 2. Member must exist and be in 'active' status
+  if (!member || member.membershipStatus !== "active") {
+    return false;
+  }
+
+  // 3. Check explicit delegated permission toggle
+  return Boolean(member.delegatedPermissions?.[permission]);
+}

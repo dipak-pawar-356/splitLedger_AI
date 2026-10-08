@@ -1,13 +1,21 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { users, contacts, groupMembers, invitations, groups, auditLogs } from "@/lib/db/schema/schema";
+import { users, contacts, groupMembers, invitations, groups, auditLogs, groupJoinRequests } from "@/lib/db/schema/schema";
 import { eq, and, or, ilike, sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, ConflictError, AuthorizationError } from "@/lib/errors";
-import { generateSecureToken, generateInvitationUrl, generateContactId, generateInvitationId, generateWhatsAppLink } from "@/lib/utils";
+import { generateSecureToken, generateInvitationUrl, generateContactId, generateInvitationId, generateInvitationToken, generateWhatsAppLink, generatePublicId, isDbIntegerId } from "@/lib/utils";
 import { sendEmailNotification, getInvitationEmailTemplate, getInvitationWhatsAppMessage } from "@/lib/notifications";
+
+function buildGroupCondition(idOrPublicId: string | number) {
+  const strId = String(idOrPublicId).trim();
+  const isDbId = isDbIntegerId(idOrPublicId);
+  return isDbId
+    ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+    : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId));
+}
 
 export interface SearchResult {
   type: "user" | "contact" | "none";
@@ -123,13 +131,12 @@ export async function addExistingUserToGroup(groupIdOrPublicId: number | string,
   try {
     const currentUser = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          buildGroupCondition(groupIdOrPublicId),
           eq(groups.isDeleted, false)
         )
       )
@@ -174,17 +181,27 @@ export async function addExistingUserToGroup(groupIdOrPublicId: number | string,
       throw new ConflictError("User is already a member of this group");
     }
 
-    // Add user as regular member
+    // Add user with pending status awaiting Group Owner approval (Requirement 1)
     const [newMember] = await db
       .insert(groupMembers)
       .values({
         groupId: group.id,
         userId,
+        membershipStatus: "pending",
         isAdmin: false,
         isGuest: false,
         joinedAt: new Date(),
       })
       .returning();
+
+    // Create a pending join request for owner approval
+    await db.insert(groupJoinRequests).values({
+      publicId: generatePublicId(),
+      groupId: group.id,
+      userId,
+      status: "pending",
+      includeInHistoricalExpenses: false,
+    });
 
     await db.insert(auditLogs).values({
       userId: currentUser.id,
@@ -222,13 +239,12 @@ export async function createGuestMember(data: {
   try {
     const currentUser = await requireAuth();
 
-    const isNumeric = typeof data.groupId === "number" || /^\d+$/.test(String(data.groupId));
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(data.groupId)) : eq(groups.publicId, String(data.groupId)),
+          buildGroupCondition(data.groupId),
           eq(groups.isDeleted, false)
         )
       )
@@ -339,15 +355,15 @@ export async function createGuestMember(data: {
       groupMemberRecord = newMember;
     }
 
-    // Create invitation record with inv_ prefix token
-    const token = generateSecureToken();
+    // Create invitation record with unique 15-20 digit numeric token and publicId
+    const token = generateInvitationToken([group.publicId, String(group.id)]);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
     const [invitation] = await db
       .insert(invitations)
       .values({
-        publicId: generateInvitationId(),
+        publicId: generateInvitationId([group.publicId, String(group.id), token]),
         groupId: group.id,
         invitedBy: currentUser.id,
         email: cleanEmail || "guest@splitledger.app",
@@ -421,13 +437,12 @@ export async function addContactToGroup(groupIdOrPublicId: number | string, cont
   try {
     const currentUser = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          buildGroupCondition(groupIdOrPublicId),
           eq(groups.isDeleted, false)
         )
       )

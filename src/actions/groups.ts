@@ -6,7 +6,15 @@ import { eq, and, sql, desc, or, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } from "@/lib/errors";
-import { generateGroupId, formatCurrency } from "@/lib/utils";
+import { generateGroupId, formatCurrency, isDbIntegerId } from "@/lib/utils";
+
+function buildGroupIdentifierCondition(idOrPublicId: string | number) {
+  const strId = String(idOrPublicId).trim();
+  const isDbId = isDbIntegerId(idOrPublicId);
+  return isDbId
+    ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+    : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId));
+}
 
 export type GroupCategory = "trip" | "friends" | "family" | "couples" | "office" | "event" | "shared_bills";
 export type GroupSplitMethod = "equal" | "exact" | "percentage" | "shares";
@@ -115,13 +123,12 @@ export async function updateGroup(
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingGroup] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(publicIdOrId)) : eq(groups.publicId, String(publicIdOrId)),
+          buildGroupIdentifierCondition(publicIdOrId),
           eq(groups.isDeleted, false)
         )
       )
@@ -219,13 +226,12 @@ export async function archiveGroup(publicIdOrId: string | number) {
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingGroup] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(publicIdOrId)) : eq(groups.publicId, String(publicIdOrId)),
+          buildGroupIdentifierCondition(publicIdOrId),
           eq(groups.isDeleted, false)
         )
       )
@@ -286,13 +292,12 @@ export async function restoreGroup(publicIdOrId: string | number) {
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingGroup] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(publicIdOrId)) : eq(groups.publicId, String(publicIdOrId)),
+          buildGroupIdentifierCondition(publicIdOrId),
           eq(groups.isDeleted, false)
         )
       )
@@ -352,13 +357,12 @@ export async function deleteGroup(publicIdOrId: string | number, confirmationNam
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingGroup] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(publicIdOrId)) : eq(groups.publicId, String(publicIdOrId)),
+          buildGroupIdentifierCondition(publicIdOrId),
           eq(groups.isDeleted, false)
         )
       )
@@ -437,13 +441,12 @@ export async function leaveGroup(publicIdOrId: string | number) {
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingGroup] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(publicIdOrId)) : eq(groups.publicId, String(publicIdOrId)),
+          buildGroupIdentifierCondition(publicIdOrId),
           eq(groups.isDeleted, false)
         )
       )
@@ -512,13 +515,12 @@ export async function transferGroupOwnership(publicIdOrId: string | number, newO
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingGroup] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(publicIdOrId)) : eq(groups.publicId, String(publicIdOrId)),
+          buildGroupIdentifierCondition(publicIdOrId),
           eq(groups.isDeleted, false)
         )
       )
@@ -599,13 +601,12 @@ export async function getGroup(idOrPublicId: number | string) {
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof idOrPublicId === "number" || /^\d+$/.test(String(idOrPublicId));
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(idOrPublicId)) : eq(groups.publicId, String(idOrPublicId)),
+          buildGroupIdentifierCondition(idOrPublicId),
           eq(groups.isDeleted, false)
         )
       )

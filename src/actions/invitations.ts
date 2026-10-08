@@ -1,25 +1,28 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { invitations, groups, users, contacts, groupMembers, settlements, transactions, expenseSplits, auditLogs } from "@/lib/db/schema/schema";
-import { eq, and, gt, desc } from "drizzle-orm";
+import { invitations, groups, users, contacts, groupMembers, settlements, transactions, expenseSplits, auditLogs, groupJoinRequests } from "@/lib/db/schema/schema";
+import { eq, and, gt, desc, or } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, ConflictError, AuthorizationError } from "@/lib/errors";
-import { generateSecureToken, generateInvitationUrl, generateInvitationId, generateWhatsAppLink } from "@/lib/utils";
+import { generateSecureToken, generateInvitationUrl, generateInvitationId, generateInvitationToken, generateWhatsAppLink, generatePublicId, isDbIntegerId } from "@/lib/utils";
 import { sendEmailNotification, sendEmailWithStatus, getInvitationEmailTemplate, getInvitationWhatsAppMessage, type EmailSendResult } from "@/lib/notifications";
 
 export async function getOrCreateGroupInviteLink(groupIdOrPublicId: string | number) {
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
+    const strId = String(groupIdOrPublicId).trim();
+    const isDbId = isDbIntegerId(groupIdOrPublicId);
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          isDbId
+            ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+            : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId)),
           eq(groups.isDeleted, false)
         )
       )
@@ -62,12 +65,12 @@ export async function getOrCreateGroupInviteLink(groupIdOrPublicId: string | num
       token = existing.token;
       expiresAt = existing.expiresAt;
     } else {
-      token = generateSecureToken();
+      token = generateInvitationToken([group.publicId, String(group.id)]);
       expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30); // 30 days for general group link
 
       await db.insert(invitations).values({
-        publicId: generateInvitationId(),
+        publicId: generateInvitationId([group.publicId, String(group.id), token]),
         groupId: group.id,
         invitedBy: user.id,
         email: "invite@splitledger.app",
@@ -115,13 +118,16 @@ export async function createInvitation(data: {
       throw new ValidationError("Email is required");
     }
 
-    const isNumeric = typeof data.groupId === "number" || /^\d+$/.test(String(data.groupId));
+    const strId = String(data.groupId).trim();
+    const isDbId = isDbIntegerId(data.groupId);
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(data.groupId)) : eq(groups.publicId, String(data.groupId)),
+          isDbId
+            ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+            : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId)),
           eq(groups.isDeleted, false)
         )
       )
@@ -158,7 +164,7 @@ export async function createInvitation(data: {
       .limit(1);
 
     // Generate secure token and 7-day expiration
-    const token = generateSecureToken();
+    const token = generateInvitationToken([group.publicId, String(group.id)]);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
@@ -180,7 +186,7 @@ export async function createInvitation(data: {
       const [inserted] = await db
         .insert(invitations)
         .values({
-          publicId: generateInvitationId(),
+          publicId: generateInvitationId([group.publicId, String(group.id), token]),
           groupId: group.id,
           invitedBy: user.id,
           email: cleanEmail,
@@ -294,15 +300,25 @@ export async function acceptInvitation(token: string) {
     if (invitation.guestContactId) {
       await mergeGuestContact(invitation.guestContactId, user.id);
     } else {
-      // Otherwise add user as standard member
+      // Add user as pending member awaiting Group Owner approval (Requirement 1)
       await db.insert(groupMembers).values({
         groupId: invitation.groupId,
         userId: user.id,
+        membershipStatus: "pending",
         isAdmin: false,
         isGuest: false,
         joinedAt: new Date(),
       });
     }
+
+    // Create a PENDING join request for owner approval
+    await db.insert(groupJoinRequests).values({
+      publicId: generatePublicId(),
+      groupId: invitation.groupId,
+      userId: user.id,
+      status: "pending",
+      includeInHistoricalExpenses: false,
+    });
 
     // Update invitation status
     await db
@@ -415,7 +431,7 @@ export async function resendInvitation(invitationId: number) {
       throw new AuthorizationError("Only the inviter can resend this invitation");
     }
 
-    const newToken = generateSecureToken();
+    const newToken = generateInvitationToken([String(invitation.groupId)]);
     const newExpiresAt = new Date();
     newExpiresAt.setDate(newExpiresAt.getDate() + 7);
 
@@ -492,7 +508,7 @@ export async function getInvitationByToken(token: string) {
       .from(invitations)
       .innerJoin(groups, eq(invitations.groupId, groups.id))
       .innerJoin(users, eq(invitations.invitedBy, users.id))
-      .where(eq(invitations.token, token))
+      .where(or(eq(invitations.token, token), eq(invitations.legacyToken, token)))
       .limit(1);
 
     if (!invitation) {
@@ -569,13 +585,16 @@ export async function revokeGroupInviteLink(groupIdOrPublicId: string | number) 
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
+    const strId = String(groupIdOrPublicId).trim();
+    const isDbId = isDbIntegerId(groupIdOrPublicId);
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          isDbId
+            ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+            : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId)),
           eq(groups.isDeleted, false)
         )
       )
@@ -623,13 +642,16 @@ export async function generateNewGroupInviteLink(groupIdOrPublicId: string | num
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
+    const strId = String(groupIdOrPublicId).trim();
+    const isDbId = isDbIntegerId(groupIdOrPublicId);
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          isDbId
+            ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+            : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId)),
           eq(groups.isDeleted, false)
         )
       )
@@ -665,14 +687,14 @@ export async function generateNewGroupInviteLink(groupIdOrPublicId: string | num
         )
       );
 
-    const token = generateSecureToken();
+    const token = generateInvitationToken([group.publicId, String(group.id)]);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
 
     await db
       .insert(invitations)
       .values({
-        publicId: generateInvitationId(),
+        publicId: generateInvitationId([group.publicId, String(group.id), token]),
         groupId: group.id,
         invitedBy: user.id,
         email: "invite@splitledger.app",
@@ -711,13 +733,16 @@ export async function getGroupInvitationsHistory(groupIdOrPublicId: string | num
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
+    const strId = String(groupIdOrPublicId).trim();
+    const isDbId = isDbIntegerId(groupIdOrPublicId);
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          isDbId
+            ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+            : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId)),
           eq(groups.isDeleted, false)
         )
       )

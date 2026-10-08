@@ -15,6 +15,7 @@ import { deleteGroup } from "@/actions/groups";
 import { DeleteGroupDialog } from "@/components/dialogs/delete-group-dialog";
 import { GroupSettingsDialog } from "@/components/dialogs/group-settings-dialog";
 import { UniqueGroupInvitationDialog } from "@/components/group/unique-group-invitation-dialog";
+import { generateGroupJoinUrl } from "@/lib/utils";
 
 interface GroupSettingsMenuProps {
   groupId: number;
@@ -54,9 +55,9 @@ export function GroupSettingsMenu({
   const groupIdentifier = publicId || String(groupId);
 
   const handleCopyInviteLink = () => {
-    const inviteLink = `${window.location.origin}/dashboard/groups/${groupIdentifier}`;
+    const inviteLink = generateGroupJoinUrl(groupIdentifier);
     navigator.clipboard.writeText(inviteLink);
-    toast.success("Group link copied to clipboard");
+    toast.success("Production group join link copied to clipboard");
     setIsOpen(false);
   };
 

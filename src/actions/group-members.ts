@@ -1,12 +1,20 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { groupMembers, contacts, users, groups, settlements, auditLogs } from "@/lib/db/schema/schema";
+import { groupMembers, contacts, users, groups, settlements, auditLogs, groupJoinRequests } from "@/lib/db/schema/schema";
 import { eq, and, or, sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, AuthorizationError, ConflictError, DatabaseError } from "@/lib/errors";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, generatePublicId, isDbIntegerId } from "@/lib/utils";
+
+function buildGroupCondition(idOrPublicId: string | number) {
+  const strId = String(idOrPublicId).trim();
+  const isDbId = isDbIntegerId(idOrPublicId);
+  return isDbId
+    ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+    : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId));
+}
 
 export async function addGroupMember(data: {
   groupId: number | string;
@@ -19,13 +27,12 @@ export async function addGroupMember(data: {
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof data.groupId === "number" || /^\d+$/.test(String(data.groupId));
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(data.groupId)) : eq(groups.publicId, String(data.groupId)),
+          buildGroupCondition(data.groupId),
           eq(groups.isDeleted, false)
         )
       )
@@ -74,6 +81,9 @@ export async function addGroupMember(data: {
       throw new ConflictError("Member is already in this group");
     }
 
+    // When a registered user is added, they start in PENDING status awaiting Group Owner approval (Requirement 1)
+    const initialStatus = data.userId ? "pending" : "active";
+
     // Add member
     const [newMember] = await db
       .insert(groupMembers)
@@ -81,12 +91,24 @@ export async function addGroupMember(data: {
         groupId: group.id,
         userId: data.userId || null,
         contactId: data.contactId || null,
+        membershipStatus: initialStatus,
         isAdmin: data.isAdmin || false,
         isGuest: data.isGuest || false,
         nickname: data.nickname?.trim() || null,
         joinedAt: new Date(),
       })
       .returning();
+
+    // If a registered user was added, create a PENDING join request for owner approval
+    if (data.userId) {
+      await db.insert(groupJoinRequests).values({
+        publicId: generatePublicId(),
+        groupId: group.id,
+        userId: data.userId,
+        status: "pending",
+        includeInHistoricalExpenses: false,
+      });
+    }
 
     await db.insert(auditLogs).values({
       userId: user.id,
@@ -98,6 +120,7 @@ export async function addGroupMember(data: {
         memberId: newMember.id,
         targetUserId: data.userId,
         targetContactId: data.contactId,
+        status: initialStatus,
       },
     });
 
@@ -117,13 +140,12 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          buildGroupCondition(groupIdOrPublicId),
           eq(groups.isDeleted, false)
         )
       )
@@ -220,13 +242,12 @@ export async function updateMemberRole(memberId: number, groupIdOrPublicId: numb
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          buildGroupCondition(groupIdOrPublicId),
           eq(groups.isDeleted, false)
         )
       )
@@ -280,13 +301,12 @@ export async function updateMemberNickname(memberId: number, groupIdOrPublicId: 
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          buildGroupCondition(groupIdOrPublicId),
           eq(groups.isDeleted, false)
         )
       )
@@ -320,13 +340,12 @@ export async function getGroupMembers(groupIdOrPublicId: number | string) {
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
     const [group] = await db
       .select()
       .from(groups)
       .where(
         and(
-          isNumeric ? eq(groups.id, Number(groupIdOrPublicId)) : eq(groups.publicId, String(groupIdOrPublicId)),
+          buildGroupCondition(groupIdOrPublicId),
           eq(groups.isDeleted, false)
         )
       )

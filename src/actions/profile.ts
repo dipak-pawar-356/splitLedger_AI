@@ -16,6 +16,7 @@ import { requireAuth } from "@/lib/auth";
 import { recordAuditLog } from "@/lib/audit";
 import { eventBus } from "@/lib/realtime/event-bus";
 import { DatabaseError, ValidationError, NotFoundError } from "@/lib/errors";
+import { validateUpiId } from "@/lib/payments/upi";
 
 export interface ProfileDetails {
   user: {
@@ -28,6 +29,7 @@ export interface ProfileDetails {
     defaultCurrency: string;
     theme: string | null;
     emailVerified: boolean | null;
+    upiId: string | null;
     createdAt: Date;
   };
   profile: {
@@ -42,6 +44,7 @@ export interface ProfileDetails {
     city: string | null;
     pinCode: string | null;
     phone: string | null;
+    upiId: string | null;
     secondaryEmail: string | null;
     secondaryPhone: string | null;
     whatsappNumber: string | null;
@@ -203,7 +206,15 @@ export async function getProfileDetails(): Promise<ProfileDetails> {
       suggestions.push("Add your professional details (+10%)");
     }
 
-    if (profileRow.timezone) score += 10;
+    const userUpi = userRow.upiId || profileRow.upiId || null;
+    if (userUpi) {
+      score += 15;
+    } else {
+      missing.push("Primary UPI ID");
+      suggestions.push("Configure your Primary UPI ID to receive settlements via QR (+15%)");
+    }
+
+    if (profileRow.timezone) score += 5;
     if (profileRow.language) score += 5;
 
     const completionPercentage = Math.min(100, Math.max(0, score));
@@ -333,6 +344,7 @@ export async function getProfileDetails(): Promise<ProfileDetails> {
         defaultCurrency: userRow.defaultCurrency || "INR",
         theme: userRow.theme,
         emailVerified: userRow.emailVerified,
+        upiId: userUpi,
         createdAt: userRow.createdAt,
       },
       profile: {
@@ -347,6 +359,7 @@ export async function getProfileDetails(): Promise<ProfileDetails> {
         city: profileRow.city,
         pinCode: profileRow.pinCode,
         phone: profileRow.phone,
+        upiId: userUpi,
         secondaryEmail: profileRow.secondaryEmail,
         secondaryPhone: profileRow.secondaryPhone,
         whatsappNumber: profileRow.whatsappNumber,
@@ -418,6 +431,7 @@ export async function updatePersonalInfo(data: {
   timezone?: string;
   language?: string;
   defaultCurrency?: string;
+  upiId?: string;
 }) {
   try {
     const user = await requireAuth();
@@ -426,12 +440,25 @@ export async function updatePersonalInfo(data: {
       throw new ValidationError("Name is required");
     }
 
-    // Update user display name & currency
+    let cleanUpi: string | null = null;
+    if (data.upiId !== undefined) {
+      const trimmed = data.upiId.trim();
+      if (trimmed.length > 0) {
+        const val = validateUpiId(trimmed);
+        if (!val.isValid) {
+          throw new ValidationError(val.error || "Invalid UPI ID format (e.g. yourname@okhdfcbank)");
+        }
+        cleanUpi = trimmed.toLowerCase();
+      }
+    }
+
+    // Update user display name, currency & upiId
     await db
       .update(users)
       .set({
         name: data.name.trim(),
         defaultCurrency: data.defaultCurrency || "INR",
+        ...(data.upiId !== undefined && { upiId: cleanUpi }),
         updatedAt: new Date(),
       })
       .where(eq(users.id, user.id));
@@ -450,6 +477,7 @@ export async function updatePersonalInfo(data: {
         state: data.state?.trim() || null,
         city: data.city?.trim() || null,
         pinCode: data.pinCode?.trim() || null,
+        ...(data.upiId !== undefined && { upiId: cleanUpi }),
         timezone: data.timezone || "Asia/Kolkata",
         language: data.language || "en",
         updatedAt: new Date(),
@@ -621,3 +649,55 @@ export async function updateProfilePrivacy(settings: {
     throw new DatabaseError("Failed to update privacy settings", { originalError: error });
   }
 }
+
+/**
+ * Update Primary UPI ID with validation
+ */
+export async function updatePrimaryUpiId(upiId: string): Promise<{ success: boolean; upiId: string }> {
+  try {
+    const user = await requireAuth();
+
+    const validation = validateUpiId(upiId);
+    if (!validation.isValid) {
+      throw new ValidationError(validation.error || "Invalid UPI ID format (expected handle like user@okhdfcbank or 9876543210@paytm)");
+    }
+
+    const cleanUpi = upiId.trim().toLowerCase();
+
+    await db
+      .update(users)
+      .set({
+        upiId: cleanUpi,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, user.id));
+
+    await db
+      .update(profiles)
+      .set({
+        upiId: cleanUpi,
+        updatedAt: new Date(),
+      })
+      .where(eq(profiles.userId, user.id));
+
+    await recordAuditLog({
+      userId: user.id,
+      action: "profile_updated",
+      entityType: "profile",
+      entityId: user.id,
+      changes: { upiId: cleanUpi },
+    });
+
+    eventBus.broadcast({
+      channel: `user:${user.id}`,
+      type: "activity_logged",
+      payload: { action: "profile_updated", upiId: cleanUpi },
+    });
+
+    return { success: true, upiId: cleanUpi };
+  } catch (error) {
+    if (error instanceof ValidationError) throw error;
+    throw new DatabaseError("Failed to update UPI ID", { originalError: error });
+  }
+}
+

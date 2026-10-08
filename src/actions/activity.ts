@@ -12,6 +12,7 @@ import {
 import { eq, and, desc, sql, or, gte, lte, ilike, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { DatabaseError, NotFoundError } from "@/lib/errors";
+import { isDbIntegerId } from "@/lib/utils";
 
 export interface ActivityItem {
   id: number;
@@ -383,21 +384,43 @@ export async function getGroupActivityTimeline(
   try {
     const user = await requireAuth();
 
-    // Verify membership
-    const [group] = await db
-      .select({ id: groups.id, name: groups.name, publicId: groups.publicId })
+    const strId = String(groupPublicId).trim();
+    const isDbId = isDbIntegerId(groupPublicId);
+
+    // Verify group existence
+    const [groupRecord] = await db
+      .select({ id: groups.id, name: groups.name, publicId: groups.publicId, createdBy: groups.createdBy })
       .from(groups)
-      .innerJoin(groupMembers, eq(groups.id, groupMembers.groupId))
       .where(
         and(
-          eq(groups.publicId, groupPublicId),
-          eq(groupMembers.userId, user.id),
+          isDbId
+            ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+            : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId)),
           eq(groups.isDeleted, false)
         )
       )
       .limit(1);
 
-    if (!group) throw new NotFoundError("Group");
+    if (!groupRecord) return [];
+
+    // Verify active membership or owner access (REQUIREMENT 2)
+    const isOwner = groupRecord.createdBy === user.id;
+    if (!isOwner) {
+      const [membership] = await db
+        .select({ id: groupMembers.id, membershipStatus: groupMembers.membershipStatus })
+        .from(groupMembers)
+        .where(
+          and(
+            eq(groupMembers.groupId, groupRecord.id),
+            eq(groupMembers.userId, user.id)
+          )
+        )
+        .limit(1);
+
+      if (!membership || membership.membershipStatus !== "active") return [];
+    }
+
+    const group = groupRecord;
 
     const rows = await db
       .select({
@@ -460,7 +483,8 @@ export async function getGroupActivityTimeline(
       };
     });
   } catch (error) {
-    throw new DatabaseError("Failed to fetch group activity timeline", { originalError: error });
+    console.warn("Failed to fetch group activity timeline, returning empty array:", error);
+    return [];
   }
 }
 

@@ -11,13 +11,23 @@ export async function ensureDatabaseSchema(): Promise<void> {
       if (!connStr) return;
       const sqlClient = neon(connStr);
 
+      // Group Members table extensions
+      await sqlClient`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS membership_status TEXT DEFAULT 'active' NOT NULL`;
+      await sqlClient`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS historical_inclusion_decision TEXT`;
+      await sqlClient`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS activated_at TIMESTAMP`;
+      await sqlClient`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS delegated_permissions JSONB DEFAULT '{}'::jsonb`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS group_member_status_idx ON group_members(membership_status)`;
+
       // Users table extensions
       await sqlClient`ALTER TABLE users ADD COLUMN IF NOT EXISTS public_id TEXT`;
+      await sqlClient`ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_id TEXT`;
       await sqlClient`CREATE INDEX IF NOT EXISTS user_public_id_idx ON users(public_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS user_upi_id_idx ON users(upi_id)`;
 
       // Profiles table extensions
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS username TEXT`;
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS bio TEXT`;
+      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS upi_id TEXT`;
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS occupation TEXT`;
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS company TEXT`;
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS gender TEXT`;
@@ -508,18 +518,50 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`CREATE INDEX IF NOT EXISTS admin_action_admin_idx ON admin_actions(admin_id)`;
 
       // ==========================================
+      // GROUP JOIN REQUESTS (QR & APPROVAL FLOW)
+      // ==========================================
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS group_join_requests (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+          status TEXT DEFAULT 'pending' NOT NULL,
+          include_in_historical_expenses BOOLEAN DEFAULT false,
+          approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          approved_at TIMESTAMP,
+          rejected_at TIMESTAMP,
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS join_request_group_idx ON group_join_requests(group_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS join_request_user_idx ON group_join_requests(user_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS join_request_status_idx ON group_join_requests(status)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS join_request_public_id_idx ON group_join_requests(public_id)`;
+
+      // ==========================================
+      // GROUP MEMBERS (STATUS & DELEGATED PERMISSIONS)
+      // ==========================================
+      await sqlClient`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS membership_status TEXT DEFAULT 'active' NOT NULL`;
+      await sqlClient`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS historical_inclusion_decision TEXT`;
+      await sqlClient`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS activated_at TIMESTAMP`;
+      await sqlClient`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS delegated_permissions JSONB DEFAULT '{}'::jsonb`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS group_member_status_idx ON group_members(membership_status)`;
+
+      // ==========================================
       // HIGH-PERFORMANCE COMPOSITE INDEXES
       // ==========================================
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_tx_group_del_created ON transactions(group_id, is_deleted, created_at DESC)`;
-      await sqlClient`CREATE INDEX IF NOT EXISTS idx_tx_payer_del ON transactions(payer_id, is_deleted)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS idx_tx_payer_del ON transactions(paid_by, is_deleted)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_settlements_grp_status ON settlements(group_id, is_deleted, status)`;
-      await sqlClient`CREATE INDEX IF NOT EXISTS idx_settlements_payer_rcvr ON settlements(payer_id, receiver_id, is_deleted)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS idx_settlements_payer_rcvr ON settlements(from_user_id, to_user_id, is_deleted)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_grp_members_usr_grp ON group_members(user_id, group_id)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_notif_usr_read_created ON notifications(user_id, is_read, is_deleted, created_at DESC)`;
-      await sqlClient`CREATE INDEX IF NOT EXISTS idx_audit_grp_created ON audit_logs(group_id, created_at DESC)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS idx_audit_grp_created ON audit_logs(entity_id, created_at DESC)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_audit_usr_created ON audit_logs(user_id, created_at DESC)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_budgets_usr_del ON budgets(user_id, is_deleted)`;
-      await sqlClient`CREATE INDEX IF NOT EXISTS idx_tx_versions_tx_num ON transaction_versions(transaction_id, version_number DESC)`;
     } catch (err: any) {
       console.warn("Schema auto-migration warning:", err?.message || err);
     }

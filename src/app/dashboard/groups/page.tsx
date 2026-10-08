@@ -62,7 +62,7 @@ export default async function GroupsPage({
       .leftJoin(users, eq(groups.createdBy, users.id))
       .where(
         and(
-          sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`,
+          sql`(${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id} AND membership_status = 'active') OR ${groups.createdBy} = ${user.id})`,
           eq(groups.isDeleted, false)
         )
       )
@@ -529,7 +529,8 @@ function GroupCardItem({ group, userId }: { group: any; userId: number }) {
           </Button>
         </Link>
         <UniqueGroupInvitationDialog
-          groupId={group.publicId}
+          groupId={group.id}
+          publicId={group.publicId}
           groupName={group.name}
           trigger={
             <Button variant="outline" size="sm" className="px-2.5 shrink-0 hover:border-primary/50" title="Share Group Link">

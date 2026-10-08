@@ -1,16 +1,19 @@
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { groups, groupMembers, transactions, users, contacts } from "@/lib/db/schema/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { groups, groupMembers, transactions, users, contacts, groupJoinRequests } from "@/lib/db/schema/schema";
+import { eq, and, desc, or } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, TrendingUp, TrendingDown, FileText, Trash2 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, isDbIntegerId } from "@/lib/utils";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { GroupExpenseDialog } from "@/components/dialogs/group-expense-dialog";
 import { deleteTransaction, deleteTransactionFormAction } from "@/actions/transactions";
 import { alias } from "drizzle-orm/pg-core";
+
+import { GroupRouteErrorView } from "@/components/group/group-route-error-view";
+import { PendingGroupAccessView } from "@/components/group/pending-group-access-view";
 
 export const dynamic = 'force-dynamic';
 
@@ -18,24 +21,70 @@ export default async function GroupExpensesPage({ params }: { params: Promise<{ 
   const user = await requireAuth();
   const { id: publicId } = await params;
 
-  const isNumeric = /^\d+$/.test(publicId);
+  const strId = String(publicId).trim();
+  const isDbId = isDbIntegerId(publicId);
   const [groupRecord] = await db
     .select()
     .from(groups)
     .where(
-      and(
-        isNumeric ? eq(groups.id, Number(publicId)) : eq(groups.publicId, publicId),
-        eq(groups.isDeleted, false)
-      )
+      isDbId
+        ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+        : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId))
     )
     .limit(1);
 
   if (!groupRecord) {
-    redirect("/dashboard/groups");
+    return <GroupRouteErrorView errorType="not_found" groupIdentifier={publicId} />;
+  }
+
+  if (groupRecord.isDeleted) {
+    return <GroupRouteErrorView errorType="deleted" groupIdentifier={publicId} groupName={groupRecord.name} />;
   }
 
   const groupId = groupRecord.id;
   const groupData = groupRecord;
+  const isOwner = groupData.createdBy === user.id;
+
+  // Check user membership and pending request before fetching expenses (REQUIREMENT 2)
+  const [userMembership] = await db
+    .select({
+      id: groupMembers.id,
+      membershipStatus: groupMembers.membershipStatus,
+      isAdmin: groupMembers.isAdmin,
+    })
+    .from(groupMembers)
+    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, user.id)))
+    .limit(1);
+
+  const [userPendingRequest] = await db
+    .select({ id: groupJoinRequests.id })
+    .from(groupJoinRequests)
+    .where(
+      and(
+        eq(groupJoinRequests.groupId, groupId),
+        eq(groupJoinRequests.userId, user.id),
+        eq(groupJoinRequests.status, "pending")
+      )
+    )
+    .limit(1);
+
+  if (!isOwner) {
+    if (!userMembership && !userPendingRequest) {
+      return (
+        <GroupRouteErrorView 
+          errorType="access_denied" 
+          groupIdentifier={publicId} 
+          groupName={groupData.name} 
+          groupId={groupData.id} 
+        />
+      );
+    }
+
+    if (userMembership?.membershipStatus !== "active" || userPendingRequest) {
+      return <PendingGroupAccessView groupName={groupData.name} groupLogo={groupData.coverImage} />;
+    }
+  }
+
   const creatorUsers = alias(users, "creator_users");
 
   const [members, expenses] = await Promise.all([
@@ -81,13 +130,8 @@ export default async function GroupExpensesPage({ params }: { params: Promise<{ 
       .orderBy(desc(transactions.date)),
   ]);
 
-  // Check if current user is member
   const currentUserMember = members.find(m => m.userId === user.id);
-  if (!currentUserMember && groupData.createdBy !== user.id) {
-    redirect("/dashboard/groups");
-  }
-
-  const isAdmin = currentUserMember?.isAdmin || groupData.createdBy === user.id;
+  const isAdmin = currentUserMember?.isAdmin || isOwner;
 
   // Transform members to match GroupExpenseDialog expected type
   const mappedMembers = members.map((member) => ({

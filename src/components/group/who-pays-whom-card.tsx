@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
-import { ArrowRight, CheckCircle2, Sparkles, Check } from "lucide-react";
+import { ArrowRight, CheckCircle2, Sparkles, Check, Smartphone } from "lucide-react";
 import { SettleAllDialog } from "@/components/dialogs/settle-all-dialog";
 import { SettleUpButton } from "@/components/settlement/settle-up-button";
+import { UpiQuickPayDialog } from "@/components/settlement/upi-quick-pay-dialog";
 
 interface WhoPaysWhomCardProps {
   suggestions: Array<{
@@ -137,25 +138,45 @@ export function WhoPaysWhomCard({
                 </div>
 
                 {/* Individual Action Bar for this specific debt */}
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-[11px] text-slate-400">
                     {s.fromName} owes {s.toName}
                   </span>
-                  <SettleAllDialog
-                    groupId={groupId}
-                    groupName={groupName}
-                    suggestions={[s]}
-                    trigger={
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 hover:border-emerald-500/40"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        <span>Settle {formatCurrency(s.amount)}</span>
-                      </Button>
-                    }
-                  />
+                  <div className="flex items-center gap-1.5">
+                    {s.toUserId && (
+                      <UpiQuickPayDialog
+                        groupId={groupId}
+                        groupName={groupName}
+                        receiverUserId={s.toUserId}
+                        receiverName={s.toName}
+                        amount={s.amount}
+                        trigger={
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                          >
+                            <Smartphone className="h-3.5 w-3.5" />
+                            <span>Pay Now</span>
+                          </Button>
+                        }
+                      />
+                    )}
+                    <SettleAllDialog
+                      groupId={groupId}
+                      groupName={groupName}
+                      suggestions={[s]}
+                      trigger={
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs px-2 font-medium rounded-xl gap-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                        >
+                          <Check className="h-3 w-3" />
+                          <span>Manual Settle</span>
+                        </Button>
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             ))}

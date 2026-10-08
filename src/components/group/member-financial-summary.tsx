@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ReminderDialog } from "@/components/dialogs/reminder-dialog";
 import { MemberProfileModal } from "@/components/group/member-profile-modal";
+import { MemberPermissionsDialog } from "@/components/group/member-permissions-dialog";
 import { removeGroupMember } from "@/actions/group-members";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -129,6 +130,11 @@ export function MemberFinancialSummary({
                 ) : (
                   <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                     User
+                  </Badge>
+                )}
+                {member.membershipStatus === "expense_inactive" && (
+                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border-amber-300">
+                    Expense Inactive
                   </Badge>
                 )}
                 {isCurrentUser && (
@@ -315,18 +321,31 @@ export function MemberFinancialSummary({
             )}
           </div>
 
-          {(isCurrentUserAdmin || isGroupOwner) && !isCurrentUser && member.role !== "owner" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={isDeleting}
-              className="rounded-xl text-[11px] h-7 px-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-              onClick={handleRemove}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {isGroupOwner && !isCurrentUser && member.userId && member.role !== "owner" && (
+              <MemberPermissionsDialog
+                groupId={groupId}
+                targetUserId={member.userId}
+                targetUserName={member.name}
+                targetUserEmail={member.email}
+                initialPermissions={member.delegatedPermissions || {}}
+                canEdit={true}
+              />
+            )}
+
+            {(isCurrentUserAdmin || isGroupOwner) && !isCurrentUser && member.role !== "owner" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={isDeleting}
+                className="rounded-xl text-[11px] h-7 px-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                onClick={handleRemove}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
         </div>
       </Card>
 

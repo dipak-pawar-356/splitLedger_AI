@@ -22,6 +22,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { ValidationError, DatabaseError, AuthorizationError } from "@/lib/errors";
 import { calculateGroupSettlements, calculateOptimalSettlements, type Expense, type Balance } from "@/lib/settlements/calculator";
+import { isDbIntegerId } from "@/lib/utils";
 
 export interface MemberFinancialDetail {
   id: number;
@@ -48,6 +49,9 @@ export interface MemberFinancialDetail {
   isPaymentVerified?: boolean;
   joinedAt: Date | string;
   lastActivity?: Date | string | null;
+  membershipStatus?: "pending" | "expense_inactive" | "active";
+  historicalInclusionDecision?: "included" | "excluded" | null;
+  delegatedPermissions?: Record<string, boolean>;
   receivesFrom: Array<{ name: string; amount: number; userId?: number; contactId?: number; email?: string; phone?: string }>;
   owesTo: Array<{ name: string; amount: number; userId?: number; contactId?: number; email?: string; phone?: string }>;
 }
@@ -66,6 +70,8 @@ export interface GroupFinancialSummary {
     createdBy: number;
     isOwner: boolean;
     isAdmin: boolean;
+    userMembershipStatus?: "pending" | "expense_inactive" | "active";
+    userDelegatedPermissions?: Record<string, boolean>;
   };
   overview: {
     totalMembers: number;
@@ -207,7 +213,8 @@ export async function getGroupFinancialDetails(
   try {
     const user = await requireAuth();
 
-    const isNumeric = typeof groupIdOrPublicId === "number" || /^\d+$/.test(String(groupIdOrPublicId));
+    const strId = String(groupIdOrPublicId).trim();
+    const isDbId = isDbIntegerId(groupIdOrPublicId);
     
     // 1. Fetch Group
     const [groupRecord] = await db
@@ -215,9 +222,9 @@ export async function getGroupFinancialDetails(
       .from(groups)
       .where(
         and(
-          isNumeric 
-            ? eq(groups.id, Number(groupIdOrPublicId)) 
-            : eq(groups.publicId, String(groupIdOrPublicId)),
+          isDbId 
+            ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+            : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId)),
           eq(groups.isDeleted, false)
         )
       )
@@ -251,6 +258,9 @@ export async function getGroupFinancialDetails(
           joinedAt: groupMembers.joinedAt,
           userId: groupMembers.userId,
           contactId: groupMembers.contactId,
+          membershipStatus: groupMembers.membershipStatus,
+          historicalInclusionDecision: groupMembers.historicalInclusionDecision,
+          delegatedPermissions: groupMembers.delegatedPermissions,
           userName: users.name,
           userAvatar: users.avatar,
           userEmail: users.email,
@@ -362,6 +372,10 @@ export async function getGroupFinancialDetails(
       throw new AuthorizationError("You do not have access to this group");
     }
 
+    if (!isOwner && currentUserMember?.membershipStatus !== "active") {
+      throw new AuthorizationError("Your join request is still pending Group Owner approval. Financial data is restricted.");
+    }
+
     // 3. Fetch Splits for all Expenses
     const txIds = expensesList.map((e) => e.id);
     let allSplits: any[] = [];
@@ -433,7 +447,11 @@ export async function getGroupFinancialDetails(
     const totalGroupExpenseRupees = totalGroupExpenseInPaise / 100;
 
     // 6. Calculate Initial Per-Member Financial Breakdown with Completed Settlements
-    const processedMembers: MemberFinancialDetail[] = membersList.map((m) => {
+    // Only non-pending members participate in member list and calculations (Requirement 1 & 2)
+    const participatingMembersList = membersList.filter((m) => m.membershipStatus !== "pending");
+    const activeCalculationCount = Math.max(1, participatingMembersList.filter(pm => pm.membershipStatus === "active" || pm.isGuest).length);
+
+    const processedMembers: MemberFinancialDetail[] = participatingMembersList.map((m) => {
       const memberId = m.userId;
       const contactId = m.contactId;
       const displayName = m.nickname || m.userName || m.contactName || "Member";
@@ -449,9 +467,13 @@ export async function getGroupFinancialDetails(
         .filter((s) => (memberId && s.userId === memberId) || (contactId && s.contactId === contactId))
         .reduce((sum, s) => sum + s.amount, 0);
 
-      // If no explicit splits were stored, fallback to equal share of total expenses
-      if (allSplits.length === 0 && expensesList.length > 0 && membersList.length > 0) {
-        memberSharePaise = Math.round(totalGroupExpenseInPaise / membersList.length);
+      // If no explicit splits were stored, fallback to equal share among active members
+      if (allSplits.length === 0 && expensesList.length > 0) {
+        if (m.membershipStatus === "active" || m.isGuest) {
+          memberSharePaise = Math.round(totalGroupExpenseInPaise / activeCalculationCount);
+        } else {
+          memberSharePaise = 0;
+        }
       }
 
       // Offline Settlements Paid by this member (gives money to credit their debt balance)
@@ -507,6 +529,9 @@ export async function getGroupFinancialDetails(
         role,
         isGuest: !!m.isGuest,
         isRegistered: !m.isGuest && !!m.userId,
+        membershipStatus: (m.membershipStatus || "active") as "pending" | "expense_inactive" | "active",
+        historicalInclusionDecision: (m.historicalInclusionDecision as any) || null,
+        delegatedPermissions: (m.delegatedPermissions as Record<string, boolean>) || {},
         expenseCount,
         totalPaid,
         ownShare,
@@ -526,14 +551,16 @@ export async function getGroupFinancialDetails(
     });
 
     // 7. Calculate Post-Settlement Optimal Settlement Graph
-    // Balance array: positive = owed money, negative = owes money (in paise)
-    const optimalBalances: Balance[] = processedMembers.map((m) => ({
-      userId: m.userId || undefined,
-      contactId: m.contactId || undefined,
-      name: m.name,
-      isGuest: m.isGuest,
-      amount: Math.round(m.netPosition * 100),
-    }));
+    // Balance array: only ACTIVE members participate in settlement calculations (Requirement 5 & 6)
+    const optimalBalances: Balance[] = processedMembers
+      .filter((m) => m.membershipStatus === "active" || m.isGuest)
+      .map((m) => ({
+        userId: m.userId || undefined,
+        contactId: m.contactId || undefined,
+        name: m.name,
+        isGuest: m.isGuest,
+        amount: Math.round(m.netPosition * 100),
+      }));
 
     const optimalSettlements = calculateOptimalSettlements(optimalBalances, "INR");
 
@@ -818,6 +845,8 @@ export async function getGroupFinancialDetails(
         createdBy: groupRecord.createdBy,
         isOwner,
         isAdmin,
+        userMembershipStatus: (isOwner ? "active" : currentUserMember?.membershipStatus || "active") as "pending" | "expense_inactive" | "active",
+        userDelegatedPermissions: (currentUserMember?.delegatedPermissions as Record<string, boolean>) || {},
       },
       overview: {
         totalMembers: membersList.length,

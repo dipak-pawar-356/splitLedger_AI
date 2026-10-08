@@ -9,6 +9,7 @@ import { PersonalInfoForm } from "@/components/profile/personal-info-form";
 import { ContactInfoCard } from "@/components/profile/contact-info-card";
 import { ProfileAnalyticsView } from "@/components/profile/profile-analytics-view";
 import { ProfilePrivacySettings } from "@/components/profile/profile-privacy-settings";
+import { UpiProfileManagerCard } from "@/components/profile/upi-profile-manager-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,8 @@ import {
   Layers,
   Smartphone,
   QrCode,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -50,6 +52,27 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
     router.refresh();
   };
 
+  const handleUpiUpdated = (newUpiId: string) => {
+    setData((prev) => ({
+      ...prev,
+      user: {
+        ...prev.user,
+        upiId: newUpiId,
+      },
+      profile: {
+        ...prev.profile,
+        upiId: newUpiId,
+      },
+      completion: {
+        ...prev.completion,
+        missingFields: prev.completion.missingFields.filter((f) => f !== "Primary UPI ID"),
+      },
+    }));
+    router.refresh();
+  };
+
+  const hasUpi = Boolean(data.user.upiId?.trim());
+
   return (
     <div className="space-y-6 pb-12">
       {/* Profile Header */}
@@ -60,6 +83,36 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
         onEditClick={() => setActiveTab("edit")}
         onAvatarUpdated={handleAvatarUpdated}
       />
+
+      {/* Mandatory UPI Missing Alert Banner */}
+      {!hasUpi && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <span>Payment Profile Incomplete</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold uppercase tracking-wider">
+                  Mandatory for Settlements
+                </span>
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                You must configure your Primary UPI ID before other members can generate and scan dynamic settlement QR codes to pay you.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setActiveTab("payments")}
+            className="rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white shrink-0 self-start sm:self-auto gap-1.5"
+          >
+            <Smartphone className="h-3.5 w-3.5" />
+            <span>Configure UPI ID Now</span>
+          </Button>
+        </div>
+      )}
 
       {/* Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -155,6 +208,7 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
               timezone: data.profile.timezone,
               language: data.profile.language,
               defaultCurrency: data.user.defaultCurrency,
+              upiId: data.user.upiId,
             }}
             onSuccess={() => router.refresh()}
           />
@@ -189,37 +243,11 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
 
         {/* TAB 6: UPI Banking & Settlement Config */}
         <TabsContent value="payments">
-          <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden bg-card">
-            <CardHeader className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
-                    <QrCode className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base font-bold">UPI Payment & Settlement Details</CardTitle>
-                    <CardDescription className="text-xs">
-                      Default handles used for group settlement QR links (GPay, PhonePe, Paytm)
-                    </CardDescription>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500">Default UPI VPA Handle</p>
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100 font-mono mt-0.5">
-                    {data.user.email.split('@')[0]}@okaxis
-                  </p>
-                </div>
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-xs gap-1">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Verified Active
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+          <UpiProfileManagerCard
+            currentUpiId={data.user.upiId}
+            userName={data.user.name || "SplitLedger Member"}
+            onUpiUpdated={handleUpiUpdated}
+          />
         </TabsContent>
       </Tabs>
     </div>

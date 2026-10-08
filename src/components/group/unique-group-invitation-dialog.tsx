@@ -33,10 +33,12 @@ import {
   resendInvitation
 } from "@/actions/invitations";
 import { toast } from "sonner";
-import { formatDate, formatRelativeTime, generateInvitationUrl } from "@/lib/utils";
+import { formatDate, formatRelativeTime, generateInvitationUrl, generateGroupJoinUrl } from "@/lib/utils";
+import { generateQrCodeDataUrl } from "@/lib/payments/upi";
 
 interface UniqueGroupInvitationDialogProps {
   groupId: number | string;
+  publicId?: string;
   groupName?: string;
   trigger?: React.ReactNode;
   open?: boolean;
@@ -45,6 +47,7 @@ interface UniqueGroupInvitationDialogProps {
 
 export function UniqueGroupInvitationDialog({
   groupId,
+  publicId,
   groupName,
   trigger,
   open: controlledOpen,
@@ -82,21 +85,33 @@ export function UniqueGroupInvitationDialog({
     joinedMembers: any[];
   } | null>(null);
 
+  const [localQrDataUrl, setLocalQrDataUrl] = useState<string>("");
+  const targetIdentifier = publicId || String(groupId);
+
   const loadInviteData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getOrCreateGroupInviteLink(groupId);
-      setInviteUrl(data.invitationUrl);
+      const data = await getOrCreateGroupInviteLink(targetIdentifier);
+      const inviteLinkUrl = data.invitationUrl;
+
+      setInviteUrl(inviteLinkUrl);
       setWhatsappLink(data.whatsappLink);
       setWhatsappMessage(data.whatsappMessage);
       setExpiresAt(new Date(data.expiresAt));
       if (data.groupName) setCurrentGroupName(data.groupName);
+
+      try {
+        const qrDataUrl = await generateQrCodeDataUrl(inviteLinkUrl, { width: 320, margin: 2 });
+        setLocalQrDataUrl(qrDataUrl);
+      } catch (qrErr) {
+        console.error("Failed to generate local QR code:", qrErr);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load group invite link");
     } finally {
       setLoading(false);
     }
-  }, [groupId]);
+  }, [targetIdentifier]);
 
   const loadHistoryData = useCallback(async () => {
     try {
@@ -149,6 +164,14 @@ export function UniqueGroupInvitationDialog({
       setWhatsappLink(data.whatsappLink);
       setWhatsappMessage(data.whatsappMessage);
       setExpiresAt(new Date(data.expiresAt));
+
+      try {
+        const qrDataUrl = await generateQrCodeDataUrl(data.invitationUrl, { width: 320, margin: 2 });
+        setLocalQrDataUrl(qrDataUrl);
+      } catch (qrErr) {
+        console.error("Failed to update QR code on new link generation:", qrErr);
+      }
+
       toast.success("Generated new unique invite link for this group!");
       await loadHistoryData();
     } catch (err) {
@@ -342,10 +365,10 @@ export function UniqueGroupInvitationDialog({
             {/* TAB 2: Dynamic QR Code */}
             <TabsContent value="qr" className="space-y-4 pt-4 text-center">
               <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 inline-block mx-auto shadow-sm">
-                {qrImageUrl ? (
+                {(localQrDataUrl || qrImageUrl) ? (
                   <Image
                     unoptimized
-                    src={qrImageUrl}
+                    src={localQrDataUrl || qrImageUrl}
                     alt={`Invite QR code for ${currentGroupName}`}
                     width={192}
                     height={192}

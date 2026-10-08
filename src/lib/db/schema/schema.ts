@@ -20,12 +20,14 @@ export const users = pgTable("users", {
   defaultCurrency: text("default_currency").default("INR").notNull(),
   theme: text("theme").default("system"),
   emailVerified: boolean("email_verified").default(false),
+  upiId: text("upi_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   clerkIdx: index("clerk_user_idx").on(table.clerkUserId),
   emailIdx: index("email_idx").on(table.email),
   publicIdIdx: index("user_public_id_idx").on(table.publicId),
+  upiIdIdx: index("user_upi_id_idx").on(table.upiId),
 }));
 
 // Profiles table (extended user settings & account management)
@@ -43,6 +45,7 @@ export const profiles = pgTable("profiles", {
   city: text("city"),
   pinCode: text("pin_code"),
   phone: text("phone"),
+  upiId: text("upi_id"),
   secondaryEmail: text("secondary_email"),
   secondaryPhone: text("secondary_phone"),
   whatsappNumber: text("whatsapp_number"),
@@ -106,6 +109,7 @@ export const contacts = pgTable("contacts", {
 export const groups = pgTable("groups", {
   id: serial("id").primaryKey(),
   publicId: text("public_id").unique().notNull(),
+  legacyPublicId: text("legacy_public_id"),
   name: text("name").notNull(),
   description: text("description"),
   coverImage: text("cover_image"),
@@ -136,12 +140,17 @@ export const groupMembers = pgTable("group_members", {
   isAdmin: boolean("is_admin").default(false).notNull(),
   isGuest: boolean("is_guest").default(false).notNull(),
   nickname: text("nickname"),
+  membershipStatus: text("membership_status").default("active").notNull(), // 'pending', 'expense_inactive', 'active'
+  historicalInclusionDecision: text("historical_inclusion_decision"), // 'included', 'excluded'
+  activatedAt: timestamp("activated_at"),
+  delegatedPermissions: jsonb("delegated_permissions").$type<Record<string, boolean>>().default({}),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
   invitationId: integer("invitation_id").references(() => invitations.id),
 }, (table) => ({
   groupIdx: index("group_member_group_idx").on(table.groupId),
   userIdx: index("group_member_user_idx").on(table.userId),
   contactIdx: index("group_member_contact_idx").on(table.contactId),
+  statusIdx: index("group_member_status_idx").on(table.membershipStatus),
   uniqueMember: unique("unique_group_member").on(table.groupId, table.userId, table.contactId),
 }));
 
@@ -408,6 +417,7 @@ export const invitations = pgTable("invitations", {
   phone: text("phone"),
   name: text("name"),
   token: text("token").unique().notNull(),
+  legacyToken: text("legacy_token"),
   status: text("status").default("pending").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
   acceptedAt: timestamp("accepted_at"),
@@ -424,6 +434,27 @@ export const invitations = pgTable("invitations", {
   tokenIdx: index("invitation_token_idx").on(table.token),
   emailIdx: index("invitation_email_idx").on(table.email),
   statusIdx: index("invitation_status_idx").on(table.status),
+}));
+
+// Group Join Requests table for QR-based requests requiring owner approval
+export const groupJoinRequests = pgTable("group_join_requests", {
+  id: serial("id").primaryKey(),
+  publicId: text("public_id").unique().notNull(),
+  groupId: integer("group_id").references(() => groups.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  status: text("status").default("pending").notNull(), // 'pending', 'approved', 'rejected'
+  includeInHistoricalExpenses: boolean("include_in_historical_expenses").default(false),
+  approvedBy: integer("approved_by").references(() => users.id, { onDelete: "set null" }),
+  approvedAt: timestamp("approved_at"),
+  rejectedAt: timestamp("rejected_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  groupIdx: index("join_request_group_idx").on(table.groupId),
+  userIdx: index("join_request_user_idx").on(table.userId),
+  statusIdx: index("join_request_status_idx").on(table.status),
+  publicIdIdx: index("join_request_public_id_idx").on(table.publicId),
 }));
 
 // Reminders table
@@ -1485,4 +1516,22 @@ export type SettlementEmailLog = typeof settlementEmailLogs.$inferSelect;
 export type NewSettlementEmailLog = typeof settlementEmailLogs.$inferInsert;
 export type AdminAction = typeof adminActions.$inferSelect;
 export type NewAdminAction = typeof adminActions.$inferInsert;
+
+export const groupJoinRequestsRelations = relations(groupJoinRequests, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupJoinRequests.groupId],
+    references: [groups.id],
+  }),
+  user: one(users, {
+    fields: [groupJoinRequests.userId],
+    references: [users.id],
+  }),
+  approvedByUser: one(users, {
+    fields: [groupJoinRequests.approvedBy],
+    references: [users.id],
+  }),
+}));
+
+export type GroupJoinRequest = typeof groupJoinRequests.$inferSelect;
+export type NewGroupJoinRequest = typeof groupJoinRequests.$inferInsert;
 
