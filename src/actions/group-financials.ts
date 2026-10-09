@@ -15,7 +15,8 @@ import {
   settlementHistory,
   settlementReminderSettings,
   settlementEmailLogs,
-  adminActions
+  adminActions,
+  groupJoinRequests
 } from "@/lib/db/schema/schema";
 import { eq, and, desc, sql, or, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -247,6 +248,7 @@ export async function getGroupFinancialDetails(
       expensesList,
       pendingSettlementsList,
       completedSettlementsList,
+      pendingJoinRequestsList,
     ] = await Promise.all([
       // A. Group Members
       db
@@ -361,6 +363,21 @@ export async function getGroupFinancialDetails(
             eq(settlements.isDeleted, false)
           )
         ),
+
+      // E. Pending Join Requests
+      db
+        .select({
+          id: groupJoinRequests.id,
+          userId: groupJoinRequests.userId,
+          status: groupJoinRequests.status,
+        })
+        .from(groupJoinRequests)
+        .where(
+          and(
+            eq(groupJoinRequests.groupId, groupId),
+            eq(groupJoinRequests.status, "pending")
+          )
+        ),
     ]);
 
     // Check membership authorization
@@ -446,11 +463,17 @@ export async function getGroupFinancialDetails(
     const totalGroupExpenseInPaise = expensesList.reduce((sum, e) => sum + e.amount, 0);
     const totalGroupExpenseRupees = totalGroupExpenseInPaise / 100;
 
+    const pendingUserIdsSet = new Set(
+      pendingJoinRequestsList.map((r) => r.userId).filter(Boolean) as number[]
+    );
+
     // 6. Calculate Initial Per-Member Financial Breakdown with Completed Settlements
     // Only approved/active members participate in member list and calculations (Requirement 1 & 2)
+    // Strictly excludes any user with an active pending join request
     const isApprovedActive = (m: any) => {
+      if (m.userId && pendingUserIdsSet.has(m.userId)) return false;
       const status = (m.membershipStatus || "").toLowerCase();
-      if (status === "pending" || status === "pending_approval") return false;
+      if (status === "pending" || status === "pending_approval" || status === "expense_inactive") return false;
       if (m.isGuest) return status !== "pending" && status !== "pending_approval";
       return status === "active";
     };
@@ -874,10 +897,9 @@ export async function getGroupFinancialDetails(
         userDelegatedPermissions: (currentUserMember?.delegatedPermissions as Record<string, boolean>) || {},
       },
       overview: {
-        totalMembers: membersList.filter((m) => !m.isGuest && (m.membershipStatus || "").toLowerCase() === "active").length +
-          membersList.filter((m) => m.isGuest && (m.membershipStatus || "").toLowerCase() !== "pending" && (m.membershipStatus || "").toLowerCase() !== "pending_approval").length,
-        activeMembers: membersList.filter((m) => !m.isGuest && (m.membershipStatus || "").toLowerCase() === "active").length,
-        guestMembers: membersList.filter((m) => m.isGuest && (m.membershipStatus || "").toLowerCase() !== "pending" && (m.membershipStatus || "").toLowerCase() !== "pending_approval").length,
+        totalMembers: membersList.filter(isApprovedActive).length,
+        activeMembers: membersList.filter((m) => !m.isGuest && isApprovedActive(m)).length,
+        guestMembers: membersList.filter((m) => m.isGuest && isApprovedActive(m)).length,
         totalExpenses: totalGroupExpenseRupees,
         totalSettlements: totalSettledAmount,
         pendingSettlementsCount: pendingSettlementsList.length,

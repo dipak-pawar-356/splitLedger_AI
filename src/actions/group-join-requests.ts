@@ -425,7 +425,7 @@ export async function approveJoinRequestAction(data: {
       user.email === "pawardipaksa@gmail.com" ||
       user.email === "dipak@splitledger.ai";
 
-    const isOwner = group.createdBy === user.id || isSystemAdmin;
+    const isOwner = Number(group.createdBy) === Number(user.id) || isSystemAdmin;
 
     let canApprove = isOwner;
     if (!canApprove) {
@@ -444,19 +444,21 @@ export async function approveJoinRequestAction(data: {
         )
         .limit(1);
 
-      const perms = (typeof callerMember?.delegatedPermissions === "string"
-        ? JSON.parse(callerMember.delegatedPermissions)
-        : callerMember?.delegatedPermissions) || {};
+      if (callerMember) {
+        const perms = (typeof callerMember.delegatedPermissions === "string"
+          ? JSON.parse(callerMember.delegatedPermissions)
+          : callerMember.delegatedPermissions) || {};
 
-      canApprove = Boolean(callerMember?.isAdmin) ||
-        callerMember?.membershipStatus === "active" ||
-        Boolean(perms?.["group:approve_members"]) ||
-        hasDelegatedGroupPermission(
-          group.createdBy,
-          user.id,
-          { ...callerMember, delegatedPermissions: perms },
-          "group:approve_members"
-        );
+        canApprove =
+          Boolean(callerMember.isAdmin) ||
+          Boolean(perms?.["group:approve_members"]) ||
+          hasDelegatedGroupPermission(
+            group.createdBy,
+            user.id,
+            { ...callerMember, delegatedPermissions: perms },
+            "group:approve_members"
+          );
+      }
     }
 
     if (!canApprove) {
@@ -800,7 +802,7 @@ export async function rejectJoinRequestAction(data: {
       user.email === "pawardipaksa@gmail.com" ||
       user.email === "dipak@splitledger.ai";
 
-    const isOwner = group.createdBy === user.id || isSystemAdmin;
+    const isOwner = Number(group.createdBy) === Number(user.id) || isSystemAdmin;
     let canReject = isOwner;
     if (!canReject) {
       const [callerMember] = await db
@@ -818,14 +820,21 @@ export async function rejectJoinRequestAction(data: {
         )
         .limit(1);
 
-      canReject = Boolean(callerMember?.isAdmin) ||
-        callerMember?.membershipStatus === "active" ||
-        hasDelegatedGroupPermission(
-          group.createdBy,
-          user.id,
-          callerMember,
-          "group:approve_members"
-        );
+      if (callerMember) {
+        const perms = (typeof callerMember?.delegatedPermissions === "string"
+          ? JSON.parse(callerMember.delegatedPermissions)
+          : callerMember?.delegatedPermissions) || {};
+
+        canReject =
+          Boolean(callerMember?.isAdmin) ||
+          Boolean(perms?.["group:approve_members"]) ||
+          hasDelegatedGroupPermission(
+            group.createdBy,
+            user.id,
+            { ...callerMember, delegatedPermissions: perms },
+            "group:approve_members"
+          );
+      }
     }
 
     if (!canReject) {

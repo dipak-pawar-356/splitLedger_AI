@@ -220,15 +220,18 @@ export function isMemberEligibleForExpense(
 
   for (const entry of memberTimeline) {
     const fromTime = new Date(entry.effectiveFrom).getTime();
+    const untilTime = entry.effectiveUntil ? new Date(entry.effectiveUntil).getTime() : Infinity;
 
     if (entry.participationMode === "excluded") {
-      // Mode B: only future expenses created after effectiveFrom
-      if (expTime >= fromTime) {
+      // Mode B: only future expenses created after effectiveFrom and before effectiveUntil
+      if (expTime >= fromTime && expTime < untilTime) {
         return true;
       }
     } else if (entry.participationMode === "included") {
-      // Mode A: participates in all historical and future expenses
-      return true;
+      // Mode A: participates in all historical and future expenses up to effectiveUntil
+      if (expTime < untilTime) {
+        return true;
+      }
     }
   }
 
@@ -640,12 +643,20 @@ export async function executeAtomicGroupRecalculation(params: {
       );
 
       // If no timeline records existed yet (e.g. legacy expenses before timeline table),
-      // default to all currently active members
-      if (parsedTimelines.length === 0 && activeMembers.length > 0) {
-        eligibleParticipants = activeMembers.map((m) => ({
-          userId: m.userId || undefined,
-          contactId: m.contactId || undefined,
-        }));
+      // or if timeline evaluation resulted in 0 eligible participants for this expense,
+      // fallback to all currently active members (or tx payer) so expense is not orphaned
+      if (eligibleParticipants.length === 0) {
+        if (activeMembers.length > 0) {
+          eligibleParticipants = activeMembers.map((m) => ({
+            userId: m.userId || undefined,
+            contactId: m.contactId || undefined,
+          }));
+        } else if (tx.paidBy || tx.paidByContact) {
+          eligibleParticipants = [{
+            userId: tx.paidBy || undefined,
+            contactId: tx.paidByContact || undefined,
+          }];
+        }
       }
 
       // Calculate paise-perfect shares

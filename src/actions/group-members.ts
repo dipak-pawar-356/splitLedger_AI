@@ -158,7 +158,7 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
       throw new NotFoundError("Group");
     }
 
-    // Find the member record (support matching by group_members.id or users.id)
+    // Find the member record (support matching by group_members.id, users.id, or contacts.id)
     const numMemberId = Number(memberId);
     const [memberToRemove] = await db
       .select()
@@ -166,7 +166,11 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
       .where(
         and(
           eq(groupMembers.groupId, group.id),
-          or(eq(groupMembers.id, numMemberId), eq(groupMembers.userId, numMemberId))
+          or(
+            eq(groupMembers.id, numMemberId),
+            eq(groupMembers.userId, numMemberId),
+            eq(groupMembers.contactId, numMemberId)
+          )
         )
       )
       .limit(1);
@@ -176,7 +180,7 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
     }
 
     // Cannot remove owner
-    if (memberToRemove.userId === group.createdBy) {
+    if (memberToRemove.userId && Number(memberToRemove.userId) === Number(group.createdBy)) {
       throw new ValidationError("Cannot remove the group owner. Transfer ownership first.");
     }
 
@@ -187,7 +191,9 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
       user.email === "pawardipaksa@gmail.com" ||
       user.email === "dipak@splitledger.ai";
 
-    if (group.createdBy !== user.id && !isSystemAdmin) {
+    const isOwner = Number(group.createdBy) === Number(user.id) || isSystemAdmin;
+
+    if (!isOwner) {
       const [callerAdmin] = await db
         .select()
         .from(groupMembers)

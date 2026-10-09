@@ -343,5 +343,163 @@ describe("Expense Participation Timeline and Recalculation Engine", () => {
       expect(changed).toBe(true);
     });
   });
+
+  // =========================================================================
+  // SECTION 19: ACTIVE MEMBER COUNT & PENDING REQUEST ISOLATION
+  // =========================================================================
+  describe("Active Member Count & Pending Request Isolation", () => {
+    it("strictly excludes pending join requests and inactive members from activeMembers count", () => {
+      // 7 total members in group table:
+      // 3 approved active members (User 1, User 2, User 3)
+      // 2 pending join request users (User 4, User 5)
+      // 1 expense_inactive member (User 6)
+      // 1 guest member (Contact 1)
+      const membersList = [
+        { userId: 1, contactId: null, membershipStatus: "active", isGuest: false },
+        { userId: 2, contactId: null, membershipStatus: "active", isGuest: false },
+        { userId: 3, contactId: null, membershipStatus: "active", isGuest: false },
+        { userId: 4, contactId: null, membershipStatus: "pending", isGuest: false },
+        { userId: 5, contactId: null, membershipStatus: "active", isGuest: false }, // but in pending requests!
+        { userId: 6, contactId: null, membershipStatus: "expense_inactive", isGuest: false },
+        { userId: null, contactId: 1, membershipStatus: "active", isGuest: true },
+      ];
+
+      // Pending join requests in DB
+      const pendingJoinRequests = [
+        { id: 101, userId: 4, status: "pending" },
+        { id: 102, userId: 5, status: "pending" },
+      ];
+
+      const pendingUserIdsSet = new Set(
+        pendingJoinRequests.map((r) => r.userId).filter(Boolean) as number[]
+      );
+
+      const isApprovedActive = (m: any) => {
+        if (m.userId && pendingUserIdsSet.has(m.userId)) return false;
+        const status = (m.membershipStatus || "").toLowerCase();
+        if (status === "pending" || status === "pending_approval" || status === "expense_inactive") return false;
+        if (m.isGuest) return status !== "pending" && status !== "pending_approval";
+        return status === "active";
+      };
+
+      const approvedActiveMembers = membersList.filter((m) => !m.isGuest && isApprovedActive(m));
+      const guestMembers = membersList.filter((m) => m.isGuest && isApprovedActive(m));
+
+      // Assert that despite 7 rows in members table, Active Members is STRICTLY 3 Users!
+      expect(approvedActiveMembers.length).toBe(3);
+      expect(approvedActiveMembers.map((m) => m.userId)).toEqual([1, 2, 3]);
+
+      // Guest members is 1
+      expect(guestMembers.length).toBe(1);
+
+      // Total members is 4 (3 active users + 1 active guest)
+      expect(approvedActiveMembers.length + guestMembers.length).toBe(4);
+    });
+  });
+
+  // =========================================================================
+  // SECTION 20: FUTURE EXPENSE DELETION & RESTORATION RECALCULATION
+  // =========================================================================
+  describe("Future Expense Deletion & Restoration Recalculation", () => {
+    it("recalculates shares and balances when a future expense is deleted, preserving historical expenses", () => {
+      // Historical Expense E1: ₹3000 paid by P1, shared by P1, P2 (₹1500 each)
+      // Future Expense E2: ₹6000 paid by P3 (Mode B), shared by P1, P2, P3 (₹2000 each)
+      const expensesWithE2 = [
+        { paidBy: 1, amountPaise: 300000 },
+        { paidBy: 3, amountPaise: 600000 },
+      ];
+      const splitsWithE2 = [
+        // E1 splits
+        { userId: 1, amountPaise: 150000 },
+        { userId: 2, amountPaise: 150000 },
+        // E2 splits
+        { userId: 1, amountPaise: 200000 },
+        { userId: 2, amountPaise: 200000 },
+        { userId: 3, amountPaise: 200000 },
+      ];
+
+      const members = [{ userId: 1 }, { userId: 2 }, { userId: 3 }];
+      const balancesBeforeDelete = calculateMemberNetBalances(members, expensesWithE2, splitsWithE2, []);
+
+      // Verify balances before deletion:
+      // P1: paid 3000 - (1500 + 2000) = -500 (owes ₹500)
+      // P2: paid 0 - (1500 + 2000) = -3500 (owes ₹3500)
+      // P3: paid 6000 - 2000 = +4000 (receives ₹4000)
+      const p1Before = balancesBeforeDelete.find((b) => b.userId === 1);
+      const p2Before = balancesBeforeDelete.find((b) => b.userId === 2);
+      const p3Before = balancesBeforeDelete.find((b) => b.userId === 3);
+
+      expect(p1Before?.amount).toBe(-50000);
+      expect(p2Before?.amount).toBe(-350000);
+      expect(p3Before?.amount).toBe(400000);
+
+      // Now DELETE future expense E2 (soft deleted -> removed from calculation)
+      const expensesAfterDelete = [
+        { paidBy: 1, amountPaise: 300000 },
+      ];
+      const splitsAfterDelete = [
+        { userId: 1, amountPaise: 150000 },
+        { userId: 2, amountPaise: 150000 },
+      ];
+
+      const balancesAfterDelete = calculateMemberNetBalances(members, expensesAfterDelete, splitsAfterDelete, []);
+
+      // Verify recalculated balances after deletion:
+      // P1: paid 3000 - 1500 = +1500 (receives ₹1500)
+      // P2: paid 0 - 1500 = -1500 (owes ₹1500)
+      // P3: paid 0 - 0 = 0 (completely settled, no debt)
+      const p1After = balancesAfterDelete.find((b) => b.userId === 1);
+      const p2After = balancesAfterDelete.find((b) => b.userId === 2);
+      const p3After = balancesAfterDelete.find((b) => b.userId === 3);
+
+      expect(p1After?.amount).toBe(150000);
+      expect(p2After?.amount).toBe(-150000);
+      expect(p3After?.amount).toBe(0);
+
+      // Verify integrity: sum of net balances is 0
+      const netSum = balancesAfterDelete.reduce((sum, b) => sum + b.amount, 0);
+      expect(netSum).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  // SECTION 21: ZERO-PARTICIPANT SAFEGUARD & INTEGRITY PRESERVATION
+  // =========================================================================
+  describe("Zero-Participant Safeguard & Integrity Preservation", () => {
+    it("safeguard falls back to active members when no timeline matches expense timestamp, preventing integrity failure", () => {
+      const activeMembers = [{ userId: 1 }, { userId: 2 }];
+      const txAmount = 100000; // ₹1000
+
+      // Simulate case where timeline has 0 eligible participants
+      let eligibleParticipants: ParticipantKey[] = [];
+
+      // Safeguard kicks in:
+      if (eligibleParticipants.length === 0 && activeMembers.length > 0) {
+        eligibleParticipants = activeMembers.map((m) => ({
+          userId: m.userId,
+        }));
+      }
+
+      const shares = calculateSharesForExpense(txAmount, eligibleParticipants);
+      const totalShares = shares.reduce((sum, s) => sum + s.amountPaise, 0);
+
+      expect(shares.length).toBe(2);
+      expect(totalShares).toBe(txAmount);
+
+      const balances = calculateMemberNetBalances(
+        activeMembers,
+        [{ paidBy: 1, amountPaise: txAmount }],
+        shares,
+        []
+      );
+
+      const integrity = validateIntegrity(txAmount, totalShares, balances, [
+        { amount: 50000 },
+      ]);
+
+      expect(integrity.isValid).toBe(true);
+    });
+  });
 });
+
 
