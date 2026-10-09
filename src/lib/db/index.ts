@@ -7,22 +7,28 @@ const connectionString = process.env.DATABASE_URL || "postgresql://postgres:post
 const sql = neon(connectionString);
 export const db = drizzle(sql, { schema });
 
-export async function withDbRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 250): Promise<T> {
+export async function withDbRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 350): Promise<T> {
   let lastError: any;
 
   for (let i = 0; i < retries; i++) {
     try {
-      // 15-second timeout guard to prevent server action worker deadlocks & UND_ERR_HEADERS_TIMEOUT
+      // 20-second timeout guard to prevent server action worker deadlocks & accommodate Neon serverless cold starts
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Database operation timed out after 15s")), 15000)
+        setTimeout(() => reject(new Error("Database operation timed out after 20s")), 20000)
       );
 
       return await Promise.race([fn(), timeoutPromise]);
     } catch (err: any) {
       lastError = err;
 
-      // If missing column or table error (42703 / 42P01), run schema sync and retry
-      if (err?.code === "42703" || err?.code === "42P01" || err?.message?.includes("does not exist")) {
+      // If missing column, table error, or enum type mismatch (42703 / 42P01 / 22P02), run schema sync and retry
+      if (
+        err?.code === "42703" ||
+        err?.code === "42P01" ||
+        err?.code === "22P02" ||
+        err?.message?.includes("does not exist") ||
+        err?.message?.includes("invalid input value for enum")
+      ) {
         try {
           await ensureDatabaseSchema();
         } catch (_) {}
@@ -35,7 +41,8 @@ export async function withDbRetry<T>(fn: () => Promise<T>, retries = 2, delayMs 
         err?.code === "ECONNRESET" ||
         err?.code === "ETIMEDOUT" ||
         err?.code === "42703" ||
-        err?.code === "42P01";
+        err?.code === "42P01" ||
+        err?.code === "22P02";
 
       if (isNetworkOrColdStart && i < retries - 1) {
         await new Promise((res) => setTimeout(res, delayMs * (i + 1)));

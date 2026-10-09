@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 import { 
   users, 
   profiles, 
@@ -118,296 +118,301 @@ export async function getProfileDetails(): Promise<ProfileDetails> {
   try {
     const authUser = await requireAuth();
 
-    // 1. Fetch User & Profile
-    const [userRow] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, authUser.id))
-      .limit(1);
+    return await withDbRetry(async () => {
+      // 1. Fetch User & Profile
+      const [userRow] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, authUser.id))
+        .limit(1);
 
-    if (!userRow) throw new NotFoundError("User");
+      if (!userRow) throw new NotFoundError("User");
 
-    let [profileRow] = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.userId, authUser.id))
-      .limit(1);
+      let [profileRow] = await db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.userId, authUser.id))
+        .limit(1);
 
-    // Create profile if missing
-    if (!profileRow) {
-      const [newProfile] = await db
-        .insert(profiles)
-        .values({
-          userId: authUser.id,
-          accountStatus: "active",
-          timezone: "Asia/Kolkata",
-          language: "en",
-          country: "India",
+      // Create profile if missing
+      if (!profileRow) {
+        const [newProfile] = await db
+          .insert(profiles)
+          .values({
+            userId: authUser.id,
+            accountStatus: "active",
+            timezone: "Asia/Kolkata",
+            language: "en",
+            country: "India",
+          })
+          .returning();
+        profileRow = newProfile;
+      }
+
+      // 2. Calculate dynamic Profile Completion %
+      const missing: string[] = [];
+      const suggestions: string[] = [];
+      let score = 0;
+
+      if (userRow.avatar) {
+        score += 15;
+      } else {
+        missing.push("Profile Photo");
+        suggestions.push("Upload a profile photo (+15%)");
+      }
+
+      if (userRow.name && userRow.name.trim().length > 0) {
+        score += 10;
+      } else {
+        missing.push("Display Name");
+        suggestions.push("Add your full display name (+10%)");
+      }
+
+      if (userRow.emailVerified) {
+        score += 15;
+      } else {
+        missing.push("Email Verification");
+        suggestions.push("Verify your primary email address (+15%)");
+      }
+
+      if (profileRow.phone && profileRow.mobileVerified) {
+        score += 15;
+      } else if (profileRow.phone) {
+        score += 5;
+        missing.push("Mobile Verification");
+        suggestions.push("Verify your mobile number (+10%)");
+      } else {
+        missing.push("Mobile Number");
+        suggestions.push("Add and verify your mobile number (+15%)");
+      }
+
+      if (profileRow.bio && profileRow.bio.trim().length > 10) {
+        score += 10;
+      } else {
+        missing.push("Biography");
+        suggestions.push("Write a short bio about yourself (+10%)");
+      }
+
+      if (profileRow.city && profileRow.country) {
+        score += 10;
+      } else {
+        missing.push("Location");
+        suggestions.push("Set your city and country (+10%)");
+      }
+
+      if (profileRow.occupation || profileRow.company) {
+        score += 10;
+      } else {
+        missing.push("Occupation / Company");
+        suggestions.push("Add your professional details (+10%)");
+      }
+
+      const userUpi = userRow.upiId || profileRow.upiId || null;
+      if (userUpi) {
+        score += 15;
+      } else {
+        missing.push("Primary UPI ID");
+        suggestions.push("Configure your Primary UPI ID to receive settlements via QR (+15%)");
+      }
+
+      if (profileRow.timezone) score += 5;
+      if (profileRow.language) score += 5;
+
+      const completionPercentage = Math.min(100, Math.max(0, score));
+
+      // 3. Live Financial Summary (SECTION 7)
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      // Personal & Group transactions
+      const [txStats] = await db
+        .select({
+          personalCount: sql<number>`COUNT(CASE WHEN ${transactions.groupId} IS NULL AND ${transactions.userId} = ${authUser.id} THEN 1 END)`,
+          groupCount: sql<number>`COUNT(CASE WHEN ${transactions.groupId} IS NOT NULL AND ${transactions.paidBy} = ${authUser.id} THEN 1 END)`,
+          monthlySpendPaise: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.date} >= ${startOfMonth} AND ${transactions.type} = 'paid' AND ${transactions.paidBy} = ${authUser.id} THEN ${transactions.amount} ELSE 0 END), 0)`,
+          monthlyIncomePaise: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.date} >= ${startOfMonth} AND ${transactions.type} = 'received' AND ${transactions.userId} = ${authUser.id} THEN ${transactions.amount} ELSE 0 END), 0)`,
+          largestExpensePaise: sql<number>`COALESCE(MAX(CASE WHEN ${transactions.paidBy} = ${authUser.id} THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
-        .returning();
-      profileRow = newProfile;
-    }
+        .from(transactions)
+        .where(and(eq(transactions.isDeleted, false)));
 
-    // 2. Calculate dynamic Profile Completion %
-    const missing: string[] = [];
-    const suggestions: string[] = [];
-    let score = 0;
+      // Settlements
+      const [settleStats] = await db
+        .select({
+          pendingCount: sql<number>`COUNT(CASE WHEN ${settlements.status} = 'pending' AND (${settlements.fromUserId} = ${authUser.id} OR ${settlements.toUserId} = ${authUser.id}) THEN 1 END)`,
+          completedCount: sql<number>`COUNT(CASE WHEN ${settlements.status} = 'completed' AND (${settlements.fromUserId} = ${authUser.id} OR ${settlements.toUserId} = ${authUser.id}) THEN 1 END)`,
+          receivablePaise: sql<number>`COALESCE(SUM(CASE WHEN ${settlements.status} = 'pending' AND ${settlements.toUserId} = ${authUser.id} THEN ${settlements.amount} ELSE 0 END), 0)`,
+          payablePaise: sql<number>`COALESCE(SUM(CASE WHEN ${settlements.status} = 'pending' AND ${settlements.fromUserId} = ${authUser.id} THEN ${settlements.amount} ELSE 0 END), 0)`,
+          largestSettlePaise: sql<number>`COALESCE(MAX(CASE WHEN ${settlements.fromUserId} = ${authUser.id} OR ${settlements.toUserId} = ${authUser.id} THEN ${settlements.amount} ELSE 0 END), 0)`,
+        })
+        .from(settlements);
 
-    if (userRow.avatar) {
-      score += 15;
-    } else {
-      missing.push("Profile Photo");
-      suggestions.push("Upload a profile photo (+15%)");
-    }
+      // Connected groups & members
+      const userGroups = await db
+        .select({
+          id: groups.id,
+          publicId: groups.publicId,
+          name: groups.name,
+          isAdmin: groupMembers.isAdmin,
+          isGuest: groupMembers.isGuest,
+        })
+        .from(groups)
+        .innerJoin(groupMembers, eq(groups.id, groupMembers.groupId))
+        .where(and(eq(groupMembers.userId, authUser.id), eq(groups.isDeleted, false)));
 
-    if (userRow.name && userRow.name.trim().length > 0) {
-      score += 10;
-    } else {
-      missing.push("Display Name");
-      suggestions.push("Add your full display name (+10%)");
-    }
+      const groupIds = userGroups.map((g) => g.id);
 
-    if (userRow.emailVerified) {
-      score += 15;
-    } else {
-      missing.push("Email Verification");
-      suggestions.push("Verify your primary email address (+15%)");
-    }
+      let uniqueConnectedMembers = 0;
+      if (groupIds.length > 0) {
+        const [membersCount] = await db
+          .select({ count: sql<number>`COUNT(DISTINCT ${groupMembers.userId})` })
+          .from(groupMembers)
+          .where(inArray(groupMembers.groupId, groupIds));
+        uniqueConnectedMembers = Number(membersCount?.count || 0);
+      }
 
-    if (profileRow.phone && profileRow.mobileVerified) {
-      score += 15;
-    } else if (profileRow.phone) {
-      score += 5;
-      missing.push("Mobile Verification");
-      suggestions.push("Verify your mobile number (+10%)");
-    } else {
-      missing.push("Mobile Number");
-      suggestions.push("Add and verify your mobile number (+15%)");
-    }
+      // Receipts count (scoped to user transactions)
+      const [receiptCount] = await db
+        .select({ count: sql<number>`COUNT(DISTINCT ${receipts.id})` })
+        .from(receipts)
+        .innerJoin(transactions, eq(receipts.transactionId, transactions.id))
+        .where(
+          and(
+            eq(transactions.isDeleted, false),
+            or(eq(transactions.paidBy, authUser.id), eq(transactions.userId, authUser.id))
+          )
+        );
 
-    if (profileRow.bio && profileRow.bio.trim().length > 10) {
-      score += 10;
-    } else {
-      missing.push("Biography");
-      suggestions.push("Write a short bio about yourself (+10%)");
-    }
+      // Reports count
+      const [reportsCount] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(auditLogs)
+        .where(and(eq(auditLogs.userId, authUser.id), eq(auditLogs.action, "report_export")));
 
-    if (profileRow.city && profileRow.country) {
-      score += 10;
-    } else {
-      missing.push("Location");
-      suggestions.push("Set your city and country (+10%)");
-    }
+      const receivableRupees = Number(settleStats?.receivablePaise || 0) / 100;
+      const payableRupees = Number(settleStats?.payablePaise || 0) / 100;
+      const netBalance = receivableRupees - payableRupees;
 
-    if (profileRow.occupation || profileRow.company) {
-      score += 10;
-    } else {
-      missing.push("Occupation / Company");
-      suggestions.push("Add your professional details (+10%)");
-    }
+      // 4. Groups Summary (SECTION 8)
+      const groupsSummary = userGroups.map((g) => ({
+        id: g.id,
+        publicId: g.publicId,
+        name: g.name,
+        role: g.isAdmin ? "admin" : g.isGuest ? "guest" : "member",
+        totalMembers: 1,
+        totalExpenses: 0,
+        userContribution: 0,
+        userShare: 0,
+        netBalance: 0,
+        lastActivity: null,
+      }));
 
-    const userUpi = userRow.upiId || profileRow.upiId || null;
-    if (userUpi) {
-      score += 15;
-    } else {
-      missing.push("Primary UPI ID");
-      suggestions.push("Configure your Primary UPI ID to receive settlements via QR (+15%)");
-    }
+      // 5. Recent Activity Snapshot (SECTION 9: up to 20 events)
+      const recentLogs = await db
+        .select({
+          id: auditLogs.id,
+          action: auditLogs.action,
+          entityType: auditLogs.entityType,
+          beforeData: auditLogs.beforeData,
+          afterData: auditLogs.afterData,
+          createdAt: auditLogs.createdAt,
+        })
+        .from(auditLogs)
+        .where(eq(auditLogs.userId, authUser.id))
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(20);
 
-    if (profileRow.timezone) score += 5;
-    if (profileRow.language) score += 5;
+      const recentActivity = recentLogs.map((l: any) => ({
+        id: l.id,
+        action: l.action,
+        entityType: l.entityType,
+        title: l.action.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
+        description: `Performed ${l.action.replace(/_/g, " ")} on ${l.entityType}.`,
+        createdAt: l.createdAt,
+      }));
 
-    const completionPercentage = Math.min(100, Math.max(0, score));
+      // 6. Analytics
+      const daysActive = Math.max(1, Math.floor((Date.now() - new Date(userRow.createdAt).getTime()) / (1000 * 60 * 60 * 24)));
 
-    // 3. Live Financial Summary (SECTION 7)
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    // Personal & Group transactions
-    const [txStats] = await db
-      .select({
-        personalCount: sql<number>`COUNT(CASE WHEN ${transactions.groupId} IS NULL AND ${transactions.userId} = ${authUser.id} THEN 1 END)`,
-        groupCount: sql<number>`COUNT(CASE WHEN ${transactions.groupId} IS NOT NULL AND ${transactions.paidBy} = ${authUser.id} THEN 1 END)`,
-        monthlySpendPaise: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.date} >= ${startOfMonth} AND ${transactions.type} = 'paid' AND ${transactions.paidBy} = ${authUser.id} THEN ${transactions.amount} ELSE 0 END), 0)`,
-        monthlyIncomePaise: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.date} >= ${startOfMonth} AND ${transactions.type} = 'received' AND ${transactions.userId} = ${authUser.id} THEN ${transactions.amount} ELSE 0 END), 0)`,
-        largestExpensePaise: sql<number>`COALESCE(MAX(CASE WHEN ${transactions.paidBy} = ${authUser.id} THEN ${transactions.amount} ELSE 0 END), 0)`,
-      })
-      .from(transactions)
-      .where(and(eq(transactions.isDeleted, false)));
-
-    // Settlements
-    const [settleStats] = await db
-      .select({
-        pendingCount: sql<number>`COUNT(CASE WHEN ${settlements.status} = 'pending' AND (${settlements.fromUserId} = ${authUser.id} OR ${settlements.toUserId} = ${authUser.id}) THEN 1 END)`,
-        completedCount: sql<number>`COUNT(CASE WHEN ${settlements.status} = 'completed' AND (${settlements.fromUserId} = ${authUser.id} OR ${settlements.toUserId} = ${authUser.id}) THEN 1 END)`,
-        receivablePaise: sql<number>`COALESCE(SUM(CASE WHEN ${settlements.status} = 'pending' AND ${settlements.toUserId} = ${authUser.id} THEN ${settlements.amount} ELSE 0 END), 0)`,
-        payablePaise: sql<number>`COALESCE(SUM(CASE WHEN ${settlements.status} = 'pending' AND ${settlements.fromUserId} = ${authUser.id} THEN ${settlements.amount} ELSE 0 END), 0)`,
-        largestSettlePaise: sql<number>`COALESCE(MAX(CASE WHEN ${settlements.fromUserId} = ${authUser.id} OR ${settlements.toUserId} = ${authUser.id} THEN ${settlements.amount} ELSE 0 END), 0)`,
-      })
-      .from(settlements);
-
-    // Connected groups & members
-    const userGroups = await db
-      .select({
-        id: groups.id,
-        publicId: groups.publicId,
-        name: groups.name,
-        isAdmin: groupMembers.isAdmin,
-        isGuest: groupMembers.isGuest,
-      })
-      .from(groups)
-      .innerJoin(groupMembers, eq(groups.id, groupMembers.groupId))
-      .where(and(eq(groupMembers.userId, authUser.id), eq(groups.isDeleted, false)));
-
-    const groupIds = userGroups.map((g) => g.id);
-
-    let uniqueConnectedMembers = 0;
-    if (groupIds.length > 0) {
-      const [membersCount] = await db
-        .select({ count: sql<number>`COUNT(DISTINCT ${groupMembers.userId})` })
-        .from(groupMembers)
-        .where(inArray(groupMembers.groupId, groupIds));
-      uniqueConnectedMembers = Number(membersCount?.count || 0);
-    }
-
-    // Receipts count (scoped to user transactions)
-    const [receiptCount] = await db
-      .select({ count: sql<number>`COUNT(DISTINCT ${receipts.id})` })
-      .from(receipts)
-      .innerJoin(transactions, eq(receipts.transactionId, transactions.id))
-      .where(
-        and(
-          eq(transactions.isDeleted, false),
-          or(eq(transactions.paidBy, authUser.id), eq(transactions.userId, authUser.id))
-        )
-      );
-
-    // Reports count
-    const [reportsCount] = await db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(auditLogs)
-      .where(and(eq(auditLogs.userId, authUser.id), eq(auditLogs.action, "report_export")));
-
-    const receivableRupees = Number(settleStats?.receivablePaise || 0) / 100;
-    const payableRupees = Number(settleStats?.payablePaise || 0) / 100;
-    const netBalance = receivableRupees - payableRupees;
-
-    // 4. Groups Summary (SECTION 8)
-    const groupsSummary = userGroups.map((g) => ({
-      id: g.id,
-      publicId: g.publicId,
-      name: g.name,
-      role: g.isAdmin ? "admin" : g.isGuest ? "guest" : "member",
-      totalMembers: 1,
-      totalExpenses: 0,
-      userContribution: 0,
-      userShare: 0,
-      netBalance: 0,
-      lastActivity: null,
-    }));
-
-    // 5. Recent Activity Snapshot (SECTION 9: up to 20 events)
-    const recentLogs = await db
-      .select({
-        id: auditLogs.id,
-        action: auditLogs.action,
-        entityType: auditLogs.entityType,
-        beforeData: auditLogs.beforeData,
-        afterData: auditLogs.afterData,
-        createdAt: auditLogs.createdAt,
-      })
-      .from(auditLogs)
-      .where(eq(auditLogs.userId, authUser.id))
-      .orderBy(desc(auditLogs.createdAt))
-      .limit(20);
-
-    const recentActivity = recentLogs.map((l: any) => ({
-      id: l.id,
-      action: l.action,
-      entityType: l.entityType,
-      title: l.action.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
-      description: `Performed ${l.action.replace(/_/g, " ")} on ${l.entityType}.`,
-      createdAt: l.createdAt,
-    }));
-
-    // 6. Analytics
-    const daysActive = Math.max(1, Math.floor((Date.now() - new Date(userRow.createdAt).getTime()) / (1000 * 60 * 60 * 24)));
-
-    return {
-      user: {
-        id: userRow.id,
-        publicId: userRow.publicId || `usr_${userRow.id}`,
-        clerkUserId: userRow.clerkUserId,
-        email: userRow.email,
-        name: userRow.name,
-        avatar: userRow.avatar,
-        defaultCurrency: userRow.defaultCurrency || "INR",
-        theme: userRow.theme,
-        emailVerified: userRow.emailVerified,
-        upiId: userUpi,
-        createdAt: userRow.createdAt,
-      },
-      profile: {
-        username: profileRow.username,
-        bio: profileRow.bio,
-        occupation: profileRow.occupation,
-        company: profileRow.company,
-        gender: profileRow.gender,
-        dateOfBirth: profileRow.dateOfBirth,
-        country: profileRow.country || "India",
-        state: profileRow.state,
-        city: profileRow.city,
-        pinCode: profileRow.pinCode,
-        phone: profileRow.phone,
-        upiId: userUpi,
-        secondaryEmail: profileRow.secondaryEmail,
-        secondaryPhone: profileRow.secondaryPhone,
-        whatsappNumber: profileRow.whatsappNumber,
-        emergencyContact: profileRow.emergencyContact,
-        mobileVerified: profileRow.mobileVerified || false,
-        accountStatus: profileRow.accountStatus || "active",
-        timezone: profileRow.timezone || "Asia/Kolkata",
-        language: profileRow.language || "en",
-        privacySettings: (profileRow.privacySettings as any) || {
-          showEmail: true,
-          showPhone: false,
-          showBio: true,
-          showActivity: true,
-          showGroups: true,
-          showFinancials: false,
+      return {
+        user: {
+          id: userRow.id,
+          publicId: userRow.publicId || `usr_${userRow.id}`,
+          clerkUserId: userRow.clerkUserId,
+          email: userRow.email,
+          name: userRow.name,
+          avatar: userRow.avatar,
+          defaultCurrency: userRow.defaultCurrency || "INR",
+          theme: userRow.theme,
+          emailVerified: userRow.emailVerified,
+          upiId: userUpi,
+          createdAt: userRow.createdAt,
         },
-      },
-      completion: {
-        percentage: completionPercentage,
-        missingFields: missing,
-        suggestions,
-      },
-      financialSummary: {
-        totalReceivable: receivableRupees,
-        totalPayable: payableRupees,
-        netBalance,
-        personalTransactionsCount: Number(txStats?.personalCount || 0),
-        groupTransactionsCount: Number(txStats?.groupCount || 0),
-        monthlySpending: Number(txStats?.monthlySpendPaise || 0) / 100,
-        monthlyIncome: Number(txStats?.monthlyIncomePaise || 0) / 100,
-        pendingSettlementsCount: Number(settleStats?.pendingCount || 0),
-        completedSettlementsCount: Number(settleStats?.completedCount || 0),
-        groupsJoinedCount: userGroups.length,
-        uniqueMembersConnected: uniqueConnectedMembers,
-        receiptsUploadedCount: Number(receiptCount?.count || 0),
-        reportsExportedCount: Number(reportsCount?.count || 0),
-      },
-      groupsSummary,
-      recentActivity,
-      analytics: {
-        daysActive,
-        averageMonthlyActivity: Math.round(Number(txStats?.personalCount || 0) + Number(txStats?.groupCount || 0)),
-        topExpenseCategory: "Dining & Food",
-        largestExpenseAmount: Number(txStats?.largestExpensePaise || 0) / 100,
-        largestSettlementAmount: Number(settleStats?.largestSettlePaise || 0) / 100,
-      },
-    };
+        profile: {
+          username: profileRow.username,
+          bio: profileRow.bio,
+          occupation: profileRow.occupation,
+          company: profileRow.company,
+          gender: profileRow.gender,
+          dateOfBirth: profileRow.dateOfBirth,
+          country: profileRow.country || "India",
+          state: profileRow.state,
+          city: profileRow.city,
+          pinCode: profileRow.pinCode,
+          phone: profileRow.phone,
+          upiId: userUpi,
+          secondaryEmail: profileRow.secondaryEmail,
+          secondaryPhone: profileRow.secondaryPhone,
+          whatsappNumber: profileRow.whatsappNumber,
+          emergencyContact: profileRow.emergencyContact,
+          mobileVerified: profileRow.mobileVerified || false,
+          accountStatus: profileRow.accountStatus || "active",
+          timezone: profileRow.timezone || "Asia/Kolkata",
+          language: profileRow.language || "en",
+          privacySettings: (profileRow.privacySettings as any) || {
+            showEmail: true,
+            showPhone: false,
+            showBio: true,
+            showActivity: true,
+            showGroups: true,
+            showFinancials: false,
+          },
+        },
+        completion: {
+          percentage: completionPercentage,
+          missingFields: missing,
+          suggestions,
+        },
+        financialSummary: {
+          totalReceivable: receivableRupees,
+          totalPayable: payableRupees,
+          netBalance,
+          personalTransactionsCount: Number(txStats?.personalCount || 0),
+          groupTransactionsCount: Number(txStats?.groupCount || 0),
+          monthlySpending: Number(txStats?.monthlySpendPaise || 0) / 100,
+          monthlyIncome: Number(txStats?.monthlyIncomePaise || 0) / 100,
+          pendingSettlementsCount: Number(settleStats?.pendingCount || 0),
+          completedSettlementsCount: Number(settleStats?.completedCount || 0),
+          groupsJoinedCount: userGroups.length,
+          uniqueMembersConnected: uniqueConnectedMembers,
+          receiptsUploadedCount: Number(receiptCount?.count || 0),
+          reportsExportedCount: Number(reportsCount?.count || 0),
+        },
+        groupsSummary,
+        recentActivity,
+        analytics: {
+          daysActive,
+          averageMonthlyActivity: Math.round(Number(txStats?.personalCount || 0) + Number(txStats?.groupCount || 0)),
+          topExpenseCategory: "Dining & Food",
+          largestExpenseAmount: Number(txStats?.largestExpensePaise || 0) / 100,
+          largestSettlementAmount: Number(settleStats?.largestSettlePaise || 0) / 100,
+        },
+      };
+    });
   } catch (error) {
+    if (error instanceof NotFoundError || error instanceof DatabaseError) {
+      throw error;
+    }
     console.error("Failed to fetch profile details:", error);
     throw new DatabaseError("Failed to fetch profile details", { originalError: error });
   }

@@ -60,6 +60,9 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS desktop_notifications BOOLEAN DEFAULT false`;
 
       // Notifications table extensions
+      await sqlClient`ALTER TABLE notifications ALTER COLUMN type TYPE text`;
+      await sqlClient`ALTER TABLE notifications ALTER COLUMN status TYPE text`;
+      await sqlClient`ALTER TABLE notifications ALTER COLUMN status SET DEFAULT 'unread'`;
       await sqlClient`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS public_id TEXT`;
       await sqlClient`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'transaction'`;
       await sqlClient`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'medium'`;
@@ -133,6 +136,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
           created_at TIMESTAMP DEFAULT NOW() NOT NULL
         )
       `;
+      await sqlClient`ALTER TABLE audit_logs ALTER COLUMN action TYPE text`;
       await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS public_id TEXT`;
       await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_public_id TEXT`;
       await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS before_data JSONB`;

@@ -235,7 +235,7 @@ export function GroupExpenseDialog({
         currency: "INR",
         description: description.trim(),
         date: date ? new Date(date) : new Date(),
-        groupId: typeof groupId === "number" ? groupId : undefined,
+        groupId: typeof groupId === "number" ? groupId : (typeof groupId === "string" ? (parseInt(groupId, 10) || undefined) : undefined),
         paymentMethod: paymentMethod || undefined,
         status: "completed",
         receiptUrl: receiptUrl.trim() || undefined,

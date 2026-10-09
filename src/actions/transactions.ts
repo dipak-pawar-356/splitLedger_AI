@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 import { 
   transactions, 
   categories, 
@@ -166,7 +166,8 @@ export async function createTransaction(data: CreateTransactionInput) {
 
     const isGroupTransaction = !!data.groupId;
 
-    // For group transactions, ensure the user is an active member (Requirement 5 & 6)
+    return await withDbRetry(async () => {
+      // For group transactions, ensure the user is an active member (Requirement 5 & 6)
     if (isGroupTransaction) {
       const [member] = await db
         .select()
@@ -334,9 +335,14 @@ export async function createTransaction(data: CreateTransactionInput) {
     safeRevalidatePath("/dashboard/reports");
     safeRevalidatePath("/dashboard/analytics");
 
-    return transaction;
+      return transaction;
+    });
   } catch (error) {
-    if (error instanceof ValidationError) {
+    if (
+      error instanceof ValidationError ||
+      error instanceof AuthorizationError ||
+      error instanceof NotFoundError
+    ) {
       throw error;
     }
     throw new DatabaseError("Failed to create transaction", { originalError: error });
