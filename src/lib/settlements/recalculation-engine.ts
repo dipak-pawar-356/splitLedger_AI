@@ -290,6 +290,30 @@ export function calculateSharesForExpense(
 }
 
 /**
+ * Pure function: Compares existing splits of an expense against freshly resolved shares.
+ * Returns true if participant membership or share amounts differ.
+ */
+export function hasParticipantSetOrSharesChanged(
+  existingSplits: Array<{ userId?: number | null; contactId?: number | null; amount: number }>,
+  calculatedShares: Array<ParticipantKey & { amountPaise: number }>
+): boolean {
+  if (existingSplits.length !== calculatedShares.length) return true;
+
+  const existingMap = new Map<string, number>();
+  for (const s of existingSplits) {
+    existingMap.set(getParticipantKey(s), s.amount);
+  }
+
+  for (const cs of calculatedShares) {
+    const key = getParticipantKey(cs);
+    if (!existingMap.has(key)) return true;
+    if (existingMap.get(key) !== cs.amountPaise) return true;
+  }
+
+  return false;
+}
+
+/**
  * Pure function: Computes outstanding balances for members:
  * netPosition = (totalPaid - ownShare) + (settledPaid - settledReceived)
  */
@@ -590,16 +614,24 @@ export async function executeAtomicGroupRecalculation(params: {
       }
     }
 
+    const txIds = groupTransactions.map((tx) => tx.id);
+    const existingSplits = txIds.length > 0
+      ? await db
+          .select()
+          .from(expenseSplits)
+          .where(inArray(expenseSplits.transactionId, txIds))
+      : [];
+
     let totalExpensesPaise = 0;
     let totalSharesPaise = 0;
     let affectedExpenseCount = 0;
     const newSplitsToInsert: any[] = [];
     const txIdsToClear: number[] = [];
+    const allEffectiveSplits: any[] = [];
 
-    // Step 5: Recalculate shares for each expense
+    // Step 5: Recalculate shares for each expense with diff detection
     for (const tx of groupTransactions) {
       totalExpensesPaise += tx.amount;
-      txIdsToClear.push(tx.id);
 
       // Determine eligible participants using timeline rules
       let eligibleParticipants = determineExpenseEligibleParticipants(
@@ -609,7 +641,7 @@ export async function executeAtomicGroupRecalculation(params: {
 
       // If no timeline records existed yet (e.g. legacy expenses before timeline table),
       // default to all currently active members
-      if (eligibleParticipants.length === 0 && activeMembers.length > 0) {
+      if (parsedTimelines.length === 0 && activeMembers.length > 0) {
         eligibleParticipants = activeMembers.map((m) => ({
           userId: m.userId || undefined,
           contactId: m.contactId || undefined,
@@ -621,43 +653,58 @@ export async function executeAtomicGroupRecalculation(params: {
 
       for (const share of calculatedShares) {
         totalSharesPaise += share.amountPaise;
-        newSplitsToInsert.push({
-          transactionId: tx.id,
-          userId: share.userId || null,
-          contactId: share.contactId || null,
-          splitMethod: "equal" as const,
-          amount: share.amountPaise,
-          isExcluded: false,
-          createdAt: new Date(),
+        allEffectiveSplits.push({
+          userId: share.userId || undefined,
+          contactId: share.contactId || undefined,
+          amountPaise: share.amountPaise,
         });
       }
 
-      // Record expense participation history snapshot
-      await db.insert(expenseParticipationHistory).values({
-        transactionId: tx.id,
-        groupId,
-        version: (tx.participationVersion || 1) + 1,
-        participantUserIds: calculatedShares.map((s) => s.userId).filter(Boolean) as number[],
-        participantContactIds: calculatedShares.map((s) => s.contactId).filter(Boolean) as number[],
-        splitMethod: "equal",
-        reason: `Recalculation via ${triggerOperation}`,
-        createdAt: new Date(),
-      });
+      // Diff detection: only update splits and history if participants or shares changed
+      const txExistingSplits = existingSplits.filter((s) => s.transactionId === tx.id);
+      const isChanged = hasParticipantSetOrSharesChanged(txExistingSplits, calculatedShares);
 
-      // Update participation and redistribution version on transaction
-      await db
-        .update(transactions)
-        .set({
-          participationVersion: (tx.participationVersion || 1) + 1,
-          redistributionVersion: (tx.redistributionVersion || 1) + 1,
-          updatedAt: new Date(),
-        })
-        .where(eq(transactions.id, tx.id));
+      if (isChanged) {
+        txIdsToClear.push(tx.id);
+        for (const share of calculatedShares) {
+          newSplitsToInsert.push({
+            transactionId: tx.id,
+            userId: share.userId || null,
+            contactId: share.contactId || null,
+            splitMethod: "equal" as const,
+            amount: share.amountPaise,
+            isExcluded: false,
+            createdAt: new Date(),
+          });
+        }
 
-      affectedExpenseCount++;
+        // Record expense participation history snapshot
+        await db.insert(expenseParticipationHistory).values({
+          transactionId: tx.id,
+          groupId,
+          version: (tx.participationVersion || 1) + 1,
+          participantUserIds: calculatedShares.map((s) => s.userId).filter(Boolean) as number[],
+          participantContactIds: calculatedShares.map((s) => s.contactId).filter(Boolean) as number[],
+          splitMethod: "equal",
+          reason: `Recalculation via ${triggerOperation}`,
+          createdAt: new Date(),
+        });
+
+        // Update participation and redistribution version on transaction
+        await db
+          .update(transactions)
+          .set({
+            participationVersion: (tx.participationVersion || 1) + 1,
+            redistributionVersion: (tx.redistributionVersion || 1) + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(transactions.id, tx.id));
+
+        affectedExpenseCount++;
+      }
     }
 
-    // Persist new splits
+    // Persist new splits for affected transactions only
     if (txIdsToClear.length > 0) {
       await db.delete(expenseSplits).where(inArray(expenseSplits.transactionId, txIdsToClear));
       if (newSplitsToInsert.length > 0) {
@@ -689,10 +736,10 @@ export async function executeAtomicGroupRecalculation(params: {
         paidByContact: tx.paidByContact || undefined,
         amountPaise: tx.amount,
       })),
-      newSplitsToInsert.map((s) => ({
+      allEffectiveSplits.map((s) => ({
         userId: s.userId || undefined,
         contactId: s.contactId || undefined,
-        amountPaise: s.amount,
+        amountPaise: s.amountPaise,
       })),
       completedSettlementsList.map((cs) => ({
         fromUserId: cs.fromUserId || undefined,

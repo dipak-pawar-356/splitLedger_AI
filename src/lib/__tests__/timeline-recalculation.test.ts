@@ -4,6 +4,7 @@ import {
   calculateSharesForExpense,
   calculateMemberNetBalances,
   validateIntegrity,
+  hasParticipantSetOrSharesChanged,
   type TimelineEntry,
   type ParticipantKey,
 } from "@/lib/settlements/recalculation-engine";
@@ -292,4 +293,55 @@ describe("Expense Participation Timeline and Recalculation Engine", () => {
       expect(netSum).toBe(0);
     });
   });
+
+  // =========================================================================
+  // SECTION 18: DIFF-BASED SPLIT DETECTION & PRESERVATION
+  // =========================================================================
+  describe("Section 18: Diff-Based Split Detection & Unaffected Expense Preservation", () => {
+    it("detects no change when participant set and share amounts match existing splits", () => {
+      const existingSplits = [
+        { userId: 1, contactId: null, amount: 5000 },
+        { userId: 2, contactId: null, amount: 5000 },
+      ];
+      const calculatedShares = [
+        { userId: 1, amountPaise: 5000 },
+        { userId: 2, amountPaise: 5000 },
+      ];
+
+      const changed = hasParticipantSetOrSharesChanged(existingSplits, calculatedShares);
+      expect(changed).toBe(false);
+    });
+
+    it("detects change when a participant is added or removed", () => {
+      // Prior splits had P1, P2, P4
+      const existingSplits = [
+        { userId: 1, contactId: null, amount: 3334 },
+        { userId: 2, contactId: null, amount: 3333 },
+        { userId: 4, contactId: null, amount: 3333 },
+      ];
+      // P4 removed, so recalculated shares are only P1, P2
+      const calculatedShares = [
+        { userId: 1, amountPaise: 5000 },
+        { userId: 2, amountPaise: 5000 },
+      ];
+
+      const changed = hasParticipantSetOrSharesChanged(existingSplits, calculatedShares);
+      expect(changed).toBe(true);
+    });
+
+    it("detects change when member shares change due to amount or distribution shifts", () => {
+      const existingSplits = [
+        { userId: 1, contactId: null, amount: 4000 },
+        { userId: 2, contactId: null, amount: 6000 },
+      ];
+      const calculatedShares = [
+        { userId: 1, amountPaise: 5000 },
+        { userId: 2, amountPaise: 5000 },
+      ];
+
+      const changed = hasParticipantSetOrSharesChanged(existingSplits, calculatedShares);
+      expect(changed).toBe(true);
+    });
+  });
 });
+
