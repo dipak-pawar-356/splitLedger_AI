@@ -77,11 +77,12 @@ updated: 2026-10-08T14:35:00+05:30
 ---
 
 ### Phase 6: Timeline-Based Member Removal & Authoritative Recalculation Engine
-**Status:** ⏳ Planned
+**Status:** ✅ Complete
 **Objective:** Implement an authoritative timeline-based recalculation engine where expense participants are resolved independently from member lifecycle timelines (Mode A vs Mode B, joined, removed, rejoined) without ever relying on current group member counts. Completed settlements are preserved as immutable, and dynamic UPI QR and dashboard views reflect fresh recalculated balances.
 
 **Plans:**
-- [ ] Plan 6.1: Timeline Analytical Model & Expense-Level Participant Resolution Engine (wave 1)
-- [ ] Plan 6.2: Master 15-Step Atomic Recalculation Engine & Universal Trigger Pipeline (wave 2)
-- [ ] Plan 6.3: Downstream Financial State, Dynamic UPI QR Freshness & UI Dashboard Synchronization (wave 3)
+- [x] Plan 6.1: Timeline Analytical Model & Expense-Level Participant Resolution Engine (wave 1)
+- [x] Plan 6.2: Master 15-Step Atomic Recalculation Engine & Universal Trigger Pipeline (wave 2)
+- [x] Plan 6.3: Downstream Financial State, Dynamic UPI QR Freshness & UI Dashboard Synchronization (wave 3)
+
 
