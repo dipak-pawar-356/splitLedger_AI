@@ -551,6 +551,74 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`CREATE INDEX IF NOT EXISTS group_member_status_idx ON group_members(membership_status)`;
 
       // ==========================================
+      // TIMELINE AND ATOMIC RECALCULATION TABLES
+      // ==========================================
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS participation_version INTEGER DEFAULT 1 NOT NULL`;
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS redistribution_version INTEGER DEFAULT 1 NOT NULL`;
+
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS member_participation_timeline (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+          group_member_id INTEGER REFERENCES group_members(id) ON DELETE SET NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE,
+          participation_mode TEXT NOT NULL,
+          effective_from TIMESTAMP DEFAULT NOW() NOT NULL,
+          effective_until TIMESTAMP,
+          approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          reason TEXT NOT NULL,
+          redistribution_version INTEGER DEFAULT 1 NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS mpt_group_idx ON member_participation_timeline(group_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS mpt_user_idx ON member_participation_timeline(user_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS mpt_effective_idx ON member_participation_timeline(group_id, effective_from, effective_until)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS mpt_public_id_idx ON member_participation_timeline(public_id)`;
+
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS group_settlement_versions (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+          version_number INTEGER NOT NULL,
+          trigger_operation TEXT NOT NULL,
+          initiated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          participation_timeline_version INTEGER DEFAULT 1 NOT NULL,
+          status TEXT DEFAULT 'active' NOT NULL,
+          total_expenses_paise BIGINT DEFAULT 0 NOT NULL,
+          total_shares_paise BIGINT DEFAULT 0 NOT NULL,
+          total_payable_paise BIGINT DEFAULT 0 NOT NULL,
+          total_receivable_paise BIGINT DEFAULT 0 NOT NULL,
+          snapshot JSONB NOT NULL,
+          integrity_verified BOOLEAN DEFAULT true NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS gsv_group_idx ON group_settlement_versions(group_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS gsv_version_idx ON group_settlement_versions(group_id, version_number)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS gsv_status_idx ON group_settlement_versions(group_id, status)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS gsv_public_id_idx ON group_settlement_versions(public_id)`;
+
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS expense_participation_history (
+          id SERIAL PRIMARY KEY,
+          transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE NOT NULL,
+          group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+          version INTEGER NOT NULL,
+          participant_user_ids JSONB NOT NULL,
+          participant_contact_ids JSONB DEFAULT '[]'::jsonb NOT NULL,
+          split_method TEXT DEFAULT 'equal' NOT NULL,
+          reason TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS eph_tx_idx ON expense_participation_history(transaction_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS eph_group_idx ON expense_participation_history(group_id)`;
+
+      // ==========================================
       // HIGH-PERFORMANCE COMPOSITE INDEXES
       // ==========================================
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_tx_group_del_created ON transactions(group_id, is_deleted, created_at DESC)`;

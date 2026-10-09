@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError, ConflictError } from "@/lib/errors";
 import { generatePublicId, generateAuditId, isDbIntegerId } from "@/lib/utils";
 import { redistributeGroupHistoricalExpenses } from "@/actions/historical-redistribution";
+import { recordTimelineEvent, executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
 import { hasDelegatedGroupPermission } from "@/lib/security/rbac";
 
 /**
@@ -511,17 +512,24 @@ export async function approveJoinRequestAction(data: {
         .where(eq(groupMembers.id, existingMember.id));
     }
 
-    // 5. Apply Historical Redistribution if Option A selected
-    let redistributedCount = 0;
-    if (decision === "included") {
-      const redistribution = await redistributeGroupHistoricalExpenses(
-        group.id,
-        request.userId,
-        user.id,
-        db
-      );
-      redistributedCount = redistribution.redistributedCount;
-    }
+    // 5. Record Timeline Participation Event
+    await recordTimelineEvent({
+      groupId: group.id,
+      userId: request.userId,
+      participationMode: decision,
+      effectiveFrom: new Date(),
+      reason: "initial_approval",
+      approvedBy: user.id,
+    });
+
+    // 6. Execute Atomic Group Recalculation per timeline rules
+    const recalcResult = await executeAtomicGroupRecalculation({
+      groupId: group.id,
+      triggerOperation: decision === "included" ? "approve_member_included" : "approve_member_excluded",
+      initiatedByUserId: user.id,
+    });
+
+    const redistributedCount = recalcResult.affectedExpenseCount;
 
     const activationOutcome = {
       decision,
@@ -669,57 +677,44 @@ export async function activateMemberExpenseParticipationAction(data: {
       return { success: false as const, error: "Member not found in group" };
     }
 
-    let redistributionCount = 0;
+    // Record timeline mode change event
+    await recordTimelineEvent({
+      groupId: group.id,
+      userId: data.memberUserId,
+      participationMode: data.decision,
+      effectiveFrom: new Date(),
+      reason: "mode_change",
+      approvedBy: user.id,
+    });
 
-    if (data.decision === "included") {
-      // Option A: Include in Previous Expenses (recalculate historical expenses, shares, settlements)
-      const result = await redistributeGroupHistoricalExpenses(
-        group.id,
-        data.memberUserId,
-        user.id,
-        db
+    // Update group member record
+    await db
+      .update(groupMembers)
+      .set({
+        membershipStatus: "active",
+        historicalInclusionDecision: data.decision,
+        activatedAt: new Date(),
+      })
+      .where(eq(groupMembers.id, member.id));
+
+    await db
+      .update(groupJoinRequests)
+      .set({ includeInHistoricalExpenses: data.decision === "included" })
+      .where(
+        and(
+          eq(groupJoinRequests.groupId, group.id),
+          eq(groupJoinRequests.userId, data.memberUserId)
+        )
       );
-      redistributionCount = result.redistributedCount;
 
-      await db
-        .update(groupMembers)
-        .set({
-          membershipStatus: "active",
-          historicalInclusionDecision: "included",
-          activatedAt: new Date(),
-        })
-        .where(eq(groupMembers.id, member.id));
+    // Execute atomic group recalculation per timeline rules
+    const recalcResult = await executeAtomicGroupRecalculation({
+      groupId: group.id,
+      triggerOperation: "mode_change",
+      initiatedByUserId: user.id,
+    });
 
-      await db
-        .update(groupJoinRequests)
-        .set({ includeInHistoricalExpenses: true })
-        .where(
-          and(
-            eq(groupJoinRequests.groupId, group.id),
-            eq(groupJoinRequests.userId, data.memberUserId)
-          )
-        );
-    } else {
-      // Option B: Start From New Expenses Only (preserve existing calculations)
-      await db
-        .update(groupMembers)
-        .set({
-          membershipStatus: "active",
-          historicalInclusionDecision: "excluded",
-          activatedAt: new Date(),
-        })
-        .where(eq(groupMembers.id, member.id));
-
-      await db
-        .update(groupJoinRequests)
-        .set({ includeInHistoricalExpenses: false })
-        .where(
-          and(
-            eq(groupJoinRequests.groupId, group.id),
-            eq(groupJoinRequests.userId, data.memberUserId)
-          )
-        );
-    }
+    const redistributionCount = recalcResult.affectedExpenseCount;
 
     // 3. Audit log
     try {

@@ -6,6 +6,7 @@ import { eq, and, or, desc, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { calculateOptimalSettlements, type Balance } from "@/lib/settlements/calculator";
+import { executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
 import { ValidationError, NotFoundError, DatabaseError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
 
@@ -642,37 +643,16 @@ export async function createSettlementsFromCalculation(groupId: number) {
   try {
     const user = await requireAuth();
 
-    const optimalSettlements = await calculateGroupSettlements(groupId);
-
-    // Delete existing pending auto settlements for this group
-    await db
-      .delete(settlements)
-      .where(
-        and(
-          eq(settlements.groupId, groupId),
-          eq(settlements.status, "pending")
-        )
-      );
-
-    // Create settlement records
-    for (const settlement of optimalSettlements) {
-      await db.insert(settlements).values({
-        publicId: generatePublicId(),
-        fromUserId: settlement.fromUserId || null,
-        fromContactId: settlement.fromContactId || null,
-        toUserId: settlement.toUserId || null,
-        toContactId: settlement.toContactId || null,
-        amount: settlement.amount,
-        currency: "INR",
-        groupId,
-        status: "pending",
-      });
-    }
+    const result = await executeAtomicGroupRecalculation({
+      groupId,
+      triggerOperation: "recalculate",
+      initiatedByUserId: user.id,
+    });
 
     revalidatePath("/dashboard/settlements");
     revalidatePath(`/dashboard/groups/${groupId}`);
     revalidatePath("/dashboard");
-    return { success: true, count: optimalSettlements.length };
+    return { success: true, count: result.pendingSettlementsCount };
   } catch (error) {
     throw new DatabaseError("Failed to create settlements from calculation", { originalError: error });
   }

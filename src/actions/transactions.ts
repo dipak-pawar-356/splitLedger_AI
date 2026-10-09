@@ -10,7 +10,8 @@ import {
   users, 
   contacts, 
   groups, 
-  groupMembers 
+  groupMembers,
+  expenseParticipationHistory 
 } from "@/lib/db/schema/schema";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -234,6 +235,24 @@ export async function createTransaction(data: CreateTransactionInput) {
       }));
 
       createdSplits = await db.insert(expenseSplits).values(splitRecords).returning();
+    }
+
+    // 2b. Permanently record Expense Participation History
+    if (transaction.groupId) {
+      try {
+        const participantUserIds = createdSplits.map((s) => s.userId).filter(Boolean) as number[];
+        const participantContactIds = createdSplits.map((s) => s.contactId).filter(Boolean) as number[];
+        await db.insert(expenseParticipationHistory).values({
+          transactionId: transaction.id,
+          groupId: transaction.groupId,
+          version: 1,
+          participantUserIds,
+          participantContactIds,
+          splitMethod: data.splitMethod || "equal",
+          reason: "initial_creation",
+          createdAt: new Date(),
+        });
+      } catch (_) {}
     }
 
     // 3. Create baseline Version 1 Snapshot
@@ -475,6 +494,23 @@ export async function updateTransaction(
         newSplits = await db.insert(expenseSplits).values(splitRecords).returning();
       } else {
         newSplits = [];
+      }
+
+      if (updatedTransaction.groupId) {
+        try {
+          const participantUserIds = newSplits.map((s) => s.userId).filter(Boolean) as number[];
+          const participantContactIds = newSplits.map((s) => s.contactId).filter(Boolean) as number[];
+          await db.insert(expenseParticipationHistory).values({
+            transactionId: updatedTransaction.id,
+            groupId: updatedTransaction.groupId,
+            version: newVersion,
+            participantUserIds,
+            participantContactIds,
+            splitMethod: newSplits[0]?.splitMethod || "equal",
+            reason: "splits_updated",
+            createdAt: new Date(),
+          });
+        } catch (_) {}
       }
     }
 

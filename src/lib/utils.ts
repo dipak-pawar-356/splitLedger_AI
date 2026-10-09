@@ -152,6 +152,14 @@ export function generateSettlementId(): string {
   return generatePublicId("set");
 }
 
+export function generateTimelineId(): string {
+  return generatePublicId("mpt");
+}
+
+export function generateSettlementVersionId(): string {
+  return generatePublicId("gsv");
+}
+
 export function generateReportId(): string {
   return generatePublicId("rep");
 }

@@ -70,7 +70,7 @@ export function calculateOptimalSettlements(balances: Balance[], currency: strin
   const settlements: Settlement[] = [];
   
   // Separate into creditors (positive balance) and debtors (negative balance)
-  const creditors: Balance[] = balances.filter(b => b.amount > 0).sort((a, b) => b.amount - a.amount);
+  const creditors: Balance[] = balances.filter(b => b.amount > 0).map(b => ({ ...b })).sort((a, b) => b.amount - a.amount);
   const debtors: Balance[] = balances.filter(b => b.amount < 0).map(b => ({ ...b, amount: -b.amount })).sort((a, b) => b.amount - a.amount);
   
   let i = 0; // creditor index

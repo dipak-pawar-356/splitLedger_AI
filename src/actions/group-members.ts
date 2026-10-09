@@ -7,6 +7,7 @@ import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, AuthorizationError, ConflictError, DatabaseError } from "@/lib/errors";
 import { formatCurrency, generatePublicId, isDbIntegerId } from "@/lib/utils";
+import { recordTimelineEvent, executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
 
 function buildGroupCondition(idOrPublicId: string | number) {
   const strId = String(idOrPublicId).trim();
@@ -190,28 +191,48 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
       }
     }
 
-    // Check if member has pending settlements/debts in this group
-    const pendingSettlements = await db
-      .select({ amount: settlements.amount })
-      .from(settlements)
-      .where(
-        and(
-          eq(settlements.groupId, group.id),
-          eq(settlements.status, "pending"),
-          eq(settlements.isDeleted, false),
-          or(
-            memberToRemove.userId ? or(eq(settlements.fromUserId, memberToRemove.userId), eq(settlements.toUserId, memberToRemove.userId)) : undefined,
-            memberToRemove.contactId ? or(eq(settlements.fromContactId, memberToRemove.contactId), eq(settlements.toContactId, memberToRemove.contactId)) : undefined
-          )
-        )
-      );
+    // Determine participation history and mode
+    const participationMode = (memberToRemove.historicalInclusionDecision as any) || "included";
 
-    const totalPending = pendingSettlements.reduce((sum, s) => sum + s.amount, 0);
-    if (totalPending > 0) {
-      throw new ValidationError(`Cannot remove member with pending settlements (${formatCurrency(totalPending / 100)}). Settle all balances first.`);
+    // Record timeline removal event
+    await recordTimelineEvent({
+      groupId: group.id,
+      groupMemberId: memberId,
+      userId: memberToRemove.userId,
+      contactId: memberToRemove.contactId,
+      participationMode,
+      effectiveUntil: new Date(),
+      reason: "member_removal",
+      approvedBy: user.id,
+    });
+
+    // Remove member from group_members
+    await db.delete(groupMembers).where(eq(groupMembers.id, memberId));
+
+    // Also close any active join requests
+    if (memberToRemove.userId) {
+      await db
+        .update(groupJoinRequests)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(
+          and(
+            eq(groupJoinRequests.groupId, group.id),
+            eq(groupJoinRequests.userId, memberToRemove.userId),
+            eq(groupJoinRequests.status, "pending")
+          )
+        );
     }
 
-    await db.delete(groupMembers).where(eq(groupMembers.id, memberId));
+    // Execute atomic group recalculation per timeline rules:
+    // - If Mode A: historical expenses revert to prior participant list, future expenses recalculated
+    // - If Mode B: historical expenses untouched, only expenses created while active recalculated
+    // - Completed settlements preserved and credited
+    // - Outstanding settlements regenerated
+    await executeAtomicGroupRecalculation({
+      groupId: group.id,
+      triggerOperation: "remove_member",
+      initiatedByUserId: user.id,
+    });
 
     await db.insert(auditLogs).values({
       userId: user.id,
@@ -223,12 +244,14 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
         removedMemberId: memberId,
         userId: memberToRemove.userId,
         contactId: memberToRemove.contactId,
+        participationMode,
       },
     });
 
     revalidatePath(`/dashboard/groups/${group.publicId}`);
     revalidatePath(`/dashboard/groups/${group.id}`);
     revalidatePath("/dashboard/groups");
+    revalidatePath("/dashboard/settlements");
     return { success: true };
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError || error instanceof ValidationError) {

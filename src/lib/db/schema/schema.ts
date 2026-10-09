@@ -198,6 +198,8 @@ export const transactions = pgTable("transactions", {
   paidByContact: integer("paid_by_contact").references(() => contacts.id, { onDelete: "set null" }),
   // Version tracking
   version: integer("version").default(1).notNull(),
+  participationVersion: integer("participation_version").default(1).notNull(),
+  redistributionVersion: integer("redistribution_version").default(1).notNull(),
   parentTransactionId: integer("parent_transaction_id").references((): any => transactions, { onDelete: "set null" }),
   isDeleted: boolean("is_deleted").default(false).notNull(),
   deletedAt: timestamp("deleted_at"),
@@ -360,6 +362,68 @@ export const transactionVersions = pgTable("transaction_versions", {
   publicIdIdx: index("tx_version_public_id_idx").on(table.publicId),
   createdByIdx: index("tx_version_edited_by_idx").on(table.editedBy),
   createdAtIdx: index("tx_version_created_idx").on(table.createdAt),
+}));
+
+// Member Participation Timeline table (immutable timeline of member participation decisions)
+export const memberParticipationTimeline = pgTable("member_participation_timeline", {
+  id: serial("id").primaryKey(),
+  publicId: text("public_id").unique().notNull(),
+  groupId: integer("group_id").references(() => groups.id, { onDelete: "cascade" }).notNull(),
+  groupMemberId: integer("group_member_id").references(() => groupMembers.id, { onDelete: "set null" }),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  contactId: integer("contact_id").references(() => contacts.id, { onDelete: "cascade" }),
+  participationMode: text("participation_mode").notNull(), // 'included' | 'excluded'
+  effectiveFrom: timestamp("effective_from").defaultNow().notNull(),
+  effectiveUntil: timestamp("effective_until"), // null = currently active
+  approvedBy: integer("approved_by").references(() => users.id, { onDelete: "set null" }),
+  reason: text("reason").notNull(), // 'initial_approval', 'mode_change', 'member_removal', 'group_creation'
+  redistributionVersion: integer("redistribution_version").default(1).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  groupIdx: index("mpt_group_idx").on(table.groupId),
+  userIdx: index("mpt_user_idx").on(table.userId),
+  effectiveIdx: index("mpt_effective_idx").on(table.groupId, table.effectiveFrom, table.effectiveUntil),
+  publicIdIdx: index("mpt_public_id_idx").on(table.publicId),
+}));
+
+// Group Settlement Versions table (immutable versioned recalculation snapshots)
+export const groupSettlementVersions = pgTable("group_settlement_versions", {
+  id: serial("id").primaryKey(),
+  publicId: text("public_id").unique().notNull(),
+  groupId: integer("group_id").references(() => groups.id, { onDelete: "cascade" }).notNull(),
+  versionNumber: integer("version_number").notNull(),
+  triggerOperation: text("trigger_operation").notNull(), // 'approve_member_included', 'approve_member_excluded', 'remove_member', 'mode_change', 'add_expense', 'edit_expense', 'delete_expense', 'recalculate'
+  initiatedBy: integer("initiated_by").references(() => users.id, { onDelete: "set null" }),
+  participationTimelineVersion: integer("participation_timeline_version").default(1).notNull(),
+  status: text("status").default("active").notNull(), // 'active', 'superseded'
+  totalExpensesPaise: bigint("total_expenses_paise", { mode: "number" }).default(0).notNull(),
+  totalSharesPaise: bigint("total_shares_paise", { mode: "number" }).default(0).notNull(),
+  totalPayablePaise: bigint("total_payable_paise", { mode: "number" }).default(0).notNull(),
+  totalReceivablePaise: bigint("total_receivable_paise", { mode: "number" }).default(0).notNull(),
+  snapshot: jsonb("snapshot").notNull(), // Full JSON snapshot of participation timeline, balances, and generated settlements
+  integrityVerified: boolean("integrity_verified").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  groupIdx: index("gsv_group_idx").on(table.groupId),
+  versionIdx: index("gsv_version_idx").on(table.groupId, table.versionNumber),
+  statusIdx: index("gsv_status_idx").on(table.groupId, table.status),
+  publicIdIdx: index("gsv_public_id_idx").on(table.publicId),
+}));
+
+// Expense Participation History table (permanent timeline participant history per expense)
+export const expenseParticipationHistory = pgTable("expense_participation_history", {
+  id: serial("id").primaryKey(),
+  transactionId: integer("transaction_id").references(() => transactions.id, { onDelete: "cascade" }).notNull(),
+  groupId: integer("group_id").references(() => groups.id, { onDelete: "cascade" }).notNull(),
+  version: integer("version").notNull(),
+  participantUserIds: jsonb("participant_user_ids").$type<number[]>().notNull(),
+  participantContactIds: jsonb("participant_contact_ids").$type<number[]>().default([]).notNull(),
+  splitMethod: text("split_method").default("equal").notNull(),
+  reason: text("reason").notNull(), // 'initial_creation', 'member_included', 'member_removed', 'expense_edited'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  txIdx: index("eph_tx_idx").on(table.transactionId),
+  groupIdx: index("eph_group_idx").on(table.groupId),
 }));
 
 // Audit logs table
@@ -1534,4 +1598,55 @@ export const groupJoinRequestsRelations = relations(groupJoinRequests, ({ one })
 
 export type GroupJoinRequest = typeof groupJoinRequests.$inferSelect;
 export type NewGroupJoinRequest = typeof groupJoinRequests.$inferInsert;
+
+export const memberParticipationTimelineRelations = relations(memberParticipationTimeline, ({ one }) => ({
+  group: one(groups, {
+    fields: [memberParticipationTimeline.groupId],
+    references: [groups.id],
+  }),
+  user: one(users, {
+    fields: [memberParticipationTimeline.userId],
+    references: [users.id],
+  }),
+  contact: one(contacts, {
+    fields: [memberParticipationTimeline.contactId],
+    references: [contacts.id],
+  }),
+  approvedByUser: one(users, {
+    fields: [memberParticipationTimeline.approvedBy],
+    references: [users.id],
+  }),
+}));
+
+export const groupSettlementVersionsRelations = relations(groupSettlementVersions, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupSettlementVersions.groupId],
+    references: [groups.id],
+  }),
+  initiatedByUser: one(users, {
+    fields: [groupSettlementVersions.initiatedBy],
+    references: [users.id],
+  }),
+}));
+
+export const expenseParticipationHistoryRelations = relations(expenseParticipationHistory, ({ one }) => ({
+  transaction: one(transactions, {
+    fields: [expenseParticipationHistory.transactionId],
+    references: [transactions.id],
+  }),
+  group: one(groups, {
+    fields: [expenseParticipationHistory.groupId],
+    references: [groups.id],
+  }),
+}));
+
+export type MemberParticipationTimeline = typeof memberParticipationTimeline.$inferSelect;
+export type NewMemberParticipationTimeline = typeof memberParticipationTimeline.$inferInsert;
+
+export type GroupSettlementVersion = typeof groupSettlementVersions.$inferSelect;
+export type NewGroupSettlementVersion = typeof groupSettlementVersions.$inferInsert;
+
+export type ExpenseParticipationHistory = typeof expenseParticipationHistory.$inferSelect;
+export type NewExpenseParticipationHistory = typeof expenseParticipationHistory.$inferInsert;
+
 
