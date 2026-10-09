@@ -115,6 +115,17 @@ export async function updateSettlement(
     // Revalidate appropriate paths for real-time updates
     revalidatePath("/dashboard/settlements");
     if (settlement.groupId) {
+      if (data.status === "completed") {
+        try {
+          await executeAtomicGroupRecalculation({
+            groupId: settlement.groupId,
+            triggerOperation: "recalculate",
+            initiatedByUserId: user.id,
+          });
+        } catch (recalcErr) {
+          console.warn("Failed to recalculate group after updating settlement:", recalcErr);
+        }
+      }
       revalidatePath(`/dashboard/groups/${settlement.groupId}`);
       revalidatePath("/dashboard/groups");
       revalidatePath("/dashboard");
@@ -264,6 +275,15 @@ export async function markSettlementAsPaid(publicIdOrId: string | number, paymen
     // Revalidate appropriate paths for real-time updates
     revalidatePath("/dashboard/settlements");
     if (settlement.groupId) {
+      try {
+        await executeAtomicGroupRecalculation({
+          groupId: settlement.groupId,
+          triggerOperation: "recalculate",
+          initiatedByUserId: user.id,
+        });
+      } catch (recalcErr) {
+        console.warn("Failed to recalculate group after completing settlement:", recalcErr);
+      }
       revalidatePath(`/dashboard/groups/${settlement.groupId}`);
       revalidatePath("/dashboard/groups");
     }
