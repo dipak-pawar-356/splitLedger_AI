@@ -571,19 +571,34 @@ export async function getGroupFinancialDetails(
 
     const optimalSettlements = calculateOptimalSettlements(optimalBalances, "INR");
 
+    // Sourced authoritatively from pendingSettlementsList produced by recalculation engine
+    const effectivePendingList = pendingSettlementsList.length > 0
+      ? pendingSettlementsList.map((s) => ({
+          fromUserId: s.fromUserId || undefined,
+          fromContactId: s.fromContactId || undefined,
+          fromName: s.fromUserName || s.fromContactName || "Member",
+          toUserId: s.toUserId || undefined,
+          toContactId: s.toContactId || undefined,
+          toName: s.toUserName || "Member",
+          amount: Number(s.amount),
+          currency: s.currency || "INR",
+        }))
+      : optimalSettlements;
+
     // Populate pairwise debts into members
     processedMembers.forEach((m) => {
       const memberId = m.userId;
       const contactId = m.contactId;
 
-      m.receivesFrom = optimalSettlements
+      m.receivesFrom = effectivePendingList
         .filter((s) => (memberId && s.toUserId === memberId) || (contactId && s.toContactId === contactId))
         .map((s) => {
           const fromMember = processedMembers.find(
             (pm) => (s.fromUserId && pm.userId === s.fromUserId) || (s.fromContactId && pm.contactId === s.fromContactId)
           );
+          const fromKey = s.fromUserId ? `user-${s.fromUserId}` : `contact-${s.fromContactId}`;
           return {
-            name: s.fromName || "Member",
+            name: s.fromName || memberNamesMap[fromKey] || "Member",
             amount: s.amount / 100,
             userId: s.fromUserId,
             contactId: s.fromContactId,
@@ -592,14 +607,15 @@ export async function getGroupFinancialDetails(
           };
         });
 
-      m.owesTo = optimalSettlements
+      m.owesTo = effectivePendingList
         .filter((s) => (memberId && s.fromUserId === memberId) || (contactId && s.fromContactId === contactId))
         .map((s) => {
           const toMember = processedMembers.find(
             (pm) => (s.toUserId && pm.userId === s.toUserId) || (s.toContactId && pm.contactId === s.toContactId)
           );
+          const toKey = s.toUserId ? `user-${s.toUserId}` : `contact-${s.toContactId}`;
           return {
-            name: s.toName || "Member",
+            name: s.toName || memberNamesMap[toKey] || "Member",
             amount: s.amount / 100,
             userId: s.toUserId,
             contactId: s.toContactId,
@@ -627,7 +643,7 @@ export async function getGroupFinancialDetails(
     }
 
     // 9. Who Pays Whom Suggestions (SECTION 6)
-    const settlementSuggestions = optimalSettlements.map((s) => {
+    const settlementSuggestions = effectivePendingList.map((s) => {
       const fromKey = s.fromUserId ? `user-${s.fromUserId}` : `contact-${s.fromContactId}`;
       const toKey = s.toUserId ? `user-${s.toUserId}` : `contact-${s.toContactId}`;
 
@@ -733,7 +749,9 @@ export async function getGroupFinancialDetails(
     const totalPayableInGroup = processedMembers
       .reduce((sum, m) => sum + m.needToPay, 0);
 
-    const pendingSettlementsAmount = optimalSettlements.reduce((sum, s) => sum + s.amount, 0) / 100;
+    const pendingSettlementsAmount = pendingSettlementsList.length > 0
+      ? pendingSettlementsList.reduce((sum, s) => sum + Number(s.amount), 0) / 100
+      : (optimalSettlements.reduce((sum, s) => sum + s.amount, 0) / 100);
 
     const totalSettledAmount = completedSettlementsList.reduce((sum, s) => sum + Number(s.amount), 0) / 100;
 
@@ -856,7 +874,8 @@ export async function getGroupFinancialDetails(
         userDelegatedPermissions: (currentUserMember?.delegatedPermissions as Record<string, boolean>) || {},
       },
       overview: {
-        totalMembers: participatingMembersList.length,
+        totalMembers: membersList.filter((m) => !m.isGuest && (m.membershipStatus || "").toLowerCase() === "active").length +
+          membersList.filter((m) => m.isGuest && (m.membershipStatus || "").toLowerCase() !== "pending" && (m.membershipStatus || "").toLowerCase() !== "pending_approval").length,
         activeMembers: membersList.filter((m) => !m.isGuest && (m.membershipStatus || "").toLowerCase() === "active").length,
         guestMembers: membersList.filter((m) => m.isGuest && (m.membershipStatus || "").toLowerCase() !== "pending" && (m.membershipStatus || "").toLowerCase() !== "pending_approval").length,
         totalExpenses: totalGroupExpenseRupees,

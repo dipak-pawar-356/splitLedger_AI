@@ -255,8 +255,30 @@ export async function getGroupUpiSettlementsAction(
       };
     });
 
-    // 7. Calculate Minimal Debt Flow Transfers
-    const optimalSettlements = calculateOptimalSettlements(balances, "INR");
+    // 7. Load authoritative pending settlements from DB, fallback to optimal calculation
+    const activePendingSettlements = await db
+      .select()
+      .from(settlements)
+      .where(
+        and(
+          eq(settlements.groupId, groupRecord.id),
+          eq(settlements.status, "pending"),
+          eq(settlements.isDeleted, false)
+        )
+      );
+
+    const optimalSettlements = activePendingSettlements.length > 0
+      ? activePendingSettlements.map((s) => ({
+          fromUserId: s.fromUserId || undefined,
+          fromContactId: s.fromContactId || undefined,
+          toUserId: s.toUserId || undefined,
+          toContactId: s.toContactId || undefined,
+          amount: Number(s.amount),
+          currency: s.currency || "INR",
+          fromName: "",
+          toName: "",
+        }))
+      : calculateOptimalSettlements(balances, "INR");
 
     // 8. Find current user's profile and UPI status
     const [currentUserRecord] = await db

@@ -212,6 +212,28 @@ export function MemberFinancialSummary({
               </div>
             </div>
 
+            {/* Completed Settlements Paid/Received Row if any */}
+            {(Number(member.settledPaid || 0) > 0 || Number(member.settledReceived || 0) > 0) && (
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {Number(member.settledPaid || 0) > 0 ? (
+                  <div className="p-2 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Settled Paid</span>
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      +{formatCurrency(member.settledPaid || 0)}
+                    </span>
+                  </div>
+                ) : <div />}
+                {Number(member.settledReceived || 0) > 0 ? (
+                  <div className="p-2 rounded-xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/30">
+                    <span className="text-[10px] text-slate-400 font-semibold uppercase block">Settled Received</span>
+                    <span className="text-xs font-bold text-teal-600 dark:text-teal-400">
+                      -{formatCurrency(member.settledReceived || 0)}
+                    </span>
+                  </div>
+                ) : <div />}
+              </div>
+            )}
+
             {/* Pairwise Settlement Details (SECTION 6) - Privacy & RBAC Protected */}
             {hasFullSettlementAccess ? (
               <>
