@@ -266,12 +266,14 @@ export async function submitGroupJoinRequestAction(groupPublicId: string) {
       status: "success",
     });
 
-    revalidatePath(`/join-group/${groupPublicId}`);
-    revalidatePath(`/dashboard/groups/${group.publicId}`);
-    if (group.legacyPublicId) {
-      revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
-    }
-    revalidatePath(`/dashboard/groups/${group.id}`);
+    try {
+      revalidatePath(`/join-group/${groupPublicId}`);
+      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      if (group.legacyPublicId) {
+        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
+      }
+      revalidatePath(`/dashboard/groups/${group.id}`);
+    } catch (_) {}
 
     return {
       success: true,
@@ -559,21 +561,23 @@ export async function approveJoinRequestAction(data: {
       console.warn("Non-fatal: failed to write approval audit log:", auditErr);
     }
 
-    // 7. Revalidate all paths
-    revalidatePath(`/dashboard/groups/${group.publicId}`);
-    if (group.legacyPublicId) {
-      revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
-    }
-    revalidatePath(`/dashboard/groups/${group.id}`);
-    revalidatePath(`/dashboard/groups/${group.id}/settlements`);
-    revalidatePath(`/dashboard/settlements`);
-    revalidatePath(`/join-group/${group.publicId}`);
-    if (group.legacyPublicId) {
-      revalidatePath(`/join-group/${group.legacyPublicId}`);
-    }
-    revalidatePath("/dashboard/groups");
-    revalidatePath("/groups");
-    revalidatePath("/dashboard");
+    // 7. Revalidate all paths safely
+    try {
+      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      if (group.legacyPublicId) {
+        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
+      }
+      revalidatePath(`/dashboard/groups/${group.id}`);
+      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
+      revalidatePath(`/dashboard/settlements`);
+      revalidatePath(`/join-group/${group.publicId}`);
+      if (group.legacyPublicId) {
+        revalidatePath(`/join-group/${group.legacyPublicId}`);
+      }
+      revalidatePath("/dashboard/groups");
+      revalidatePath("/groups");
+      revalidatePath("/dashboard");
+    } catch (_) {}
 
     return {
       success: true as const,
@@ -735,14 +739,16 @@ export async function activateMemberExpenseParticipationAction(data: {
       });
     } catch (_) { }
 
-    // 4. Revalidate paths for immediate sync
-    revalidatePath(`/dashboard/groups/${group.publicId}`);
-    revalidatePath(`/dashboard/groups/${group.id}`);
-    revalidatePath(`/dashboard/groups/${group.id}/settlements`);
-    revalidatePath(`/dashboard/settlements`);
-    revalidatePath("/dashboard/groups");
-    revalidatePath("/groups");
-    revalidatePath("/dashboard");
+    // 4. Revalidate paths for immediate sync safely
+    try {
+      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      revalidatePath(`/dashboard/groups/${group.id}`);
+      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
+      revalidatePath(`/dashboard/settlements`);
+      revalidatePath("/dashboard/groups");
+      revalidatePath("/groups");
+      revalidatePath("/dashboard");
+    } catch (_) {}
 
     return {
       success: true as const,
@@ -850,14 +856,16 @@ export async function rejectJoinRequestAction(data: {
         )
       );
 
-    revalidatePath(`/dashboard/groups/${group.publicId}`);
-    if (group.legacyPublicId) {
-      revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
-    }
-    revalidatePath(`/dashboard/groups/${group.id}`);
-    revalidatePath("/dashboard/groups");
-    revalidatePath("/groups");
-    revalidatePath("/dashboard");
+    try {
+      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      if (group.legacyPublicId) {
+        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
+      }
+      revalidatePath(`/dashboard/groups/${group.id}`);
+      revalidatePath("/dashboard/groups");
+      revalidatePath("/groups");
+      revalidatePath("/dashboard");
+    } catch (_) {}
 
     return { success: true as const };
   } catch (error: any) {

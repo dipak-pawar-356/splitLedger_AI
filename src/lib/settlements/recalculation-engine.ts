@@ -33,6 +33,81 @@ import { generateTimelineId, generateSettlementVersionId, generateAuditId, gener
 import { calculateOptimalSettlements, type Balance } from "./calculator";
 import { revalidatePath } from "next/cache";
 
+export function safeRevalidatePath(path: string, type?: "layout" | "page") {
+  try {
+    revalidatePath(path, type);
+  } catch (_) {
+    // Gracefully ignore missing static generation store in asynchronous or serverless actions
+  }
+}
+
+let schemaEnsured = false;
+export async function ensureDatabaseSchema(txDb: any = db) {
+  if (schemaEnsured) return;
+  try {
+    await txDb.execute(sql`
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS participation_version INTEGER DEFAULT 1 NOT NULL;
+      ALTER TABLE transactions ADD COLUMN IF NOT EXISTS redistribution_version INTEGER DEFAULT 1 NOT NULL;
+      CREATE TABLE IF NOT EXISTS member_participation_timeline (
+        id SERIAL PRIMARY KEY,
+        public_id TEXT UNIQUE NOT NULL,
+        group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+        group_member_id INTEGER REFERENCES group_members(id) ON DELETE SET NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE,
+        participation_mode TEXT NOT NULL,
+        effective_from TIMESTAMP DEFAULT NOW() NOT NULL,
+        effective_until TIMESTAMP,
+        approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        reason TEXT NOT NULL,
+        redistribution_version INTEGER DEFAULT 1 NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS mpt_group_idx ON member_participation_timeline(group_id);
+      CREATE INDEX IF NOT EXISTS mpt_user_idx ON member_participation_timeline(user_id);
+      CREATE INDEX IF NOT EXISTS mpt_effective_idx ON member_participation_timeline(group_id, effective_from, effective_until);
+      CREATE INDEX IF NOT EXISTS mpt_public_id_idx ON member_participation_timeline(public_id);
+      CREATE TABLE IF NOT EXISTS group_settlement_versions (
+        id SERIAL PRIMARY KEY,
+        public_id TEXT UNIQUE NOT NULL,
+        group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+        version_number INTEGER NOT NULL,
+        trigger_operation TEXT NOT NULL,
+        initiated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        participation_timeline_version INTEGER DEFAULT 1 NOT NULL,
+        status TEXT DEFAULT 'active' NOT NULL,
+        total_expenses_paise BIGINT DEFAULT 0 NOT NULL,
+        total_shares_paise BIGINT DEFAULT 0 NOT NULL,
+        total_payable_paise BIGINT DEFAULT 0 NOT NULL,
+        total_receivable_paise BIGINT DEFAULT 0 NOT NULL,
+        snapshot JSONB NOT NULL,
+        integrity_verified BOOLEAN DEFAULT true NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS gsv_group_idx ON group_settlement_versions(group_id);
+      CREATE INDEX IF NOT EXISTS gsv_version_idx ON group_settlement_versions(group_id, version_number);
+      CREATE INDEX IF NOT EXISTS gsv_status_idx ON group_settlement_versions(group_id, status);
+      CREATE INDEX IF NOT EXISTS gsv_public_id_idx ON group_settlement_versions(public_id);
+      CREATE TABLE IF NOT EXISTS expense_participation_history (
+        id SERIAL PRIMARY KEY,
+        transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE NOT NULL,
+        group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+        version INTEGER NOT NULL,
+        participant_user_ids JSONB NOT NULL,
+        participant_contact_ids JSONB DEFAULT '[]'::jsonb NOT NULL,
+        split_method TEXT DEFAULT 'equal' NOT NULL,
+        reason TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS eph_tx_idx ON expense_participation_history(transaction_id);
+      CREATE INDEX IF NOT EXISTS eph_group_idx ON expense_participation_history(group_id);
+    `);
+    schemaEnsured = true;
+  } catch (_) {
+    schemaEnsured = true;
+  }
+}
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -336,6 +411,7 @@ export async function recordTimelineEvent(
   },
   txDb: any = db
 ): Promise<TimelineEntry> {
+  await ensureDatabaseSchema(txDb);
   const now = entry.effectiveFrom || new Date();
 
   // Close prior active timeline entry if changing mode or removing member
@@ -403,11 +479,14 @@ export async function executeAtomicGroupRecalculation(params: {
     | "add_expense"
     | "edit_expense"
     | "delete_expense"
+    | "restore_expense"
     | "recalculate";
   initiatedByUserId?: number | null;
   operationFn?: () => Promise<void>;
 }): Promise<RecalculationResult> {
   const { groupId, triggerOperation, initiatedByUserId, operationFn } = params;
+
+  await ensureDatabaseSchema();
 
   // Step 1: Acquire exclusive resource lock on group
   const releaseLock = await acquireGroupLock(groupId);
@@ -735,13 +814,16 @@ export async function executeAtomicGroupRecalculation(params: {
     } catch (_) {}
 
     // Step 12: Post-Commit Actions (Revalidation)
-    revalidatePath(`/dashboard/groups/${groupRecord.publicId}`);
-    revalidatePath(`/dashboard/groups/${groupRecord.id}`);
-    revalidatePath(`/dashboard/groups/${groupRecord.id}/settlements`);
-    revalidatePath("/dashboard/settlements");
-    revalidatePath("/dashboard/groups");
-    revalidatePath("/groups");
-    revalidatePath("/dashboard");
+    safeRevalidatePath(`/dashboard/groups/${groupRecord.publicId}`);
+    if (groupRecord.legacyPublicId) {
+      safeRevalidatePath(`/dashboard/groups/${groupRecord.legacyPublicId}`);
+    }
+    safeRevalidatePath(`/dashboard/groups/${groupRecord.id}`);
+    safeRevalidatePath(`/dashboard/groups/${groupRecord.id}/settlements`);
+    safeRevalidatePath("/dashboard/settlements");
+    safeRevalidatePath("/dashboard/groups");
+    safeRevalidatePath("/groups");
+    safeRevalidatePath("/dashboard");
 
     return {
       success: true,

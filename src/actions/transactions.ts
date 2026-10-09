@@ -21,6 +21,13 @@ import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } fro
 import { generateTransactionId, generateVersionId, generateAuditId } from "@/lib/utils";
 import { appCache } from "@/lib/cache";
 import { logger } from "@/lib/logger";
+import { executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
+
+function safeRevalidatePath(path: string, type?: "layout" | "page") {
+  try {
+    revalidatePath(path, type);
+  } catch (_) {}
+}
 
 export interface SplitInput {
   userId?: number | null;
@@ -304,19 +311,28 @@ export async function createTransaction(data: CreateTransactionInput) {
 
     // 5. Invalidate in-memory cache & revalidate paths for real-time synchronization
     appCache.invalidateTags([`user:${user.id}`, "dashboard", ...(transaction.groupId ? [`group:${transaction.groupId}`] : [])]);
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/transactions");
-    revalidatePath("/dashboard/ledger");
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/transactions");
+    safeRevalidatePath("/dashboard/ledger");
     if (transaction.contactId) {
-      revalidatePath(`/dashboard/contacts/${transaction.contactId}`);
-      revalidatePath("/dashboard/contacts");
+      safeRevalidatePath(`/dashboard/contacts/${transaction.contactId}`);
+      safeRevalidatePath("/dashboard/contacts");
     }
     if (transaction.groupId) {
-      revalidatePath(`/dashboard/groups/${transaction.groupId}`);
-      revalidatePath("/dashboard/groups");
+      safeRevalidatePath(`/dashboard/groups/${transaction.groupId}`);
+      safeRevalidatePath("/dashboard/groups");
+      try {
+        await executeAtomicGroupRecalculation({
+          groupId: transaction.groupId,
+          triggerOperation: "add_expense",
+          initiatedByUserId: user.id,
+        });
+      } catch (recalcErr) {
+        logger.error("Failed to recalculate group after adding expense", { error: recalcErr, metadata: { groupId: transaction.groupId } });
+      }
     }
-    revalidatePath("/dashboard/reports");
-    revalidatePath("/dashboard/analytics");
+    safeRevalidatePath("/dashboard/reports");
+    safeRevalidatePath("/dashboard/analytics");
 
     return transaction;
   } catch (error) {
@@ -589,20 +605,29 @@ export async function updateTransaction(
 
     // 6. Invalidate in-memory cache & revalidate all affected routes
     appCache.invalidateTags([`user:${user.id}`, "dashboard", ...(updatedTransaction.groupId ? [`group:${updatedTransaction.groupId}`] : [])]);
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/transactions");
-    revalidatePath(`/dashboard/transactions/${existingTransaction.publicId}`);
-    revalidatePath("/dashboard/ledger");
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/transactions");
+    safeRevalidatePath(`/dashboard/transactions/${existingTransaction.publicId}`);
+    safeRevalidatePath("/dashboard/ledger");
     if (updatedTransaction.contactId) {
-      revalidatePath(`/dashboard/contacts/${updatedTransaction.contactId}`);
-      revalidatePath("/dashboard/contacts");
+      safeRevalidatePath(`/dashboard/contacts/${updatedTransaction.contactId}`);
+      safeRevalidatePath("/dashboard/contacts");
     }
     if (updatedTransaction.groupId) {
-      revalidatePath(`/dashboard/groups/${updatedTransaction.groupId}`);
-      revalidatePath("/dashboard/groups");
+      safeRevalidatePath(`/dashboard/groups/${updatedTransaction.groupId}`);
+      safeRevalidatePath("/dashboard/groups");
+      try {
+        await executeAtomicGroupRecalculation({
+          groupId: updatedTransaction.groupId,
+          triggerOperation: "edit_expense",
+          initiatedByUserId: user.id,
+        });
+      } catch (recalcErr) {
+        logger.error("Failed to recalculate group after editing expense", { error: recalcErr, metadata: { groupId: updatedTransaction.groupId } });
+      }
     }
-    revalidatePath("/dashboard/reports");
-    revalidatePath("/dashboard/analytics");
+    safeRevalidatePath("/dashboard/reports");
+    safeRevalidatePath("/dashboard/analytics");
 
     return updatedTransaction;
   } catch (error) {
@@ -679,22 +704,34 @@ export async function deleteTransaction(publicIdOrId: string | number, reason?: 
       status: "success",
     });
 
+    // Delete splits for deleted transaction
+    await db.delete(expenseSplits).where(eq(expenseSplits.transactionId, existingTransaction.id));
+
     // Invalidate in-memory cache & revalidate paths
     appCache.invalidateTags([`user:${user.id}`, "dashboard", ...(existingTransaction.groupId ? [`group:${existingTransaction.groupId}`] : [])]);
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/transactions");
-    revalidatePath(`/dashboard/transactions/${existingTransaction.publicId}`);
-    revalidatePath("/dashboard/ledger");
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/transactions");
+    safeRevalidatePath(`/dashboard/transactions/${existingTransaction.publicId}`);
+    safeRevalidatePath("/dashboard/ledger");
     if (existingTransaction.groupId) {
-      revalidatePath(`/dashboard/groups/${existingTransaction.groupId}`);
-      revalidatePath("/dashboard/groups");
+      safeRevalidatePath(`/dashboard/groups/${existingTransaction.groupId}`);
+      safeRevalidatePath("/dashboard/groups");
+      try {
+        await executeAtomicGroupRecalculation({
+          groupId: existingTransaction.groupId,
+          triggerOperation: "delete_expense",
+          initiatedByUserId: user.id,
+        });
+      } catch (recalcErr) {
+        logger.error("Failed to recalculate group after deleting expense", { error: recalcErr, metadata: { groupId: existingTransaction.groupId } });
+      }
     }
     if (existingTransaction.contactId) {
-      revalidatePath(`/dashboard/contacts/${existingTransaction.contactId}`);
-      revalidatePath("/dashboard/contacts");
+      safeRevalidatePath(`/dashboard/contacts/${existingTransaction.contactId}`);
+      safeRevalidatePath("/dashboard/contacts");
     }
-    revalidatePath("/dashboard/reports");
-    revalidatePath("/dashboard/analytics");
+    safeRevalidatePath("/dashboard/reports");
+    safeRevalidatePath("/dashboard/analytics");
 
     return { success: true };
   } catch (error) {
@@ -773,20 +810,29 @@ export async function restoreTransaction(publicIdOrId: string | number) {
 
     // Invalidate in-memory cache & revalidate paths
     appCache.invalidateTags([`user:${user.id}`, "dashboard", ...(existingTransaction.groupId ? [`group:${existingTransaction.groupId}`] : [])]);
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/transactions");
-    revalidatePath(`/dashboard/transactions/${existingTransaction.publicId}`);
-    revalidatePath("/dashboard/ledger");
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/transactions");
+    safeRevalidatePath(`/dashboard/transactions/${existingTransaction.publicId}`);
+    safeRevalidatePath("/dashboard/ledger");
     if (existingTransaction.groupId) {
-      revalidatePath(`/dashboard/groups/${existingTransaction.groupId}`);
-      revalidatePath("/dashboard/groups");
+      safeRevalidatePath(`/dashboard/groups/${existingTransaction.groupId}`);
+      safeRevalidatePath("/dashboard/groups");
+      try {
+        await executeAtomicGroupRecalculation({
+          groupId: existingTransaction.groupId,
+          triggerOperation: "restore_expense",
+          initiatedByUserId: user.id,
+        });
+      } catch (recalcErr) {
+        logger.error("Failed to recalculate group after restoring expense", { error: recalcErr, metadata: { groupId: existingTransaction.groupId } });
+      }
     }
     if (existingTransaction.contactId) {
-      revalidatePath(`/dashboard/contacts/${existingTransaction.contactId}`);
-      revalidatePath("/dashboard/contacts");
+      safeRevalidatePath(`/dashboard/contacts/${existingTransaction.contactId}`);
+      safeRevalidatePath("/dashboard/contacts");
     }
-    revalidatePath("/dashboard/reports");
-    revalidatePath("/dashboard/analytics");
+    safeRevalidatePath("/dashboard/reports");
+    safeRevalidatePath("/dashboard/analytics");
 
     return { success: true };
   } catch (error) {

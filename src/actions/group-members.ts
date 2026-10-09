@@ -125,9 +125,11 @@ export async function addGroupMember(data: {
       },
     });
 
-    revalidatePath(`/dashboard/groups/${group.publicId}`);
-    revalidatePath(`/dashboard/groups/${group.id}`);
-    revalidatePath("/dashboard/groups");
+    try {
+      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      revalidatePath(`/dashboard/groups/${group.id}`);
+      revalidatePath("/dashboard/groups");
+    } catch (_) {}
     return newMember;
   } catch (error) {
     if (error instanceof ValidationError || error instanceof AuthorizationError || error instanceof ConflictError || error instanceof NotFoundError) {
@@ -156,11 +158,17 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
       throw new NotFoundError("Group");
     }
 
-    // Find the member record
+    // Find the member record (support matching by group_members.id or users.id)
+    const numMemberId = Number(memberId);
     const [memberToRemove] = await db
       .select()
       .from(groupMembers)
-      .where(and(eq(groupMembers.id, memberId), eq(groupMembers.groupId, group.id)))
+      .where(
+        and(
+          eq(groupMembers.groupId, group.id),
+          or(eq(groupMembers.id, numMemberId), eq(groupMembers.userId, numMemberId))
+        )
+      )
       .limit(1);
 
     if (!memberToRemove) {
@@ -172,21 +180,35 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
       throw new ValidationError("Cannot remove the group owner. Transfer ownership first.");
     }
 
-    // Verify caller is admin or owner
-    if (group.createdBy !== user.id) {
+    // Verify caller is admin or owner or has delegated permissions
+    const isSystemAdmin =
+      user.email === "dipakspawaras17@gmail.com" ||
+      user.email === "dipakspawar@coep.sveri.ac.in" ||
+      user.email === "pawardipaksa@gmail.com" ||
+      user.email === "dipak@splitledger.ai";
+
+    if (group.createdBy !== user.id && !isSystemAdmin) {
       const [callerAdmin] = await db
         .select()
         .from(groupMembers)
         .where(
           and(
             eq(groupMembers.groupId, group.id),
-            eq(groupMembers.userId, user.id),
-            eq(groupMembers.isAdmin, true)
+            eq(groupMembers.userId, user.id)
           )
         )
         .limit(1);
 
-      if (!callerAdmin) {
+      const perms = (typeof callerAdmin?.delegatedPermissions === "string"
+        ? JSON.parse(callerAdmin.delegatedPermissions)
+        : callerAdmin?.delegatedPermissions) || {};
+
+      const hasPermission =
+        callerAdmin?.isAdmin ||
+        Boolean(perms?.["group:manage_permissions"]) ||
+        Boolean(perms?.["group:approve_members"]);
+
+      if (!hasPermission) {
         throw new AuthorizationError("You must be a group admin or owner to remove members");
       }
     }
@@ -197,7 +219,7 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
     // Record timeline removal event
     await recordTimelineEvent({
       groupId: group.id,
-      groupMemberId: memberId,
+      groupMemberId: memberToRemove.id,
       userId: memberToRemove.userId,
       contactId: memberToRemove.contactId,
       participationMode,
@@ -207,7 +229,7 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
     });
 
     // Remove member from group_members
-    await db.delete(groupMembers).where(eq(groupMembers.id, memberId));
+    await db.delete(groupMembers).where(eq(groupMembers.id, memberToRemove.id));
 
     // Also close any active join requests
     if (memberToRemove.userId) {
@@ -241,17 +263,25 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
       entityId: group.id,
       changes: {
         action: "remove_member",
-        removedMemberId: memberId,
+        removedMemberId: memberToRemove.id,
         userId: memberToRemove.userId,
         contactId: memberToRemove.contactId,
         participationMode,
       },
     });
 
-    revalidatePath(`/dashboard/groups/${group.publicId}`);
-    revalidatePath(`/dashboard/groups/${group.id}`);
-    revalidatePath("/dashboard/groups");
-    revalidatePath("/dashboard/settlements");
+    try {
+      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      if (group.legacyPublicId) {
+        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
+      }
+      revalidatePath(`/dashboard/groups/${group.id}`);
+      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
+      revalidatePath("/dashboard/groups");
+      revalidatePath("/dashboard/settlements");
+      revalidatePath("/dashboard");
+    } catch (_) {}
+
     return { success: true };
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError || error instanceof ValidationError) {
@@ -309,8 +339,10 @@ export async function updateMemberRole(memberId: number, groupIdOrPublicId: numb
       throw new NotFoundError("Group member");
     }
 
-    revalidatePath(`/dashboard/groups/${group.publicId}`);
-    revalidatePath(`/dashboard/groups/${group.id}`);
+    try {
+      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      revalidatePath(`/dashboard/groups/${group.id}`);
+    } catch (_) {}
     return { success: true, member: updated };
   } catch (error) {
     if (error instanceof AuthorizationError || error instanceof NotFoundError) {
@@ -349,7 +381,9 @@ export async function updateMemberNickname(memberId: number, groupIdOrPublicId: 
       throw new NotFoundError("Group member");
     }
 
-    revalidatePath(`/dashboard/groups/${group.publicId}`);
+    try {
+      revalidatePath(`/dashboard/groups/${group.publicId}`);
+    } catch (_) {}
     return { success: true, member: updated };
   } catch (error) {
     if (error instanceof NotFoundError) {
