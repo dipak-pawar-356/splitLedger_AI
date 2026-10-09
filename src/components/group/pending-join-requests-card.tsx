@@ -106,7 +106,7 @@ export function PendingJoinRequestsCard({
         participationDecision: decision,
       });
 
-      if (res.success) {
+      if (res && res.success) {
         if (decision === "included") {
           toast.success(
             `Approved ${req.userName || req.userEmail}. Member included in previous expenses; shares and settlements recalculated.`
@@ -119,6 +119,8 @@ export function PendingJoinRequestsCard({
 
         setRequests((prev) => prev.filter((r) => r.id !== req.id));
         router.refresh();
+      } else {
+        toast.error((res as any)?.error || "Failed to approve join request");
       }
     } catch (err: any) {
       toast.error(err?.message || "Failed to approve join request");
@@ -135,10 +137,12 @@ export function PendingJoinRequestsCard({
     setRejectingId(req.id);
     try {
       const res = await rejectJoinRequestAction({ requestId: req.id });
-      if (res.success) {
+      if (res && res.success) {
         toast.info("Join request rejected.");
         setRequests((prev) => prev.filter((r) => r.id !== req.id));
         router.refresh();
+      } else {
+        toast.error((res as any)?.error || "Failed to reject join request");
       }
     } catch (err: any) {
       toast.error(err?.message || "Failed to reject join request");

@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { groups, groupMembers, transactions, settlements, users, expenseSplits } from "@/lib/db/schema/schema";
+import { groups, groupMembers, transactions, settlements, users, expenseSplits, groupJoinRequests } from "@/lib/db/schema/schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,9 +39,8 @@ export default async function GroupsPage({
   try {
     const user = await requireAuth();
     const params = await searchParams;
-    const currentTab = params?.tab || "active";
 
-    // 1. Fetch all groups user is a member of
+    // 1. Fetch all groups user is an active member or creator of
     const rawGroups = await db
       .select({
         id: groups.id,
@@ -68,6 +67,114 @@ export default async function GroupsPage({
       )
       .orderBy(desc(groups.createdAt));
 
+    // 2. Fetch pending join requests where current user is awaiting approval
+    const [rawJoinRequests, rawPendingMembers] = await Promise.all([
+      db
+        .select({
+          requestId: groupJoinRequests.id,
+          requestPublicId: groupJoinRequests.publicId,
+          requestStatus: groupJoinRequests.status,
+          requestedAt: groupJoinRequests.createdAt,
+          notes: groupJoinRequests.notes,
+          groupId: groups.id,
+          groupPublicId: groups.publicId,
+          groupName: groups.name,
+          groupDescription: groups.description,
+          groupType: groups.type,
+          groupCurrency: groups.currency,
+          groupCoverImage: groups.coverImage,
+          ownerName: users.name,
+          ownerEmail: users.email,
+        })
+        .from(groupJoinRequests)
+        .innerJoin(groups, eq(groupJoinRequests.groupId, groups.id))
+        .leftJoin(users, eq(groups.createdBy, users.id))
+        .where(
+          and(
+            eq(groupJoinRequests.userId, user.id),
+            eq(groupJoinRequests.status, "pending"),
+            eq(groups.isDeleted, false)
+          )
+        )
+        .orderBy(desc(groupJoinRequests.createdAt)),
+      db
+        .select({
+          groupId: groups.id,
+          groupPublicId: groups.publicId,
+          groupName: groups.name,
+          groupDescription: groups.description,
+          groupType: groups.type,
+          groupCurrency: groups.currency,
+          groupCoverImage: groups.coverImage,
+          ownerName: users.name,
+          ownerEmail: users.email,
+          joinedAt: groupMembers.joinedAt,
+        })
+        .from(groupMembers)
+        .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+        .leftJoin(users, eq(groups.createdBy, users.id))
+        .where(
+          and(
+            eq(groupMembers.userId, user.id),
+            sql`LOWER(${groupMembers.membershipStatus}) IN ('pending', 'pending_approval')`,
+            eq(groups.isDeleted, false)
+          )
+        )
+        .orderBy(desc(groupMembers.joinedAt)),
+    ]);
+
+    const activeGroupIdSet = new Set(rawGroups.map((g) => g.id));
+    const requestedGroupMap = new Map<number, {
+      groupId: number;
+      groupPublicId: string;
+      groupName: string;
+      groupDescription: string | null;
+      groupType: string;
+      groupCurrency: string;
+      groupCoverImage: string | null;
+      ownerName: string | null;
+      ownerEmail: string | null;
+      requestedAt: Date;
+      status: string;
+    }>();
+
+    for (const req of rawJoinRequests) {
+      if (!activeGroupIdSet.has(req.groupId)) {
+        requestedGroupMap.set(req.groupId, {
+          groupId: req.groupId,
+          groupPublicId: req.groupPublicId,
+          groupName: req.groupName,
+          groupDescription: req.groupDescription,
+          groupType: req.groupType || "friends",
+          groupCurrency: req.groupCurrency || "INR",
+          groupCoverImage: req.groupCoverImage,
+          ownerName: req.ownerName,
+          ownerEmail: req.ownerEmail,
+          requestedAt: req.requestedAt,
+          status: "pending",
+        });
+      }
+    }
+
+    for (const mem of rawPendingMembers) {
+      if (!activeGroupIdSet.has(mem.groupId) && !requestedGroupMap.has(mem.groupId)) {
+        requestedGroupMap.set(mem.groupId, {
+          groupId: mem.groupId,
+          groupPublicId: mem.groupPublicId,
+          groupName: mem.groupName,
+          groupDescription: mem.groupDescription,
+          groupType: mem.groupType || "friends",
+          groupCurrency: mem.groupCurrency || "INR",
+          groupCoverImage: mem.groupCoverImage,
+          ownerName: mem.ownerName,
+          ownerEmail: mem.ownerEmail,
+          requestedAt: mem.joinedAt || new Date(),
+          status: "pending",
+        });
+      }
+    }
+
+    const requestedGroups = Array.from(requestedGroupMap.values());
     const groupIds = rawGroups.map((g) => g.id);
 
     let allMembers: { groupId: number; isGuest: boolean; isAdmin: boolean; userId: number | null }[] = [];
@@ -122,7 +229,7 @@ export default async function GroupsPage({
       }
     }
 
-    // 2. Process individual group calculations
+    // 3. Process individual group calculations
     const enrichedGroups = rawGroups.map((group) => {
       const groupMemberList = allMembers.filter((m) => m.groupId === group.id);
       const memberCount = groupMemberList.length;
@@ -217,7 +324,7 @@ export default async function GroupsPage({
                 <AnimatedCounter value={enrichedGroups.length} />
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                {activeGroups.length} active • {archivedGroups.length} archived
+                {activeGroups.length} active • {requestedGroups.length > 0 ? `${requestedGroups.length} requested • ` : ""}{archivedGroups.length} archived
               </p>
             </CardContent>
           </Card>
@@ -274,68 +381,128 @@ export default async function GroupsPage({
           </Card>
         </div>
 
-        {/* Filter Tabs */}
-        <Tabs defaultValue="active" className="w-full">
-          <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3">
-            <TabsList className="bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl">
-              <TabsTrigger value="active" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm">
-                Active Groups ({activeGroups.length})
-              </TabsTrigger>
-              <TabsTrigger value="archived" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm">
-                Archived ({archivedGroups.length})
-              </TabsTrigger>
-              <TabsTrigger value="all" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm">
-                All Groups ({enrichedGroups.length})
-              </TabsTrigger>
-            </TabsList>
+        {/* Pending Requests Banner */}
+        {requestedGroups.length > 0 && (
+          <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-300/60 dark:border-amber-900/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                <Clock className="h-5 w-5 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <span>Pending Group Access</span>
+                  <Badge className="bg-amber-500 text-white text-[10px] py-0 px-1.5 font-bold">
+                    {requestedGroups.length} {requestedGroups.length === 1 ? "Request" : "Requests"}
+                  </Badge>
+                </h4>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                  You have join requests waiting for owner approval. Group financial history and balances will activate once approved.
+                </p>
+              </div>
+            </div>
+            <Link href="/dashboard/groups?tab=requested" className="shrink-0">
+              <Button size="sm" variant="outline" className="text-xs font-bold border-amber-300/80 dark:border-amber-700/80 hover:bg-amber-500 hover:text-white transition-colors w-full sm:w-auto">
+                <span>View Requested ({requestedGroups.length})</span>
+                <ArrowRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </Link>
           </div>
+        )}
 
-          {/* Active Tab */}
-          <TabsContent value="active" className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {activeGroups.map((group) => (
-                <GroupCardItem key={group.id} group={group} userId={user.id} />
-              ))}
-              {activeGroups.length === 0 && (
-                <div className="col-span-full py-16 text-center border-2 border-dashed rounded-3xl p-8 bg-slate-50/50 dark:bg-slate-900/30">
-                  <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 text-primary">
-                    <Users className="h-8 w-8" />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">No Active Groups Yet</h3>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto mb-5 leading-relaxed">
-                    Create a group to start splitting trip expenses, apartment rent, dinners, or events with your friends.
-                  </p>
-                  <GroupDialog />
+        {/* Filter Tabs */}
+        {(() => {
+          const defaultTab = params?.tab || (activeGroups.length === 0 && requestedGroups.length > 0 ? "requested" : "active");
+          return (
+            <Tabs defaultValue={defaultTab} className="w-full">
+              <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3">
+                <TabsList className="bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl">
+                  <TabsTrigger value="active" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm">
+                    Active Groups ({activeGroups.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="requested" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm flex items-center gap-1.5">
+                    <span>Requested</span>
+                    <Badge variant={requestedGroups.length > 0 ? "default" : "secondary"} className={`text-[10px] px-1.5 py-0 h-4 font-bold ${requestedGroups.length > 0 ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : ""}`}>
+                      {requestedGroups.length}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger value="archived" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm">
+                    Archived ({archivedGroups.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="all" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm">
+                    All Groups ({enrichedGroups.length})
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+
+              {/* Active Tab */}
+              <TabsContent value="active" className="pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {activeGroups.map((group) => (
+                    <GroupCardItem key={group.id} group={group} userId={user.id} />
+                  ))}
+                  {activeGroups.length === 0 && (
+                    <div className="col-span-full py-16 text-center border-2 border-dashed rounded-3xl p-8 bg-slate-50/50 dark:bg-slate-900/30">
+                      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 text-primary">
+                        <Users className="h-8 w-8" />
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">No Active Groups Yet</h3>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto mb-5 leading-relaxed">
+                        Create a group to start splitting trip expenses, apartment rent, dinners, or events with your friends.
+                      </p>
+                      <GroupDialog />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </TabsContent>
+              </TabsContent>
 
-          {/* Archived Tab */}
-          <TabsContent value="archived" className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {archivedGroups.map((group) => (
-                <GroupCardItem key={group.id} group={group} userId={user.id} />
-              ))}
-              {archivedGroups.length === 0 && (
-                <div className="col-span-full py-16 text-center border-2 border-dashed rounded-3xl p-8 bg-slate-50/50 dark:bg-slate-900/30">
-                  <Archive className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-                  <h3 className="text-base font-bold text-slate-800 dark:text-slate-200 mb-1">No Archived Groups</h3>
-                  <p className="text-xs text-slate-500">Past groups that you archive will safely remain stored here.</p>
+              {/* Requested Tab */}
+              <TabsContent value="requested" className="pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {requestedGroups.map((group) => (
+                    <RequestedGroupCardItem key={group.groupId} group={group} />
+                  ))}
+                  {requestedGroups.length === 0 && (
+                    <div className="col-span-full py-16 text-center border-2 border-dashed rounded-3xl p-8 bg-slate-50/50 dark:bg-slate-900/30">
+                      <div className="w-16 h-16 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4 text-amber-600">
+                        <Clock className="h-8 w-8" />
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">No Pending Requests</h3>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto mb-5 leading-relaxed">
+                        When you scan a group QR code or use a group invite link, your pending join requests will appear here until approved by the owner.
+                      </p>
+                      <GroupDialog />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </TabsContent>
+              </TabsContent>
 
-          {/* All Tab */}
-          <TabsContent value="all" className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {enrichedGroups.map((group) => (
-                <GroupCardItem key={group.id} group={group} userId={user.id} />
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+              {/* Archived Tab */}
+              <TabsContent value="archived" className="pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {archivedGroups.map((group) => (
+                    <GroupCardItem key={group.id} group={group} userId={user.id} />
+                  ))}
+                  {archivedGroups.length === 0 && (
+                    <div className="col-span-full py-16 text-center border-2 border-dashed rounded-3xl p-8 bg-slate-50/50 dark:bg-slate-900/30">
+                      <Archive className="h-10 w-10 text-slate-400 mx-auto mb-3" />
+                      <h3 className="text-base font-bold text-slate-800 dark:text-slate-200 mb-1">No Archived Groups</h3>
+                      <p className="text-xs text-slate-500">Past groups that you archive will safely remain stored here.</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* All Tab */}
+              <TabsContent value="all" className="pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {enrichedGroups.map((group) => (
+                    <GroupCardItem key={group.id} group={group} userId={user.id} />
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          );
+        })()}
       </div>
     );
   } catch (error) {
@@ -538,6 +705,137 @@ function GroupCardItem({ group, userId }: { group: any; userId: number }) {
             </Button>
           }
         />
+      </div>
+    </Card>
+  );
+}
+
+function RequestedGroupCardItem({
+  group,
+}: {
+  group: {
+    groupId: number;
+    groupPublicId: string;
+    groupName: string;
+    groupDescription: string | null;
+    groupType: string;
+    groupCurrency: string;
+    groupCoverImage: string | null;
+    ownerName: string | null;
+    ownerEmail: string | null;
+    requestedAt: Date;
+    status: string;
+  };
+}) {
+  const categoryMeta = CATEGORY_CONFIG[group.groupType] || CATEGORY_CONFIG.custom;
+  const CategoryIcon = categoryMeta.icon;
+
+  return (
+    <Card className="card-lift h-full overflow-hidden hover:shadow-xl transition-all duration-300 border-amber-200/70 dark:border-amber-900/40 flex flex-col justify-between group bg-card rounded-2xl cursor-pointer hover:border-amber-500/50">
+      <div>
+        {/* Header Visual Banner */}
+        {group.groupCoverImage ? (
+          <div
+            className="h-32 bg-cover bg-center relative group-hover:scale-[1.02] transition-transform duration-300"
+            style={{ backgroundImage: `url(${group.groupCoverImage})` }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+            <div className="absolute bottom-3 left-3.5 right-3.5 flex items-center justify-between text-white">
+              <Badge variant="secondary" className="bg-black/60 backdrop-blur-md text-white border-white/20 text-[11px] font-semibold flex items-center gap-1.5 capitalize">
+                <CategoryIcon className="h-3.5 w-3.5" />
+                {group.groupType}
+              </Badge>
+              <Badge variant="secondary" className="bg-amber-500 text-white text-[10px] font-bold flex items-center gap-1">
+                <Clock className="h-3 w-3 animate-pulse" />
+                Pending Approval
+              </Badge>
+            </div>
+          </div>
+        ) : (
+          <div className={`h-16 bg-gradient-to-r ${categoryMeta.gradient} px-4 flex items-center justify-between border-b border-amber-100 dark:border-amber-900/40`}>
+            <Badge variant="secondary" className={`${categoryMeta.badgeClass} text-xs font-bold flex items-center gap-1.5 capitalize py-1`}>
+              <CategoryIcon className="h-3.5 w-3.5" />
+              {group.groupType}
+            </Badge>
+            <Badge variant="secondary" className="bg-amber-500 text-white text-[10px] font-bold flex items-center gap-1">
+              <Clock className="h-3 w-3 animate-pulse" />
+              Pending Approval
+            </Badge>
+          </div>
+        )}
+
+        <CardHeader className="pb-3 pt-3.5 px-4">
+          <div className="space-y-1">
+            <Link href={`/dashboard/groups/${group.groupPublicId}`} prefetch={true}>
+              <CardTitle className="text-lg font-black text-slate-900 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors truncate tracking-tight">
+                {group.groupName}
+              </CardTitle>
+            </Link>
+            {group.groupDescription ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 font-normal">
+                {group.groupDescription}
+              </p>
+            ) : (
+              <p className="text-xs text-slate-400 italic font-normal">
+                No description provided
+              </p>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-3.5 pt-0 px-4">
+          {/* Status Box */}
+          <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/25 border border-amber-200/80 dark:border-amber-900/60 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Shield className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                Access Pending
+              </span>
+              <Badge variant="outline" className="bg-white/80 dark:bg-slate-900/80 border-amber-300 text-amber-700 dark:text-amber-300 text-[10px] font-semibold">
+                Waiting for Owner
+              </Badge>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+              Your join request was sent to the group owner. Group financial data will unlock automatically once approved.
+            </p>
+          </div>
+
+          {/* Simple Information Grid */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/80">
+              <p className="text-[10px] font-medium text-slate-500">Group Owner</p>
+              <p className="font-bold text-slate-900 dark:text-slate-100 mt-0.5 truncate text-[11px]">
+                {group.ownerName || group.ownerEmail || "Group Owner"}
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/80">
+              <p className="text-[10px] font-medium text-slate-500">Requested</p>
+              <p className="font-bold text-slate-900 dark:text-slate-100 mt-0.5 truncate text-[11px]">
+                {formatRelativeTime(group.requestedAt)}
+              </p>
+            </div>
+          </div>
+
+          {/* Date footer */}
+          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
+            <span>Date: {formatDate(group.requestedAt)}</span>
+            <span className="text-amber-600 dark:text-amber-400 font-medium">Under Review</span>
+          </div>
+        </CardContent>
+      </div>
+
+      {/* Card Action Link */}
+      <div className="p-3 bg-amber-50/40 dark:bg-amber-950/20 border-t border-amber-100/80 dark:border-amber-900/40 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-slate-500 font-medium">
+          Zero access until approved
+        </span>
+        <Link href={`/dashboard/groups/${group.groupPublicId}`} prefetch={true}>
+          <Button size="sm" className="text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-xs">
+            <span>Check Status</span>
+            <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+          </Button>
+        </Link>
       </div>
     </Card>
   );

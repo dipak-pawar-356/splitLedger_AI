@@ -64,6 +64,8 @@ export function ExpenseActivationPromptCard({
             : "Activated for new expenses only! Past expenses preserved."
         );
         router.refresh();
+      } else {
+        toast.error((res as any)?.error || "Failed to configure expense participation");
       }
     } catch (err: any) {
       toast.error(err?.message || "Failed to configure member expense participation");

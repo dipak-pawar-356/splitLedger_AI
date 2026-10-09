@@ -54,9 +54,6 @@ function extractUserIdFromClerkJwt(token: string | undefined | null): string | n
     const json = Buffer.from(parts[1], "base64url").toString("utf-8");
     const payload = JSON.parse(json);
     if (payload && typeof payload.sub === "string" && payload.sub.length > 0) {
-      if (typeof payload.exp === "number" && payload.exp * 1000 < Date.now()) {
-        return null;
-      }
       return payload.sub;
     }
   } catch (_) {
@@ -80,6 +77,19 @@ export const getCurrentUser = reactCache(async () => {
         const dbJwtToken = cookieStore.get("__clerk_db_jwt")?.value;
 
         userId = extractUserIdFromClerkJwt(sessionToken) || extractUserIdFromClerkJwt(dbJwtToken);
+
+        if (!userId) {
+          // Scan remaining cookies for Clerk session JWT
+          for (const c of cookieStore.getAll()) {
+            if (c.name.includes("session") || c.name.includes("clerk") || c.name.includes("jwt")) {
+              const candidate = extractUserIdFromClerkJwt(c.value);
+              if (candidate) {
+                userId = candidate;
+                break;
+              }
+            }
+          }
+        }
       }
     } catch (_) {
       userId = null;

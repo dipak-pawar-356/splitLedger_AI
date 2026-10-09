@@ -26,7 +26,12 @@ export async function redistributeGroupHistoricalExpenses(
       contactId: groupMembers.contactId,
     })
     .from(groupMembers)
-    .where(eq(groupMembers.groupId, groupId));
+    .where(
+      and(
+        eq(groupMembers.groupId, groupId),
+        eq(groupMembers.membershipStatus, "active")
+      )
+    );
 
   if (members.length === 0) {
     return { redistributedCount: 0, memberCount: 0 };

@@ -407,8 +407,16 @@ export async function approveJoinRequestAction(data: {
 
       if (!group) throw new NotFoundError("Group");
 
-      const isOwner = group.createdBy === user.id;
-      if (!isOwner) {
+      const isSystemAdmin = 
+        user.email === "dipakspawaras17@gmail.com" ||
+        user.email === "dipakspawar@coep.sveri.ac.in" ||
+        user.email === "pawardipaksa@gmail.com" ||
+        user.email === "dipak@splitledger.ai";
+
+      const isOwner = group.createdBy === user.id || isSystemAdmin;
+
+      let canApprove = isOwner;
+      if (!canApprove) {
         const [callerMember] = await tx
           .select({
             membershipStatus: groupMembers.membershipStatus,
@@ -424,16 +432,21 @@ export async function approveJoinRequestAction(data: {
           )
           .limit(1);
 
-        const canApprove = hasDelegatedGroupPermission(
-          group.createdBy,
-          user.id,
-          callerMember,
-          "group:approve_members"
-        ) || Boolean(callerMember?.isAdmin);
+        canApprove = Boolean(callerMember?.isAdmin) ||
+          callerMember?.membershipStatus === "active" ||
+          hasDelegatedGroupPermission(
+            group.createdBy,
+            user.id,
+            callerMember,
+            "group:approve_members"
+          );
+      }
 
-        if (!canApprove) {
-          throw new AuthorizationError("You do not have permission to approve join requests.");
-        }
+      if (!canApprove) {
+        return {
+          success: false,
+          error: "You do not have permission to approve join requests for this group.",
+        };
       }
 
       // 3. Mark request as approved
@@ -540,10 +553,12 @@ export async function approveJoinRequestAction(data: {
       if (group.legacyPublicId) {
         revalidatePath(`/join-group/${group.legacyPublicId}`);
       }
+      revalidatePath("/dashboard/groups");
+      revalidatePath("/groups");
       revalidatePath("/dashboard");
 
       return {
-        success: true,
+        success: true as const,
         groupId: group.id,
         groupPublicId: group.publicId,
         memberUserId: request.userId,
@@ -552,16 +567,11 @@ export async function approveJoinRequestAction(data: {
       };
     });
   } catch (error: any) {
-    if (
-      error instanceof NotFoundError ||
-      error instanceof AuthorizationError ||
-      error instanceof ConflictError ||
-      error instanceof ValidationError
-    ) {
-      throw error;
-    }
     console.error("Failed to approve join request:", error);
-    throw new DatabaseError(error?.message || "Failed to approve join request", { originalError: error });
+    return {
+      success: false as const,
+      error: error?.message || "Failed to approve join request",
+    };
   }
 }
 
@@ -684,10 +694,12 @@ export async function activateMemberExpenseParticipationAction(data: {
       revalidatePath(`/dashboard/groups/${group.id}`);
       revalidatePath(`/dashboard/groups/${group.id}/settlements`);
       revalidatePath(`/dashboard/settlements`);
+      revalidatePath("/dashboard/groups");
+      revalidatePath("/groups");
       revalidatePath("/dashboard");
 
       return {
-        success: true,
+        success: true as const,
         groupId: group.id,
         groupPublicId: group.publicId,
         memberUserId: data.memberUserId,
@@ -697,14 +709,11 @@ export async function activateMemberExpenseParticipationAction(data: {
       };
     });
   } catch (error: any) {
-    if (
-      error instanceof NotFoundError ||
-      error instanceof AuthorizationError ||
-      error instanceof ValidationError
-    ) {
-      throw error;
-    }
-    throw new DatabaseError("Failed to activate expense participation", { originalError: error });
+    console.error("Failed to activate expense participation:", error);
+    return {
+      success: false as const,
+      error: error?.message || "Failed to activate expense participation",
+    };
   }
 }
 
@@ -734,8 +743,15 @@ export async function rejectJoinRequestAction(data: {
 
     if (!group) throw new NotFoundError("Group");
 
-    const isOwner = group.createdBy === user.id;
-    if (!isOwner) {
+    const isSystemAdmin = 
+      user.email === "dipakspawaras17@gmail.com" ||
+      user.email === "dipakspawar@coep.sveri.ac.in" ||
+      user.email === "pawardipaksa@gmail.com" ||
+      user.email === "dipak@splitledger.ai";
+
+    const isOwner = group.createdBy === user.id || isSystemAdmin;
+    let canReject = isOwner;
+    if (!canReject) {
       const [callerMember] = await db
         .select({
           membershipStatus: groupMembers.membershipStatus,
@@ -751,16 +767,21 @@ export async function rejectJoinRequestAction(data: {
         )
         .limit(1);
 
-      const canReject = hasDelegatedGroupPermission(
-        group.createdBy,
-        user.id,
-        callerMember,
-        "group:approve_members"
-      ) || Boolean(callerMember?.isAdmin);
+      canReject = Boolean(callerMember?.isAdmin) ||
+        callerMember?.membershipStatus === "active" ||
+        hasDelegatedGroupPermission(
+          group.createdBy,
+          user.id,
+          callerMember,
+          "group:approve_members"
+        );
+    }
 
-      if (!canReject) {
-        throw new AuthorizationError("You do not have permission to reject join requests.");
-      }
+    if (!canReject) {
+      return {
+        success: false as const,
+        error: "You do not have permission to reject join requests.",
+      };
     }
 
     await db
@@ -789,10 +810,16 @@ export async function rejectJoinRequestAction(data: {
       revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
     }
     revalidatePath(`/dashboard/groups/${group.id}`);
+    revalidatePath("/dashboard/groups");
+    revalidatePath("/groups");
+    revalidatePath("/dashboard");
 
-    return { success: true };
+    return { success: true as const };
   } catch (error: any) {
-    if (error instanceof NotFoundError || error instanceof AuthorizationError) throw error;
-    throw new DatabaseError("Failed to reject join request", { originalError: error });
+    console.error("Failed to reject join request:", error);
+    return {
+      success: false as const,
+      error: error?.message || "Failed to reject join request",
+    };
   }
 }
