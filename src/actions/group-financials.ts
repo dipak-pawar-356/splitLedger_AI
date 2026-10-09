@@ -447,8 +447,15 @@ export async function getGroupFinancialDetails(
     const totalGroupExpenseRupees = totalGroupExpenseInPaise / 100;
 
     // 6. Calculate Initial Per-Member Financial Breakdown with Completed Settlements
-    // Only non-pending members participate in member list and calculations (Requirement 1 & 2)
-    const participatingMembersList = membersList.filter((m) => m.membershipStatus !== "pending");
+    // Only approved/active members participate in member list and calculations (Requirement 1 & 2)
+    const isApprovedActive = (m: any) => {
+      const status = (m.membershipStatus || "").toLowerCase();
+      if (status === "pending" || status === "pending_approval") return false;
+      if (m.isGuest) return status !== "pending" && status !== "pending_approval";
+      return status === "active";
+    };
+
+    const participatingMembersList = membersList.filter(isApprovedActive);
     const activeCalculationCount = Math.max(1, participatingMembersList.filter(pm => pm.membershipStatus === "active" || pm.isGuest).length);
 
     const processedMembers: MemberFinancialDetail[] = participatingMembersList.map((m) => {
@@ -651,8 +658,8 @@ export async function getGroupFinancialDetails(
       .filter((e) => new Date(e.date) >= startOfMonth)
       .reduce((sum, e) => sum + e.amount, 0) / 100;
 
-    const avgPerMember = membersList.length > 0 
-      ? totalGroupExpenseRupees / membersList.length 
+    const avgPerMember = participatingMembersList.length > 0 
+      ? totalGroupExpenseRupees / participatingMembersList.length 
       : 0;
 
     // Highest and Lowest Expenses
@@ -849,9 +856,9 @@ export async function getGroupFinancialDetails(
         userDelegatedPermissions: (currentUserMember?.delegatedPermissions as Record<string, boolean>) || {},
       },
       overview: {
-        totalMembers: membersList.length,
-        activeMembers: membersList.filter((m) => !m.isGuest).length,
-        guestMembers: membersList.filter((m) => m.isGuest).length,
+        totalMembers: participatingMembersList.length,
+        activeMembers: membersList.filter((m) => !m.isGuest && (m.membershipStatus || "").toLowerCase() === "active").length,
+        guestMembers: membersList.filter((m) => m.isGuest && (m.membershipStatus || "").toLowerCase() !== "pending" && (m.membershipStatus || "").toLowerCase() !== "pending_approval").length,
         totalExpenses: totalGroupExpenseRupees,
         totalSettlements: totalSettledAmount,
         pendingSettlementsCount: pendingSettlementsList.length,

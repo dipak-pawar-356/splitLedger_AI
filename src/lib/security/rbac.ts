@@ -363,7 +363,8 @@ export function hasDelegatedGroupPermission(
   userId: number,
   member: {
     membershipStatus?: string | null;
-    delegatedPermissions?: Record<string, boolean> | null;
+    delegatedPermissions?: Record<string, boolean> | string | null;
+    isAdmin?: boolean | null;
   } | null | undefined,
   permission: DelegatedGroupPermission
 ): boolean {
@@ -373,10 +374,24 @@ export function hasDelegatedGroupPermission(
   }
 
   // 2. Member must exist and be in 'active' status
-  if (!member || member.membershipStatus !== "active") {
+  if (!member || (member.membershipStatus || "").toLowerCase() !== "active") {
     return false;
   }
 
-  // 3. Check explicit delegated permission toggle
-  return Boolean(member.delegatedPermissions?.[permission]);
+  // 3. Group Admins automatically have all operational permissions including approve_members
+  if (member.isAdmin) {
+    return true;
+  }
+
+  // 4. Check explicit delegated permission toggle (parse if JSON string)
+  let perms = member.delegatedPermissions;
+  if (typeof perms === "string") {
+    try {
+      perms = JSON.parse(perms);
+    } catch {
+      perms = null;
+    }
+  }
+
+  return Boolean((perms as Record<string, boolean>)?.[permission]);
 }

@@ -188,19 +188,19 @@ export default async function GroupDetailPage({
   const isExpenseInactive = group.userMembershipStatus === "expense_inactive";
 
   const currentUserMember = members.find((m) => m.userId === user.id);
-  const userCanApprove = isGroupOwner || hasDelegatedGroupPermission(
+  const userCanApprove = isGroupOwner || group.isAdmin || Boolean(currentUserMember?.role === "admin") || hasDelegatedGroupPermission(
     group.createdBy,
     user.id,
     currentUserMember as any,
     "group:approve_members"
   );
-  const userCanViewJoinRequests = isGroupOwner || userCanApprove || hasDelegatedGroupPermission(
+  const userCanViewJoinRequests = isGroupOwner || group.isAdmin || userCanApprove || Boolean(currentUserMember?.role === "admin") || hasDelegatedGroupPermission(
     group.createdBy,
     user.id,
     currentUserMember as any,
     "group:view_join_requests"
   );
-  const userCanManageInvitations = isGroupOwner || hasDelegatedGroupPermission(
+  const userCanManageInvitations = isGroupOwner || group.isAdmin || Boolean(currentUserMember?.role === "admin") || hasDelegatedGroupPermission(
     group.createdBy,
     user.id,
     currentUserMember as any,

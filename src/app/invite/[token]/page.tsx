@@ -94,11 +94,16 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     redirect(`/dashboard/groups/${group.publicId}`);
   }
 
-  // Get member count and inviter details
+  // Get active member count and inviter details
   const memberCountResult = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(groupMembers)
-    .where(eq(groupMembers.groupId, group.id));
+    .where(
+      and(
+        eq(groupMembers.groupId, group.id),
+        sql`LOWER(${groupMembers.membershipStatus}) = 'active'`
+      )
+    );
   
   const memberCount = memberCountResult[0]?.count || 0;
 

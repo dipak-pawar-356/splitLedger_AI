@@ -189,6 +189,7 @@ export default async function GroupsPage({
             isGuest: groupMembers.isGuest,
             isAdmin: groupMembers.isAdmin,
             userId: groupMembers.userId,
+            membershipStatus: groupMembers.membershipStatus,
           })
           .from(groupMembers)
           .where(inArray(groupMembers.groupId, groupIds)),
@@ -231,10 +232,16 @@ export default async function GroupsPage({
 
     // 3. Process individual group calculations
     const enrichedGroups = rawGroups.map((group) => {
-      const groupMemberList = allMembers.filter((m) => m.groupId === group.id);
+      const isApprovedActive = (m: any) => {
+        const status = (m.membershipStatus || "").toLowerCase();
+        if (status === "pending" || status === "pending_approval") return false;
+        if (m.isGuest) return status !== "pending" && status !== "pending_approval";
+        return status === "active";
+      };
+      const groupMemberList = allMembers.filter((m) => m.groupId === group.id && isApprovedActive(m));
       const memberCount = groupMemberList.length;
       const guestMemberCount = groupMemberList.filter((m) => m.isGuest).length;
-      const currentUserMembership = groupMemberList.find((m) => m.userId === user.id);
+      const currentUserMembership = allMembers.find((m) => m.groupId === group.id && m.userId === user.id);
       const isOwner = group.createdBy === user.id;
       const isAdmin = isOwner || !!currentUserMembership?.isAdmin;
 

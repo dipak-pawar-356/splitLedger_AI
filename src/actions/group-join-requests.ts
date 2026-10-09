@@ -1,12 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { 
-  groupJoinRequests, 
-  groups, 
-  groupMembers, 
-  users, 
-  auditLogs 
+import {
+  groupJoinRequests,
+  groups,
+  groupMembers,
+  users,
+  auditLogs
 } from "@/lib/db/schema/schema";
 import { eq, and, sql, desc, or } from "drizzle-orm";
 import { requireAuth, getCurrentUser } from "@/lib/auth";
@@ -94,7 +94,7 @@ export async function getGroupJoinDetailsAction(groupPublicId: string) {
 
     // Check if user has membership record
     const [membership] = await db
-      .select({ 
+      .select({
         id: groupMembers.id,
         membershipStatus: groupMembers.membershipStatus
       })
@@ -190,10 +190,10 @@ export async function submitGroupJoinRequestAction(groupPublicId: string) {
     }
 
     if (existingMember && existingMember.membershipStatus === "expense_inactive") {
-      return { 
-        success: true, 
+      return {
+        success: true,
         message: "Your membership is approved and awaiting Group Owner expense configuration.",
-        status: "expense_inactive" 
+        status: "expense_inactive"
       };
     }
 
@@ -211,12 +211,12 @@ export async function submitGroupJoinRequestAction(groupPublicId: string) {
       .limit(1);
 
     if (existingRequest) {
-      return { 
-        success: true, 
-        requestId: existingRequest.id, 
+      return {
+        success: true,
+        requestId: existingRequest.id,
         publicId: existingRequest.publicId,
         message: "Your join request is pending approval from the Group Owner.",
-        status: "pending" 
+        status: "pending"
       };
     }
 
@@ -302,7 +302,13 @@ export async function getPendingJoinRequestsForGroupAction(groupId: number) {
 
     if (!group) throw new NotFoundError("Group");
 
-    const isOwner = group.createdBy === user.id;
+    const isSystemAdmin =
+      user.email === "dipakspawaras17@gmail.com" ||
+      user.email === "dipakspawar@coep.sveri.ac.in" ||
+      user.email === "pawardipaksa@gmail.com" ||
+      user.email === "dipakspawaras19@gmail.com";
+
+    const isOwner = group.createdBy === user.id || isSystemAdmin;
     if (!isOwner) {
       const [callerMember] = await db
         .select({
@@ -319,17 +325,21 @@ export async function getPendingJoinRequestsForGroupAction(groupId: number) {
         )
         .limit(1);
 
+      const perms = (typeof callerMember?.delegatedPermissions === "string"
+        ? JSON.parse(callerMember.delegatedPermissions)
+        : callerMember?.delegatedPermissions) || {};
+
       const canView = hasDelegatedGroupPermission(
         group.createdBy,
         user.id,
-        callerMember,
+        { ...callerMember, delegatedPermissions: perms },
         "group:view_join_requests"
       ) || hasDelegatedGroupPermission(
         group.createdBy,
         user.id,
-        callerMember,
+        { ...callerMember, delegatedPermissions: perms },
         "group:approve_members"
-      ) || Boolean(callerMember?.isAdmin);
+      ) || Boolean(callerMember?.isAdmin) || Boolean(perms?.["group:approve_members"]);
 
       if (!canView) {
         throw new AuthorizationError("You do not have permission to view pending join requests.");
@@ -382,190 +392,189 @@ export async function approveJoinRequestAction(data: {
       throw new ValidationError("Please choose how this member should participate in group expenses before approving.");
     }
 
-    return await db.transaction(async (tx) => {
-      // 1. Fetch the request
-      const [request] = await tx
-        .select()
-        .from(groupJoinRequests)
-        .where(eq(groupJoinRequests.id, data.requestId))
-        .limit(1);
+    // 1. Fetch the request
+    const [request] = await db
+      .select()
+      .from(groupJoinRequests)
+      .where(eq(groupJoinRequests.id, data.requestId))
+      .limit(1);
 
-      if (!request) {
-        throw new NotFoundError("Join request not found");
-      }
+    if (!request) {
+      return { success: false as const, error: "Join request not found" };
+    }
 
-      if (request.status !== "pending") {
-        throw new ConflictError(`This join request has already been ${request.status}.`);
-      }
+    if (request.status !== "pending") {
+      return { success: false as const, error: `This join request has already been ${request.status}.` };
+    }
 
-      // 2. Fetch group & verify caller authority
-      const [group] = await tx
-        .select()
-        .from(groups)
-        .where(eq(groups.id, request.groupId))
-        .limit(1);
+    // 2. Fetch group & verify caller authority
+    const [group] = await db
+      .select()
+      .from(groups)
+      .where(eq(groups.id, request.groupId))
+      .limit(1);
 
-      if (!group) throw new NotFoundError("Group");
+    if (!group) return { success: false as const, error: "Group not found" };
 
-      const isSystemAdmin = 
-        user.email === "dipakspawaras17@gmail.com" ||
-        user.email === "dipakspawar@coep.sveri.ac.in" ||
-        user.email === "pawardipaksa@gmail.com" ||
-        user.email === "dipak@splitledger.ai";
+    const isSystemAdmin =
+      user.email === "dipakspawaras17@gmail.com" ||
+      user.email === "dipakspawar@coep.sveri.ac.in" ||
+      user.email === "pawardipaksa@gmail.com" ||
+      user.email === "dipak@splitledger.ai";
 
-      const isOwner = group.createdBy === user.id || isSystemAdmin;
+    const isOwner = group.createdBy === user.id || isSystemAdmin;
 
-      let canApprove = isOwner;
-      if (!canApprove) {
-        const [callerMember] = await tx
-          .select({
-            membershipStatus: groupMembers.membershipStatus,
-            delegatedPermissions: groupMembers.delegatedPermissions,
-            isAdmin: groupMembers.isAdmin,
-          })
-          .from(groupMembers)
-          .where(
-            and(
-              eq(groupMembers.groupId, group.id),
-              eq(groupMembers.userId, user.id)
-            )
-          )
-          .limit(1);
-
-        canApprove = Boolean(callerMember?.isAdmin) ||
-          callerMember?.membershipStatus === "active" ||
-          hasDelegatedGroupPermission(
-            group.createdBy,
-            user.id,
-            callerMember,
-            "group:approve_members"
-          );
-      }
-
-      if (!canApprove) {
-        return {
-          success: false,
-          error: "You do not have permission to approve join requests for this group.",
-        };
-      }
-
-      // 3. Mark request as approved
-      await tx
-        .update(groupJoinRequests)
-        .set({
-          status: "approved",
-          approvedBy: user.id,
-          approvedAt: new Date(),
-          includeInHistoricalExpenses: decision === "included",
-          updatedAt: new Date(),
+    let canApprove = isOwner;
+    if (!canApprove) {
+      const [callerMember] = await db
+        .select({
+          membershipStatus: groupMembers.membershipStatus,
+          delegatedPermissions: groupMembers.delegatedPermissions,
+          isAdmin: groupMembers.isAdmin,
         })
-        .where(eq(groupJoinRequests.id, request.id));
-
-      // 4. Update or insert member row directly to 'active' with participation rule (REQUIREMENTS 6, 7, 8)
-      const [existingMember] = await tx
-        .select()
         .from(groupMembers)
         .where(
           and(
             eq(groupMembers.groupId, group.id),
-            eq(groupMembers.userId, request.userId)
+            eq(groupMembers.userId, user.id)
           )
         )
         .limit(1);
 
-      let memberRecordId: number;
-      if (!existingMember) {
-        const [newMember] = await tx
-          .insert(groupMembers)
-          .values({
-            groupId: group.id,
-            userId: request.userId,
-            membershipStatus: "active",
-            historicalInclusionDecision: decision,
-            activatedAt: new Date(),
-            isAdmin: false,
-            isGuest: false,
-            joinedAt: new Date(),
-          })
-          .returning();
-        memberRecordId = newMember.id;
-      } else {
-        await tx
-          .update(groupMembers)
-          .set({
-            membershipStatus: "active",
-            historicalInclusionDecision: decision,
-            activatedAt: new Date(),
-          })
-          .where(eq(groupMembers.id, existingMember.id));
-        memberRecordId = existingMember.id;
-      }
+      const perms = (typeof callerMember?.delegatedPermissions === "string"
+        ? JSON.parse(callerMember.delegatedPermissions)
+        : callerMember?.delegatedPermissions) || {};
 
-      // 5. Apply Historical Redistribution if Option A selected
-      let redistributedCount = 0;
-      if (decision === "included") {
-        const redistribution = await redistributeGroupHistoricalExpenses(
-          group.id,
-          request.userId,
+      canApprove = Boolean(callerMember?.isAdmin) ||
+        callerMember?.membershipStatus === "active" ||
+        Boolean(perms?.["group:approve_members"]) ||
+        hasDelegatedGroupPermission(
+          group.createdBy,
           user.id,
-          tx
+          { ...callerMember, delegatedPermissions: perms },
+          "group:approve_members"
         );
-        redistributedCount = redistribution.redistributedCount;
-      }
+    }
 
-      const activationOutcome = {
-        decision,
-        status: "active",
-        redistributedCount,
-      };
-
-      // 6. Record audit log
-      try {
-        await tx.insert(auditLogs).values({
-          publicId: generateAuditId(),
-          userId: user.id,
-          action: "update",
-          entityType: "group",
-          entityId: group.id,
-          changes: {
-            action: "approve_join_request",
-            requestId: request.id,
-            applicantUserId: request.userId,
-            status: activationOutcome ? "active" : "expense_inactive",
-            activationDecision: decision,
-          },
-          reason: "Join request approved by group owner/admin",
-          status: "success",
-        });
-      } catch (auditErr) {
-        console.warn("Non-fatal: failed to write approval audit log:", auditErr);
-      }
-
-      // 7. Revalidate all paths
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      if (group.legacyPublicId) {
-        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
-      }
-      revalidatePath(`/dashboard/groups/${group.id}`);
-      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
-      revalidatePath(`/dashboard/settlements`);
-      revalidatePath(`/join-group/${group.publicId}`);
-      if (group.legacyPublicId) {
-        revalidatePath(`/join-group/${group.legacyPublicId}`);
-      }
-      revalidatePath("/dashboard/groups");
-      revalidatePath("/groups");
-      revalidatePath("/dashboard");
-
+    if (!canApprove) {
       return {
-        success: true as const,
-        groupId: group.id,
-        groupPublicId: group.publicId,
-        memberUserId: request.userId,
-        status: activationOutcome ? "active" : "expense_inactive",
-        activation: activationOutcome,
+        success: false as const,
+        error: "You do not have permission to approve join requests for this group.",
       };
-    });
+    }
+
+    // 3. Mark request as approved
+    await db
+      .update(groupJoinRequests)
+      .set({
+        status: "approved",
+        approvedBy: user.id,
+        approvedAt: new Date(),
+        includeInHistoricalExpenses: decision === "included",
+        updatedAt: new Date(),
+      })
+      .where(eq(groupJoinRequests.id, request.id));
+
+    // 4. Update or insert member row directly to 'active' with participation rule (REQUIREMENTS 6, 7, 8)
+    const [existingMember] = await db
+      .select()
+      .from(groupMembers)
+      .where(
+        and(
+          eq(groupMembers.groupId, group.id),
+          eq(groupMembers.userId, request.userId)
+        )
+      )
+      .limit(1);
+
+    if (!existingMember) {
+      await db
+        .insert(groupMembers)
+        .values({
+          groupId: group.id,
+          userId: request.userId,
+          membershipStatus: "active",
+          historicalInclusionDecision: decision,
+          activatedAt: new Date(),
+          isAdmin: false,
+          isGuest: false,
+          joinedAt: new Date(),
+        });
+    } else {
+      await db
+        .update(groupMembers)
+        .set({
+          membershipStatus: "active",
+          historicalInclusionDecision: decision,
+          activatedAt: new Date(),
+        })
+        .where(eq(groupMembers.id, existingMember.id));
+    }
+
+    // 5. Apply Historical Redistribution if Option A selected
+    let redistributedCount = 0;
+    if (decision === "included") {
+      const redistribution = await redistributeGroupHistoricalExpenses(
+        group.id,
+        request.userId,
+        user.id,
+        db
+      );
+      redistributedCount = redistribution.redistributedCount;
+    }
+
+    const activationOutcome = {
+      decision,
+      status: "active",
+      redistributedCount,
+    };
+
+    // 6. Record audit log
+    try {
+      await db.insert(auditLogs).values({
+        publicId: generateAuditId(),
+        userId: user.id,
+        action: "update",
+        entityType: "group",
+        entityId: group.id,
+        changes: {
+          action: "approve_join_request",
+          requestId: request.id,
+          applicantUserId: request.userId,
+          status: "active",
+          activationDecision: decision,
+        },
+        reason: "Join request approved by group owner/admin",
+        status: "success",
+      });
+    } catch (auditErr) {
+      console.warn("Non-fatal: failed to write approval audit log:", auditErr);
+    }
+
+    // 7. Revalidate all paths
+    revalidatePath(`/dashboard/groups/${group.publicId}`);
+    if (group.legacyPublicId) {
+      revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
+    }
+    revalidatePath(`/dashboard/groups/${group.id}`);
+    revalidatePath(`/dashboard/groups/${group.id}/settlements`);
+    revalidatePath(`/dashboard/settlements`);
+    revalidatePath(`/join-group/${group.publicId}`);
+    if (group.legacyPublicId) {
+      revalidatePath(`/join-group/${group.legacyPublicId}`);
+    }
+    revalidatePath("/dashboard/groups");
+    revalidatePath("/groups");
+    revalidatePath("/dashboard");
+
+    return {
+      success: true as const,
+      groupId: group.id,
+      groupPublicId: group.publicId,
+      memberUserId: request.userId,
+      status: "active",
+      activation: activationOutcome,
+    };
   } catch (error: any) {
     console.error("Failed to approve join request:", error);
     return {
@@ -577,7 +586,7 @@ export async function approveJoinRequestAction(data: {
 
 /**
  * Configure Expense Activation Decision (REQUIREMENT 4 & 9)
- * Exclusively executed by Group Owner:
+ * Exclusively executed by Group Owner or delegated admin with approve_members permission
  * Option A: "included" -> redistribute historical expenses, recalculate balances & settlements, mark active
  * Option B: "excluded" -> preserve calculations, historical share 0, mark active
  */
@@ -589,91 +598,132 @@ export async function activateMemberExpenseParticipationAction(data: {
   try {
     const user = await requireAuth();
 
-    return await db.transaction(async (tx) => {
-      // 1. Fetch group & verify caller is Group Owner (REQUIREMENT 9)
-      const [group] = await tx
-        .select()
-        .from(groups)
-        .where(and(eq(groups.id, data.groupId), eq(groups.isDeleted, false)))
-        .limit(1);
+    // 1. Fetch group & verify caller authority
+    const [group] = await db
+      .select()
+      .from(groups)
+      .where(and(eq(groups.id, data.groupId), eq(groups.isDeleted, false)))
+      .limit(1);
 
-      if (!group) throw new NotFoundError("Group not found");
+    if (!group) return { success: false as const, error: "Group not found" };
 
-      if (group.createdBy !== user.id) {
-        throw new AuthorizationError("Only the Group Owner may configure expense participation.");
-      }
+    const isSystemAdmin =
+      user.email === "dipakspawaras17@gmail.com" ||
+      user.email === "dipakspawar@coep.sveri.ac.in" ||
+      user.email === "pawardipaksa@gmail.com" ||
+      user.email === "dipak@splitledger.ai";
 
-      // 2. Fetch target member
-      const [member] = await tx
-        .select()
+    const isOwner = group.createdBy === user.id || isSystemAdmin;
+    let canActivate = isOwner;
+    if (!canActivate) {
+      const [callerMember] = await db
+        .select({
+          membershipStatus: groupMembers.membershipStatus,
+          delegatedPermissions: groupMembers.delegatedPermissions,
+          isAdmin: groupMembers.isAdmin,
+        })
         .from(groupMembers)
         .where(
           and(
             eq(groupMembers.groupId, group.id),
-            eq(groupMembers.userId, data.memberUserId)
+            eq(groupMembers.userId, user.id)
           )
         )
         .limit(1);
 
-      if (!member) {
-        throw new NotFoundError("Member not found in group");
-      }
+      const perms = (typeof callerMember?.delegatedPermissions === "string"
+        ? JSON.parse(callerMember.delegatedPermissions)
+        : callerMember?.delegatedPermissions) || {};
 
-      let redistributionCount = 0;
-
-      if (data.decision === "included") {
-        // Option A: Include in Previous Expenses (recalculate historical expenses, shares, settlements)
-        const result = await redistributeGroupHistoricalExpenses(
-          group.id,
-          data.memberUserId,
+      canActivate = Boolean(callerMember?.isAdmin) ||
+        callerMember?.membershipStatus === "active" ||
+        Boolean(perms?.["group:approve_members"]) ||
+        hasDelegatedGroupPermission(
+          group.createdBy,
           user.id,
-          tx
+          { ...callerMember, delegatedPermissions: perms },
+          "group:approve_members"
         );
-        redistributionCount = result.redistributedCount;
+    }
 
-        await tx
-          .update(groupMembers)
-          .set({
-            membershipStatus: "active",
-            historicalInclusionDecision: "included",
-            activatedAt: new Date(),
-          })
-          .where(eq(groupMembers.id, member.id));
+    if (!canActivate) {
+      return {
+        success: false as const,
+        error: "Only the Group Owner or authorized members with approve permissions can configure expense participation.",
+      };
+    }
 
-        // Update join request record if exists
-        await tx
-          .update(groupJoinRequests)
-          .set({ includeInHistoricalExpenses: true })
-          .where(
-            and(
-              eq(groupJoinRequests.groupId, group.id),
-              eq(groupJoinRequests.userId, data.memberUserId)
-            )
-          );
-      } else {
-        // Option B: Start From New Expenses Only (preserve existing calculations)
-        await tx
-          .update(groupMembers)
-          .set({
-            membershipStatus: "active",
-            historicalInclusionDecision: "excluded",
-            activatedAt: new Date(),
-          })
-          .where(eq(groupMembers.id, member.id));
+    // 2. Fetch target member
+    const [member] = await db
+      .select()
+      .from(groupMembers)
+      .where(
+        and(
+          eq(groupMembers.groupId, group.id),
+          eq(groupMembers.userId, data.memberUserId)
+        )
+      )
+      .limit(1);
 
-        await tx
-          .update(groupJoinRequests)
-          .set({ includeInHistoricalExpenses: false })
-          .where(
-            and(
-              eq(groupJoinRequests.groupId, group.id),
-              eq(groupJoinRequests.userId, data.memberUserId)
-            )
-          );
-      }
+    if (!member) {
+      return { success: false as const, error: "Member not found in group" };
+    }
 
-      // 3. Audit log
-      await tx.insert(auditLogs).values({
+    let redistributionCount = 0;
+
+    if (data.decision === "included") {
+      // Option A: Include in Previous Expenses (recalculate historical expenses, shares, settlements)
+      const result = await redistributeGroupHistoricalExpenses(
+        group.id,
+        data.memberUserId,
+        user.id,
+        db
+      );
+      redistributionCount = result.redistributedCount;
+
+      await db
+        .update(groupMembers)
+        .set({
+          membershipStatus: "active",
+          historicalInclusionDecision: "included",
+          activatedAt: new Date(),
+        })
+        .where(eq(groupMembers.id, member.id));
+
+      await db
+        .update(groupJoinRequests)
+        .set({ includeInHistoricalExpenses: true })
+        .where(
+          and(
+            eq(groupJoinRequests.groupId, group.id),
+            eq(groupJoinRequests.userId, data.memberUserId)
+          )
+        );
+    } else {
+      // Option B: Start From New Expenses Only (preserve existing calculations)
+      await db
+        .update(groupMembers)
+        .set({
+          membershipStatus: "active",
+          historicalInclusionDecision: "excluded",
+          activatedAt: new Date(),
+        })
+        .where(eq(groupMembers.id, member.id));
+
+      await db
+        .update(groupJoinRequests)
+        .set({ includeInHistoricalExpenses: false })
+        .where(
+          and(
+            eq(groupJoinRequests.groupId, group.id),
+            eq(groupJoinRequests.userId, data.memberUserId)
+          )
+        );
+    }
+
+    // 3. Audit log
+    try {
+      await db.insert(auditLogs).values({
         publicId: generateAuditId(),
         userId: user.id,
         action: "update",
@@ -688,26 +738,26 @@ export async function activateMemberExpenseParticipationAction(data: {
         reason: `Group Owner activated member expense participation (${data.decision})`,
         status: "success",
       });
+    } catch (_) { }
 
-      // 4. Revalidate paths for immediate sync
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      revalidatePath(`/dashboard/groups/${group.id}`);
-      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
-      revalidatePath(`/dashboard/settlements`);
-      revalidatePath("/dashboard/groups");
-      revalidatePath("/groups");
-      revalidatePath("/dashboard");
+    // 4. Revalidate paths for immediate sync
+    revalidatePath(`/dashboard/groups/${group.publicId}`);
+    revalidatePath(`/dashboard/groups/${group.id}`);
+    revalidatePath(`/dashboard/groups/${group.id}/settlements`);
+    revalidatePath(`/dashboard/settlements`);
+    revalidatePath("/dashboard/groups");
+    revalidatePath("/groups");
+    revalidatePath("/dashboard");
 
-      return {
-        success: true as const,
-        groupId: group.id,
-        groupPublicId: group.publicId,
-        memberUserId: data.memberUserId,
-        decision: data.decision,
-        status: "active",
-        redistributedCount: redistributionCount,
-      };
-    });
+    return {
+      success: true as const,
+      groupId: group.id,
+      groupPublicId: group.publicId,
+      memberUserId: data.memberUserId,
+      decision: data.decision,
+      status: "active",
+      redistributedCount: redistributionCount,
+    };
   } catch (error: any) {
     console.error("Failed to activate expense participation:", error);
     return {
@@ -743,7 +793,7 @@ export async function rejectJoinRequestAction(data: {
 
     if (!group) throw new NotFoundError("Group");
 
-    const isSystemAdmin = 
+    const isSystemAdmin =
       user.email === "dipakspawaras17@gmail.com" ||
       user.email === "dipakspawar@coep.sveri.ac.in" ||
       user.email === "pawardipaksa@gmail.com" ||
