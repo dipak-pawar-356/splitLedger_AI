@@ -49,8 +49,15 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS privacy_settings JSONB`;
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS active_sessions JSONB`;
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS trusted_devices JSONB`;
-      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS login_history JSONB`;
       await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'::jsonb`;
+      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS expense_notifications BOOLEAN DEFAULT true`;
+      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS settlement_notifications BOOLEAN DEFAULT true`;
+      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS group_notifications BOOLEAN DEFAULT true`;
+      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS invitation_notifications BOOLEAN DEFAULT true`;
+      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS budget_notifications BOOLEAN DEFAULT true`;
+      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS reminder_notifications BOOLEAN DEFAULT true`;
+      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sound_enabled BOOLEAN DEFAULT true`;
+      await sqlClient`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS desktop_notifications BOOLEAN DEFAULT false`;
 
       // Notifications table extensions
       await sqlClient`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS public_id TEXT`;
@@ -83,6 +90,11 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`ALTER TABLE invitations ADD COLUMN IF NOT EXISTS legacy_token TEXT`;
 
       await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS public_id TEXT`;
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS title TEXT`;
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS tags JSONB`;
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS location TEXT`;
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS is_personal BOOLEAN DEFAULT true`;
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_by INTEGER`;
       await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false`;
       await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`;
       await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS deleted_by INTEGER`;
@@ -99,7 +111,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`;
       await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_by INTEGER`;
 
-      // Create Audit Logs if not exists
+      // Create or alter Audit Logs
       await sqlClient`
         CREATE TABLE IF NOT EXISTS audit_logs (
           id SERIAL PRIMARY KEY,
@@ -121,6 +133,14 @@ export async function ensureDatabaseSchema(): Promise<void> {
           created_at TIMESTAMP DEFAULT NOW() NOT NULL
         )
       `;
+      await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS public_id TEXT`;
+      await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_public_id TEXT`;
+      await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS before_data JSONB`;
+      await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS after_data JSONB`;
+      await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS reason TEXT`;
+      await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'success'`;
+      await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS browser TEXT`;
+      await sqlClient`ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS device TEXT`;
 
       // Create Transaction Versions if not exists
       await sqlClient`
@@ -621,7 +641,78 @@ export async function ensureDatabaseSchema(): Promise<void> {
         )
       `;
       await sqlClient`CREATE INDEX IF NOT EXISTS eph_tx_idx ON expense_participation_history(transaction_id)`;
-      await sqlClient`CREATE INDEX IF NOT EXISTS eph_group_idx ON expense_participation_history(group_id)`;
+      await sqlClient`ALTER TABLE note_checklists ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending'`;
+      await sqlClient`ALTER TABLE note_checklists ADD COLUMN IF NOT EXISTS progress INTEGER DEFAULT 0`;
+      await sqlClient`ALTER TABLE note_checklists ADD COLUMN IF NOT EXISTS task_notes TEXT`;
+      await sqlClient`ALTER TABLE note_checklists ADD COLUMN IF NOT EXISTS subtasks JSONB DEFAULT '[]'::jsonb`;
+      await sqlClient`ALTER TABLE note_checklists ADD COLUMN IF NOT EXISTS assigned_to INTEGER`;
+      await sqlClient`ALTER TABLE note_checklists ADD COLUMN IF NOT EXISTS reminder_date TIMESTAMP`;
+
+      await sqlClient`ALTER TABLE note_attachments ADD COLUMN IF NOT EXISTS waveform JSONB`;
+
+      await sqlClient`ALTER TABLE note_comments ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT false`;
+      await sqlClient`ALTER TABLE note_comments ADD COLUMN IF NOT EXISTS is_resolved BOOLEAN DEFAULT false`;
+      await sqlClient`ALTER TABLE note_comments ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '{}'::jsonb`;
+      await sqlClient`ALTER TABLE note_comments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`;
+
+      // Reports & Journals tables
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS saved_reports (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          report_type TEXT NOT NULL,
+          filters JSONB NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS saved_report_user_idx ON saved_reports(user_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS saved_report_public_id_idx ON saved_reports(public_id)`;
+
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS scheduled_reports (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+          saved_report_id INTEGER REFERENCES saved_reports(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          frequency TEXT DEFAULT 'monthly' NOT NULL,
+          recipient_email TEXT NOT NULL,
+          format TEXT DEFAULT 'pdf' NOT NULL,
+          is_active BOOLEAN DEFAULT true NOT NULL,
+          last_run_at TIMESTAMP,
+          next_run_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS scheduled_report_user_idx ON scheduled_reports(user_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS scheduled_report_public_id_idx ON scheduled_reports(public_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS scheduled_report_active_idx ON scheduled_reports(is_active)`;
+
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS daily_journals (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+          date TEXT NOT NULL,
+          mood TEXT,
+          summary TEXT,
+          daily_goal TEXT,
+          daily_achievement TEXT,
+          financial_reflection TEXT,
+          manual_notes TEXT,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE UNIQUE INDEX IF NOT EXISTS daily_journal_user_date_idx ON daily_journals(user_id, date)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS daily_journal_user_idx ON daily_journals(user_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS daily_journal_date_idx ON daily_journals(date)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS daily_journal_public_id_idx ON daily_journals(public_id)`;
 
       // ==========================================
       // HIGH-PERFORMANCE COMPOSITE INDEXES

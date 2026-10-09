@@ -12,7 +12,7 @@ export default function SignInPage() {
               },
             },
           }}
-          redirectUrl="/dashboard"
+          fallbackRedirectUrl="/dashboard"
         />
       </div>
     </div>

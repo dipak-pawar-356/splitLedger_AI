@@ -12,7 +12,7 @@ export default function SignUpPage() {
               },
             },
           }}
-          redirectUrl="/dashboard"
+          fallbackRedirectUrl="/dashboard"
         />
       </div>
     </div>

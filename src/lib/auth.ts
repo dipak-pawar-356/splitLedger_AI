@@ -66,12 +66,28 @@ export const getCurrentUser = reactCache(async () => {
   try {
     let userId: string | null = null;
     try {
-      const reqHeaders = await headers();
-      const forwardedUserId = reqHeaders.get("x-clerk-user-id");
+      // 1. First priority: Clerk official server auth()
+      if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
+        try {
+          const { auth } = await import("@clerk/nextjs/server");
+          const clerkAuth = await auth();
+          if (clerkAuth?.userId) {
+            userId = clerkAuth.userId;
+          }
+        } catch (_) {}
+      }
 
-      if (forwardedUserId) {
-        userId = forwardedUserId;
-      } else if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
+      // 2. Second priority: forwarded header from middleware
+      if (!userId) {
+        const reqHeaders = await headers();
+        const forwardedUserId = reqHeaders.get("x-clerk-user-id");
+        if (forwardedUserId) {
+          userId = forwardedUserId;
+        }
+      }
+
+      // 3. Third priority: cookie extraction
+      if (!userId && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY) {
         const cookieStore = await cookies();
         const sessionToken = cookieStore.get("__session")?.value;
         const dbJwtToken = cookieStore.get("__clerk_db_jwt")?.value;
@@ -131,9 +147,12 @@ export const getCurrentUser = reactCache(async () => {
         ? `${clerkUser.first_name || clerkUser.firstName || ''} ${clerkUser.last_name || clerkUser.lastName || ''}`.trim() || clerkUser.username || "User"
         : "User";
 
+      const generatedPublicId = `usr_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+
       const [newUser] = await db
         .insert(users)
         .values({
+          publicId: generatedPublicId,
           clerkUserId: userId,
           email: userEmail,
           name: userName,
@@ -144,9 +163,20 @@ export const getCurrentUser = reactCache(async () => {
         })
         .returning();
 
+      if (newUser?.id) {
+        try {
+          const { profiles } = await import("@/lib/db/schema/schema");
+          await db.insert(profiles).values({
+            userId: newUser.id,
+            accountStatus: "active",
+          }).onConflictDoNothing();
+        } catch (_) {}
+      }
+
       return newUser || DEV_USER;
     });
   } catch (error) {
+    console.error("getCurrentUser error:", error);
     if (isDevOrTest()) return DEV_USER;
     return null;
   }
