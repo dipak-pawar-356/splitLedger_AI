@@ -1,9 +1,10 @@
 # GSD State Tracker
 
 ## Current Position
-- **Milestone**: Dynamic UPI QR Settlements, Historical Redistribution & QR Group Joining
-- **Status**: ✅ Completed & Verified
-- **Dev Server**: Running in background (Task `task-123` on http://localhost:3000)
+- **Milestone**: Timeline-Based Member Removal & Authoritative Recalculation Engine
+- **Phase**: Phase 6
+- **Task**: Planning complete (Plans 6.1, 6.2, 6.3 created across 3 waves)
+- **Status**: Ready for execution
 
 ## Phase Progress
 - Phase 1: User Profile UPI Setup & Schema Integration (✅ Complete)
@@ -11,6 +12,11 @@
 - Phase 3: Multi-Receiver Settlement Cards & Group Dashboard Integration (✅ Complete)
 - Phase 4: Payment Execution, Real-Time Revalidation & Verification (✅ Complete)
 - Phase 5: Historical Expense Redistribution & QR Group Joining (✅ Complete)
+- Phase 6: Timeline-Based Member Removal & Authoritative Recalculation Engine (⏳ Planned)
+
+## Next Steps
+1. /execute 6
+
 
 ## Verification Highlights
 1. **TypeScript Typecheck**: `npx tsc --noEmit` passed with 0 errors across the entire repository.

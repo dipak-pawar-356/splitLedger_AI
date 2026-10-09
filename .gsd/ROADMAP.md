@@ -63,3 +63,25 @@ updated: 2026-10-08T14:35:00+05:30
 **Plans:**
 - [x] Plan 4.1: Real-Time Payment Invalidation & Settlement History
 - [x] Plan 4.2: Comprehensive Validation & Dev Server Verification
+
+---
+
+### Phase 5: Historical Expense Redistribution & QR Group Joining
+**Status:** ✅ Complete
+**Objective:** Implement group QR link joining, owner approval dialog with historical inclusion choice, and atomic redistribution across expenses.
+
+**Plans:**
+- [x] Plan 5.1: Group QR Join Flow & Pending Requests State
+- [x] Plan 5.2: Atomic Owner Approval with Historical Decision Selection
+
+---
+
+### Phase 6: Timeline-Based Member Removal & Authoritative Recalculation Engine
+**Status:** ⏳ Planned
+**Objective:** Implement an authoritative timeline-based recalculation engine where expense participants are resolved independently from member lifecycle timelines (Mode A vs Mode B, joined, removed, rejoined) without ever relying on current group member counts. Completed settlements are preserved as immutable, and dynamic UPI QR and dashboard views reflect fresh recalculated balances.
+
+**Plans:**
+- [ ] Plan 6.1: Timeline Analytical Model & Expense-Level Participant Resolution Engine (wave 1)
+- [ ] Plan 6.2: Master 15-Step Atomic Recalculation Engine & Universal Trigger Pipeline (wave 2)
+- [ ] Plan 6.3: Downstream Financial State, Dynamic UPI QR Freshness & UI Dashboard Synchronization (wave 3)
+
