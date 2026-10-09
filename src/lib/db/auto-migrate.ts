@@ -67,15 +67,20 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP`;
       await sqlClient`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP`;
       await sqlClient`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`;
+      await sqlClient`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT false`;
       await sqlClient`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`;
       await sqlClient`CREATE INDEX IF NOT EXISTS notification_public_id_idx ON notifications(public_id)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS notification_priority_idx ON notifications(priority)`;
 
-      // Soft delete & publicId extensions for groups, transactions, settlements, contacts
+      // Soft delete & publicId extensions for groups, transactions, settlements, contacts, invitations
       await sqlClient`ALTER TABLE groups ADD COLUMN IF NOT EXISTS public_id TEXT`;
+      await sqlClient`ALTER TABLE groups ADD COLUMN IF NOT EXISTS legacy_public_id TEXT`;
       await sqlClient`ALTER TABLE groups ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false`;
       await sqlClient`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`;
       await sqlClient`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_by INTEGER`;
+
+      await sqlClient`ALTER TABLE invitations ADD COLUMN IF NOT EXISTS public_id TEXT`;
+      await sqlClient`ALTER TABLE invitations ADD COLUMN IF NOT EXISTS legacy_token TEXT`;
 
       await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS public_id TEXT`;
       await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false`;
