@@ -17,6 +17,8 @@ import { recordAuditLog } from "@/lib/audit";
 import { eventBus } from "@/lib/realtime/event-bus";
 import { DatabaseError, ValidationError, NotFoundError } from "@/lib/errors";
 import { validateUpiId } from "@/lib/payments/upi";
+import { revalidatePath } from "next/cache";
+import { appCache } from "@/lib/cache";
 
 export interface ProfileDetails {
   user: {
@@ -457,11 +459,13 @@ export async function updatePersonalInfo(data: {
       }
     }
 
+    const cleanName = data.name.trim();
+
     // Update user display name, currency & upiId
     await db
       .update(users)
       .set({
-        name: data.name.trim(),
+        name: cleanName,
         defaultCurrency: data.defaultCurrency || "INR",
         ...(data.upiId !== undefined && { upiId: cleanUpi }),
         updatedAt: new Date(),
@@ -489,23 +493,55 @@ export async function updatePersonalInfo(data: {
       })
       .where(eq(profiles.userId, user.id));
 
+    // Optional background sync with Clerk
+    if (user.clerkUserId && process.env.CLERK_SECRET_KEY && !process.env.CLERK_SECRET_KEY.includes("sample_ci")) {
+      const parts = cleanName.split(" ");
+      const firstName = parts[0] || "";
+      const lastName = parts.slice(1).join(" ") || "";
+      try {
+        await fetch(`https://api.clerk.com/v1/users/${user.clerkUserId}`, {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            first_name: firstName,
+            last_name: lastName,
+          }),
+          signal: AbortSignal.timeout(3000),
+        });
+      } catch (_) {}
+    }
+
     // Audit log
     await recordAuditLog({
       userId: user.id,
       action: "profile_updated",
       entityType: "profile",
       entityId: user.id,
-      changes: data,
+      changes: { ...data, name: cleanName },
     });
+
+    // Invalidate in-memory caches
+    appCache.invalidateTags([`user:${user.id}`, "profile", "groups", "dashboard"]);
+
+    // Revalidate dashboard layout and views
+    try {
+      revalidatePath("/dashboard", "layout");
+      revalidatePath("/dashboard/profile");
+      revalidatePath("/dashboard/groups");
+      revalidatePath("/dashboard/settings");
+    } catch (_) {}
 
     // Real-time broadcast
     eventBus.broadcast({
       channel: `user:${user.id}`,
       type: "activity_logged",
-      payload: { action: "profile_updated" },
+      payload: { action: "profile_updated", name: cleanName },
     });
 
-    return { success: true };
+    return { success: true, name: cleanName };
   } catch (error) {
     if (error instanceof ValidationError) throw error;
     throw new DatabaseError("Failed to update personal information", { originalError: error });

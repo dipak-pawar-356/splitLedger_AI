@@ -8,7 +8,15 @@ import Link from "next/link";
 import { Sparkles, Menu } from "lucide-react";
 import { useSidebar } from "@/components/layout/sidebar-context";
 
-export function Header() {
+interface HeaderProps {
+  initialUser?: {
+    name?: string | null;
+    email?: string | null;
+    avatar?: string | null;
+  };
+}
+
+export function Header({ initialUser }: HeaderProps = {}) {
   const { toggleMobileOpen } = useSidebar();
 
   return (
@@ -40,7 +48,7 @@ export function Header() {
       <div className="flex items-center gap-1.5 sm:gap-2.5">
         <ThemeToggle />
         <NotificationBell />
-        <ProfileMenu />
+        <ProfileMenu initialUser={initialUser} />
       </div>
     </header>
   );

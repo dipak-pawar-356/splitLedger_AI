@@ -16,8 +16,9 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  let currentUser = null;
   try {
-    await requireAuth();
+    currentUser = await requireAuth();
   } catch (error) {
     console.warn("Dashboard layout auth check warning:", error);
   }
@@ -28,7 +29,7 @@ export default async function DashboardLayout({
         <Sidebar />
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden transition-all duration-300">
           <OfflineIndicator />
-          <Header />
+          <Header initialUser={currentUser ? { name: currentUser.name, email: currentUser.email, avatar: currentUser.avatar } : undefined} />
           <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 lg:p-8 pb-20 md:pb-8">
             <PageTransition>
               {children}

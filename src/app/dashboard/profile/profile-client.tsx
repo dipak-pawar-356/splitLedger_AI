@@ -255,6 +255,8 @@ function ProfileForm({ user }: { user: { id: number; name: string; email: string
         body: JSON.stringify(formData),
       });
       if (response.ok) {
+        window.dispatchEvent(new CustomEvent("profile_updated", { detail: { name: formData.name.trim() } }));
+        window.dispatchEvent(new CustomEvent("user_updated", { detail: { name: formData.name.trim() } }));
         toast.success("Profile updated successfully");
       } else {
         toast.error("Failed to update profile");

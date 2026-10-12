@@ -10,10 +10,10 @@ describe("Activity Timeline & Real-Time Sync System", () => {
       const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
 
       const items = [
-        { id: 1, title: "Expense Added", createdAt: new Date(now.getTime() - 1000 * 60 * 10) }, // Today
+        { id: 1, title: "Expense Added", createdAt: new Date(startOfToday.getTime() + 1000 * 60 * 60 * 2) }, // Today
         { id: 2, title: "Settlement Completed", createdAt: new Date(startOfYesterday.getTime() + 1000 * 60 * 60 * 2) }, // Yesterday
-        { id: 3, title: "Group Created", createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 4) }, // This Week
-        { id: 4, title: "Profile Updated", createdAt: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 30) }, // Earlier
+        { id: 3, title: "Group Created", createdAt: new Date(startOfWeek.getTime() + 1000 * 60 * 60 * 24 * 2) }, // This Week
+        { id: 4, title: "Profile Updated", createdAt: new Date(startOfWeek.getTime() - 1000 * 60 * 60 * 24 * 5) }, // Earlier
       ];
 
       const todayItems = items.filter((i) => i.createdAt >= startOfToday);

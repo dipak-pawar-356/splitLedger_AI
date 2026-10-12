@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updatePersonalInfo } from "@/actions/profile";
-import { toast } from "sonner";
 import { Check, User, Globe, Briefcase, MapPin, QrCode, Smartphone, AlertCircle } from "lucide-react";
 import { validateUpiId } from "@/lib/payments/upi";
+import { useUser } from "@clerk/nextjs";
+import { toast } from "sonner";
 
 interface PersonalInfoFormProps {
   initialData: {
@@ -33,6 +34,7 @@ interface PersonalInfoFormProps {
 }
 
 export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormProps) {
+  const { user: clerkUser } = useUser();
   const [formData, setFormData] = useState({
     name: initialData.name || "",
     username: initialData.username || "",
@@ -76,8 +78,10 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
         }
       }
 
+      const cleanName = formData.name.trim();
+
       await updatePersonalInfo({
-        name: formData.name,
+        name: cleanName,
         username: formData.username || undefined,
         bio: formData.bio || undefined,
         occupation: formData.occupation || undefined,
@@ -93,6 +97,20 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
         defaultCurrency: formData.defaultCurrency,
         upiId: formData.upiId,
       });
+
+      // Synchronize Clerk client user object so Clerk hooks update immediately
+      if (clerkUser) {
+        const parts = cleanName.split(" ");
+        const firstName = parts[0] || "";
+        const lastName = parts.slice(1).join(" ") || "";
+        try {
+          await clerkUser.update({ firstName, lastName });
+        } catch (_) {}
+      }
+
+      // Dispatch global client events for instant UI synchronization in header, sidebar & groups
+      window.dispatchEvent(new CustomEvent("profile_updated", { detail: { name: cleanName } }));
+      window.dispatchEvent(new CustomEvent("user_updated", { detail: { name: cleanName } }));
 
       toast.success("Personal information updated successfully!");
       if (onSuccess) onSuccess();

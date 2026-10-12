@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ProfileDetails } from "@/actions/profile";
 import { ProfileHeaderCard } from "@/components/profile/profile-header-card";
 import { FinancialSummaryCards } from "@/components/profile/financial-summary-cards";
@@ -40,6 +40,28 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
   const [data, setData] = useState<ProfileDetails>(initialData);
   const [activeTab, setActiveTab] = useState("overview");
   const router = useRouter();
+
+  useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
+  useEffect(() => {
+    const handleProfileUpdated = (event: any) => {
+      if (event?.detail?.name) {
+        setData((prev) => ({
+          ...prev,
+          user: {
+            ...prev.user,
+            name: event.detail.name,
+          },
+        }));
+      }
+    };
+    window.addEventListener("profile_updated", handleProfileUpdated);
+    return () => {
+      window.removeEventListener("profile_updated", handleProfileUpdated);
+    };
+  }, []);
 
   const handleAvatarUpdated = (newAvatar: string | null) => {
     setData((prev) => ({
@@ -210,7 +232,10 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
               defaultCurrency: data.user.defaultCurrency,
               upiId: data.user.upiId,
             }}
-            onSuccess={() => router.refresh()}
+            onSuccess={() => {
+              setActiveTab("overview");
+              router.refresh();
+            }}
           />
         </TabsContent>
 
