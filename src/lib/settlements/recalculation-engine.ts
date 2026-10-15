@@ -636,6 +636,36 @@ export async function executeAtomicGroupRecalculation(params: {
     for (const tx of groupTransactions) {
       totalExpensesPaise += tx.amount;
 
+      const txExistingSplits = existingSplits.filter((s) => s.transactionId === tx.id);
+      const isMemberEvent = [
+        "approve_member_included",
+        "approve_member_excluded",
+        "remove_member",
+        "mode_change",
+      ].includes(triggerOperation);
+
+      const hasCustomOrNonEqualSplits = txExistingSplits.some(
+        (s) => s.splitMethod !== "equal" || s.isExcluded
+      );
+      const existingSplitsSum = txExistingSplits.reduce((sum, s) => sum + s.amount, 0);
+
+      // Preserve existing user-defined splits when they exist and are valid
+      if (
+        txExistingSplits.length > 0 &&
+        existingSplitsSum === tx.amount &&
+        (!isMemberEvent || hasCustomOrNonEqualSplits)
+      ) {
+        for (const s of txExistingSplits) {
+          totalSharesPaise += s.amount;
+          allEffectiveSplits.push({
+            userId: s.userId || undefined,
+            contactId: s.contactId || undefined,
+            amountPaise: s.amount,
+          });
+        }
+        continue;
+      }
+
       // Determine eligible participants using timeline rules
       let eligibleParticipants = determineExpenseEligibleParticipants(
         parsedTimelines,
@@ -672,7 +702,6 @@ export async function executeAtomicGroupRecalculation(params: {
       }
 
       // Diff detection: only update splits and history if participants or shares changed
-      const txExistingSplits = existingSplits.filter((s) => s.transactionId === tx.id);
       const isChanged = hasParticipantSetOrSharesChanged(txExistingSplits, calculatedShares);
 
       if (isChanged) {

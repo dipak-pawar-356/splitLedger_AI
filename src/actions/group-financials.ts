@@ -23,7 +23,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { ValidationError, DatabaseError, AuthorizationError } from "@/lib/errors";
 import { calculateGroupSettlements, calculateOptimalSettlements, type Expense, type Balance } from "@/lib/settlements/calculator";
-import { isDbIntegerId } from "@/lib/utils";
+import { isDbIntegerId, generatePublicId } from "@/lib/utils";
 
 export interface MemberFinancialDetail {
   id: number;
@@ -594,19 +594,56 @@ export async function getGroupFinancialDetails(
 
     const optimalSettlements = calculateOptimalSettlements(optimalBalances, "INR");
 
-    // Sourced authoritatively from pendingSettlementsList produced by recalculation engine
-    const effectivePendingList = pendingSettlementsList.length > 0
-      ? pendingSettlementsList.map((s) => ({
-          fromUserId: s.fromUserId || undefined,
-          fromContactId: s.fromContactId || undefined,
-          fromName: s.fromUserName || s.fromContactName || "Member",
-          toUserId: s.toUserId || undefined,
-          toContactId: s.toContactId || undefined,
-          toName: s.toUserName || "Member",
-          amount: Number(s.amount),
-          currency: s.currency || "INR",
-        }))
-      : optimalSettlements;
+    // Check whether the database pendingSettlementsList is identical to optimalSettlements
+    const isDbInSync =
+      pendingSettlementsList.length === optimalSettlements.length &&
+      optimalSettlements.every((opt) =>
+        pendingSettlementsList.some(
+          (ps) =>
+            ((opt.fromUserId && ps.fromUserId === opt.fromUserId) ||
+              (opt.fromContactId && ps.fromContactId === opt.fromContactId)) &&
+            ((opt.toUserId && ps.toUserId === opt.toUserId) ||
+              (opt.toContactId && ps.toContactId === opt.toContactId)) &&
+            Math.abs(Number(ps.amount) - opt.amount) < 1
+        )
+      );
+
+    // If out of sync, auto-sync database pending settlements so other views and Dashboard stay consistent
+    if (!isDbInSync) {
+      try {
+        await db
+          .delete(settlements)
+          .where(
+            and(
+              eq(settlements.groupId, groupId),
+              eq(settlements.status, "pending"),
+              eq(settlements.isDeleted, false)
+            )
+          );
+
+        const pendingToInsert = optimalSettlements.map((s) => ({
+          publicId: generatePublicId("set"),
+          groupId,
+          fromUserId: s.fromUserId || null,
+          fromContactId: s.fromContactId || null,
+          toUserId: s.toUserId || null,
+          toContactId: s.toContactId || null,
+          amount: Math.round(s.amount),
+          currency: s.currency || groupRecord.currency || "INR",
+          status: "pending" as const,
+          createdAt: new Date(),
+        }));
+
+        if (pendingToInsert.length > 0) {
+          await db.insert(settlements).values(pendingToInsert);
+        }
+      } catch (syncErr) {
+        console.error("Failed to auto-sync group pending settlements:", syncErr);
+      }
+    }
+
+    // Ground truth settlement suggestions are always the freshly calculated optimalSettlements
+    const effectivePendingList = optimalSettlements;
 
     // Populate pairwise debts into members
     processedMembers.forEach((m) => {

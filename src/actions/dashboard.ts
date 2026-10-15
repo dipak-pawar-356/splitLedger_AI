@@ -309,6 +309,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           amount: settlements.amount,
           fromUserId: settlements.fromUserId,
           toUserId: settlements.toUserId,
+          groupId: settlements.groupId,
           status: settlements.status,
           toUserName: settleToUser.name,
           fromUserName: settleFromUser.name,
@@ -569,15 +570,23 @@ export async function getDashboardData(): Promise<DashboardData> {
       }
     }
 
-    // Add Direct Pending Settlements
+    // Add Direct (non-group) Pending Settlements to avoid double-counting active groups
     let directPendingReceivable = 0;
     let directPendingPayable = 0;
     let pendingCount = 0;
+    let userPendingReceivableTotal = 0;
+    let userPendingPayableTotal = 0;
 
     pendingSettlementsQuery.forEach((s) => {
       pendingCount++;
-      if (s.toUserId === user.id) directPendingReceivable += s.amount;
-      if (s.fromUserId === user.id) directPendingPayable += s.amount;
+      if (s.toUserId === user.id) userPendingReceivableTotal += s.amount;
+      if (s.fromUserId === user.id) userPendingPayableTotal += s.amount;
+
+      // Only add to directPending if this settlement does not belong to an active group already computed above
+      if (!s.groupId || !activeGroupsRaw.some((g) => g.id === s.groupId)) {
+        if (s.toUserId === user.id) directPendingReceivable += s.amount;
+        if (s.fromUserId === user.id) directPendingPayable += s.amount;
+      }
     });
 
     const totalReceivableRupees = (calculatedReceivable + directPendingReceivable) / 100;
@@ -694,7 +703,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           subtitle: "Pending settlement confirmation",
           type: "settlement",
           amount: s.amount / 100,
-          href: "/dashboard/settlements",
+          href: s.groupId ? `/dashboard/groups/${s.groupId}` : "/dashboard/settlements",
           priority: "high",
         });
       } else if (s.toUserId === user.id) {
@@ -704,7 +713,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           subtitle: "Awaiting peer payment",
           type: "settlement",
           amount: s.amount / 100,
-          href: "/dashboard/settlements",
+          href: s.groupId ? `/dashboard/groups/${s.groupId}` : "/dashboard/settlements",
           priority: "medium",
         });
       }
@@ -801,7 +810,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         monthlyIncome: monthlyIncomeRupees,
         savings: savingsRupees,
         totalTransactions: Number(allTimeIncomeExp[0]?.totalCount || 0),
-        pendingSettlementsAmount: (directPendingReceivable + directPendingPayable) / 100,
+        pendingSettlementsAmount: (userPendingReceivableTotal + userPendingPayableTotal) / 100,
         pendingSettlementsCount: pendingCount,
         myGroupsCount: activeGroupsRaw.length,
       },
