@@ -109,16 +109,17 @@
     @apply relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/20 dark:before:via-white/5 before:to-transparent;
   }
   .card-premium {
-    transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 300ms cubic-bezier(0.16, 1, 0.3, 1), border-color 300ms ease;
+    cursor: pointer;
+    transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms cubic-bezier(0.16, 1, 0.3, 1), border-color 250ms ease, background-color 250ms ease;
   }
   .card-premium:hover {
-    transform: translateY(-8px) scale(1.02);
+    transform: translateY(-6px) scale(1.02);
   }
   .icon-premium {
-    transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 300ms ease;
+    transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), filter 250ms ease;
   }
   .icon-premium:hover {
-    transform: scale(1.1) rotate(8deg);
+    transform: scale(1.08) rotate(5deg);
   }
   .btn-premium {
     transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms cubic-bezier(0.16, 1, 0.3, 1), background-color 250ms ease, opacity 250ms ease;

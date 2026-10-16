@@ -69,83 +69,83 @@ export default function AboutPage() {
   ];
 
   return (
-    <div className="w-full bg-white dark:bg-slate-950 py-16 md:py-24 text-slate-800 dark:text-slate-200 overflow-hidden">
+    <div className="w-full bg-white dark:bg-slate-950 py-12 md:py-[72px] text-slate-800 dark:text-slate-200 overflow-hidden">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
         {/* ================= HERO SECTION ================= */}
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center max-w-3xl mx-auto mb-16 md:mb-24 space-y-4"
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="text-center max-w-3xl mx-auto mb-10 md:mb-14 space-y-3"
         >
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
             <Sparkles className="h-3.5 w-3.5" />
             <span>Our Purpose</span>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
             About SplitLedger AI
           </h1>
 
-          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 font-normal max-w-2xl mx-auto leading-relaxed">
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 font-normal max-w-2xl mx-auto leading-relaxed">
             We&apos;re on a mission to make shared expense management simple, smart, and completely stress-free for everyone.
           </p>
         </motion.div>
 
         {/* ================= MISSION & GOAL SECTION ================= */}
-        <section className="mb-24">
-          <div className="grid md:grid-cols-12 gap-8 items-stretch">
+        <section className="mb-14 md:mb-16">
+          <div className="grid md:grid-cols-12 gap-6 items-stretch">
             {/* Mission Statement */}
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              className="md:col-span-7 p-8 sm:p-10 rounded-3xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 flex flex-col justify-center space-y-5"
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="md:col-span-7 p-6 sm:p-8 rounded-3xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 flex flex-col justify-center space-y-4"
             >
               <div className="flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider">
                 <Compass className="h-4 w-4" />
                 <span>Our Mission</span>
               </div>
 
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
                 Eliminating financial friction in everyday relationships.
               </h2>
 
-              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                 At SplitLedger AI, we believe managing shared expenditures shouldn&apos;t be awkward or complicated. We build tools that make it effortless to track, split, and settle expenses with friends, family, and colleagues.
               </p>
 
-              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                 Powered by artificial intelligence and precision mathematical accounting, our platform automates the tedious administrative steps so you can focus on enjoying moments with the people you care about.
               </p>
             </motion.div>
 
             {/* Interactive Goal Card */}
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-              className="md:col-span-5 group relative p-8 sm:p-10 rounded-3xl bg-slate-900 text-white dark:bg-slate-900/90 dark:border dark:border-slate-800 flex flex-col justify-between shadow-xl transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-[1.02] hover:shadow-2xl overflow-hidden"
+              transition={{ duration: 0.5, delay: 0.08, ease: "easeOut" }}
+              className="md:col-span-5 group relative p-6 sm:p-8 rounded-3xl bg-slate-900 text-white dark:bg-slate-900/90 dark:border dark:border-slate-800 flex flex-col justify-between shadow-xl transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] hover:shadow-2xl overflow-hidden cursor-pointer"
             >
               {/* Subtle ambient lighting */}
-              <div className="absolute top-0 right-0 w-48 h-48 bg-primary/20 rounded-full blur-2xl pointer-events-none -z-0" />
+              <div className="absolute top-0 right-0 w-44 h-44 bg-primary/20 rounded-full blur-2xl pointer-events-none -z-0" />
 
               <div className="relative z-10 space-y-4">
-                <div className="p-3.5 rounded-2xl bg-white/10 w-fit backdrop-blur-sm border border-white/10 text-white transition-all duration-300 group-hover:scale-110 group-hover:rotate-8 group-hover:shadow-lg">
-                  <Target className="h-6 w-6" />
+                <div className="p-3 rounded-2xl bg-white/10 w-fit backdrop-blur-sm border border-white/10 text-white transition-all duration-250 group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-md">
+                  <Target className="h-5 w-5" />
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-xl sm:text-2xl font-bold tracking-tight">Our Goal</h3>
-                  <p className="text-sm text-slate-300 leading-relaxed">
+                  <h3 className="text-lg sm:text-xl font-bold tracking-tight">Our Goal</h3>
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                     To eliminate financial confusion by providing the most intuitive, fair, and mathematically accurate expense-sharing platform in the world.
                   </p>
                 </div>
               </div>
 
-              <div className="relative z-10 pt-6 border-t border-white/10 flex items-center gap-2 text-xs text-slate-400">
+              <div className="relative z-10 pt-5 border-t border-white/10 flex items-center gap-2 text-xs text-slate-400">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                 <span>Zero advertising • 100% Privacy-First</span>
               </div>
@@ -154,13 +154,13 @@ export default function AboutPage() {
         </section>
 
         {/* ================= OUR VALUES ================= */}
-        <section className="mb-24">
+        <section className="mb-14 md:mb-16">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center max-w-xl mx-auto mb-14 space-y-3"
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="text-center max-w-xl mx-auto mb-8 space-y-2"
           >
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
               Core Principles
@@ -176,21 +176,21 @@ export default function AboutPage() {
               return (
                 <motion.div
                   key={val.title}
-                  initial={{ opacity: 0, y: 24 }}
+                  initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: idx * 0.08, ease: [0.16, 1, 0.3, 1] }}
-                  className={`group p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-[1.02] hover:shadow-2xl ${val.glowBg}`}
+                  transition={{ duration: 0.5, delay: idx * 0.06, ease: "easeOut" }}
+                  className={`group relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 hover:border-primary/40 hover:shadow-xl hover:shadow-slate-900/5 dark:hover:shadow-black/40 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full ${val.glowBg}`}
                 >
                   <div
-                    className={`p-3 rounded-xl w-fit mb-5 border transition-all duration-300 ease-out group-hover:scale-110 group-hover:rotate-8 group-hover:shadow-md ${val.color}`}
+                    className={`p-2.5 rounded-xl w-fit mb-4 border transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs shrink-0 ${val.color}`}
                   >
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 tracking-tight transition-colors duration-200 group-hover:text-primary">
                     {val.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed font-normal transition-colors duration-200">
                     {val.description}
                   </p>
                 </motion.div>
@@ -200,13 +200,13 @@ export default function AboutPage() {
         </section>
 
         {/* ================= STORY TIMELINE ================= */}
-        <section className="mb-20 max-w-4xl mx-auto">
+        <section className="mb-14 md:mb-16 max-w-4xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center mb-14 space-y-3"
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="text-center mb-8 space-y-2"
           >
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
               The Journey
@@ -216,27 +216,27 @@ export default function AboutPage() {
             </p>
           </motion.div>
 
-          <div className="space-y-6 relative before:absolute before:inset-0 before:left-5 sm:before:left-8 before:h-full before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+          <div className="space-y-4 sm:space-y-5 relative before:absolute before:inset-0 before:left-4 sm:before:left-7 before:h-full before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
             {storyTimeline.map((item, idx) => (
               <motion.div
                 key={item.period}
-                initial={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, x: -16 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: idx * 0.1, ease: [0.16, 1, 0.3, 1] }}
-                className="relative flex items-start gap-4 sm:gap-6 pl-2 sm:pl-4 group"
+                transition={{ duration: 0.5, delay: idx * 0.08, ease: "easeOut" }}
+                className="relative flex items-start gap-4 sm:gap-5 pl-1 sm:pl-3 group"
               >
                 {/* Timeline Node */}
-                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white dark:bg-slate-950 border-2 border-primary flex items-center justify-center shrink-0 z-10 transition-transform duration-250 group-hover:scale-125 group-hover:shadow-md group-hover:shadow-primary/30">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white dark:bg-slate-950 border-2 border-primary flex items-center justify-center shrink-0 z-10 transition-transform duration-200 group-hover:scale-110 group-hover:shadow-xs">
                   <div className="w-2 h-2 rounded-full bg-primary" />
                 </div>
 
-                {/* Content Card with hover lift */}
-                <div className="flex-1 p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/40">
+                {/* Content Card */}
+                <div className="flex-1 p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-md hover:border-primary/40 cursor-pointer">
                   <span className="text-[11px] font-mono font-bold text-primary tracking-wider uppercase">
                     {item.period}
                   </span>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white mt-1 mb-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mt-1 mb-1.5">
                     {item.title}
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -250,11 +250,11 @@ export default function AboutPage() {
 
         {/* ================= FINAL CTA ================= */}
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center p-8 sm:p-12 rounded-3xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800/70 max-w-3xl mx-auto space-y-6"
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="text-center p-8 sm:p-10 rounded-3xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800/70 max-w-3xl mx-auto space-y-5"
         >
           <div className="space-y-2">
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">

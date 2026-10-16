@@ -108,16 +108,16 @@ export default function FeaturesPage() {
       : features.filter((f) => f.category === activeCategory);
 
   return (
-    <div className="w-full bg-white dark:bg-slate-950 py-16 md:py-24 text-slate-800 dark:text-slate-200 overflow-hidden">
+    <div className="w-full bg-white dark:bg-slate-950 py-12 md:py-[72px] text-slate-800 dark:text-slate-200 overflow-hidden">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
         {/* ================= HERO HEADER ================= */}
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center max-w-3xl mx-auto mb-12 md:mb-16 space-y-4"
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="text-center max-w-3xl mx-auto mb-8 md:mb-10 space-y-3"
         >
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
             <Sparkles className="h-3.5 w-3.5" />
             <span>Platform Capabilities</span>
           </div>
@@ -126,7 +126,7 @@ export default function FeaturesPage() {
             Engineered for clarity, speed, and fairness.
           </h1>
 
-          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 font-normal max-w-2xl mx-auto leading-relaxed">
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 font-normal max-w-2xl mx-auto leading-relaxed">
             Everything you need to track shared expenses, eliminate debt friction, and stay financially aligned with zero clutter.
           </p>
         </motion.div>
@@ -135,8 +135,8 @@ export default function FeaturesPage() {
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-          className="flex flex-wrap items-center justify-center gap-2 mb-12"
+          transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
+          className="flex flex-wrap items-center justify-center gap-2 mb-8"
           role="tablist"
           aria-label="Filter features by category"
         >
@@ -167,7 +167,7 @@ export default function FeaturesPage() {
         </motion.div>
 
         {/* ================= 8 CORE FEATURE CARDS ================= */}
-        <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6 mb-20">
+        <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-14 md:mb-16">
           <AnimatePresence mode="popLayout">
             {filteredFeatures.map((feature, idx) => {
               const Icon = feature.icon;
@@ -175,30 +175,30 @@ export default function FeaturesPage() {
                 <motion.div
                   layout
                   key={feature.title}
-                  initial={{ opacity: 0, scale: 0.96, y: 20 }}
+                  initial={{ opacity: 0, scale: 0.98, y: 16 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.96 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
                   transition={{
                     duration: 0.4,
                     delay: idx * 0.04,
-                    ease: [0.16, 1, 0.3, 1],
+                    ease: "easeOut",
                   }}
-                  className={`group relative p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-[1.02] hover:shadow-2xl hover:shadow-slate-900/5 dark:hover:shadow-black/40 ${feature.glowBg}`}
+                  className={`group relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 hover:border-primary/40 hover:shadow-xl hover:shadow-slate-900/5 dark:hover:shadow-black/40 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full ${feature.glowBg}`}
                 >
-                  {/* Icon with hover rotation (8 deg) & scale bounce */}
+                  {/* Icon */}
                   <div
-                    className={`p-3 rounded-xl w-fit mb-5 border transition-all duration-300 ease-out group-hover:scale-110 group-hover:rotate-8 group-hover:shadow-md ${feature.color}`}
+                    className={`p-2.5 rounded-xl w-fit mb-4 border transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs shrink-0 ${feature.color}`}
                   >
                     <Icon className="h-5 w-5" />
                   </div>
 
                   {/* Title */}
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 tracking-tight transition-colors duration-200 group-hover:text-primary">
                     {feature.title}
                   </h3>
 
-                  {/* Description (max 2 lines) */}
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2">
+                  {/* Description */}
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed font-normal transition-colors duration-200">
                     {feature.description}
                   </p>
                 </motion.div>
@@ -209,11 +209,11 @@ export default function FeaturesPage() {
 
         {/* ================= MINIMAL CALL TO ACTION ================= */}
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center p-8 sm:p-12 rounded-3xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800/70 max-w-3xl mx-auto space-y-6"
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="text-center p-8 sm:p-10 rounded-3xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800/70 max-w-3xl mx-auto space-y-5"
         >
           <div className="space-y-2">
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
