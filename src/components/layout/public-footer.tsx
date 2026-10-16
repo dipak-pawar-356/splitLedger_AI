@@ -12,10 +12,10 @@ export function PublicFooter() {
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 text-center sm:text-left">
             <Link
               href="/"
-              className="flex items-center gap-2 text-slate-900 dark:text-white font-bold transition-opacity hover:opacity-85"
+              className="flex items-center gap-2 text-slate-900 dark:text-white font-bold transition-transform duration-200 ease-out hover:scale-[1.03]"
               aria-label="SplitLedger AI Home"
             >
-              <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20">
+              <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 transition-transform duration-300 group-hover:rotate-6">
                 <Sparkles className="h-3.5 w-3.5" />
               </div>
               <span className="text-sm tracking-tight font-black">
@@ -30,35 +30,35 @@ export function PublicFooter() {
             </p>
           </div>
 
-          {/* Links: Privacy, Terms, Contact, GitHub, LinkedIn */}
+          {/* Links: Privacy, Terms, Cookies, Copyright, Contact, GitHub, LinkedIn */}
           <nav className="flex flex-wrap items-center justify-center gap-6" aria-label="Footer Navigation">
             <Link
               href="/privacy"
-              className="hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
             >
               Privacy
             </Link>
             <Link
               href="/terms"
-              className="hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
             >
               Terms
             </Link>
             <Link
               href="/cookies"
-              className="hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
             >
               Cookies
             </Link>
             <Link
               href="/copyright"
-              className="hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
             >
               Copyright
             </Link>
             <Link
               href="/contact"
-              className="hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
             >
               Contact
             </Link>
@@ -66,7 +66,7 @@ export function PublicFooter() {
               href="https://github.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105 inline-flex items-center gap-1"
             >
               GitHub
             </a>
@@ -74,7 +74,7 @@ export function PublicFooter() {
               href="https://linkedin.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-slate-900 dark:hover:text-white transition-colors"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-all duration-200 hover:scale-105 inline-flex items-center gap-1"
             >
               LinkedIn
             </a>
@@ -84,4 +84,3 @@ export function PublicFooter() {
     </footer>
   );
 }
-

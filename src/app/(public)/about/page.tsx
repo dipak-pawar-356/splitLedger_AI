@@ -1,111 +1,293 @@
-import { Target, Users, Lightbulb, Shield } from "lucide-react";
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import {
+  Target,
+  Users,
+  Lightbulb,
+  Shield,
+  Sparkles,
+  ArrowRight,
+  Compass,
+  CheckCircle2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function AboutPage() {
+  const values = [
+    {
+      icon: Users,
+      title: "User First",
+      description: "Every architectural and design decision starts with what genuinely serves our users.",
+      color: "text-blue-500 bg-blue-500/10 border-blue-500/20",
+      glowBg: "group-hover:border-blue-500/40 group-hover:shadow-blue-500/10",
+    },
+    {
+      icon: Lightbulb,
+      title: "Innovation",
+      description: "Continuously refining expense workflows with practical AI and modern engineering.",
+      color: "text-amber-500 bg-amber-500/10 border-amber-500/20",
+      glowBg: "group-hover:border-amber-500/40 group-hover:shadow-amber-500/10",
+    },
+    {
+      icon: Shield,
+      title: "Integrity & Trust",
+      description: "Bank-level encryption, mathematical balance precision, and zero commercial tracking.",
+      color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
+      glowBg: "group-hover:border-emerald-500/40 group-hover:shadow-emerald-500/10",
+    },
+    {
+      icon: Target,
+      title: "Simplicity",
+      description: "Solving complex multi-party debt reconciliations with elegant, friction-free UI.",
+      color: "text-purple-500 bg-purple-500/10 border-purple-500/20",
+      glowBg: "group-hover:border-purple-500/40 group-hover:shadow-purple-500/10",
+    },
+  ];
+
+  const storyTimeline = [
+    {
+      period: "The Frustration",
+      title: "Shared expenses shouldn't strain friendships",
+      description:
+        "Whether splitting a dinner bill, managing road trip receipts, or keeping track of household groceries, existing spreadsheets and tools were either overwhelmingly complicated or clunky.",
+    },
+    {
+      period: "The Solution",
+      title: "What if expense tracking was effortless?",
+      description:
+        "We set out to build a platform where optical character recognition scans receipts instantly, graph minimization simplifies debts into minimal transfers, and settlements happen directly via dynamic UPI QR codes.",
+    },
+    {
+      period: "Today & Beyond",
+      title: "Modern finance built for transparency",
+      description:
+        "SplitLedger AI empowers users with intelligent shared ledgers, private personal finances, and zero advertisement tracking. We're continuously engineering the future of personal finance.",
+    },
+  ];
+
   return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="py-20 px-4 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-        <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+    <div className="w-full bg-white dark:bg-slate-950 py-16 md:py-24 text-slate-800 dark:text-slate-200 overflow-hidden">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
+        {/* ================= HERO SECTION ================= */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="text-center max-w-3xl mx-auto mb-16 md:mb-24 space-y-4"
+        >
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Our Purpose</span>
+          </div>
+
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
             About SplitLedger AI
           </h1>
-          <p className="text-xl text-slate-600 dark:text-slate-400 mb-8 max-w-3xl mx-auto">
-            We&apos;re on a mission to make expense management simple, smart, and stress-free for everyone.
+
+          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 font-normal max-w-2xl mx-auto leading-relaxed">
+            We&apos;re on a mission to make shared expense management simple, smart, and completely stress-free for everyone.
           </p>
-        </div>
-      </section>
+        </motion.div>
 
-      {/* Mission */}
-      <section className="py-20 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl font-bold mb-6">Our Mission</h2>
-              <p className="text-lg text-slate-600 dark:text-slate-400 mb-4">
-                At SplitLedger AI, we believe managing shared expenses shouldn&apos;t be complicated. 
-                We&apos;re building tools that make it effortless to track, split, and settle expenses with friends, 
-                family, and colleagues.
+        {/* ================= MISSION & GOAL SECTION ================= */}
+        <section className="mb-24">
+          <div className="grid md:grid-cols-12 gap-8 items-stretch">
+            {/* Mission Statement */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              className="md:col-span-7 p-8 sm:p-10 rounded-3xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 flex flex-col justify-center space-y-5"
+            >
+              <div className="flex items-center gap-2 text-primary text-xs font-bold uppercase tracking-wider">
+                <Compass className="h-4 w-4" />
+                <span>Our Mission</span>
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                Eliminating financial friction in everyday relationships.
+              </h2>
+
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+                At SplitLedger AI, we believe managing shared expenditures shouldn&apos;t be awkward or complicated. We build tools that make it effortless to track, split, and settle expenses with friends, family, and colleagues.
               </p>
-              <p className="text-lg text-slate-600 dark:text-slate-400">
-                Powered by artificial intelligence, our platform automates the tedious parts of expense management 
-                so you can focus on what matters - enjoying life with the people you care about.
+
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 leading-relaxed">
+                Powered by artificial intelligence and precision mathematical accounting, our platform automates the tedious administrative steps so you can focus on enjoying moments with the people you care about.
               </p>
-            </div>
-            <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl p-8 text-white">
-              <Target className="h-16 w-16 mb-4" />
-              <h3 className="text-2xl font-bold mb-2">Our Goal</h3>
-              <p className="opacity-90">
-                To eliminate financial friction in relationships by providing the most intuitive and 
-                intelligent expense sharing platform in the world.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+            </motion.div>
 
-      {/* Values */}
-      <section className="py-20 px-4 bg-slate-50 dark:bg-slate-900">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Our Values</h2>
-          <div className="grid md:grid-cols-4 gap-8">
-            <ValueCard
-              icon={<Users className="h-8 w-8" />}
-              title="User First"
-              description="Every decision we make starts with what's best for our users."
-            />
-            <ValueCard
-              icon={<Lightbulb className="h-8 w-8" />}
-              title="Innovation"
-              description="Constantly improving with AI and cutting-edge technology."
-            />
-            <ValueCard
-              icon={<Shield className="h-8 w-8" />}
-              title="Trust"
-              description="Bank-level security and complete transparency in everything we do."
-            />
-            <ValueCard
-              icon={<Target className="h-8 w-8" />}
-              title="Simplicity"
-              description="Complex problems solved with elegant, easy-to-use solutions."
-            />
-          </div>
-        </div>
-      </section>
+            {/* Interactive Goal Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+              className="md:col-span-5 group relative p-8 sm:p-10 rounded-3xl bg-slate-900 text-white dark:bg-slate-900/90 dark:border dark:border-slate-800 flex flex-col justify-between shadow-xl transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-[1.02] hover:shadow-2xl overflow-hidden"
+            >
+              {/* Subtle ambient lighting */}
+              <div className="absolute top-0 right-0 w-48 h-48 bg-primary/20 rounded-full blur-2xl pointer-events-none -z-0" />
 
-      {/* Story */}
-      <section className="py-20 px-4">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Our Story</h2>
-          <div className="space-y-6 text-lg text-slate-600 dark:text-slate-400">
-            <p>
-              SplitLedger AI was born from a simple frustration: tracking shared expenses shouldn&apos;t be this hard. 
-              Whether it&apos;s splitting a dinner bill, managing trip expenses, or keeping track of loans between friends, 
-              the existing solutions were either too complicated or too basic.
+              <div className="relative z-10 space-y-4">
+                <div className="p-3.5 rounded-2xl bg-white/10 w-fit backdrop-blur-sm border border-white/10 text-white transition-all duration-300 group-hover:scale-110 group-hover:rotate-8 group-hover:shadow-lg">
+                  <Target className="h-6 w-6" />
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-xl sm:text-2xl font-bold tracking-tight">Our Goal</h3>
+                  <p className="text-sm text-slate-300 leading-relaxed">
+                    To eliminate financial confusion by providing the most intuitive, fair, and mathematically accurate expense-sharing platform in the world.
+                  </p>
+                </div>
+              </div>
+
+              <div className="relative z-10 pt-6 border-t border-white/10 flex items-center gap-2 text-xs text-slate-400">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <span>Zero advertising • 100% Privacy-First</span>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ================= OUR VALUES ================= */}
+        <section className="mb-24">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="text-center max-w-xl mx-auto mb-14 space-y-3"
+          >
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+              Core Principles
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              The fundamental standards that guide how we design, build, and ship.
             </p>
-            <p>
-              We asked ourselves: what if expense management could be as simple as sending a message? What if AI 
-              could automatically categorize expenses and suggest the fairest way to split them? What if settlements 
-              could happen automatically without awkward conversations?
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {values.map((val, idx) => {
+              const Icon = val.icon;
+              return (
+                <motion.div
+                  key={val.title}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: idx * 0.08, ease: [0.16, 1, 0.3, 1] }}
+                  className={`group p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-[1.02] hover:shadow-2xl ${val.glowBg}`}
+                >
+                  <div
+                    className={`p-3 rounded-xl w-fit mb-5 border transition-all duration-300 ease-out group-hover:scale-110 group-hover:rotate-8 group-hover:shadow-md ${val.color}`}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
+                    {val.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {val.description}
+                  </p>
+                </motion.div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ================= STORY TIMELINE ================= */}
+        <section className="mb-20 max-w-4xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="text-center mb-14 space-y-3"
+          >
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+              The Journey
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              Why we started and where we are heading.
             </p>
-            <p>
-              Today, SplitLedger AI is helping thousands of users manage their finances effortlessly. We&apos;re just 
-              getting started, and we&apos;re excited to build the future of personal finance together with you.
+          </motion.div>
+
+          <div className="space-y-6 relative before:absolute before:inset-0 before:left-5 sm:before:left-8 before:h-full before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+            {storyTimeline.map((item, idx) => (
+              <motion.div
+                key={item.period}
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: idx * 0.1, ease: [0.16, 1, 0.3, 1] }}
+                className="relative flex items-start gap-4 sm:gap-6 pl-2 sm:pl-4 group"
+              >
+                {/* Timeline Node */}
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white dark:bg-slate-950 border-2 border-primary flex items-center justify-center shrink-0 z-10 transition-transform duration-250 group-hover:scale-125 group-hover:shadow-md group-hover:shadow-primary/30">
+                  <div className="w-2 h-2 rounded-full bg-primary" />
+                </div>
+
+                {/* Content Card with hover lift */}
+                <div className="flex-1 p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/40">
+                  <span className="text-[11px] font-mono font-bold text-primary tracking-wider uppercase">
+                    {item.period}
+                  </span>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mt-1 mb-2">
+                    {item.title}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* ================= FINAL CTA ================= */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="text-center p-8 sm:p-12 rounded-3xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800/70 max-w-3xl mx-auto space-y-6"
+        >
+          <div className="space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+              Join thousands experiencing simpler shared finances.
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto">
+              Get started for free today. No credit card required.
             </p>
           </div>
-        </div>
-      </section>
-    </div>
-  );
-}
 
-function ValueCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <div className="text-center">
-      <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
-        {icon}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link href="/sign-up" className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                className="w-full sm:w-auto h-11 px-6 rounded-xl text-xs sm:text-sm font-semibold gap-2 bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 shadow-sm hover:shadow-xl transition-all duration-200 ease-out hover:scale-[1.03] active:scale-[0.97]"
+              >
+                <span>Create Free Account</span>
+                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-1" />
+              </Button>
+            </Link>
+
+            <Link href="/features" className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full sm:w-auto h-11 px-6 rounded-xl text-xs sm:text-sm font-semibold border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-900 shadow-xs hover:shadow-md transition-all duration-200 ease-out hover:scale-[1.03] active:scale-[0.97]"
+              >
+                Explore Features
+              </Button>
+            </Link>
+          </div>
+        </motion.div>
       </div>
-      <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-slate-600 dark:text-slate-400">{description}</p>
     </div>
   );
 }

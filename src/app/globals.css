@@ -108,6 +108,47 @@
   .skeleton-shimmer {
     @apply relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/20 dark:before:via-white/5 before:to-transparent;
   }
+  .card-premium {
+    transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 300ms cubic-bezier(0.16, 1, 0.3, 1), border-color 300ms ease;
+  }
+  .card-premium:hover {
+    transform: translateY(-8px) scale(1.02);
+  }
+  .icon-premium {
+    transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 300ms ease;
+  }
+  .icon-premium:hover {
+    transform: scale(1.1) rotate(8deg);
+  }
+  .btn-premium {
+    transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms cubic-bezier(0.16, 1, 0.3, 1), background-color 250ms ease, opacity 250ms ease;
+  }
+  .btn-premium:hover {
+    transform: scale(1.03);
+  }
+  .btn-premium:active {
+    transform: scale(0.97);
+  }
+  .link-underline {
+    position: relative;
+    display: inline-block;
+  }
+  .link-underline::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    transform: scaleX(0);
+    height: 1.5px;
+    bottom: -2px;
+    left: 0;
+    background-color: currentColor;
+    transform-origin: bottom right;
+    transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .link-underline:hover::after {
+    transform: scaleX(1);
+    transform-origin: bottom left;
+  }
 }
 
 /* Accessibility: Gentle transitions for prefers-reduced-motion without breaking interactive feedback */
@@ -115,4 +156,15 @@
   html {
     scroll-behavior: auto !important;
   }
+  .card-premium,
+  .card-premium:hover,
+  .btn-premium,
+  .btn-premium:hover,
+  .btn-premium:active,
+  .icon-premium,
+  .icon-premium:hover {
+    transform: none !important;
+    transition: none !important;
+  }
 }
+
