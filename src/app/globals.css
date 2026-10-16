@@ -108,19 +108,106 @@
   .skeleton-shimmer {
     @apply relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/20 dark:before:via-white/5 before:to-transparent;
   }
+  /* ================= 60 FPS GPU-Accelerated Floating Card Interaction System ================= */
   .card-premium {
+    position: relative;
     cursor: pointer;
-    transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms cubic-bezier(0.16, 1, 0.3, 1), border-color 250ms ease, background-color 250ms ease;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+    will-change: transform, box-shadow, border-color, filter;
+    transition: 
+      transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 280ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 280ms ease-out,
+      filter 280ms ease-out,
+      background-color 280ms ease-out;
   }
-  .card-premium:hover {
-    transform: translateY(-6px) scale(1.02);
+
+  /* Very soft radial highlight using dynamic theme primary color */
+  .card-premium::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle at 50% 0%, hsl(var(--primary) / 0.05), transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 280ms ease-out;
   }
+
+  .card-premium:hover,
+  .card-premium:focus-visible {
+    /* Translate upward by 8-10px (9px optimal) and scale to 1.02 without layout shift */
+    transform: translateY(-9px) scale(1.02) !important;
+    /* Theme-adaptive subtle border glow using active theme primary variable */
+    border-color: hsl(var(--primary) / 0.45) !important;
+    /* Premium floating elevation with subtle theme-tinted glow */
+    box-shadow: 
+      0 20px 32px -10px hsl(var(--primary) / 0.12),
+      0 10px 18px -6px rgba(0, 0, 0, 0.08),
+      0 0 0 1px hsl(var(--primary) / 0.15) !important;
+    /* 2–3% brighter card background */
+    filter: brightness(1.025);
+    z-index: 10;
+  }
+
+  .card-premium:hover::before,
+  .card-premium:focus-visible::before {
+    opacity: 1;
+  }
+
+  /* Dark mode specific floating elevation refinements */
+  .dark .card-premium:hover,
+  .dark .card-premium:focus-visible {
+    border-color: hsl(var(--primary) / 0.5) !important;
+    box-shadow: 
+      0 22px 36px -10px rgba(0, 0, 0, 0.65),
+      0 12px 24px -8px hsl(var(--primary) / 0.2),
+      0 0 0 1px hsl(var(--primary) / 0.25) !important;
+    filter: brightness(1.035);
+  }
+
+  /* Accessible keyboard focus ring */
+  .card-premium:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+
+  /* Micro-interaction: Icon */
   .icon-premium {
-    transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), filter 250ms ease;
+    will-change: transform, filter;
+    transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), filter 250ms ease-out;
   }
+
+  .card-premium:hover .icon-premium,
+  .card-premium:focus-visible .icon-premium,
+  .group:hover .icon-premium,
   .icon-premium:hover {
-    transform: scale(1.08) rotate(5deg);
+    /* Scale to 1.08, rotate maximum 5° (4°), soft glow using current theme accent color */
+    transform: scale(1.08) rotate(4deg) !important;
+    filter: drop-shadow(0 4px 10px hsl(var(--primary) / 0.35)) brightness(1.1) !important;
   }
+
+  /* Micro-interaction: Title text brightness & theme color adaptation */
+  .card-title-premium {
+    transition: color 250ms ease-out, filter 250ms ease-out;
+  }
+  .card-premium:hover .card-title-premium,
+  .card-premium:focus-visible .card-title-premium,
+  .group:hover .card-title-premium {
+    color: hsl(var(--primary));
+    filter: brightness(1.06);
+  }
+
+  /* Micro-interaction: Description text smooth brightening */
+  .card-desc-premium {
+    transition: color 250ms ease-out, filter 250ms ease-out;
+  }
+  .card-premium:hover .card-desc-premium,
+  .card-premium:focus-visible .card-desc-premium,
+  .group:hover .card-desc-premium {
+    filter: brightness(1.05);
+  }
+
   .btn-premium {
     transition: transform 250ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 250ms cubic-bezier(0.16, 1, 0.3, 1), background-color 250ms ease, opacity 250ms ease;
   }
@@ -159,11 +246,13 @@
   }
   .card-premium,
   .card-premium:hover,
+  .card-premium:focus-visible,
   .btn-premium,
   .btn-premium:hover,
   .btn-premium:active,
   .icon-premium,
-  .icon-premium:hover {
+  .icon-premium:hover,
+  .card-premium:hover .icon-premium {
     transform: none !important;
     transition: none !important;
   }

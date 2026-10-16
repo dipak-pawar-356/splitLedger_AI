@@ -35,7 +35,6 @@ export default function FeaturesPage() {
       description:
         "Track shared and personal expenses with custom categories, payment method tags, and digital receipt attachments.",
       color: "text-blue-500 bg-blue-500/10 border-blue-500/20",
-      glowBg: "group-hover:border-blue-500/40 group-hover:shadow-blue-500/10",
     },
     {
       category: "Splitting & Groups",
@@ -44,7 +43,6 @@ export default function FeaturesPage() {
       description:
         "Organize housemates, trips, or projects with equal, percentage, exact, or custom share allocations and member roles.",
       color: "text-indigo-500 bg-indigo-500/10 border-indigo-500/20",
-      glowBg: "group-hover:border-indigo-500/40 group-hover:shadow-indigo-500/10",
     },
     {
       category: "AI & Automation",
@@ -53,7 +51,6 @@ export default function FeaturesPage() {
       description:
         "Automate accounting with OCR receipt scanning, smart expense categorization, and conversational financial insights.",
       color: "text-amber-500 bg-amber-500/10 border-amber-500/20",
-      glowBg: "group-hover:border-amber-500/40 group-hover:shadow-amber-500/10",
     },
     {
       category: "Splitting & Groups",
@@ -62,7 +59,6 @@ export default function FeaturesPage() {
       description:
         "Minimize multi-person debts into the fewest direct payments and settle instantly using dynamic NPCI UPI QR codes.",
       color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
-      glowBg: "group-hover:border-emerald-500/40 group-hover:shadow-emerald-500/10",
     },
     {
       category: "Personal Finance",
@@ -71,7 +67,6 @@ export default function FeaturesPage() {
       description:
         "Set monthly spending limits, visualize category breakdowns, and export clean financial reports in PDF and CSV.",
       color: "text-purple-500 bg-purple-500/10 border-purple-500/20",
-      glowBg: "group-hover:border-purple-500/40 group-hover:shadow-purple-500/10",
     },
     {
       category: "Personal Finance",
@@ -80,7 +75,6 @@ export default function FeaturesPage() {
       description:
         "Maintain daily financial journals, markdown memos, personal loan ledgers, and EMI schedules in one place.",
       color: "text-rose-500 bg-rose-500/10 border-rose-500/20",
-      glowBg: "group-hover:border-rose-500/40 group-hover:shadow-rose-500/10",
     },
     {
       category: "AI & Automation",
@@ -89,7 +83,6 @@ export default function FeaturesPage() {
       description:
         "Stay aligned with instant member notifications, shared live activity feeds, member timelines, and contact ledgers.",
       color: "text-cyan-500 bg-cyan-500/10 border-cyan-500/20",
-      glowBg: "group-hover:border-cyan-500/40 group-hover:shadow-cyan-500/10",
     },
     {
       category: "Security",
@@ -98,7 +91,6 @@ export default function FeaturesPage() {
       description:
         "Encrypted cloud synchronization with Clerk authentication, progressive web app offline support, and dark mode.",
       color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
-      glowBg: "group-hover:border-emerald-500/40 group-hover:shadow-emerald-500/10",
     },
   ];
 
@@ -183,22 +175,22 @@ export default function FeaturesPage() {
                     delay: idx * 0.04,
                     ease: "easeOut",
                   }}
-                  className={`group relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 hover:border-primary/40 hover:shadow-xl hover:shadow-slate-900/5 dark:hover:shadow-black/40 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full ${feature.glowBg}`}
+                  className="group card-premium relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 cursor-pointer flex flex-col justify-start h-full"
                 >
                   {/* Icon */}
                   <div
-                    className={`p-2.5 rounded-xl w-fit mb-4 border transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs shrink-0 ${feature.color}`}
+                    className={`p-2.5 rounded-xl w-fit mb-4 border icon-premium shrink-0 ${feature.color}`}
                   >
                     <Icon className="h-5 w-5" />
                   </div>
 
                   {/* Title */}
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 tracking-tight transition-colors duration-200 group-hover:text-primary">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 tracking-tight card-title-premium">
                     {feature.title}
                   </h3>
 
                   {/* Description */}
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed font-normal transition-colors duration-200">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 card-desc-premium leading-relaxed font-normal">
                     {feature.description}
                   </p>
                 </motion.div>

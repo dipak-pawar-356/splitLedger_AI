@@ -151,20 +151,20 @@ export default function ContactPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.04, ease: "easeOut" }}
-            className="group relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 shadow-xs hover:border-blue-500/40 hover:shadow-xl hover:shadow-blue-500/5 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full"
+            className="group card-premium relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 cursor-pointer flex flex-col justify-start h-full"
           >
-            <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 w-fit mb-4 transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs shrink-0">
+            <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 w-fit mb-4 icon-premium shrink-0">
               <Mail className="h-5 w-5" />
             </div>
-            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1.5 transition-colors duration-200 group-hover:text-primary">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1.5 card-title-premium">
               Email Support
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed mb-2 transition-colors duration-200">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 card-desc-premium leading-relaxed mb-2">
               Official email for enquiries, technical assistance, and account questions.
             </p>
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
-              className="text-xs font-semibold text-primary hover:underline block truncate mt-auto pt-1"
+              className="text-xs font-semibold text-primary hover:underline block truncate mt-auto pt-1 relative z-10"
               title={SUPPORT_EMAIL}
             >
               {SUPPORT_EMAIL}
@@ -176,20 +176,20 @@ export default function ContactPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.08, ease: "easeOut" }}
-            className="group relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 shadow-xs hover:border-emerald-500/40 hover:shadow-xl hover:shadow-emerald-500/5 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full"
+            className="group card-premium relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 cursor-pointer flex flex-col justify-start h-full"
           >
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 w-fit mb-4 transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs shrink-0">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 w-fit mb-4 icon-premium shrink-0">
               <Phone className="h-5 w-5" />
             </div>
-            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1.5 transition-colors duration-200 group-hover:text-primary">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1.5 card-title-premium">
               Phone Support
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed mb-2 transition-colors duration-200">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 card-desc-premium leading-relaxed mb-2">
               Call or WhatsApp our team during standard working hours (10 AM - 7 PM).
             </p>
             <a
               href={`tel:${SUPPORT_PHONE_RAW}`}
-              className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline block mt-auto pt-1"
+              className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline block mt-auto pt-1 relative z-10"
             >
               {SUPPORT_PHONE}
             </a>
@@ -200,15 +200,15 @@ export default function ContactPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.12, ease: "easeOut" }}
-            className="group relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 shadow-xs hover:border-rose-500/40 hover:shadow-xl hover:shadow-rose-500/5 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full"
+            className="group card-premium relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 cursor-pointer flex flex-col justify-start h-full"
           >
-            <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 w-fit mb-4 transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs shrink-0">
+            <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 w-fit mb-4 icon-premium shrink-0">
               <Bug className="h-5 w-5" />
             </div>
-            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1.5 transition-colors duration-200 group-hover:text-primary">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1.5 card-title-premium">
               Bug Report Queue
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed mb-2 transition-colors duration-200">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 card-desc-premium leading-relaxed mb-2">
               Found an issue or discrepancy? Immediate technical review triage.
             </p>
             <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 block mt-auto pt-1">
@@ -221,15 +221,15 @@ export default function ContactPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.16, ease: "easeOut" }}
-            className="group relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 shadow-xs hover:border-amber-500/40 hover:shadow-xl hover:shadow-amber-500/5 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full"
+            className="group card-premium relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 cursor-pointer flex flex-col justify-start h-full"
           >
-            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 w-fit mb-4 transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs shrink-0">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 w-fit mb-4 icon-premium shrink-0">
               <Clock className="h-5 w-5" />
             </div>
-            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1.5 transition-colors duration-200 group-hover:text-primary">
+            <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1.5 card-title-premium">
               Response SLA
             </h3>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed mb-2 transition-colors duration-200">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 card-desc-premium leading-relaxed mb-2">
               Guaranteed engineer review delivered directly to your inbox.
             </p>
             <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 block mt-auto pt-1">
@@ -486,9 +486,9 @@ export default function ContactPage() {
             className="lg:col-span-4 space-y-6"
           >
             {/* Direct Contact Card */}
-            <div className="p-6 rounded-3xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 shadow-xs space-y-4 hover:shadow-xl hover:border-primary/40 transition-all duration-300 ease-out hover:-translate-y-1.5">
-              <div className="flex items-center gap-2 text-primary font-bold text-sm">
-                <Headphones className="h-4 w-4" />
+            <div className="group card-premium p-6 rounded-3xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 space-y-4">
+              <div className="flex items-center gap-2 text-primary font-bold text-sm card-title-premium">
+                <Headphones className="h-4 w-4 icon-premium" />
                 <span>Direct Support Details</span>
               </div>
 
@@ -520,12 +520,12 @@ export default function ContactPage() {
             </div>
 
             {/* Office Hours Card */}
-            <div className="p-6 rounded-3xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 shadow-xs space-y-3 hover:shadow-xl transition-all duration-300 ease-out hover:-translate-y-1.5">
-              <div className="flex items-center gap-2 text-primary font-bold text-sm">
-                <Building className="h-4 w-4" />
+            <div className="group card-premium p-6 rounded-3xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 space-y-3">
+              <div className="flex items-center gap-2 text-primary font-bold text-sm card-title-premium">
+                <Building className="h-4 w-4 icon-premium" />
                 <span>Office &amp; Support Hours</span>
               </div>
-              <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
+              <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400 card-desc-premium">
                 <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800">
                   <span className="font-medium">Monday – Saturday:</span>
                   <span className="font-bold text-slate-900 dark:text-white">10:00 AM – 7:00 PM IST</span>
@@ -545,12 +545,12 @@ export default function ContactPage() {
             </div>
 
             {/* Quick Self-Serve Box */}
-            <div className="p-6 rounded-3xl bg-slate-50/70 dark:bg-slate-900/60 border border-primary/20 space-y-3 hover:shadow-xl hover:border-primary/40 transition-all duration-300 ease-out hover:-translate-y-1.5">
-              <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
-                <HelpCircle className="h-4 w-4 text-primary" />
+            <div className="group card-premium p-6 rounded-3xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 space-y-3">
+              <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white card-title-premium">
+                <HelpCircle className="h-4 w-4 text-primary icon-premium" />
                 <span>Self-Serve Documentation</span>
               </div>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
+              <p className="text-xs text-slate-600 dark:text-slate-400 card-desc-premium leading-relaxed font-normal">
                 Looking for guides on group expense splitting, trip budgets, or UPI QR code payments?
               </p>
               <Link href="/features">

@@ -22,28 +22,24 @@ export default function AboutPage() {
       title: "User First",
       description: "Every architectural and design decision starts with what genuinely serves our users.",
       color: "text-blue-500 bg-blue-500/10 border-blue-500/20",
-      glowBg: "group-hover:border-blue-500/40 group-hover:shadow-blue-500/10",
     },
     {
       icon: Lightbulb,
       title: "Innovation",
       description: "Continuously refining expense workflows with practical AI and modern engineering.",
       color: "text-amber-500 bg-amber-500/10 border-amber-500/20",
-      glowBg: "group-hover:border-amber-500/40 group-hover:shadow-amber-500/10",
     },
     {
       icon: Shield,
       title: "Integrity & Trust",
       description: "Bank-level encryption, mathematical balance precision, and zero commercial tracking.",
       color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
-      glowBg: "group-hover:border-emerald-500/40 group-hover:shadow-emerald-500/10",
     },
     {
       icon: Target,
       title: "Simplicity",
       description: "Solving complex multi-party debt reconciliations with elegant, friction-free UI.",
       color: "text-purple-500 bg-purple-500/10 border-purple-500/20",
-      glowBg: "group-hover:border-purple-500/40 group-hover:shadow-purple-500/10",
     },
   ];
 
@@ -127,19 +123,16 @@ export default function AboutPage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: 0.08, ease: "easeOut" }}
-              className="md:col-span-5 group relative p-6 sm:p-8 rounded-3xl bg-slate-900 text-white dark:bg-slate-900/90 dark:border dark:border-slate-800 flex flex-col justify-between shadow-xl transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] hover:shadow-2xl overflow-hidden cursor-pointer"
+              className="md:col-span-5 group card-premium relative p-6 sm:p-8 rounded-3xl bg-slate-900 text-white dark:bg-slate-900/90 border border-slate-800/80 flex flex-col justify-between cursor-pointer"
             >
-              {/* Subtle ambient lighting */}
-              <div className="absolute top-0 right-0 w-44 h-44 bg-primary/20 rounded-full blur-2xl pointer-events-none -z-0" />
-
               <div className="relative z-10 space-y-4">
-                <div className="p-3 rounded-2xl bg-white/10 w-fit backdrop-blur-sm border border-white/10 text-white transition-all duration-250 group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-md">
+                <div className="p-3 rounded-2xl bg-white/10 w-fit backdrop-blur-sm border border-white/10 text-white icon-premium">
                   <Target className="h-5 w-5" />
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-lg sm:text-xl font-bold tracking-tight">Our Goal</h3>
-                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                  <h3 className="text-lg sm:text-xl font-bold tracking-tight card-title-premium text-white">Our Goal</h3>
+                  <p className="text-xs sm:text-sm text-slate-300 card-desc-premium leading-relaxed">
                     To eliminate financial confusion by providing the most intuitive, fair, and mathematically accurate expense-sharing platform in the world.
                   </p>
                 </div>
@@ -180,17 +173,17 @@ export default function AboutPage() {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.5, delay: idx * 0.06, ease: "easeOut" }}
-                  className={`group relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 hover:border-primary/40 hover:shadow-xl hover:shadow-slate-900/5 dark:hover:shadow-black/40 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full ${val.glowBg}`}
+                  className="group card-premium relative p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 cursor-pointer flex flex-col justify-start h-full"
                 >
                   <div
-                    className={`p-2.5 rounded-xl w-fit mb-4 border transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs shrink-0 ${val.color}`}
+                    className={`p-2.5 rounded-xl w-fit mb-4 border icon-premium shrink-0 ${val.color}`}
                   >
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 tracking-tight transition-colors duration-200 group-hover:text-primary">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mb-2 tracking-tight card-title-premium">
                     {val.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed font-normal transition-colors duration-200">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 card-desc-premium leading-relaxed font-normal">
                     {val.description}
                   </p>
                 </motion.div>
@@ -232,14 +225,14 @@ export default function AboutPage() {
                 </div>
 
                 {/* Content Card */}
-                <div className="flex-1 p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 hover:bg-slate-100/70 dark:hover:bg-slate-900/90 transition-all duration-200 ease-out hover:-translate-y-1 hover:shadow-md hover:border-primary/40 cursor-pointer">
+                <div className="flex-1 p-5 sm:p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 card-premium cursor-pointer group">
                   <span className="text-[11px] font-mono font-bold text-primary tracking-wider uppercase">
                     {item.period}
                   </span>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white mt-1 mb-1.5">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white mt-1 mb-1.5 card-title-premium">
                     {item.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 card-desc-premium leading-relaxed">
                     {item.description}
                   </p>
                 </div>

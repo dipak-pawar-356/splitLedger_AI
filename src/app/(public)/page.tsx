@@ -23,28 +23,24 @@ export default function Home() {
       title: "Split Expenses",
       sentence: "Divide bills equally or by custom amounts with automatic balance updates for everyone.",
       color: "text-amber-500",
-      glowBg: "group-hover:shadow-amber-500/10 group-hover:border-amber-500/40",
     },
     {
       icon: QrCode,
       title: "Dynamic UPI Payments",
       sentence: "Generate pre-filled NPCI standard QR codes to settle debts directly in any UPI app.",
       color: "text-primary",
-      glowBg: "group-hover:shadow-primary/10 group-hover:border-primary/40",
     },
     {
       icon: ArrowLeftRight,
       title: "Smart Debt Settlement",
       sentence: "Graph minimization reduces complex multi-person transfers into the fewest direct payments.",
       color: "text-emerald-500",
-      glowBg: "group-hover:shadow-emerald-500/10 group-hover:border-emerald-500/40",
     },
     {
       icon: ShieldCheck,
       title: "Secure Cloud Sync",
       sentence: "Real-time encrypted ledger synchronization keeps every group member on the same page.",
       color: "text-blue-500",
-      glowBg: "group-hover:shadow-blue-500/10 group-hover:border-blue-500/40",
     },
   ];
 
@@ -191,15 +187,15 @@ export default function Home() {
                     delay: idx * 0.06,
                     ease: "easeOut",
                   }}
-                  className={`group relative p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 shadow-xs hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 hover:bg-slate-50/90 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full ${feature.glowBg}`}
+                  className="group card-premium relative p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 cursor-pointer flex flex-col justify-start h-full"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-900 dark:text-slate-100 transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs mb-4 shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-900 dark:text-slate-100 icon-premium mb-4 shrink-0">
                     <Icon className={`h-5 w-5 ${feature.color}`} />
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight transition-colors duration-200 group-hover:text-primary mb-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight card-title-premium mb-2">
                     {feature.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed font-normal transition-colors duration-200">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 card-desc-premium leading-relaxed font-normal">
                     {feature.sentence}
                   </p>
                 </motion.div>
@@ -244,20 +240,20 @@ export default function Home() {
                     delay: idx * 0.08,
                     ease: "easeOut",
                   }}
-                  className="group relative p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 shadow-xs hover:border-primary/40 dark:hover:border-primary/40 hover:shadow-xl hover:shadow-primary/5 hover:bg-slate-50/90 dark:hover:bg-slate-900/90 transition-all duration-250 ease-out hover:-translate-y-1.5 hover:scale-[1.02] cursor-pointer flex flex-col justify-start h-full"
+                  className="group card-premium relative p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 cursor-pointer flex flex-col justify-start h-full"
                 >
                   <div className="flex items-center justify-between mb-4 shrink-0">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center transition-all duration-250 ease-out group-hover:scale-[1.08] group-hover:rotate-3 group-hover:shadow-xs">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center icon-premium">
                       <Icon className="h-5 w-5" />
                     </div>
-                    <span className="font-mono text-xs font-semibold text-slate-400 dark:text-slate-500 transition-colors duration-200 group-hover:text-primary">
+                    <span className="font-mono text-xs font-semibold text-slate-400 dark:text-slate-500 transition-colors duration-250 group-hover:text-primary">
                       {step.step}
                     </span>
                   </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight transition-colors duration-200 group-hover:text-primary mb-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight card-title-premium mb-2">
                     {step.title}
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 leading-relaxed font-normal transition-colors duration-200">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 card-desc-premium leading-relaxed font-normal">
                     {step.description}
                   </p>
                 </motion.div>
