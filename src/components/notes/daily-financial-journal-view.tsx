@@ -9,7 +9,7 @@ import {
   Calendar,
   TrendingUp,
   TrendingDown,
-  DollarSign,
+  IndianRupee,
   ChevronLeft,
   ChevronRight,
   Printer,
@@ -389,7 +389,7 @@ export function DailyFinancialJournalView() {
             {/* 6. Transactions Count */}
             <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col justify-between">
               <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1 flex items-center gap-1">
-                <DollarSign className="h-3 w-3" /> Transactions
+                <IndianRupee className="h-3 w-3" /> Transactions
               </span>
               <span className="text-base sm:text-lg font-bold text-primary">
                 {journalData.txCount || 0} items
@@ -427,7 +427,7 @@ export function DailyFinancialJournalView() {
           <Card className="rounded-2xl border shadow-sm p-4 space-y-3 bg-card">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                <DollarSign className="h-4 w-4 text-emerald-500" />
+                <IndianRupee className="h-4 w-4 text-emerald-500" />
                 Ledger Entries for {formatDate(currentDate)} ({filteredTransactions.length})
               </h4>
             </div>
@@ -472,7 +472,7 @@ export function DailyFinancialJournalView() {
 
               {filteredTransactions.length === 0 && (
                 <div className="py-8 text-center text-slate-400 text-xs bg-slate-50/50 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-                  <DollarSign className="h-6 w-6 mx-auto text-slate-300 dark:text-slate-600 mb-1" />
+                  <IndianRupee className="h-6 w-6 mx-auto text-slate-300 dark:text-slate-600 mb-1" />
                   <p className="font-medium text-slate-600 dark:text-slate-400">No matching transactions recorded for this day</p>
                 </div>
               )}

@@ -4,7 +4,7 @@ import { settlements, contacts, groups, transactions, groupMembers, users } from
 import { eq, desc, or, and, sql, gte, lte } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, CheckCircle, Clock, DollarSign, Calendar, TrendingUp, TrendingDown, Filter, Search, Calculator, Send, Bell, Plus, QrCode, AlertCircle, ArrowUpRight } from "lucide-react";
+import { ArrowRight, CheckCircle, Clock, IndianRupee, Calendar, TrendingUp, TrendingDown, Filter, Search, Calculator, Send, Bell, Plus, QrCode, AlertCircle, ArrowUpRight } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { calculateGroupSettlements, createSettlementsFromCalculation, markSettlementAsPaid, markSettlementAsPaidFormAction } from "@/actions/settlements";
 import { revalidatePath } from "next/cache";
@@ -244,7 +244,7 @@ export default async function SettlementsPage() {
               Monthly Total
             </CardTitle>
             <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-              <DollarSign className="h-4 w-4 text-blue-600" />
+              <IndianRupee className="h-4 w-4 text-blue-600" />
             </div>
           </CardHeader>
           <CardContent>

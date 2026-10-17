@@ -6,7 +6,7 @@ import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 import { 
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
+  IndianRupee, 
   ArrowUpRight, 
   ArrowDownLeft, 
   Users, 

@@ -22,7 +22,7 @@ import {
   Clock, 
   Settings, 
   FileText,
-  DollarSign,
+  IndianRupee,
   ArrowRight,
   Share2,
   Trash2,

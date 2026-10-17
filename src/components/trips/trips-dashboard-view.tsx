@@ -38,7 +38,7 @@ import {
   Calendar,
   MapPin,
   CheckSquare,
-  DollarSign,
+  IndianRupee,
   Plus,
   CheckCircle2,
   Clock,

@@ -4,7 +4,7 @@ import { contacts, transactions, settlements, users } from "@/lib/db/schema/sche
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail, Phone, Calendar, DollarSign, TrendingUp, TrendingDown, Edit, Trash2, MessageSquare, Send, BarChart3, Receipt, History, Filter, Download } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Calendar, IndianRupee, TrendingUp, TrendingDown, Edit, Trash2, MessageSquare, Send, BarChart3, Receipt, History, Filter, Download } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { TransactionDialog } from "@/components/dialogs/transaction-dialog";
@@ -142,7 +142,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
             <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
               Current Balance
             </CardTitle>
-            <DollarSign className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+            <IndianRupee className="h-4 w-4 text-slate-600 dark:text-slate-400" />
           </CardHeader>
           <CardContent>
             <div className={`text-3xl font-bold ${balance >= 0 ? "text-green-600" : "text-red-600"}`}>
@@ -241,7 +241,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           contactId={contactId}
           trigger={
             <Button>
-              <DollarSign className="h-4 w-4 mr-2" />
+              <IndianRupee className="h-4 w-4 mr-2" />
               Add Transaction
             </Button>
           }

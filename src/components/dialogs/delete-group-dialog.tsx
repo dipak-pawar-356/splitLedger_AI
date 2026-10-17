@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Users, DollarSign, Calendar } from "lucide-react";
+import { AlertTriangle, Users, IndianRupee, Calendar } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { deleteGroup } from "@/actions/groups";
 import { useRouter } from "next/navigation";
@@ -82,7 +82,7 @@ export function DeleteGroupDialog({
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <DollarSign className="h-4 w-4" />
+                <IndianRupee className="h-4 w-4" />
                 <span>Total Expenses</span>
               </div>
               <span className="font-semibold text-green-600">
@@ -91,7 +91,7 @@ export function DeleteGroupDialog({
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <DollarSign className="h-4 w-4" />
+                <IndianRupee className="h-4 w-4" />
                 <span>Outstanding Balance</span>
               </div>
               <span className={`font-semibold ${outstandingBalance >= 0 ? "text-green-600" : "text-red-600"}`}>

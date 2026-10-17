@@ -11,7 +11,7 @@ import {
   Clock, 
   Tag, 
   FileText, 
-  DollarSign, 
+  IndianRupee, 
   Sparkles,
   ChevronDown,
   ChevronUp,

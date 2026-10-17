@@ -16,7 +16,7 @@ import {
   Check, 
   Send, 
   AlertCircle, 
-  DollarSign, 
+  IndianRupee, 
   User, 
   Users, 
   ArrowRight,

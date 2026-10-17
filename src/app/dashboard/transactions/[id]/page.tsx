@@ -16,7 +16,7 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Calendar, 
-  DollarSign, 
+  IndianRupee, 
   Receipt as ReceiptIcon, 
   TrendingUp, 
   TrendingDown, 
@@ -199,7 +199,7 @@ export default async function TransactionDetailPage({
       <Tabs defaultValue={initialTab} className="w-full">
         <TabsList className="w-full justify-start rounded-2xl p-1 bg-slate-100 dark:bg-slate-800/80 overflow-x-auto">
           <TabsTrigger value="overview" className="rounded-xl text-xs font-semibold px-4 gap-1.5">
-            <DollarSign className="h-3.5 w-3.5" />
+            <IndianRupee className="h-3.5 w-3.5" />
             <span>Overview & Splits</span>
           </TabsTrigger>
           <TabsTrigger value="versions" className="rounded-xl text-xs font-semibold px-4 gap-1.5">

@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { 
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
+  IndianRupee, 
   Receipt, 
   PieChart, 
   Award, 

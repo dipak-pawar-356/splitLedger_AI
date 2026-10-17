@@ -4,7 +4,7 @@ import { transactions, contacts, categories } from "@/lib/db/schema/schema";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar, Filter, Download, Printer, TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownLeft, Plus } from "lucide-react";
+import { Calendar, Filter, Download, Printer, TrendingUp, TrendingDown, IndianRupee, ArrowUpRight, ArrowDownLeft, Plus } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { TransactionDialog } from "@/components/dialogs/transaction-dialog";
@@ -124,7 +124,7 @@ export default async function LedgerPage() {
             <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
               Current Balance
             </CardTitle>
-            <DollarSign className="h-4 w-4 text-slate-500" />
+            <IndianRupee className="h-4 w-4 text-slate-500" />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${balance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>

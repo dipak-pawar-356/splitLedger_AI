@@ -13,7 +13,7 @@ import {
   Target, 
   UserCheck, 
   Layers, 
-  DollarSign 
+  IndianRupee 
 } from "lucide-react";
 import Link from "next/link";
 import { SettleAllDialog } from "@/components/dialogs/settle-all-dialog";

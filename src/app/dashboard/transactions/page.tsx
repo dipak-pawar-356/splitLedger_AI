@@ -15,7 +15,7 @@ import {
   Calendar, 
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
+  IndianRupee, 
   ArrowUpRight, 
   ArrowDownLeft, 
   Receipt, 

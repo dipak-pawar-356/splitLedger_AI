@@ -6,7 +6,7 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
-  DollarSign, 
+  IndianRupee, 
   TrendingUp, 
   TrendingDown, 
   PiggyBank, 
@@ -91,7 +91,7 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
               Net Position
             </span>
             <div className={`p-1.5 rounded-lg group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 ${isNetPositive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300" : "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"}`}>
-              <DollarSign className="h-4 w-4" />
+              <IndianRupee className="h-4 w-4" />
             </div>
           </div>
           <div className={`text-2xl font-black truncate tracking-tight ${isNetPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>

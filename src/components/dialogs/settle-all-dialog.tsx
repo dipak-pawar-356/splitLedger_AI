@@ -27,7 +27,7 @@ import {
   ArrowRight,
   AlertCircle,
   History,
-  DollarSign,
+  IndianRupee,
   Loader2,
   Sparkles,
   ShieldCheck,
@@ -290,7 +290,7 @@ export function SettleAllDialog({
       <DialogTrigger asChild>
         {trigger || (
           <Button size="sm" className="gap-2 font-semibold">
-            <DollarSign className="h-4 w-4" />
+            <IndianRupee className="h-4 w-4" />
             <span>Settle Debts</span>
           </Button>
         )}

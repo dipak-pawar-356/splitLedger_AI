@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Users, Shield, Globe, Lock, DollarSign } from "lucide-react";
+import { Plus, Users, Shield, Globe, Lock, IndianRupee } from "lucide-react";
 import { groupSchema, type GroupFormData } from "@/validators";
 import { createGroup } from "@/actions/groups";
 import { useRouter } from "next/navigation";

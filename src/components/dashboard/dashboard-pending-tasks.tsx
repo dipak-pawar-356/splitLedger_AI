@@ -8,7 +8,7 @@ import {
   Bell, 
   ArrowRight, 
   Clock, 
-  DollarSign, 
+  IndianRupee, 
   CheckCheck
 } from "lucide-react";
 import Link from "next/link";
@@ -31,7 +31,7 @@ export function DashboardPendingTasks({ tasks }: DashboardPendingTasksProps) {
   const getTaskIcon = (type: string, priority: string) => {
     switch (type) {
       case "settlement":
-        return <DollarSign className="h-4 w-4 text-emerald-500" />;
+        return <IndianRupee className="h-4 w-4 text-emerald-500" />;
       case "budget":
         return <AlertTriangle className="h-4 w-4 text-amber-500" />;
       case "reminder":

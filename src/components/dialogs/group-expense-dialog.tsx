@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, User, Users, DollarSign, Calculator, Check, AlertCircle } from "lucide-react";
+import { Plus, User, Users, IndianRupee, Calculator, Check, AlertCircle } from "lucide-react";
 import { createTransaction } from "@/actions/transactions";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -285,7 +285,7 @@ export function GroupExpenseDialog({
       <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
-            <DollarSign className="h-5 w-5 text-primary" />
+            <IndianRupee className="h-5 w-5 text-primary" />
             Add Group Expense
           </DialogTitle>
         </DialogHeader>

@@ -4,7 +4,7 @@ import { invitations, groups, groupMembers, users, contacts, settlements, transa
 import { eq, sql, and } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, DollarSign, Calendar, AlertTriangle, CheckCircle, XCircle, LogIn, ArrowRight, Shield } from "lucide-react";
+import { Users, IndianRupee, Calendar, AlertTriangle, CheckCircle, XCircle, LogIn, ArrowRight, Shield } from "lucide-react";
 import { formatCurrency, formatDate, generatePublicId } from "@/lib/utils";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";

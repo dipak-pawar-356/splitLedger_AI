@@ -12,7 +12,7 @@ import {
   ArrowUpRight, 
   ArrowDownLeft, 
   CheckCircle2, 
-  DollarSign,
+  IndianRupee,
   Tag
 } from "lucide-react";
 

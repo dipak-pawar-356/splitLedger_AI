@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  Plus, Users, TrendingUp, TrendingDown, DollarSign, Calendar, Clock, 
+  Plus, Users, TrendingUp, TrendingDown, IndianRupee, Calendar, Clock, 
   CheckCircle2, Archive, ArrowUpRight, ArrowDownLeft, Sparkles, Share2, 
   Plane, Home, Briefcase, Heart, PartyPopper, Tag, Shield, ArrowRight
 } from "lucide-react";
@@ -376,7 +376,7 @@ export default async function GroupsPage({
                 Total Expenses
               </CardTitle>
               <div className="p-2 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <DollarSign className="h-4 w-4" />
+                <IndianRupee className="h-4 w-4" />
               </div>
             </CardHeader>
             <CardContent>

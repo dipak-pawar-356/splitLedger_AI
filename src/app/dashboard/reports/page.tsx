@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { 
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
+  IndianRupee, 
   ArrowUpRight, 
   ArrowDownLeft, 
   FileCheck
@@ -128,7 +128,7 @@ export default async function ReportsPage({
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Net Balance</span>
             <div className="p-1 rounded-lg group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-              <DollarSign className="h-3.5 w-3.5 text-primary" />
+              <IndianRupee className="h-3.5 w-3.5 text-primary" />
             </div>
           </div>
           <div className={`text-lg font-bold truncate tracking-tight ${summaryMetrics.netBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>

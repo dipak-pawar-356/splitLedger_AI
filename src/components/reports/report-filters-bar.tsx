@@ -10,7 +10,7 @@ import {
   Calendar, 
   X, 
   RotateCcw, 
-  DollarSign, 
+  IndianRupee, 
   CreditCard, 
   Tag, 
   Layers,

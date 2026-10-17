@@ -18,7 +18,7 @@ import {
   RotateCcw, 
   FileText,
   Calendar,
-  DollarSign,
+  IndianRupee,
   Plus,
   ArrowRight,
   ArrowUpRight,
@@ -324,7 +324,7 @@ export function TransactionsClientView({
 
               {filteredActive.length === 0 && (
                 <div className="text-center py-16 text-slate-500 space-y-3">
-                  <DollarSign className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-700" />
+                  <IndianRupee className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-700" />
                   <p className="font-semibold text-sm">No transactions match your filters</p>
                   <p className="text-xs text-slate-400">Try adjusting search keywords or filters above.</p>
                 </div>

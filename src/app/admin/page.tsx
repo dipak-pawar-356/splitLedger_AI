@@ -4,7 +4,7 @@ import { users, profiles, transactions, groups, contacts, settlements } from "@/
 import { eq, desc, sql, count, gte, and } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Activity, DollarSign, Settings, Shield, Database, AlertTriangle, TrendingUp, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Users, Activity, IndianRupee, Settings, Shield, Database, AlertTriangle, TrendingUp, FileText, Clock, CheckCircle, XCircle } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
@@ -156,7 +156,7 @@ export default async function AdminPage() {
             <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
               Total Volume
             </CardTitle>
-            <DollarSign className="h-4 w-4 text-purple-600" />
+            <IndianRupee className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -259,7 +259,7 @@ export default async function AdminPage() {
                 <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/20 text-green-600 flex items-center justify-center">
-                      <DollarSign className="h-4 w-4" />
+                      <IndianRupee className="h-4 w-4" />
                     </div>
                     <div>
                       <p className="font-medium text-sm">{transaction.description || "Transaction"}</p>

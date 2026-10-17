@@ -40,7 +40,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  DollarSign,
+  IndianRupee,
   Plus,
   Scale,
   MoreVertical,

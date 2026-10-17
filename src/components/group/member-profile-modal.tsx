@@ -14,7 +14,7 @@ import {
   ArrowUpRight, 
   ArrowDownLeft, 
   Calendar,
-  DollarSign,
+  IndianRupee,
   QrCode,
   Smartphone,
   CheckCircle2
