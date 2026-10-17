@@ -24,6 +24,7 @@ import {
   type UpiSettlementCardData 
 } from "@/actions/upi-settlements";
 import { DynamicUpiSettlementCard } from "./dynamic-upi-settlement-card";
+import { UpiQuickPayDialog } from "./upi-quick-pay-dialog";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -293,11 +294,32 @@ export function GroupUpiSettlementHub({
                   </div>
                 </div>
 
-                <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>Payable via QR</span>
+                <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-2">
                   <span className="font-medium text-slate-700 dark:text-slate-300">
-                    {isUpiConfigured ? "Your QR active on debtor dashboard" : "Setup UPI to enable QR"}
+                    {isUpiConfigured ? "Dynamic QR Ready" : "Setup UPI to enable QR"}
                   </span>
+                  {data?.currentUserId && isUpiConfigured && (
+                    <UpiQuickPayDialog
+                      groupId={groupId}
+                      groupName={groupName}
+                      receiverUserId={data.currentUserId}
+                      receiverName="You"
+                      payerUserId={recv.payerId}
+                      payerName={recv.payerName}
+                      amount={recv.amount}
+                      mode="receive"
+                      onSuccess={() => fetchFreshSettlements(true)}
+                      trigger={
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                        >
+                          <QrCode className="h-3.5 w-3.5" />
+                          <span>Show QR</span>
+                        </Button>
+                      }
+                    />
+                  )}
                 </div>
               </Card>
             ))}

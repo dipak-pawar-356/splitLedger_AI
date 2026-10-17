@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
-import { ArrowRight, CheckCircle2, Sparkles, Check, Smartphone } from "lucide-react";
+import { ArrowRight, CheckCircle2, Sparkles, Check, Smartphone, QrCode } from "lucide-react";
 import { SettleAllDialog } from "@/components/dialogs/settle-all-dialog";
 import { SettleUpButton } from "@/components/settlement/settle-up-button";
 import { UpiQuickPayDialog } from "@/components/settlement/upi-quick-pay-dialog";
@@ -142,24 +142,55 @@ export function WhoPaysWhomCard({
                   <span className="text-[11px] text-slate-400">
                     {s.fromName} owes {s.toName}
                   </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     {s.toUserId && (
-                      <UpiQuickPayDialog
-                        groupId={groupId}
-                        groupName={groupName}
-                        receiverUserId={s.toUserId}
-                        receiverName={s.toName}
-                        amount={s.amount}
-                        trigger={
-                          <Button
-                            size="sm"
-                            className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                          >
-                            <Smartphone className="h-3.5 w-3.5" />
-                            <span>Pay Now</span>
-                          </Button>
-                        }
-                      />
+                      <>
+                        {/* If current user is receiver (or if admin is viewing): Show QR */}
+                        {(currentUserId === s.toUserId || (isOwner && currentUserId !== s.fromUserId)) && (
+                          <UpiQuickPayDialog
+                            groupId={groupId}
+                            groupName={groupName}
+                            receiverUserId={s.toUserId}
+                            receiverName={s.toName}
+                            payerUserId={s.fromUserId}
+                            payerName={s.fromName}
+                            amount={s.amount}
+                            mode="receive"
+                            trigger={
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                              >
+                                <QrCode className="h-3.5 w-3.5" />
+                                <span>Show QR</span>
+                              </Button>
+                            }
+                          />
+                        )}
+
+                        {/* If current user is payer (or if admin is viewing): Pay Now */}
+                        {(currentUserId === s.fromUserId || (isOwner && currentUserId !== s.toUserId)) && (
+                          <UpiQuickPayDialog
+                            groupId={groupId}
+                            groupName={groupName}
+                            receiverUserId={s.toUserId}
+                            receiverName={s.toName}
+                            payerUserId={s.fromUserId}
+                            payerName={s.fromName}
+                            amount={s.amount}
+                            mode="pay"
+                            trigger={
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                              >
+                                <Smartphone className="h-3.5 w-3.5" />
+                                <span>Pay Now</span>
+                              </Button>
+                            }
+                          />
+                        )}
+                      </>
                     )}
                     <SettleAllDialog
                       groupId={groupId}

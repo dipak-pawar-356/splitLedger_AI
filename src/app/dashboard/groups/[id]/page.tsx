@@ -30,7 +30,9 @@ import {
   ShieldCheck,
   BellRing,
   Mail,
-  Lock
+  Lock,
+  QrCode,
+  Smartphone
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -38,6 +40,7 @@ import { GroupOverviewBanner } from "@/components/group/group-overview-banner";
 import { WhoPaysWhomCard } from "@/components/group/who-pays-whom-card";
 import { GroupExpenseInsights } from "@/components/group/group-expense-insights";
 import { MemberFinancialSummary } from "@/components/group/member-financial-summary";
+import { UpiQuickPayDialog } from "@/components/settlement/upi-quick-pay-dialog";
 import { SmartAddMemberDialog } from "@/components/dialogs/smart-add-member-dialog";
 import { GroupExpenseDialog } from "@/components/dialogs/group-expense-dialog";
 import { SettleAllDialog } from "@/components/dialogs/settle-all-dialog";
@@ -629,20 +632,71 @@ export default async function GroupDetailPage({
                             {formatCurrency(sg.amount)}
                           </span>
                         </div>
-                        <SettleAllDialog
-                          groupId={group.id}
-                          groupName={group.name}
-                          suggestions={[sg]}
-                          trigger={
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs font-semibold rounded-xl text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"
-                            >
-                              Settle
-                            </Button>
-                          }
-                        />
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {sg.toUserId && (
+                            <>
+                              {/* Receiver side: Show QR */}
+                              {(user.id === sg.toUserId || (isGroupOwner && user.id !== sg.fromUserId)) && (
+                                <UpiQuickPayDialog
+                                  groupId={group.id}
+                                  groupName={group.name}
+                                  receiverUserId={sg.toUserId}
+                                  receiverName={sg.toName}
+                                  payerUserId={sg.fromUserId}
+                                  payerName={sg.fromName}
+                                  amount={sg.amount}
+                                  mode="receive"
+                                  trigger={
+                                    <Button
+                                      size="sm"
+                                      className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                                    >
+                                      <QrCode className="h-3 w-3" />
+                                      <span>Show QR</span>
+                                    </Button>
+                                  }
+                                />
+                              )}
+
+                              {/* Payer side: Pay Now */}
+                              {(user.id === sg.fromUserId || (isGroupOwner && user.id !== sg.toUserId)) && (
+                                <UpiQuickPayDialog
+                                  groupId={group.id}
+                                  groupName={group.name}
+                                  receiverUserId={sg.toUserId}
+                                  receiverName={sg.toName}
+                                  payerUserId={sg.fromUserId}
+                                  payerName={sg.fromName}
+                                  amount={sg.amount}
+                                  mode="pay"
+                                  trigger={
+                                    <Button
+                                      size="sm"
+                                      className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                    >
+                                      <Smartphone className="h-3 w-3" />
+                                      <span>Pay Now</span>
+                                    </Button>
+                                  }
+                                />
+                              )}
+                            </>
+                          )}
+                          <SettleAllDialog
+                            groupId={group.id}
+                            groupName={group.name}
+                            suggestions={[sg]}
+                            trigger={
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs font-semibold rounded-xl text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10"
+                              >
+                                Settle
+                              </Button>
+                            }
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>

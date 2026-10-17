@@ -19,8 +19,11 @@ import {
   ArrowDownLeft, 
   CheckCircle2, 
   ExternalLink,
-  BookOpen
+  BookOpen,
+  QrCode,
+  Smartphone
 } from "lucide-react";
+import { UpiQuickPayDialog } from "@/components/settlement/upi-quick-pay-dialog";
 import { ReminderDialog } from "@/components/dialogs/reminder-dialog";
 import { MemberProfileModal } from "@/components/group/member-profile-modal";
 import { MemberPermissionsDialog } from "@/components/group/member-permissions-dialog";
@@ -189,6 +192,54 @@ export function MemberFinancialSummary({
                   </span>
                 </div>
               </div>
+
+              {/* In one row: Show QR if he receives money, and Pay Now when he needs to pay */}
+              {isCurrentUser && (member.receivesFrom.length > 0 || member.owesTo.length > 0) && (
+                <div className="pt-2.5 mt-2.5 border-t border-slate-200/70 dark:border-slate-800/80 flex items-center gap-2 flex-wrap">
+                  {member.receivesFrom.length > 0 && member.userId && (
+                    <UpiQuickPayDialog
+                      groupId={groupId}
+                      groupName={groupName}
+                      receiverUserId={member.userId}
+                      receiverName={member.name}
+                      payerUserId={member.receivesFrom[0].userId}
+                      payerName={member.receivesFrom[0].name}
+                      amount={member.receivesFrom[0].amount}
+                      mode="receive"
+                      trigger={
+                        <Button
+                          size="sm"
+                          className="flex-1 min-w-[130px] h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                        >
+                          <QrCode className="h-3.5 w-3.5" />
+                          <span>Show QR (₹{member.receivesFrom[0].amount.toFixed(2)})</span>
+                        </Button>
+                      }
+                    />
+                  )}
+                  {member.owesTo.length > 0 && member.owesTo[0].userId && (
+                    <UpiQuickPayDialog
+                      groupId={groupId}
+                      groupName={groupName}
+                      receiverUserId={member.owesTo[0].userId}
+                      receiverName={member.owesTo[0].name}
+                      payerUserId={member.userId}
+                      payerName={member.name}
+                      amount={member.owesTo[0].amount}
+                      mode="pay"
+                      trigger={
+                        <Button
+                          size="sm"
+                          className="flex-1 min-w-[130px] h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                        >
+                          <Smartphone className="h-3.5 w-3.5" />
+                          <span>Pay Now (₹{member.owesTo[0].amount.toFixed(2)})</span>
+                        </Button>
+                      }
+                    />
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Paid vs Own Share Grid (SECTION 4) */}
@@ -238,24 +289,111 @@ export function MemberFinancialSummary({
             {hasFullSettlementAccess ? (
               <>
                 {member.receivesFrom.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors">
+                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-2 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors">
                     <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Receives from:</span>
                     {member.receivesFrom.map((r, i) => (
-                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
-                        <span>{r.name}</span>
-                        <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
+                      <div key={i} className="flex justify-between items-center text-slate-600 dark:text-slate-300 gap-2">
+                        <span className="truncate">{r.name}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
+                          {isCurrentUser && member.userId && (
+                            <UpiQuickPayDialog
+                              groupId={groupId}
+                              groupName={groupName}
+                              receiverUserId={member.userId}
+                              receiverName={member.name}
+                              payerUserId={r.userId}
+                              payerName={r.name}
+                              amount={r.amount}
+                              mode="receive"
+                              trigger={
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                                >
+                                  <QrCode className="h-2.5 w-2.5" />
+                                  <span>Show QR</span>
+                                </Button>
+                              }
+                            />
+                          )}
+                          {!isCurrentUser && currentUserId && r.userId === currentUserId && member.userId && (
+                            <UpiQuickPayDialog
+                              groupId={groupId}
+                              groupName={groupName}
+                              receiverUserId={member.userId}
+                              receiverName={member.name}
+                              payerUserId={currentUserId}
+                              amount={r.amount}
+                              mode="pay"
+                              trigger={
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                >
+                                  <Smartphone className="h-2.5 w-2.5" />
+                                  <span>Pay Now</span>
+                                </Button>
+                              }
+                            />
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
 
                 {member.owesTo.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1 hover:border-rose-300 dark:hover:border-rose-800 transition-colors">
+                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-2 hover:border-rose-300 dark:hover:border-rose-800 transition-colors">
                     <span className="font-semibold text-rose-700 dark:text-rose-400 block">Needs to pay:</span>
                     {member.owesTo.map((o, i) => (
-                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
-                        <span>{o.name}</span>
-                        <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
+                      <div key={i} className="flex justify-between items-center text-slate-600 dark:text-slate-300 gap-2">
+                        <span className="truncate">{o.name}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
+                          {isCurrentUser && o.userId && (
+                            <UpiQuickPayDialog
+                              groupId={groupId}
+                              groupName={groupName}
+                              receiverUserId={o.userId}
+                              receiverName={o.name}
+                              payerUserId={member.userId}
+                              payerName={member.name}
+                              amount={o.amount}
+                              mode="pay"
+                              trigger={
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                >
+                                  <Smartphone className="h-2.5 w-2.5" />
+                                  <span>Pay Now</span>
+                                </Button>
+                              }
+                            />
+                          )}
+                          {!isCurrentUser && currentUserId && o.userId === currentUserId && (
+                            <UpiQuickPayDialog
+                              groupId={groupId}
+                              groupName={groupName}
+                              receiverUserId={currentUserId}
+                              receiverName="You"
+                              payerUserId={member.userId}
+                              payerName={member.name}
+                              amount={o.amount}
+                              mode="receive"
+                              trigger={
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                                >
+                                  <QrCode className="h-2.5 w-2.5" />
+                                  <span>Show QR</span>
+                                </Button>
+                              }
+                            />
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -264,24 +402,69 @@ export function MemberFinancialSummary({
             ) : (
               <>
                 {mutualReceives.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-1 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors">
+                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-2 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors">
                     <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Settlement with you:</span>
                     {mutualReceives.map((r, i) => (
-                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
+                      <div key={i} className="flex justify-between items-center text-slate-600 dark:text-slate-300 gap-2">
                         <span>Receives from you</span>
-                        <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
+                        <div className="flex items-center gap-2">
+                          <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
+                          {member.userId && (
+                            <UpiQuickPayDialog
+                              groupId={groupId}
+                              groupName={groupName}
+                              receiverUserId={member.userId}
+                              receiverName={member.name}
+                              payerUserId={currentUserId}
+                              amount={r.amount}
+                              mode="pay"
+                              trigger={
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                >
+                                  <Smartphone className="h-2.5 w-2.5" />
+                                  <span>Pay Now</span>
+                                </Button>
+                              }
+                            />
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
 
                 {mutualOwes.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-1 hover:border-rose-300 dark:hover:border-rose-800 transition-colors">
+                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-2 hover:border-rose-300 dark:hover:border-rose-800 transition-colors">
                     <span className="font-semibold text-rose-700 dark:text-rose-400 block">Settlement with you:</span>
                     {mutualOwes.map((o, i) => (
-                      <div key={i} className="flex justify-between text-slate-600 dark:text-slate-300">
+                      <div key={i} className="flex justify-between items-center text-slate-600 dark:text-slate-300 gap-2">
                         <span>Owes to you</span>
-                        <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
+                        <div className="flex items-center gap-2">
+                          <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
+                          {currentUserId && (
+                            <UpiQuickPayDialog
+                              groupId={groupId}
+                              groupName={groupName}
+                              receiverUserId={currentUserId}
+                              receiverName="You"
+                              payerUserId={member.userId}
+                              payerName={member.name}
+                              amount={o.amount}
+                              mode="receive"
+                              trigger={
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                                >
+                                  <QrCode className="h-2.5 w-2.5" />
+                                  <span>Show QR</span>
+                                </Button>
+                              }
+                            />
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -377,6 +560,7 @@ export function MemberFinancialSummary({
         onOpenChange={setIsProfileModalOpen}
         member={member}
         groupName={groupName}
+        groupId={groupId}
         isGroupOwner={isGroupOwner}
         currentUserId={currentUserId}
       />

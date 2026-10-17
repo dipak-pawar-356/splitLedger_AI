@@ -7,6 +7,7 @@ import {
   transactions, 
   settlements, 
   users, 
+  profiles,
   contacts, 
   expenseSplits,
   settlementHistory,
@@ -491,11 +492,13 @@ export async function getGroupUpiSettlementsAction(
 
 /**
  * Single Source of Truth: Backend verification endpoint called immediately before QR presentation.
- * Recalculates fresh debt from caller to target receiver, confirms group membership and receiver UPI.
+ * Generates the identical dynamic UPI QR code and exact amount for both payer ("Pay Now") and receiver ("Show QR").
  */
 export async function verifyAndGenerateSettlementQrAction(params: {
   groupId: number;
   receiverUserId: number;
+  payerUserId?: number | null;
+  amount?: number;
 }): Promise<{
   success: boolean;
   amount: number;
@@ -508,36 +511,91 @@ export async function verifyAndGenerateSettlementQrAction(params: {
   try {
     const user = await requireAuth();
 
-    // Re-run fresh group settlement calculation
-    const groupData = await getGroupUpiSettlementsAction(params.groupId);
-    if (!groupData.success) {
-      throw new Error(groupData.error || "Failed to calculate group settlement");
+    // 1. Fetch receiver user and profile to retrieve their verified UPI VPA
+    const [receiverUser] = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        userUpiId: users.upiId,
+        profileUpiId: profiles.upiId,
+      })
+      .from(users)
+      .leftJoin(profiles, eq(profiles.userId, users.id))
+      .where(eq(users.id, params.receiverUserId))
+      .limit(1);
+
+    if (!receiverUser) {
+      throw new NotFoundError("Receiver user profile not found");
     }
 
-    const payable = groupData.myPayables.find((p) => p.receiverId === params.receiverUserId);
-    if (!payable) {
-      throw new ValidationError("No pending settlement found between you and this member.");
+    const receiverUpiId = (receiverUser.userUpiId || receiverUser.profileUpiId || "").trim().toLowerCase();
+    if (!receiverUpiId) {
+      throw new ValidationError(
+        `${receiverUser.name || "Receiver"} has not configured their Primary UPI ID yet.`
+      );
     }
 
-    if (payable.amount <= 0) {
-      throw new ValidationError("Settlement is already completed or balance is zero.");
+    const upiValidation = validateUpiId(receiverUpiId);
+    if (!upiValidation.isValid) {
+      throw new ValidationError(
+        upiValidation.error || "Receiver's configured UPI ID is invalid."
+      );
     }
 
-    if (!payable.hasValidUpi || !payable.receiverUpiId) {
-      throw new ValidationError(payable.upiValidationMessage || "Receiver has not configured a valid UPI ID.");
+    // 2. Resolve settlement amount (exact match from params or fresh group settlement calculation)
+    let settlementAmount = params.amount ? Number(params.amount) : 0;
+
+    if (!settlementAmount || settlementAmount <= 0) {
+      const groupData = await getGroupUpiSettlementsAction(params.groupId);
+      if (groupData.success) {
+        // If caller is payer
+        const payable = groupData.myPayables.find((p) => p.receiverId === params.receiverUserId);
+        if (payable && payable.amount > 0) {
+          settlementAmount = payable.amount;
+        } else {
+          // If caller is receiver
+          const receivable = groupData.myReceivables.find(
+            (r) => !params.payerUserId || r.payerId === params.payerUserId
+          );
+          if (receivable && receivable.amount > 0) {
+            settlementAmount = receivable.amount;
+          }
+        }
+      }
     }
 
-    if (!payable.upiUri || !payable.qrCodeDataUrl) {
-      throw new ValidationError("Failed to generate dynamic settlement QR code.");
+    if (settlementAmount <= 0) {
+      throw new ValidationError("Settlement amount must be greater than zero.");
     }
+
+    const [group] = await db
+      .select({ name: groups.name })
+      .from(groups)
+      .where(eq(groups.id, params.groupId))
+      .limit(1);
+
+    const groupName = group?.name || "SplitLedger Group";
+    const cleanAmount = Math.round(settlementAmount * 100) / 100;
+
+    // Generate Universal NPCI UPI URI
+    const upiUri = buildUpiDeepLink({
+      payeeUpiId: receiverUpiId,
+      payeeName: receiverUser.name || "SplitLedger Member",
+      amount: cleanAmount,
+      currency: "INR",
+      transactionNote: `Settlement for ${groupName}`,
+    });
+
+    // Generate dynamic QR code data URL (100% identical for payer and receiver)
+    const qrCodeDataUrl = await generateUpiQrCodeDataUrl(upiUri);
 
     return {
       success: true,
-      amount: payable.amount,
-      receiverName: payable.receiverName,
-      receiverUpiId: payable.receiverUpiId,
-      upiUri: payable.upiUri,
-      qrCodeDataUrl: payable.qrCodeDataUrl,
+      amount: cleanAmount,
+      receiverName: receiverUser.name || "SplitLedger Member",
+      receiverUpiId,
+      upiUri,
+      qrCodeDataUrl,
     };
   } catch (error: any) {
     return {
@@ -547,7 +605,7 @@ export async function verifyAndGenerateSettlementQrAction(params: {
       receiverUpiId: "",
       upiUri: "",
       qrCodeDataUrl: "",
-      error: error?.message || "Failed to verify settlement",
+      error: error?.message || "Failed to generate dynamic settlement QR code",
     };
   }
 }
@@ -559,6 +617,7 @@ export async function verifyAndGenerateSettlementQrAction(params: {
 export async function recordUpiSettlementPaymentAction(data: {
   groupId: number;
   receiverUserId: number;
+  payerUserId?: number | null;
   amount: number; // in rupees
   utrNumber?: string;
   notes?: string;
@@ -593,6 +652,11 @@ export async function recordUpiSettlementPaymentAction(data: {
       throw new AuthorizationError("Your expense participation is awaiting Group Owner configuration.");
     }
 
+    // Determine actual payer and receiver based on who performed the action
+    const isReceiverRecording = user.id === data.receiverUserId;
+    const actualFromUserId = isReceiverRecording && data.payerUserId ? data.payerUserId : user.id;
+    const actualToUserId = isReceiverRecording ? user.id : data.receiverUserId;
+
     // Amount in paise
     const amountInPaise = Math.round(data.amount * 100);
 
@@ -601,41 +665,47 @@ export async function recordUpiSettlementPaymentAction(data: {
       .values({
         publicId: generatePublicId(),
         groupId: data.groupId,
-        fromUserId: user.id,
-        toUserId: data.receiverUserId,
+        fromUserId: actualFromUserId,
+        toUserId: actualToUserId,
         amount: amountInPaise,
         currency: "INR",
         paymentMethod: "UPI",
         status: "completed",
         paidAt: new Date(),
-        notes: data.notes?.trim() || (data.utrNumber ? `UPI Ref/UTR: ${data.utrNumber.trim()}` : "Direct UPI Transfer"),
+        notes: data.notes?.trim() || (data.utrNumber ? `UPI Ref/UTR: ${data.utrNumber.trim()}` : isReceiverRecording ? "Confirmed received via UPI QR" : "Direct UPI Transfer"),
       })
       .returning();
 
     // Record settlement history & audit log
     try {
+      const [payer] = await db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, actualFromUserId))
+        .limit(1);
+
       const [receiver] = await db
         .select({ name: users.name })
         .from(users)
-        .where(eq(users.id, data.receiverUserId))
+        .where(eq(users.id, actualToUserId))
         .limit(1);
 
       await db.insert(settlementHistory).values({
         publicId: generatePublicId(),
         settlementId: insertedSettlement.id,
         groupId: data.groupId,
-        fromUserId: user.id,
-        fromName: user.name || "Member",
-        toUserId: data.receiverUserId,
-        toName: receiver?.name || "Member",
+        fromUserId: actualFromUserId,
+        fromName: payer?.name || "Payer",
+        toUserId: actualToUserId,
+        toName: receiver?.name || "Receiver",
         amount: amountInPaise,
         currency: "INR",
         paymentMethod: "UPI",
         transactionReference: data.utrNumber?.trim() || null,
-        reason: "Dynamic UPI QR Settlement payment completed",
+        reason: isReceiverRecording ? "Dynamic UPI QR Settlement confirmed as received" : "Dynamic UPI QR Settlement payment completed",
         notes: data.notes?.trim() || null,
         approvedBy: user.id,
-        approvedByName: user.name || "Payer",
+        approvedByName: user.name || (isReceiverRecording ? "Receiver" : "Payer"),
         approvedDate: new Date(),
         previousBalance: -amountInPaise,
         newBalance: 0,
@@ -648,10 +718,12 @@ export async function recordUpiSettlementPaymentAction(data: {
         entityId: insertedSettlement.id,
         changes: {
           groupId: data.groupId,
-          toUserId: data.receiverUserId,
+          fromUserId: actualFromUserId,
+          toUserId: actualToUserId,
           amount: data.amount,
           paymentMethod: "UPI",
           utrNumber: data.utrNumber || null,
+          confirmedBy: isReceiverRecording ? "receiver" : "payer",
         },
       });
     } catch (logErr) {

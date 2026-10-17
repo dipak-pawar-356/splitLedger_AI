@@ -21,19 +21,24 @@ import {
   Loader2,
   Sparkles,
   Download,
-  ArrowRight,
+  ArrowDownLeft,
+  ArrowUpRight,
+  ShieldCheck,
 } from "lucide-react";
 import { verifyAndGenerateSettlementQrAction, recordUpiSettlementPaymentAction } from "@/actions/upi-settlements";
 import { getAppSpecificUpiLink } from "@/lib/payments/upi";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
-interface UpiQuickPayDialogProps {
+export interface UpiQuickPayDialogProps {
   groupId: number;
   groupName: string;
-  receiverUserId?: number;
+  receiverUserId?: number | null;
   receiverName: string;
+  payerUserId?: number | null;
+  payerName?: string;
   amount: number;
+  mode?: "pay" | "receive";
   trigger?: React.ReactNode;
   onSuccess?: () => void;
 }
@@ -43,7 +48,10 @@ export function UpiQuickPayDialog({
   groupName,
   receiverUserId,
   receiverName,
+  payerUserId,
+  payerName,
   amount,
+  mode = "pay",
   trigger,
   onSuccess,
 }: UpiQuickPayDialogProps) {
@@ -64,6 +72,8 @@ export function UpiQuickPayDialog({
   const [isMarkingPaid, setIsMarkingPaid] = useState(false);
   const [utrNumber, setUtrNumber] = useState("");
 
+  const isReceiveMode = mode === "receive";
+
   const handleOpen = async (isOpen: boolean) => {
     setOpen(isOpen);
     if (!isOpen) {
@@ -81,9 +91,13 @@ export function UpiQuickPayDialog({
     setError(null);
 
     try {
+      // Both payer ("Pay Now") and receiver ("Show QR") call the single source of truth
+      // with identical receiverUserId and identical settlement amount to produce the exact same QR code.
       const res = await verifyAndGenerateSettlementQrAction({
         groupId,
         receiverUserId,
+        payerUserId,
+        amount,
       });
 
       if (res.success && res.qrCodeDataUrl) {
@@ -120,12 +134,24 @@ export function UpiQuickPayDialog({
     setTimeout(() => setCopiedAmount(false), 2000);
   };
 
+  const handleDownloadQr = () => {
+    if (!settlementData?.qrCodeDataUrl) return;
+    const a = document.createElement("a");
+    a.href = settlementData.qrCodeDataUrl;
+    const cleanName = (settlementData.receiverName || "settlement").toLowerCase().replace(/[^a-z0-9]/g, "-");
+    a.download = `upi-settlement-qr-${cleanName}-rs${Math.round(settlementData.amount)}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast.success("QR Code downloaded as PNG!");
+  };
+
   const handlePayNow = () => {
     if (!settlementData?.upiUri) return;
     window.location.href = settlementData.upiUri;
   };
 
-  const handleMarkPaid = async () => {
+  const handleRecordPayment = async () => {
     if (!receiverUserId || !settlementData) return;
     setIsMarkingPaid(true);
 
@@ -133,19 +159,26 @@ export function UpiQuickPayDialog({
       const res = await recordUpiSettlementPaymentAction({
         groupId,
         receiverUserId,
+        payerUserId,
         amount: settlementData.amount,
         utrNumber: utrNumber.trim() || undefined,
-        notes: "Paid via Quick UPI QR",
+        notes: isReceiveMode
+          ? `Confirmed receipt of ₹${settlementData.amount.toFixed(2)} via dynamic QR`
+          : "Paid via dynamic UPI QR",
       });
 
       if (res.success) {
-        toast.success(`Settlement of ₹${settlementData.amount.toFixed(2)} recorded as paid!`);
+        toast.success(
+          isReceiveMode
+            ? `Settlement of ₹${settlementData.amount.toFixed(2)} confirmed as received!`
+            : `Settlement of ₹${settlementData.amount.toFixed(2)} recorded as paid!`
+        );
         setOpen(false);
         onSuccess?.();
         router.refresh();
       }
     } catch (err: any) {
-      toast.error(err?.message || "Failed to record payment");
+      toast.error(err?.message || "Failed to record settlement");
     } finally {
       setIsMarkingPaid(false);
     }
@@ -164,28 +197,50 @@ export function UpiQuickPayDialog({
     <Dialog open={open} onOpenChange={handleOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button
-            size="sm"
-            className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-          >
-            <Smartphone className="h-3.5 w-3.5" />
-            <span>Pay Now</span>
-          </Button>
+          isReceiveMode ? (
+            <Button
+              size="sm"
+              className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+            >
+              <QrCode className="h-3.5 w-3.5" />
+              <span>Show QR</span>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+              <span>Pay Now</span>
+            </Button>
+          )
         )}
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-[420px] rounded-3xl p-6">
         <DialogHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
-              <QrCode className="h-5 w-5" />
+            <div
+              className={`p-2 rounded-xl ${
+                isReceiveMode
+                  ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              }`}
+            >
+              {isReceiveMode ? <QrCode className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
             </div>
             <div>
-              <DialogTitle className="text-base font-bold">
-                Instant UPI QR Settlement
+              <DialogTitle className="text-base font-bold flex items-center gap-1.5">
+                <span>
+                  {isReceiveMode
+                    ? `Receive ₹${amount.toFixed(2)} via UPI QR`
+                    : `Pay ₹${amount.toFixed(2)} to ${receiverName}`}
+                </span>
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-500">
-                Verified on-demand payment for {groupName}
+                {isReceiveMode
+                  ? `Show this dynamic QR to ${payerName || "the payer"} to collect for ${groupName}`
+                  : `Verified instant payment for ${groupName}`}
               </DialogDescription>
             </div>
           </div>
@@ -193,8 +248,8 @@ export function UpiQuickPayDialog({
 
         {isLoading ? (
           <div className="py-12 text-center space-y-2">
-            <Loader2 className="h-8 w-8 animate-spin mx-auto text-emerald-500" />
-            <p className="text-xs font-semibold text-slate-500">Verifying latest balance and generating dynamic QR...</p>
+            <Loader2 className={`h-8 w-8 animate-spin mx-auto ${isReceiveMode ? "text-indigo-500" : "text-emerald-500"}`} />
+            <p className="text-xs font-semibold text-slate-500">Generating dynamic Universal UPI QR code...</p>
           </div>
         ) : error ? (
           <div className="py-6 space-y-4">
@@ -219,21 +274,33 @@ export function UpiQuickPayDialog({
             {/* Amount and Receiver Header */}
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Pay to</span>
-                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{settlementData.receiverName}</span>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+                  {isReceiveMode ? "Your Receiving UPI Account" : "Pay to"}
+                </span>
+                <span className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                  <span>{settlementData.receiverName}</span>
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 inline" />
+                </span>
                 <span className="text-[11px] font-mono text-slate-500 block">{settlementData.receiverUpiId}</span>
               </div>
               <div className="text-right">
-                <span className="text-lg font-black font-mono text-emerald-600 block">
+                <span className={`text-lg font-black font-mono block ${isReceiveMode ? "text-indigo-600 dark:text-indigo-400" : "text-emerald-600"}`}>
                   ₹{settlementData.amount.toFixed(2)}
                 </span>
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] px-1.5 py-0 h-4">
+                <Badge
+                  variant="outline"
+                  className={`${
+                    isReceiveMode
+                      ? "bg-indigo-500/10 text-indigo-600 border-indigo-500/20"
+                      : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                  } text-[9px] px-1.5 py-0 h-4`}
+                >
                   Exact Amount Locked
                 </Badge>
               </div>
             </div>
 
-            {/* Dynamic QR Display */}
+            {/* Dynamic QR Display - Identical for Payer & Receiver */}
             <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950 border border-slate-200/80 dark:border-slate-800">
               <div className="p-2.5 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -246,13 +313,17 @@ export function UpiQuickPayDialog({
                 />
               </div>
 
-              <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold mt-2">
-                <Sparkles className="h-3 w-3" />
-                <span>Scan with GPay, PhonePe, Paytm, or BHIM</span>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 font-semibold mt-2">
+                <Sparkles className="h-3 w-3 text-amber-500" />
+                <span>
+                  {isReceiveMode
+                    ? `Payer scans with GPay, PhonePe, Paytm, or BHIM`
+                    : "Scan with GPay, PhonePe, Paytm, or BHIM"}
+                </span>
               </div>
             </div>
 
-            {/* Quick Copy Buttons */}
+            {/* Quick Actions: Copy UPI, Copy Amount, Download QR */}
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -261,7 +332,7 @@ export function UpiQuickPayDialog({
                 className="flex-1 rounded-xl text-xs gap-1.5 h-8 font-medium"
               >
                 {copiedUpi ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                <span>Copy UPI ID</span>
+                <span>Copy UPI</span>
               </Button>
               <Button
                 variant="outline"
@@ -270,12 +341,21 @@ export function UpiQuickPayDialog({
                 className="flex-1 rounded-xl text-xs gap-1.5 h-8 font-medium"
               >
                 {copiedAmount ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                <span>Copy Amount</span>
+                <span>Copy ₹</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadQr}
+                className="flex-1 rounded-xl text-xs gap-1.5 h-8 font-medium text-slate-700 dark:text-slate-300"
+              >
+                <Download className="h-3 w-3" />
+                <span>Save QR</span>
               </Button>
             </div>
 
-            {/* App Launchers */}
-            {appLinks && (
+            {/* App Launchers (Shown in Pay Mode) */}
+            {!isReceiveMode && appLinks && (
               <div className="grid grid-cols-4 gap-1.5">
                 {appLinks.gpay && (
                   <a
@@ -314,24 +394,48 @@ export function UpiQuickPayDialog({
 
             {/* Primary Action Buttons */}
             <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                onClick={handlePayNow}
-                size="sm"
-                className="flex-1 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9"
-              >
-                <Smartphone className="h-3.5 w-3.5" />
-                <span>Pay Now</span>
-              </Button>
-              <Button
-                onClick={handleMarkPaid}
-                variant="outline"
-                size="sm"
-                disabled={isMarkingPaid}
-                className="rounded-xl text-xs font-bold border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 h-9 gap-1"
-              >
-                {isMarkingPaid ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                <span>Mark Paid</span>
-              </Button>
+              {isReceiveMode ? (
+                <>
+                  <Button
+                    onClick={handleRecordPayment}
+                    size="sm"
+                    disabled={isMarkingPaid}
+                    className="flex-1 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 h-9"
+                  >
+                    {isMarkingPaid ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    <span>Confirm Received</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setOpen(false)}
+                    className="rounded-xl text-xs font-medium h-9 px-3"
+                  >
+                    Close
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={handlePayNow}
+                    size="sm"
+                    className="flex-1 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9"
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                    <span>Pay Now</span>
+                  </Button>
+                  <Button
+                    onClick={handleRecordPayment}
+                    variant="outline"
+                    size="sm"
+                    disabled={isMarkingPaid}
+                    className="rounded-xl text-xs font-bold border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 h-9 gap-1"
+                  >
+                    {isMarkingPaid ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    <span>Mark Paid</span>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         ) : null}
@@ -339,3 +443,4 @@ export function UpiQuickPayDialog({
     </Dialog>
   );
 }
+
