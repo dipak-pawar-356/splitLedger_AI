@@ -31,10 +31,12 @@ const PERIOD_OPTIONS = [
   { value: "all", label: "All Time" },
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
-  { value: "7d", label: "Last 7 Days" },
-  { value: "30d", label: "Last 30 Days" },
-  { value: "3m", label: "Last 3 Months" },
-  { value: "1y", label: "Last Year" },
+  { value: "this_week", label: "This Week" },
+  { value: "last_week", label: "Last Week" },
+  { value: "this_month", label: "This Month" },
+  { value: "last_month", label: "Last Month" },
+  { value: "quarter", label: "Quarter" },
+  { value: "year", label: "Year" },
   { value: "custom", label: "Custom Range" },
 ];
 

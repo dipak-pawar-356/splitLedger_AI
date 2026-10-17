@@ -79,6 +79,23 @@ export interface ExportReportData {
     date: Date | string;
     reason?: string | null;
   }>;
+  financialHealthScore?: number;
+  healthGrade?: string;
+  aiInsights?: Array<{
+    title: string;
+    description: string;
+    impact?: string;
+  }>;
+  recommendations?: Array<{
+    title: string;
+    action: string;
+    potentialSavings?: number;
+  }>;
+  categoryBreakdown?: Array<{
+    name: string;
+    amount: number;
+    percentage: number;
+  }>;
 }
 
 /**
@@ -436,6 +453,35 @@ export function generatePrintableHTMLReport(data: ExportReportData): string {
       <div class="summary-card-value val-neutral">${data.summary.transactionCount}</div>
     </div>
   </div>
+
+  ${data.financialHealthScore !== undefined ? `
+  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between;">
+    <div>
+      <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Executive Financial Health Index</div>
+      <div style="font-size: 14px; font-weight: 600; color: #0f172a; margin-top: 2px;">Composite Financial Rating: <strong>Grade ${data.healthGrade || "A"}</strong></div>
+    </div>
+    <div style="font-size: 24px; font-weight: 800; color: #4f46e5;">
+      ${data.financialHealthScore}<span style="font-size: 14px; color: #64748b; font-weight: 500;">/100</span>
+    </div>
+  </div>
+  ` : ""}
+
+  ${data.aiInsights && data.aiInsights.length > 0 ? `
+  <div style="margin-bottom: 28px;">
+    <h3 style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+      🤖 Executive Financial Intelligence & AI Insights
+    </h3>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+      ${data.aiInsights.slice(0, 6).map((ins) => `
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;">
+          <div style="font-size: 12px; font-weight: 700; color: #0f172a;">${ins.title}</div>
+          <div style="font-size: 11px; color: #475569; margin-top: 3px; line-height: 1.4;">${ins.description}</div>
+          ${ins.impact ? `<div style="font-size: 10px; color: #64748b; margin-top: 4px; font-weight: 500;">Impact: ${ins.impact}</div>` : ""}
+        </div>
+      `).join("")}
+    </div>
+  </div>
+  ` : ""}
 
   <!-- Transactions Table -->
   <h3 style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 12px;">Detailed Transactions</h3>
