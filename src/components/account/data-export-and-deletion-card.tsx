@@ -9,9 +9,11 @@ import {
   FileSpreadsheet, 
   PauseCircle, 
   Trash2, 
-  AlertTriangle 
+  AlertTriangle,
+  RotateCcw
 } from "lucide-react";
 import { exportPersonalData, deactivateAccount, deleteAccount } from "@/actions/account";
+import { resetSettingsToDefault } from "@/actions/settings";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -26,6 +28,7 @@ export function DataExportAndDeletionCard() {
   const [isExporting, setIsExporting] = useState(false);
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isResetOpen, setIsResetOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isPending, setIsPending] = useState(false);
 
@@ -82,6 +85,20 @@ export function DataExportAndDeletionCard() {
     }
   };
 
+  const handleResetDefaults = async () => {
+    setIsPending(true);
+    try {
+      await resetSettingsToDefault();
+      toast.success("All preferences reset to factory defaults!");
+      setIsResetOpen(false);
+      window.location.reload();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to reset preferences");
+    } finally {
+      setIsPending(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Data Export Card (SECTION 11) */}
@@ -128,6 +145,41 @@ export function DataExportAndDeletionCard() {
               </Button>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Reset Preferences Card */}
+      <Card className="rounded-3xl border border-amber-200/80 dark:border-amber-900/60 shadow-sm overflow-hidden bg-amber-50/20 dark:bg-amber-950/10">
+        <CardHeader className="border-b border-amber-100 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/20">
+          <CardTitle className="text-base font-bold flex items-center gap-2 text-amber-700 dark:text-amber-400">
+            <RotateCcw className="h-4 w-4" />
+            <span>Reset Preferences</span>
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Revert all appearance, notification, and regional customizations back to original factory defaults
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+              Restore Factory Settings
+            </h4>
+            <p className="text-[11px] text-slate-500">
+              This resets UI themes, currency formatting, and notification channels. It does NOT delete your financial transactions or groups.
+            </p>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-xl text-xs gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 shrink-0"
+            onClick={() => setIsResetOpen(true)}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>Reset to Factory Defaults</span>
+          </Button>
         </CardContent>
       </Card>
 
@@ -262,6 +314,42 @@ export function DataExportAndDeletionCard() {
               disabled={isPending || deleteConfirmText !== "DELETE"}
             >
               <span>{isPending ? "Deleting..." : "Permanently Delete"}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Preferences Dialog */}
+      <Dialog open={isResetOpen} onOpenChange={setIsResetOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-amber-600 flex items-center gap-2">
+              <RotateCcw className="h-4 w-4" />
+              <span>Reset All Preferences to Factory Defaults?</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This will restore all appearance themes, notification preferences, INR (₹) regional standards, and group defaults to original factory settings. Your financial transactions, groups, and settlements will remain untouched.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between pt-4 border-t">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="rounded-xl text-xs"
+              onClick={() => setIsResetOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-xl text-xs bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={handleResetDefaults}
+              disabled={isPending}
+            >
+              <span>{isPending ? "Resetting..." : "Confirm Factory Reset"}</span>
             </Button>
           </DialogFooter>
         </DialogContent>

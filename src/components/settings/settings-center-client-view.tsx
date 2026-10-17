@@ -6,33 +6,19 @@ import { AccountOverviewData } from "@/actions/account";
 import { GeneralSettingsCard } from "./general-settings-card";
 import { AppearanceAdvancedCard } from "./appearance-advanced-card";
 import { RegionalSettingsCard } from "./regional-settings-card";
-import { DashboardPreferencesCard } from "./dashboard-preferences-card";
 import { GroupPreferencesCard } from "./group-preferences-card";
-import { TransactionPreferencesCard } from "./transaction-preferences-card";
-import { ReportPreferencesCard } from "./report-preferences-card";
 import { NotificationPreferencesCard } from "./notification-preferences-card";
-import { AccessibilitySettingsCard } from "./accessibility-settings-card";
 import { PrivacySettingsCard } from "./privacy-settings-card";
-import { DataAndBackupCard } from "./data-and-backup-card";
-import { ConnectedServicesCard } from "./connected-services-card";
-import { AboutSystemCard } from "./about-system-card";
 import { AccountCenterClientView } from "@/components/account/account-center-client-view";
 import { Input } from "@/components/ui/input";
 import { 
   Sliders, 
   Palette, 
   Globe, 
-  LayoutDashboard, 
   Users, 
-  Receipt, 
-  FileText, 
   Bell, 
-  Eye, 
   Lock, 
   ShieldCheck, 
-  HardDrive, 
-  Share2, 
-  Info, 
   Search 
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -44,28 +30,63 @@ interface SettingsCenterClientViewProps {
 }
 
 const SETTINGS_CATEGORIES = [
-  { id: "general", label: "General", icon: Sliders, desc: "Landing route, refresh cadence, sidebar" },
-  { id: "appearance", label: "Appearance", icon: Palette, desc: "Theme mode, brand accents, radius, density" },
-  { id: "regional", label: "Regional & Currency", icon: Globe, desc: "INR (₹) currency, Indian number system, time zone" },
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, desc: "Widget visibility and layout toggles" },
-  { id: "groups", label: "Groups Default", icon: Users, desc: "Split algorithms, reminder schedules, guest policy" },
-  { id: "transactions", label: "Transactions", icon: Receipt, desc: "Payment methods, AI auto-category, OCR" },
-  { id: "reports", label: "Reports & Export", icon: FileText, desc: "Default formats, periods, chart inclusions" },
-  { id: "notifications", label: "Notifications", icon: Bell, desc: "In-app, email, WhatsApp, quiet hours" },
-  { id: "accessibility", label: "Accessibility", icon: Eye, desc: "High contrast, reduced motion, WCAG" },
-  { id: "privacy", label: "Privacy", icon: Lock, desc: "Profile & financial metric visibility" },
-  { id: "account", label: "Account & Security", icon: ShieldCheck, desc: "Password, 2FA, active sessions, security score" },
-  { id: "backup", label: "Data & Backup", icon: HardDrive, desc: "Data archives, retention, factory reset" },
-  { id: "services", label: "Connected Services", icon: Share2, desc: "Clerk, Email, WhatsApp, Cloud storage" },
-  { id: "about", label: "About System", icon: Info, desc: "Version 2.4.0, tech stack, legal & support" },
+  { 
+    id: "general", 
+    label: "General Preferences", 
+    icon: Sliders, 
+    desc: "Landing route, compact sidebar, auto-save" 
+  },
+  { 
+    id: "appearance", 
+    label: "Appearance & Themes", 
+    icon: Palette, 
+    desc: "Theme mode, brand accents, density, live preview" 
+  },
+  { 
+    id: "regional", 
+    label: "Regional & Currency", 
+    icon: Globe, 
+    desc: "INR (₹) standard, Lakhs/Crores, time zone, date format" 
+  },
+  { 
+    id: "defaults", 
+    label: "Group & Payment Defaults", 
+    icon: Users, 
+    desc: "Split rules, UPI settlement, reminder cadence, OCR" 
+  },
+  { 
+    id: "notifications", 
+    label: "Notifications & Alerts", 
+    icon: Bell, 
+    desc: "In-app, email, WhatsApp, sound effects, quiet hours" 
+  },
+  { 
+    id: "privacy", 
+    label: "Privacy & Visibility", 
+    icon: Lock, 
+    desc: "Profile visibility, UPI mobile, bio, financial metrics" 
+  },
+  { 
+    id: "account", 
+    label: "Account, Security & Data", 
+    icon: ShieldCheck, 
+    desc: "Password, 2FA, active sessions, JSON/CSV export, reset" 
+  },
 ];
+
+const normalizeTab = (tab: string): string => {
+  if (tab === "groups" || tab === "transactions") return "defaults";
+  if (tab === "backup" || tab === "security" || tab === "danger") return "account";
+  const valid = SETTINGS_CATEGORIES.some((c) => c.id === tab);
+  return valid ? tab : "general";
+};
 
 export function SettingsCenterClientView({
   settings,
   accountOverview,
   initialTab = "general",
 }: SettingsCenterClientViewProps) {
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState(() => normalizeTab(initialTab));
   const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
 
@@ -83,14 +104,14 @@ export function SettingsCenterClientView({
         <Input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search preferences (e.g. currency, theme, 2FA, split)..."
+          placeholder="Search preferences (e.g. currency, theme, UPI, 2FA, split)..."
           className="pl-9 rounded-2xl text-xs bg-card"
           suppressHydrationWarning
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Navigation Sidebar (14 Categories) */}
+        {/* Navigation Sidebar (7 Core Working Categories) */}
         <div className="lg:col-span-4 space-y-1.5 p-2 rounded-3xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800">
           {filteredCategories.map((cat) => {
             const Icon = cat.icon;
@@ -153,30 +174,10 @@ export function SettingsCenterClientView({
             />
           )}
 
-          {activeTab === "dashboard" && (
-            <DashboardPreferencesCard
-              initialData={settings.dashboard}
-              onRefresh={() => router.refresh()}
-            />
-          )}
-
-          {activeTab === "groups" && (
+          {activeTab === "defaults" && (
             <GroupPreferencesCard
-              initialData={settings.groups}
-              onRefresh={() => router.refresh()}
-            />
-          )}
-
-          {activeTab === "transactions" && (
-            <TransactionPreferencesCard
-              initialData={settings.transactions}
-              onRefresh={() => router.refresh()}
-            />
-          )}
-
-          {activeTab === "reports" && (
-            <ReportPreferencesCard
-              initialData={settings.reports}
+              initialGroupData={settings.groups}
+              initialTransactionData={settings.transactions}
               onRefresh={() => router.refresh()}
             />
           )}
@@ -184,13 +185,6 @@ export function SettingsCenterClientView({
           {activeTab === "notifications" && (
             <NotificationPreferencesCard
               initialData={settings.notifications}
-              onRefresh={() => router.refresh()}
-            />
-          )}
-
-          {activeTab === "accessibility" && (
-            <AccessibilitySettingsCard
-              initialData={settings.accessibility}
               onRefresh={() => router.refresh()}
             />
           )}
@@ -205,19 +199,6 @@ export function SettingsCenterClientView({
           {activeTab === "account" && (
             <AccountCenterClientView overview={accountOverview} />
           )}
-
-          {activeTab === "backup" && (
-            <DataAndBackupCard
-              initialData={settings.dataBackup}
-              onRefresh={() => router.refresh()}
-            />
-          )}
-
-          {activeTab === "services" && (
-            <ConnectedServicesCard initialData={settings.connectedServices} />
-          )}
-
-          {activeTab === "about" && <AboutSystemCard />}
         </div>
       </div>
     </div>
