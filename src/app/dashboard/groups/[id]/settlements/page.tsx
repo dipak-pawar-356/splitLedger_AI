@@ -41,6 +41,11 @@ export default async function GroupSettlementsPage({ params }: { params: Promise
     return <GroupRouteErrorView errorType="deleted" groupIdentifier={publicId} groupName={groupRecord.name} />;
   }
 
+  // Enforce secure publicId in URL: If accessed via internal integer ID (e.g. 1), redirect to publicId URL
+  if (isDbId && groupRecord.publicId && strId !== groupRecord.publicId) {
+    redirect(`/dashboard/groups/${groupRecord.publicId}/settlements`);
+  }
+
   const group = groupRecord;
   const groupId = group.id;
   const isOwner = group.createdBy === user.id;
@@ -150,7 +155,7 @@ export default async function GroupSettlementsPage({ params }: { params: Promise
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <Link href={`/dashboard/groups/${publicId}`} className="flex items-center text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 mb-2">
+          <Link href={`/dashboard/groups/${group.publicId}`} className="flex items-center text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 mb-2">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Group
           </Link>

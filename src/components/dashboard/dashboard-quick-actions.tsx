@@ -114,8 +114,8 @@ export function DashboardQuickActions() {
           </Button>
         </Link>
 
-        {/* 6. Budget */}
-        <Link href="/dashboard/budgets" className="w-full">
+        {/* 6. Reports */}
+        <Link href="/dashboard/reports" className="w-full">
           <Button
             type="button"
             variant="outline"
@@ -125,7 +125,7 @@ export function DashboardQuickActions() {
               <PieChart className="h-5 w-5" />
             </div>
             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
-              Budgets
+              Reports
             </span>
           </Button>
         </Link>

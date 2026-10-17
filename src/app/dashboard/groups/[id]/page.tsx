@@ -108,6 +108,11 @@ export default async function GroupDetailPage({
     );
   }
 
+  // Enforce secure publicId in URL: If accessed via internal integer ID (e.g. 1), redirect to publicId URL
+  if (isDbId && groupRecord.publicId && strId !== groupRecord.publicId) {
+    redirect(`/dashboard/groups/${groupRecord.publicId}${activeTab && activeTab !== "overview" ? `?tab=${activeTab}` : ""}`);
+  }
+
   const groupBase = groupRecord;
   const isOwner = groupBase.createdBy === user.id;
 

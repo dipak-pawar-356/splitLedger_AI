@@ -41,9 +41,7 @@ export function NoteLinkedEntitiesWidget({ linkedEntities, onUnlink }: NoteLinke
     if (link.entityType === "transaction") return `/dashboard/transactions/${pub}`;
     if (link.entityType === "group") return `/dashboard/groups/${pub}`;
     if (link.entityType === "trip") return `/dashboard/trips`;
-    if (link.entityType === "budget") return `/dashboard/budgets`;
-    if (link.entityType === "loan") return `/dashboard/loans`;
-    return `/dashboard/settlements`;
+    return `/dashboard/groups`;
   };
 
   return (

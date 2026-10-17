@@ -41,6 +41,11 @@ export default async function GroupExpensesPage({ params }: { params: Promise<{ 
     return <GroupRouteErrorView errorType="deleted" groupIdentifier={publicId} groupName={groupRecord.name} />;
   }
 
+  // Enforce secure publicId in URL: If accessed via internal integer ID (e.g. 1), redirect to publicId URL
+  if (isDbId && groupRecord.publicId && strId !== groupRecord.publicId) {
+    redirect(`/dashboard/groups/${groupRecord.publicId}/expenses`);
+  }
+
   const groupId = groupRecord.id;
   const groupData = groupRecord;
   const isOwner = groupData.createdBy === user.id;
