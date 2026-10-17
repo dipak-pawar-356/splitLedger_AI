@@ -188,11 +188,16 @@ export async function getProfileDetails(): Promise<ProfileDetails> {
         suggestions.push("Add and verify your mobile number (+15%)");
       }
 
-      if (profileRow.bio && profileRow.bio.trim().length > 0) {
+      // Professional Headline / Bio
+      const hasBio = Boolean(profileRow.bio && profileRow.bio.trim().length > 0);
+      const hasOccupation = Boolean(profileRow.occupation && profileRow.occupation.trim().length > 0);
+      const hasCompany = Boolean(profileRow.company && profileRow.company.trim().length > 0);
+
+      if (hasBio || hasOccupation || hasCompany) {
         score += 10;
       } else {
-        missing.push("Biography");
-        suggestions.push("Write a short bio about yourself (+10%)");
+        missing.push("Professional Headline / Bio");
+        suggestions.push("Add a professional bio or headline (+10%)");
       }
 
       if (profileRow.city && profileRow.country) {
@@ -202,7 +207,7 @@ export async function getProfileDetails(): Promise<ProfileDetails> {
         suggestions.push("Set your city and country (+10%)");
       }
 
-      if (profileRow.occupation || profileRow.company) {
+      if (hasOccupation || hasCompany || hasBio) {
         score += 10;
       } else {
         missing.push("Occupation / Company");
@@ -686,12 +691,24 @@ export async function verifyPhoneOtp(inputOtp: string, phoneNumber?: string): Pr
 
     const finalPhone = phoneNumber?.trim() || storedEntry?.phone;
 
+    // Fetch existing profile to populate headline if bio is empty
+    const [existingProfile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.userId, user.id))
+      .limit(1);
+
+    const headline = existingProfile?.occupation
+      ? `${existingProfile.occupation}${existingProfile.company ? ` at ${existingProfile.company}` : ""}`
+      : "SplitLedger Member";
+
     // Update profile in PostgreSQL: mobileVerified = true
     await db
       .update(profiles)
       .set({
         mobileVerified: true,
         ...(finalPhone && { phone: finalPhone }),
+        ...(!existingProfile?.bio && { bio: headline }),
         updatedAt: new Date(),
       })
       .where(eq(profiles.userId, user.id));
