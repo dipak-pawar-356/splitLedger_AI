@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,28 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
   const [upiError, setUpiError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
+  useEffect(() => {
+    setFormData({
+      name: initialData.name || "",
+      username: initialData.username || "",
+      bio: initialData.bio || "",
+      occupation: initialData.occupation || "",
+      company: initialData.company || "",
+      gender: initialData.gender || "unspecified",
+      dateOfBirth: initialData.dateOfBirth
+        ? new Date(initialData.dateOfBirth).toISOString().split("T")[0]
+        : "",
+      country: initialData.country || "India",
+      state: initialData.state || "",
+      city: initialData.city || "",
+      pinCode: initialData.pinCode || "",
+      timezone: initialData.timezone || "Asia/Kolkata",
+      language: initialData.language || "en",
+      defaultCurrency: initialData.defaultCurrency || "INR",
+      upiId: initialData.upiId || "",
+    });
+  }, [initialData]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -112,7 +134,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
       window.dispatchEvent(new CustomEvent("profile_updated", { detail: { name: cleanName } }));
       window.dispatchEvent(new CustomEvent("user_updated", { detail: { name: cleanName } }));
 
-      toast.success("Personal information updated successfully!");
+      toast.success("Profile information updated successfully in database!");
       if (onSuccess) onSuccess();
     } catch (e: any) {
       toast.error(e.message || "Failed to update personal information");
@@ -382,7 +404,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
               disabled={isPending}
             >
               <Check className="h-3.5 w-3.5" />
-              <span>{isPending ? "Saving Changes..." : "Save Personal Info"}</span>
+              <span>{isPending ? "Updating Database..." : "Update Profile Information"}</span>
             </Button>
           </div>
         </form>

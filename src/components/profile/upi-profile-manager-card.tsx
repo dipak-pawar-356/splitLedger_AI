@@ -96,7 +96,7 @@ export function UpiProfileManagerCard({
     try {
       const res = await updatePrimaryUpiId(trimmed);
       if (res.success) {
-        toast.success("Primary UPI ID saved successfully!");
+        toast.success("Primary UPI ID updated successfully in database!");
         setIsEditing(false);
         onUpiUpdated?.(res.upiId);
       }
@@ -232,7 +232,7 @@ export function UpiProfileManagerCard({
                 ) : (
                   <>
                     <Check className="h-3.5 w-3.5" />
-                    <span>Save Primary UPI ID</span>
+                    <span>{isSaving ? "Updating Database..." : "Update Primary UPI ID"}</span>
                   </>
                 )}
               </Button>

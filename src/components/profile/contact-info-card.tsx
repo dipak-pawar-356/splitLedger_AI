@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,16 @@ export function ContactInfoCard({
   });
   const [isPending, setIsPending] = useState(false);
 
+  useEffect(() => {
+    setFormData({
+      phone: profile.phone || "",
+      secondaryEmail: profile.secondaryEmail || "",
+      secondaryPhone: profile.secondaryPhone || "",
+      whatsappNumber: profile.whatsappNumber || "",
+      emergencyContact: profile.emergencyContact || "",
+    });
+  }, [profile]);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsPending(true);
@@ -60,7 +70,7 @@ export function ContactInfoCard({
         emergencyContact: formData.emergencyContact || undefined,
       });
 
-      toast.success("Contact details updated successfully!");
+      toast.success("Contact details updated successfully in database!");
       if (onSuccess) onSuccess();
     } catch (e: any) {
       toast.error(e.message || "Failed to update contact information");
@@ -202,7 +212,7 @@ export function ContactInfoCard({
               disabled={isPending}
             >
               <Check className="h-3.5 w-3.5" />
-              <span>{isPending ? "Saving..." : "Save Contact Info"}</span>
+              <span>{isPending ? "Updating Database..." : "Update Contact Details"}</span>
             </Button>
           </div>
         </form>
