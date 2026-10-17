@@ -635,8 +635,8 @@ export default async function GroupDetailPage({
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {sg.toUserId && (
                             <>
-                              {/* Receiver side: Show QR */}
-                              {(user.id === sg.toUserId || (isGroupOwner && user.id !== sg.fromUserId)) && (
+                              {/* Receiver side (or owner/admin viewing details): Show QR */}
+                              {(user.id === sg.toUserId || ((isGroupOwner || group.isAdmin) && user.id !== sg.fromUserId)) && (
                                 <UpiQuickPayDialog
                                   groupId={group.id}
                                   groupName={group.name}
@@ -658,8 +658,8 @@ export default async function GroupDetailPage({
                                 />
                               )}
 
-                              {/* Payer side: Pay Now */}
-                              {(user.id === sg.fromUserId || (isGroupOwner && user.id !== sg.toUserId)) && (
+                              {/* Payer side: Pay Now (only when user is the payer) */}
+                              {user.id === sg.fromUserId && (
                                 <UpiQuickPayDialog
                                   groupId={group.id}
                                   groupName={group.name}

@@ -145,8 +145,8 @@ export function WhoPaysWhomCard({
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {s.toUserId && (
                       <>
-                        {/* If current user is receiver (or if admin is viewing): Show QR */}
-                        {(currentUserId === s.toUserId || (isOwner && currentUserId !== s.fromUserId)) && (
+                        {/* If current user is receiver (or if admin/owner is viewing): Show QR */}
+                        {(currentUserId === s.toUserId || ((isOwner || isAdmin) && currentUserId !== s.fromUserId)) && (
                           <UpiQuickPayDialog
                             groupId={groupId}
                             groupName={groupName}
@@ -168,8 +168,8 @@ export function WhoPaysWhomCard({
                           />
                         )}
 
-                        {/* If current user is payer (or if admin is viewing): Pay Now */}
-                        {(currentUserId === s.fromUserId || (isOwner && currentUserId !== s.toUserId)) && (
+                        {/* If current user is payer: Pay Now */}
+                        {currentUserId === s.fromUserId && (
                           <UpiQuickPayDialog
                             groupId={groupId}
                             groupName={groupName}

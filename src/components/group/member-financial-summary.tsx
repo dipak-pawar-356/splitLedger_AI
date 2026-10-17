@@ -194,8 +194,9 @@ export function MemberFinancialSummary({
               </div>
 
               {/* In one row: Show QR if he receives money, and Pay Now when he needs to pay */}
-              {isCurrentUser && (member.receivesFrom.length > 0 || member.owesTo.length > 0) && (
+              {(isCurrentUser || isGroupOwner || isCurrentUserAdmin) && (member.receivesFrom.length > 0 || member.owesTo.length > 0) && (
                 <div className="pt-2.5 mt-2.5 border-t border-slate-200/70 dark:border-slate-800/80 flex items-center gap-2 flex-wrap">
+                  {/* Incoming funds to this member: Show QR */}
                   {member.receivesFrom.length > 0 && member.userId && (
                     <UpiQuickPayDialog
                       groupId={groupId}
@@ -217,26 +218,50 @@ export function MemberFinancialSummary({
                       }
                     />
                   )}
+
+                  {/* Outgoing funds member owes: Pay Now if current user is debtor; Show QR if admin/owner is viewing */}
                   {member.owesTo.length > 0 && member.owesTo[0].userId && (
-                    <UpiQuickPayDialog
-                      groupId={groupId}
-                      groupName={groupName}
-                      receiverUserId={member.owesTo[0].userId}
-                      receiverName={member.owesTo[0].name}
-                      payerUserId={member.userId}
-                      payerName={member.name}
-                      amount={member.owesTo[0].amount}
-                      mode="pay"
-                      trigger={
-                        <Button
-                          size="sm"
-                          className="flex-1 min-w-[130px] h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                        >
-                          <Smartphone className="h-3.5 w-3.5" />
-                          <span>Pay Now (₹{member.owesTo[0].amount.toFixed(2)})</span>
-                        </Button>
-                      }
-                    />
+                    isCurrentUser ? (
+                      <UpiQuickPayDialog
+                        groupId={groupId}
+                        groupName={groupName}
+                        receiverUserId={member.owesTo[0].userId}
+                        receiverName={member.owesTo[0].name}
+                        payerUserId={member.userId}
+                        payerName={member.name}
+                        amount={member.owesTo[0].amount}
+                        mode="pay"
+                        trigger={
+                          <Button
+                            size="sm"
+                            className="flex-1 min-w-[130px] h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                          >
+                            <Smartphone className="h-3.5 w-3.5" />
+                            <span>Pay Now (₹{member.owesTo[0].amount.toFixed(2)})</span>
+                          </Button>
+                        }
+                      />
+                    ) : (
+                      <UpiQuickPayDialog
+                        groupId={groupId}
+                        groupName={groupName}
+                        receiverUserId={member.owesTo[0].userId}
+                        receiverName={member.owesTo[0].name}
+                        payerUserId={member.userId}
+                        payerName={member.name}
+                        amount={member.owesTo[0].amount}
+                        mode="receive"
+                        trigger={
+                          <Button
+                            size="sm"
+                            className="flex-1 min-w-[130px] h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                          >
+                            <QrCode className="h-3.5 w-3.5" />
+                            <span>Show QR (₹{member.owesTo[0].amount.toFixed(2)})</span>
+                          </Button>
+                        }
+                      />
+                    )
                   )}
                 </div>
               )}
@@ -296,7 +321,7 @@ export function MemberFinancialSummary({
                         <span className="truncate">{r.name}</span>
                         <div className="flex items-center gap-2 shrink-0">
                           <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
-                          {isCurrentUser && member.userId && (
+                          {(isCurrentUser || isGroupOwner || isCurrentUserAdmin) && member.userId && (
                             <UpiQuickPayDialog
                               groupId={groupId}
                               groupName={groupName}
@@ -372,12 +397,12 @@ export function MemberFinancialSummary({
                               }
                             />
                           )}
-                          {!isCurrentUser && currentUserId && o.userId === currentUserId && (
+                          {!isCurrentUser && o.userId && (o.userId === currentUserId || isGroupOwner || isCurrentUserAdmin) && (
                             <UpiQuickPayDialog
                               groupId={groupId}
                               groupName={groupName}
-                              receiverUserId={currentUserId}
-                              receiverName="You"
+                              receiverUserId={o.userId}
+                              receiverName={o.userId === currentUserId ? "You" : o.name}
                               payerUserId={member.userId}
                               payerName={member.name}
                               amount={o.amount}

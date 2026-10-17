@@ -165,21 +165,21 @@ export function MemberProfileModal({
                         payerUserId={member.receivesFrom[0].userId}
                         payerName={member.receivesFrom[0].name}
                         amount={member.receivesFrom[0].amount}
-                        mode={isCurrentUser || isGroupOwner ? "receive" : "pay"}
+                        mode={currentUserId && member.receivesFrom[0].userId === currentUserId ? "pay" : "receive"}
                         trigger={
                           <Button
                             size="sm"
                             className={`flex-1 min-w-[130px] h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 shadow-xs ${
-                              isCurrentUser || isGroupOwner
-                                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              currentUserId && member.receivesFrom[0].userId === currentUserId
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                : "bg-indigo-600 hover:bg-indigo-700 text-white"
                             }`}
                           >
-                            {isCurrentUser || isGroupOwner ? <QrCode className="h-3.5 w-3.5" /> : <Smartphone className="h-3.5 w-3.5" />}
+                            {currentUserId && member.receivesFrom[0].userId === currentUserId ? <Smartphone className="h-3.5 w-3.5" /> : <QrCode className="h-3.5 w-3.5" />}
                             <span>
-                              {isCurrentUser || isGroupOwner
-                                ? `Show QR (₹${member.receivesFrom[0].amount.toFixed(2)})`
-                                : `Pay Now (₹${member.receivesFrom[0].amount.toFixed(2)})`}
+                              {currentUserId && member.receivesFrom[0].userId === currentUserId
+                                ? `Pay Now (₹${member.receivesFrom[0].amount.toFixed(2)})`
+                                : `Show QR (₹${member.receivesFrom[0].amount.toFixed(2)})`}
                             </span>
                           </Button>
                         }
@@ -243,25 +243,25 @@ export function MemberProfileModal({
                               payerUserId={r.userId}
                               payerName={r.name}
                               amount={r.amount}
-                              mode={isCurrentUser || isGroupOwner ? "receive" : "pay"}
+                              mode={currentUserId && r.userId === currentUserId ? "pay" : "receive"}
                               trigger={
                                 <Button
                                   size="sm"
                                   className={`h-6 text-[10px] px-2 font-bold rounded-lg gap-1 ${
-                                    isCurrentUser || isGroupOwner
-                                      ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    currentUserId && r.userId === currentUserId
+                                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
                                   }`}
                                 >
-                                  {isCurrentUser || isGroupOwner ? (
-                                    <>
-                                      <QrCode className="h-2.5 w-2.5" />
-                                      <span>Show QR</span>
-                                    </>
-                                  ) : (
+                                  {currentUserId && r.userId === currentUserId ? (
                                     <>
                                       <Smartphone className="h-2.5 w-2.5" />
                                       <span>Pay Now</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <QrCode className="h-2.5 w-2.5" />
+                                      <span>Show QR</span>
                                     </>
                                   )}
                                 </Button>
