@@ -45,20 +45,6 @@ import { exportReportData, getComprehensiveReport, getReportAnalytics, type Repo
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
-const REPORT_TYPES = [
-  { id: "overview", label: "Overview" },
-  { id: "personal", label: "Personal" },
-  { id: "group", label: "Groups" },
-  { id: "member", label: "Members" },
-  { id: "settlement", label: "Settlements" },
-  { id: "category", label: "Categories" },
-  { id: "monthly", label: "Monthly" },
-  { id: "weekly", label: "Weekly" },
-  { id: "daily", label: "Daily" },
-  { id: "payment_method", label: "Payment Methods" },
-  { id: "activity", label: "Activity Logs" },
-];
-
 /**
  * Micro-Sparkline SVG renderer
  */
@@ -132,7 +118,6 @@ export function ReportsClientView({
     limit: 50,
   });
 
-  const [activeTab, setActiveTab] = useState<string>(filters.reportType || "overview");
   const [viewMode, setViewMode] = useState<"analytics" | "table" | "insights">("analytics");
   const [reportData, setReportData] = useState(initialReportData);
   const [analyticsData, setAnalyticsData] = useState(initialAnalytics);
@@ -214,15 +199,6 @@ export function ReportsClientView({
     } finally {
       setIsExporting(false);
     }
-  };
-
-  const handleTabChange = (type: string) => {
-    setActiveTab(type);
-    updateFilters({
-      ...filters,
-      reportType: type as any,
-      page: 1,
-    });
   };
 
   const handlePrint = () => {
@@ -336,32 +312,6 @@ export function ReportsClientView({
           </div>
         </div>
       </div>
-
-      {/* Report Types Tabs Bar */}
-      <div className="overflow-x-auto pb-1 no-print">
-        <div className="flex items-center gap-1.5 min-w-max">
-          {REPORT_TYPES.map((rt) => {
-            const isSelected = activeTab === rt.id;
-            return (
-              <Button
-                key={rt.id}
-                type="button"
-                variant={isSelected ? "default" : "outline"}
-                size="sm"
-                className={`rounded-xl text-xs h-8 px-3.5 ${
-                  isSelected 
-                    ? "font-semibold bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-sm" 
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-                }`}
-                onClick={() => handleTabChange(rt.id)}
-              >
-                {rt.label}
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Advanced Filter Toolbar */}
       <div className="no-print">
         <ReportFiltersBar
