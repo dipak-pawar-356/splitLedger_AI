@@ -18,7 +18,7 @@ import { eq, desc, and, sql, gte, lte, or, inArray, ilike } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { ValidationError, DatabaseError, AuthorizationError } from "@/lib/errors";
-import { generateReportId, generateScheduleId, formatCurrency, formatDate } from "@/lib/utils";
+import { generateReportId, generateScheduleId, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { 
   generateCSVExport, 
   generateJSONExport, 
@@ -1598,12 +1598,65 @@ export async function exportReportData(
         .limit(50),
     ]);
 
+    const currentYear = new Date().getFullYear();
+    const reportId = `RPT-SL-${currentYear}-${new Date().getTime().toString(36).toUpperCase()}`;
+    const selectedGroupObj = filters.groupId
+      ? groupsData.find((g) => g.id === filters.groupId)
+      : null;
+    const selectedGroupName = selectedGroupObj
+      ? selectedGroupObj.name
+      : "Consolidated Multi-Group Portfolio";
+
+    // Top 10 expenses sorted by amount descending
+    const top10Expenses = [...reportData.transactions]
+      .sort((a, b) => (b.amount || 0) - (a.amount || 0))
+      .slice(0, 10)
+      .map((tx, idx) => ({
+        rank: idx + 1,
+        publicId: tx.publicId,
+        title: tx.title || tx.description,
+        category: tx.categoryName || "General",
+        group: tx.groupName || "Personal",
+        amount: (tx.amount || 0) / 100,
+        date: formatDate(tx.date),
+      }));
+
+    // Member analysis matrix
+    const memberMap = new Map<string, { paid: number; count: number }>();
+    reportData.transactions.forEach((tx) => {
+      const pName = tx.paidByName || "Self";
+      const existing = memberMap.get(pName) || { paid: 0, count: 0 };
+      existing.paid += (tx.amount || 0) / 100;
+      existing.count += 1;
+      memberMap.set(pName, existing);
+    });
+
+    const memberAnalysis = Array.from(memberMap.entries()).map(([name, stat]) => ({
+      name,
+      paid: Number(stat.paid.toFixed(2)),
+      owes: 0,
+      receivable: name === (user.name || "Self") ? summaryData.totalReceivable : 0,
+      netPosition: Number((name === (user.name || "Self") ? summaryData.totalReceivable : -stat.paid).toFixed(2)),
+      status: "Reconciled",
+      participationPercent: Number(((stat.count / (reportData.totalCount || 1)) * 100).toFixed(1)),
+    }));
+
+    // Group analysis matrix
+    const groupSpendingMap = new Map<string, number>();
+    analyticsData.groupSpending.forEach((gs) => {
+      groupSpendingMap.set(gs.name, gs.value);
+    });
+
     const exportPayload: ExportReportData = {
       reportTitle: `${(filters.reportType || "Financial").replace(/_/g, " ").toUpperCase()} REPORT`,
       generatedBy: user.name || user.email || "User",
+      userEmail: user.email || null,
       generatedAt: new Date(),
       currency: "INR",
       periodLabel: filters.period ? filters.period.replace(/_/g, " ").toUpperCase() : "ALL TIME",
+      selectedGroup: selectedGroupName,
+      reportId,
+      version: "3.4.2 Enterprise Final",
       summary: {
         totalIncome: reportData.summary.totalIncome,
         totalExpense: reportData.summary.totalExpense,
@@ -1617,6 +1670,8 @@ export async function exportReportData(
         groupTxCount: summaryData.groupTxCount,
         totalMembersCount: summaryData.totalMembersCount,
         pendingSettlementsCount: summaryData.pendingSettlementsCount,
+        completedSettlementsCount: summaryData.totalSettlements,
+        averageDailySpend: analyticsData.weekendVsWeekday ? (analyticsData.weekendVsWeekday.weekendAmount + analyticsData.weekendVsWeekday.weekdayAmount) / 30 : reportData.summary.totalExpense / 30,
       },
       transactions: reportData.transactions as ExportTransactionItem[],
       groups: groupsData.map((g) => ({
@@ -1625,8 +1680,12 @@ export async function exportReportData(
         type: g.type,
         currency: g.currency,
         memberCount: 4,
-        totalSpent: 0,
+        totalSpent: (groupSpendingMap.get(g.name) || 0) * 100,
+        settlementsCompleted: summaryData.totalSettlements,
+        outstandingBalance: 0,
+        completionRate: analyticsData.settlementAnalytics.settlementSuccessRate,
       })),
+      members: memberAnalysis,
       settlements: settlementsData.map((s) => ({
         publicId: s.publicId,
         groupName: "Direct",
@@ -1639,21 +1698,47 @@ export async function exportReportData(
       })),
       financialHealthScore: analyticsData.financialHealthScore.score,
       healthGrade: analyticsData.financialHealthScore.grade,
+      healthDetails: analyticsData.financialHealthScore,
+      monthlyTrend: analyticsData.monthlyTrend,
+      kpiCards: analyticsData.kpiCards,
+      categoryBreakdown: analyticsData.categoryBreakdown.map((cat) => ({
+        name: cat.name,
+        amount: cat.value,
+        percentage: cat.percentage,
+        count: cat.count,
+        growthPercent: cat.growthPercent,
+      })),
+      paymentMethods: analyticsData.paymentMethods,
+      weekendVsWeekday: analyticsData.weekendVsWeekday,
+      dailyDistribution: analyticsData.dailyDistribution,
+      transactionMetrics: analyticsData.transactionMetrics,
+      settlementAnalytics: analyticsData.settlementAnalytics,
+      top10Expenses,
       aiInsights: analyticsData.aiInsights.map((ins) => ({
+        id: ins.id,
         title: ins.title,
         description: ins.description,
         impact: ins.impact,
+        metric: ins.metric,
+        type: ins.type,
       })),
       recommendations: analyticsData.recommendations.map((rec) => ({
         title: rec.title,
         action: rec.action,
         potentialSavings: rec.potentialSavings,
+        urgency: rec.urgency,
       })),
-      categoryBreakdown: analyticsData.categoryBreakdown.map((cat) => ({
-        name: cat.name,
-        amount: cat.value,
-        percentage: cat.percentage,
-      })),
+      auditInfo: {
+        generatedAt: formatDateTime(new Date()),
+        generatedBy: `${user.name || "User"} (${user.email || ""})`,
+        filtersApplied: `Type: ${filters.reportType || "Overview"}, Period: ${filters.period || "All Time"}, Group: ${selectedGroupName}`,
+        selectedGroups: selectedGroupName,
+        selectedMembers: "All Active Members",
+        currency: "INR (₹) — Indian Rupee",
+        appVersion: "SplitLedger AI Enterprise v3.4.2",
+        reportVersion: "v3.4.2 Enterprise Final",
+        reportId,
+      },
     };
 
     const dateSlug = new Date().toISOString().split("T")[0];
