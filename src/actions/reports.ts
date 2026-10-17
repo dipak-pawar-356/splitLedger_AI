@@ -1607,8 +1607,73 @@ export async function exportReportData(
       ? selectedGroupObj.name
       : "Consolidated Multi-Group Portfolio";
 
+    // Query real member counts per group
+    const memberCounts = await db
+      .select({
+        groupId: groupMembers.groupId,
+        count: sql<number>`count(*)`,
+      })
+      .from(groupMembers)
+      .groupBy(groupMembers.groupId);
+    const memberCountMap = new Map<number, number>();
+    memberCounts.forEach((mc) => memberCountMap.set(mc.groupId, Number(mc.count)));
+
+    // Query real group total expenses
+    const groupExpenseTotals = await db
+      .select({
+        groupId: transactions.groupId,
+        total: sql<number>`COALESCE(SUM(${transactions.amount}), 0)`,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.isDeleted, false), eq(transactions.type, "paid")))
+      .groupBy(transactions.groupId);
+    const groupExpenseMap = new Map<number, number>();
+    groupExpenseTotals.forEach((ge) => {
+      if (ge.groupId) groupExpenseMap.set(ge.groupId, Number(ge.total) / 100);
+    });
+
+    // Query real group settlements
+    const groupSettlementStats = await db
+      .select({
+        groupId: settlements.groupId,
+        pending: sql<number>`COALESCE(SUM(CASE WHEN ${settlements.status} = 'pending' THEN ${settlements.amount} ELSE 0 END), 0)`,
+        completed: sql<number>`COALESCE(SUM(CASE WHEN ${settlements.status} = 'completed' THEN ${settlements.amount} ELSE 0 END), 0)`,
+      })
+      .from(settlements)
+      .where(eq(settlements.isDeleted, false))
+      .groupBy(settlements.groupId);
+    const groupSettlementMap = new Map<number, { pending: number; completed: number }>();
+    groupSettlementStats.forEach((gs) => {
+      if (gs.groupId) {
+        groupSettlementMap.set(gs.groupId, {
+          pending: Number(gs.pending) / 100,
+          completed: Number(gs.completed) / 100,
+        });
+      }
+    });
+
+    const realGroupsList = groupsData.map((g) => {
+      const gExpense = groupExpenseMap.get(g.id) || 0;
+      const gSettlement = groupSettlementMap.get(g.id) || { pending: 0, completed: 0 };
+      const mCount = memberCountMap.get(g.id) || 1;
+      return {
+        id: g.id,
+        name: g.name,
+        type: g.type,
+        currency: g.currency,
+        memberCount: mCount,
+        totalSpent: gExpense * 100,
+        settlementsCompleted: gSettlement.completed,
+        outstandingBalance: gSettlement.pending,
+        completionRate: (gSettlement.completed + gSettlement.pending) > 0
+          ? Math.round((gSettlement.completed / (gSettlement.completed + gSettlement.pending)) * 100)
+          : 100,
+      };
+    });
+
     // Top 10 expenses sorted by amount descending
     const top10Expenses = [...reportData.transactions]
+      .filter((tx) => tx.type === "paid")
       .sort((a, b) => (b.amount || 0) - (a.amount || 0))
       .slice(0, 10)
       .map((tx, idx) => ({
@@ -1619,6 +1684,7 @@ export async function exportReportData(
         group: tx.groupName || "Personal",
         amount: (tx.amount || 0) / 100,
         date: formatDate(tx.date),
+        paidBy: tx.paidByName || "Self",
       }));
 
     // Member analysis matrix
@@ -1641,14 +1707,10 @@ export async function exportReportData(
       participationPercent: Number(((stat.count / (reportData.totalCount || 1)) * 100).toFixed(1)),
     }));
 
-    // Group analysis matrix
-    const groupSpendingMap = new Map<string, number>();
-    analyticsData.groupSpending.forEach((gs) => {
-      groupSpendingMap.set(gs.name, gs.value);
-    });
-
     const exportPayload: ExportReportData = {
-      reportTitle: `${(filters.reportType || "Financial").replace(/_/g, " ").toUpperCase()} REPORT`,
+      reportTitle: filters.reportType && filters.reportType !== "overview"
+        ? `${filters.reportType.replace(/_/g, " ").toUpperCase()} REPORT`
+        : "FINANCIAL SUMMARY REPORT",
       generatedBy: user.name || user.email || "User",
       userEmail: user.email || null,
       generatedAt: new Date(),
@@ -1656,7 +1718,7 @@ export async function exportReportData(
       periodLabel: filters.period ? filters.period.replace(/_/g, " ").toUpperCase() : "ALL TIME",
       selectedGroup: selectedGroupName,
       reportId,
-      version: "3.4.2 Enterprise Final",
+      version: "SplitLedger AI",
       summary: {
         totalIncome: reportData.summary.totalIncome,
         totalExpense: reportData.summary.totalExpense,
@@ -1674,17 +1736,7 @@ export async function exportReportData(
         averageDailySpend: analyticsData.weekendVsWeekday ? (analyticsData.weekendVsWeekday.weekendAmount + analyticsData.weekendVsWeekday.weekdayAmount) / 30 : reportData.summary.totalExpense / 30,
       },
       transactions: reportData.transactions as ExportTransactionItem[],
-      groups: groupsData.map((g) => ({
-        id: g.id,
-        name: g.name,
-        type: g.type,
-        currency: g.currency,
-        memberCount: 4,
-        totalSpent: (groupSpendingMap.get(g.name) || 0) * 100,
-        settlementsCompleted: summaryData.totalSettlements,
-        outstandingBalance: 0,
-        completionRate: analyticsData.settlementAnalytics.settlementSuccessRate,
-      })),
+      groups: realGroupsList,
       members: memberAnalysis,
       settlements: settlementsData.map((s) => ({
         publicId: s.publicId,

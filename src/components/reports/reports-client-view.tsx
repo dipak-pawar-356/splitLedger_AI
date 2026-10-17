@@ -252,7 +252,7 @@ export function ReportsClientView({
             onClick={() => setViewMode("analytics")}
           >
             <Activity className="h-3.5 w-3.5 mr-1 text-primary" />
-            Executive Analytics
+            Overview & Analytics
           </Button>
           <Button
             type="button"
@@ -262,7 +262,7 @@ export function ReportsClientView({
             onClick={() => setViewMode("insights")}
           >
             <Sparkles className="h-3.5 w-3.5 mr-1 text-amber-500" />
-            AI Insights & Recommendations
+            AI Insights
           </Button>
           <Button
             type="button"
@@ -272,7 +272,7 @@ export function ReportsClientView({
             onClick={() => setViewMode("table")}
           >
             <FileText className="h-3.5 w-3.5 mr-1" />
-            Itemized Ledger ({reportData.totalCount})
+            Transactions ({reportData.totalCount})
           </Button>
         </div>
 
@@ -378,7 +378,7 @@ export function ReportsClientView({
         <div className="flex items-center justify-between text-xs text-slate-500 px-1">
           <span className="font-semibold uppercase tracking-wider text-[11px] text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
             <BarChart3 className="h-3.5 w-3.5 text-primary" />
-            Executive Financial KPI Dashboard (17 Core Metrics)
+            Financial Summary & Key Metrics
           </span>
           <span className="text-[11px] text-slate-400">
             Real-time data • Period: <strong>{(filters.period || "all").replace(/_/g, " ").toUpperCase()}</strong>
