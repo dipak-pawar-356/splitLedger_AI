@@ -58,6 +58,7 @@ interface ProfileHeaderCardProps {
   onEditClick: () => void;
   onAvatarUpdated: (newAvatar: string | null) => void;
   onUpiClick?: () => void;
+  onVerifyPhoneClick?: () => void;
 }
 
 export function ProfileHeaderCard({
@@ -68,6 +69,7 @@ export function ProfileHeaderCard({
   onEditClick,
   onAvatarUpdated,
   onUpiClick,
+  onVerifyPhoneClick,
 }: ProfileHeaderCardProps) {
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
@@ -171,7 +173,21 @@ export function ProfileHeaderCard({
               {profile.phone && (
                 <span className="flex items-center gap-1.5">
                   <Phone className="h-3.5 w-3.5 text-slate-400" />
-                  <span>{profile.phone}</span>
+                  <span className="font-mono">{profile.phone}</span>
+                  {profile.mobileVerified ? (
+                    <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]" title="Verified Mobile">
+                      <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                      <span>Verified</span>
+                    </span>
+                  ) : onVerifyPhoneClick ? (
+                    <button
+                      type="button"
+                      onClick={onVerifyPhoneClick}
+                      className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold hover:underline bg-amber-500/10 px-1.5 py-0.2 rounded-md"
+                    >
+                      Verify Now
+                    </button>
+                  ) : null}
                 </span>
               )}
 
@@ -254,18 +270,43 @@ export function ProfileHeaderCard({
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
                 <span>Profile Completion</span>
               </span>
-              <span className="text-xs font-mono font-black text-primary">
+              <span className={`text-xs font-mono font-black ${
+                completion.percentage >= 100
+                  ? "text-emerald-600 dark:text-emerald-400 font-black"
+                  : "text-primary"
+              }`}>
                 {completion.percentage}%
               </span>
             </div>
 
-            <Progress value={completion.percentage} className="h-2 rounded-full" />
+            <Progress
+              value={completion.percentage}
+              className={`h-2 rounded-full ${
+                completion.percentage >= 100 ? "[&>div]:bg-emerald-500" : ""
+              }`}
+            />
 
-            {completion.suggestions.length > 0 && (
-              <p className="text-[11px] text-slate-500 leading-tight">
-                💡 <strong className="text-slate-700 dark:text-slate-300">Suggestion:</strong> {completion.suggestions[0]}
-              </p>
-            )}
+            {completion.percentage >= 100 ? (
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 pt-0.5">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                <span>Profile 100% complete and fully verified!</span>
+              </div>
+            ) : completion.suggestions.length > 0 ? (
+              <div className="flex items-center justify-between gap-1.5 pt-0.5">
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  💡 <strong className="text-slate-700 dark:text-slate-300">Suggestion:</strong> {completion.suggestions[0]}
+                </p>
+                {onVerifyPhoneClick && completion.suggestions[0]?.toLowerCase().includes("mobile") && (
+                  <button
+                    type="button"
+                    onClick={onVerifyPhoneClick}
+                    className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline shrink-0"
+                  >
+                    Verify (+10%)
+                  </button>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       </CardContent>

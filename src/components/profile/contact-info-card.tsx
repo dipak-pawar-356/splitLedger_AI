@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { updateContactInfo } from "@/actions/profile";
 import { toast } from "sonner";
+import { PhoneVerificationModal } from "@/components/profile/phone-verification-modal";
 
 interface ContactInfoCardProps {
   primaryEmail: string;
@@ -47,6 +48,7 @@ export function ContactInfoCard({
     emergencyContact: profile.emergencyContact || "",
   });
   const [isPending, setIsPending] = useState(false);
+  const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false);
 
   useEffect(() => {
     setFormData({
@@ -148,14 +150,26 @@ export function ContactInfoCard({
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-semibold">Primary Mobile</Label>
                   {profile.mobileVerified ? (
-                    <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 font-semibold gap-1 py-0 px-1.5">
-                      <ShieldCheck className="h-2.5 w-2.5" />
+                    <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold gap-1 py-0.5 px-2 border border-emerald-500/20">
+                      <ShieldCheck className="h-3 w-3 text-emerald-500" />
                       <span>Verified</span>
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-[10px] text-slate-400 py-0 px-1.5">
-                      Unverified
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-800 bg-amber-500/5 py-0 px-1.5">
+                        Unverified
+                      </Badge>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsVerifyModalOpen(true)}
+                        className="h-6 px-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10 rounded-lg gap-1 shadow-2xs"
+                      >
+                        <ShieldCheck className="h-3 w-3" />
+                        <span>Verify Now (+10%)</span>
+                      </Button>
+                    </div>
                   )}
                 </div>
                 <Input
@@ -164,6 +178,25 @@ export function ContactInfoCard({
                   placeholder="+91 98765 43210"
                   className="rounded-xl text-xs bg-background font-mono"
                 />
+                {!profile.mobileVerified && (
+                  <div className="mt-1.5 flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span className="text-[11px] leading-tight">
+                        Verify this phone number to reach <strong>100% Profile Completion</strong>.
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setIsVerifyModalOpen(true)}
+                      className="h-6 px-2.5 text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg shrink-0 gap-1 self-start sm:self-auto"
+                    >
+                      <ShieldCheck className="h-3 w-3" />
+                      <span>Verify Mobile</span>
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -217,6 +250,15 @@ export function ContactInfoCard({
           </div>
         </form>
       </CardContent>
+
+      <PhoneVerificationModal
+        isOpen={isVerifyModalOpen}
+        onClose={() => setIsVerifyModalOpen(false)}
+        currentPhone={formData.phone || profile.phone || ""}
+        onVerified={() => {
+          if (onSuccess) onSuccess();
+        }}
+      />
     </Card>
   );
 }

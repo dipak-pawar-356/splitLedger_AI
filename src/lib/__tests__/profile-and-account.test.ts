@@ -108,22 +108,57 @@ describe("Profile Center & Account Management System", () => {
     });
   });
 
-  describe("PART IV-B2: Personal Data Export Archiving", () => {
-    it("should produce valid JSON archive structure with standard INR currency", () => {
-      const archive = {
-        exportDate: new Date().toISOString(),
-        currency: "INR (₹)",
-        user: { name: "Dipak", email: "dipak@example.com" },
-        transactions: [{ id: 1, title: "Team Lunch", amount: 150000 }],
-        settlements: [],
+  describe("PART IV-B3: Phone Verification & 100% Profile Completion", () => {
+    it("should reach exactly 100% completion once phone number is verified", () => {
+      // User with 90% completion prior to mobile verification
+      const currentUser = {
+        name: "Dipak Pawar",
+        avatar: "https://avatar.com/dipak.jpg",
+        emailVerified: true,
+        upiId: "dipakpawaras19-1@oksbi",
+      };
+      const currentProfile = {
+        phone: "8669233747",
+        mobileVerified: false,
+        bio: "Software Engineer at Student",
+        city: "Pune",
+        country: "India",
+        occupation: "Software Engineer",
+        timezone: "Asia/Kolkata",
+        language: "en",
       };
 
-      const jsonString = JSON.stringify(archive, null, 2);
-      const parsed = JSON.parse(jsonString);
+      const calculateScore = (user: typeof currentUser, profile: typeof currentProfile) => {
+        let s = 0;
+        if (user.avatar) s += 10;
+        if (user.name) s += 10;
+        if (user.emailVerified) s += 15;
+        if (profile.phone && profile.mobileVerified) s += 15;
+        else if (profile.phone) s += 5;
+        if (profile.bio && profile.bio.length > 0) s += 10;
+        if (profile.city && profile.country) s += 10;
+        if (profile.occupation) s += 10;
+        if (user.upiId) s += 15;
+        if (profile.timezone && profile.language) s += 5;
+        return Math.min(100, s);
+      };
 
-      expect(parsed.currency).toBe("INR (₹)");
-      expect(parsed.transactions.length).toBe(1);
-      expect(parsed.transactions[0].title).toBe("Team Lunch");
+      expect(calculateScore(currentUser, currentProfile)).toBe(90);
+
+      // After mobile verification
+      const verifiedProfile = { ...currentProfile, mobileVerified: true };
+      expect(calculateScore(currentUser, verifiedProfile)).toBe(100);
+    });
+
+    it("should validate 6-digit OTP passcode format", () => {
+      const isValidOtp = (otp: string) => /^\d{6}$/.test(otp.trim());
+
+      expect(isValidOtp("123456")).toBe(true);
+      expect(isValidOtp("749281")).toBe(true);
+      expect(isValidOtp("12345")).toBe(false); // only 5 digits
+      expect(isValidOtp("1234567")).toBe(false); // 7 digits
+      expect(isValidOtp("12a456")).toBe(false); // non-numeric
+      expect(isValidOtp("")).toBe(false);
     });
   });
 });

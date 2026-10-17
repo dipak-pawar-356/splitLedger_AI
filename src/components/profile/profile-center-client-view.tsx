@@ -100,6 +100,7 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
         financialSummary={data.financialSummary}
         onEditClick={() => setActiveTab("personal")}
         onUpiClick={() => setActiveTab("financial")}
+        onVerifyPhoneClick={() => setActiveTab("contact")}
         onAvatarUpdated={handleAvatarUpdated}
       />
 
