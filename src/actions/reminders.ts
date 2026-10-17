@@ -9,13 +9,15 @@ import {
   users,
   notifications,
   auditLogs,
+  settlementEmailLogs,
+  adminActions,
 } from "@/lib/db/schema/schema";
 import { eq, and, desc, or, ilike, inArray, isNull } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, AuthorizationError, ForbiddenError, DatabaseError } from "@/lib/errors";
 import { sendEmailNotification, sendEmailWithStatus, getRichSettlementReminderHtml, type EmailSendResult } from "@/lib/notifications";
-import { generateWhatsAppLink, formatCurrency, getBaseAppUrl } from "@/lib/utils";
+import { generateWhatsAppLink, formatCurrency, getBaseAppUrl, isDbIntegerId, generatePublicId } from "@/lib/utils";
 
 export interface CreateReminderInput {
   title?: string;
@@ -106,15 +108,19 @@ export async function createReminder(data: CreateReminderInput) {
     const rawGroupId = data.groupId || (data.recipientType === "group" ? data.recipientId : null);
 
     if (rawGroupId) {
-      const isNumericGroup = typeof rawGroupId === "number" || /^\d+$/.test(String(rawGroupId));
+      const strId = String(rawGroupId).trim();
+      const isDbId = isDbIntegerId(rawGroupId);
       const [group] = await withDbRetry(async () =>
         db
           .select()
           .from(groups)
           .where(
-            isNumericGroup
-              ? eq(groups.id, Number(rawGroupId))
-              : eq(groups.publicId, String(rawGroupId))
+            and(
+              isDbId
+                ? or(eq(groups.id, Number(strId)), eq(groups.publicId, strId), eq(groups.legacyPublicId, strId))
+                : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId)),
+              eq(groups.isDeleted, false)
+            )
           )
           .limit(1)
       );
@@ -150,16 +156,17 @@ export async function createReminder(data: CreateReminderInput) {
     const rawContactId = data.contactId || (data.recipientType === "contact" ? data.recipientId : null);
 
     if (rawContactId) {
-      const isNumericContact = typeof rawContactId === "number" || /^\d+$/.test(String(rawContactId));
+      const strContactId = String(rawContactId).trim();
+      const isDbContactId = isDbIntegerId(rawContactId);
       const [contact] = await withDbRetry(async () =>
         db
           .select()
           .from(contacts)
           .where(
             and(
-              isNumericContact
-                ? eq(contacts.id, Number(rawContactId))
-                : eq(contacts.publicId, String(rawContactId)),
+              isDbContactId
+                ? or(eq(contacts.id, Number(strContactId)), eq(contacts.publicId, strContactId))
+                : eq(contacts.publicId, strContactId),
               eq(contacts.userId, user.id)
             )
           )
@@ -296,7 +303,7 @@ export async function createReminder(data: CreateReminderInput) {
           ? `${getBaseAppUrl()}/dashboard/groups/${targetGroup.publicId}`
           : getBaseAppUrl();
 
-        const { subject, html } = getRichSettlementReminderHtml({
+        const { subject, html, text } = getRichSettlementReminderHtml({
           groupName: targetGroup?.name || undefined,
           recipientName: data.recipientName || "Member",
           senderName: user.name || "A friend",
@@ -310,19 +317,87 @@ export async function createReminder(data: CreateReminderInput) {
           netPosition: data.netPosition,
         });
 
-        if (rawEmails.length <= 1) {
-          const target = rawEmails[0] || data.recipientEmail.trim();
-          emailResult = await sendEmailWithStatus(target, subject, html);
-        } else {
-          let lastRes: EmailSendResult = { success: true };
-          for (const target of rawEmails) {
-            const res = await sendEmailWithStatus(target, subject, html);
-            if (!res.success) {
-              lastRes = res;
+        const targets = rawEmails.length > 0 ? rawEmails : [data.recipientEmail.trim()];
+        let lastRes: EmailSendResult = { success: true };
+
+        for (const target of targets) {
+          const res = await sendEmailWithStatus(target, subject, html, text);
+          if (!res.success) {
+            lastRes = res;
+          }
+
+          // If targetGroup is present, record log in settlementEmailLogs
+          if (targetGroupId) {
+            try {
+              // Calculate previous reminder count for this email/group if any
+              const [existingLog] = await db
+                .select({ reminderCount: settlementEmailLogs.reminderCount })
+                .from(settlementEmailLogs)
+                .where(
+                  and(
+                    eq(settlementEmailLogs.groupId, targetGroupId),
+                    eq(settlementEmailLogs.recipientEmail, target)
+                  )
+                )
+                .orderBy(desc(settlementEmailLogs.sentAt))
+                .limit(1);
+
+              const currentCount = (existingLog?.reminderCount || 0) + 1;
+              const isDebtor = data.netPosition !== undefined ? data.netPosition < -0.01 : true;
+
+              const [createdLog] = await db
+                .insert(settlementEmailLogs)
+                .values({
+                  publicId: generatePublicId("semlog"),
+                  groupId: targetGroupId,
+                  recipientUserId: typeof data.recipientId === "number" ? data.recipientId : null,
+                  recipientContactId: targetContactId,
+                  recipientName: data.recipientName || target.split("@")[0],
+                  recipientEmail: target,
+                  recipientType: isDebtor ? "debtor" : "creditor",
+                  subject,
+                  amountDue: data.amount ? Math.round(data.amount * 100) : 0,
+                  currency: data.currency || "INR",
+                  reminderCount: currentCount,
+                  status: res.success ? "delivered" : "failed",
+                  failureReason: res.success ? null : (res.error || "Delivery dispatch failed"),
+                  metadata: {
+                    triggeredByUserId: user.id,
+                    triggeredByUserName: user.name,
+                    provider: res.provider || "smtp",
+                    isSandboxRestriction: res.isSandboxRestriction,
+                  },
+                })
+                .returning();
+
+              // Also write to adminActions so audit log stream tracks this reminder
+              try {
+                await db.insert(adminActions).values({
+                  publicId: generatePublicId("act"),
+                  groupId: targetGroupId,
+                  adminId: user.id,
+                  adminName: user.name || "Member",
+                  actionType: "reminder_triggered_manually",
+                  targetEntity: "settlement_email_log",
+                  targetEntityId: createdLog.id,
+                  details: {
+                    recipientEmail: target,
+                    recipientName: data.recipientName,
+                    amount: data.amount,
+                    status: res.success ? "delivered" : "failed",
+                    provider: res.provider,
+                  },
+                });
+              } catch (actErr) {
+                console.warn("Non-fatal: Failed to write to adminActions:", actErr);
+              }
+            } catch (logErr) {
+              console.error("Non-fatal: Failed to insert into settlementEmailLogs:", logErr);
             }
           }
-          emailResult = lastRes;
         }
+
+        emailResult = lastRes;
 
         if (!emailResult.success) {
           console.warn("Reminder email dispatch returned failure:", emailResult.error);
@@ -345,6 +420,9 @@ export async function createReminder(data: CreateReminderInput) {
     revalidatePath("/dashboard");
     if (targetGroupId) {
       revalidatePath(`/dashboard/groups`);
+      if (targetGroup) {
+        revalidatePath(`/dashboard/groups/${targetGroup.publicId}`);
+      }
     }
 
     return {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +68,10 @@ export function SettlementReminderLogsTab({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [retryingLogId, setRetryingLogId] = useState<number | null>(null);
+
+  useEffect(() => {
+    setLogs(initialLogs);
+  }, [initialLogs]);
 
   const fetchLatestLogs = async () => {
     try {

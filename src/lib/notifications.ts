@@ -14,24 +14,21 @@ export interface EmailSendResult {
 }
 
 function getSmtpTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT) || 587;
-  const user = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
-  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const user = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
+  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || "vughrqdcthyeviys";
+  const port = Number(process.env.SMTP_PORT) || 465;
+  const secure = port === 465 || process.env.SMTP_SECURE === "true";
 
   if (user && pass) {
-    if (process.env.GMAIL_USER || (host && host.includes("gmail"))) {
-      return nodemailer.createTransport({
-        service: "gmail",
-        auth: { user, pass },
-      });
-    }
     return nodemailer.createTransport({
-      host: host || "smtp.gmail.com",
+      host,
       port,
       secure,
       auth: { user, pass },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
   }
   return null;
@@ -40,20 +37,28 @@ function getSmtpTransporter() {
 export async function sendEmailWithStatus(
   to: string,
   subject: string,
-  html: string
+  html: string,
+  text?: string
 ): Promise<EmailSendResult> {
   const cleanTo = to.trim();
   const smtp = getSmtpTransporter();
+  const plainText = text || html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
   // 1. If SMTP is configured, use SMTP (delivers to ANY organization/domain)
   if (smtp) {
     try {
-      const from = process.env.SMTP_FROM || process.env.SMTP_USER || process.env.GMAIL_USER || "SplitLedger AI <no-reply@splitledger.ai>";
+      const authUser = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
+      const from = process.env.SMTP_FROM || `SplitLedger AI <${authUser}>`;
       await smtp.sendMail({
         from,
         to: cleanTo,
+        replyTo: authUser,
         subject,
         html,
+        text: plainText,
+        headers: {
+          "X-Entity-Ref-ID": `splitledger_${Date.now()}`,
+        },
       });
       console.log(`[Email] Delivered successfully via SMTP to ${cleanTo}`);
       return { success: true, provider: "smtp" };
@@ -74,6 +79,7 @@ export async function sendEmailWithStatus(
         to: cleanTo,
         subject,
         html,
+        text: plainText,
       });
 
       if (result.error) {
@@ -110,9 +116,10 @@ export async function sendEmailWithStatus(
 export async function sendEmailNotification(
   to: string,
   subject: string,
-  html: string
+  html: string,
+  text?: string
 ): Promise<boolean> {
-  const res = await sendEmailWithStatus(to, subject, html);
+  const res = await sendEmailWithStatus(to, subject, html, text);
   return res.success;
 }
 
@@ -335,6 +342,7 @@ export interface RichReminderEmailParams {
 export function getRichSettlementReminderHtml(params: RichReminderEmailParams): {
   subject: string;
   html: string;
+  text: string;
 } {
   const currencySymbol = params.currency === "USD" ? "$" : "₹";
   const formatAmt = (val?: number) =>
@@ -347,7 +355,31 @@ export function getRichSettlementReminderHtml(params: RichReminderEmailParams): 
   const isExtraPaid = params.netPosition && params.netPosition > 0.01;
   const isShortfall = params.netPosition && params.netPosition < -0.01;
 
-  const subject = `🔔 Settlement Reminder: ${formattedAmount} for ${groupLabel}`;
+  const subject = `Settlement Reminder: ${formattedAmount} for ${groupLabel}`;
+
+  const text = [
+    `SPLITLEDGER AI — SETTLEMENT REMINDER`,
+    `========================================`,
+    `Group: ${groupLabel}`,
+    `Recipient: ${params.recipientName}`,
+    params.senderName ? `Sender: ${params.senderName}` : null,
+    ``,
+    `Message:`,
+    params.message,
+    ``,
+    params.amount ? `Amount Due: ${formatAmt(params.amount)}` : null,
+    params.totalGroupExpense ? `Total Group Spending: ${formatAmt(params.totalGroupExpense)}` : null,
+    params.fairShare ? `Per Person Share: ${formatAmt(params.fairShare)}` : null,
+    params.netPosition !== undefined ? `Net Balance: ${params.netPosition > 0 ? "+" : ""}${formatAmt(params.netPosition)}` : null,
+    ``,
+    `Complete your settlement via dynamic UPI QR code:`,
+    appLink,
+    ``,
+    `========================================`,
+    `Sent via SplitLedger AI • Smart Group Expense Ledger`,
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
 
   const html = `
 <!DOCTYPE html>
@@ -485,7 +517,7 @@ ${params.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt
 </html>
   `;
 
-  return { subject, html };
+  return { subject, html, text };
 }
 
 export function getMemberAddedEmailTemplate(

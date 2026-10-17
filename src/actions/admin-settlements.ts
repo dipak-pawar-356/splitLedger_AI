@@ -26,7 +26,7 @@ import {
 } from "@/lib/errors";
 import { isDbIntegerId } from "@/lib/utils";
 import { generatePublicId, formatCurrency, formatDate, getBaseAppUrl } from "@/lib/utils";
-import { sendEmailNotification } from "@/lib/notifications";
+import { sendEmailNotification, sendEmailWithStatus } from "@/lib/notifications";
 import { getGroupFinancialDetails } from "@/actions/group-financials";
 
 /**
@@ -884,9 +884,9 @@ export async function sendSettlementRemindersNow(
 
       if (!previewOnly) {
         try {
-          const sent = await sendEmailNotification(debtor.email, subject, html);
-          const status = sent ? "delivered" : "failed";
-          const failureReason = sent ? null : "Resend email provider dispatch returned false or not configured";
+          const sendResult = await sendEmailWithStatus(debtor.email, subject, html);
+          const status = sendResult.success ? "delivered" : "failed";
+          const failureReason = sendResult.success ? null : (sendResult.error || "Email delivery failed");
 
           const [log] = await db
             .insert(settlementEmailLogs)
@@ -908,7 +908,7 @@ export async function sendSettlementRemindersNow(
             .returning();
 
           executionLogs.push(log);
-          if (sent) sentCount++;
+          if (sendResult.success) sentCount++;
           else failedCount++;
         } catch (err: any) {
           failedCount++;
@@ -969,9 +969,9 @@ export async function sendSettlementRemindersNow(
 
       if (!previewOnly) {
         try {
-          const sent = await sendEmailNotification(creditor.email, subject, html);
-          const status = sent ? "delivered" : "failed";
-          const failureReason = sent ? null : "Resend email provider dispatch returned false or not configured";
+          const sendResult = await sendEmailWithStatus(creditor.email, subject, html);
+          const status = sendResult.success ? "delivered" : "failed";
+          const failureReason = sendResult.success ? null : (sendResult.error || "Email delivery failed");
 
           const [log] = await db
             .insert(settlementEmailLogs)
@@ -993,7 +993,7 @@ export async function sendSettlementRemindersNow(
             .returning();
 
           executionLogs.push(log);
-          if (sent) sentCount++;
+          if (sendResult.success) sentCount++;
           else failedCount++;
         } catch (err: any) {
           failedCount++;
@@ -1139,7 +1139,7 @@ export async function retryFailedEmailLog(logId: number) {
       });
     }
 
-    const sent = await sendEmailNotification(
+    const sendResult = await sendEmailWithStatus(
       log.recipientEmail,
       emailPayload.subject,
       emailPayload.html
@@ -1148,8 +1148,8 @@ export async function retryFailedEmailLog(logId: number) {
     const [updated] = await db
       .update(settlementEmailLogs)
       .set({
-        status: sent ? "delivered" : "failed",
-        failureReason: sent ? null : "Resend API delivery retry failed",
+        status: sendResult.success ? "delivered" : "failed",
+        failureReason: sendResult.success ? null : (sendResult.error || "Email delivery retry failed"),
         sentAt: new Date(),
         reminderCount: log.reminderCount + 1,
       })
@@ -1157,7 +1157,7 @@ export async function retryFailedEmailLog(logId: number) {
       .returning();
 
     revalidatePath(`/dashboard/groups/${group.publicId}`);
-    return { success: sent, log: updated };
+    return { success: sendResult.success, log: updated };
   } catch (error) {
     if (
       error instanceof NotFoundError ||

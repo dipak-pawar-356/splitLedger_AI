@@ -536,6 +536,7 @@ export function MemberFinancialSummary({
                 memberPaidAmount={member.totalPaid}
                 memberOwnShare={member.ownShare}
                 memberNetPosition={member.netPosition}
+                onSuccess={() => router.refresh()}
                 trigger={
                   <Button
                     type="button"
