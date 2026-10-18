@@ -466,7 +466,7 @@ export async function getReportDashboardSummary() {
  * 3. Payment Summary (My vs Others, Shared vs Personal)
  * 4. My Transactions & Group Transactions
  */
-export function computeComprehensiveFinancialModel({
+function computeComprehensiveFinancialModel({
   user,
   targetGroupIds,
   transactionsList,

@@ -2156,6 +2156,7 @@ export function generateExcelWorkbook(data: ExportReportData): string {
   // Sheet 3: My Transactions (Table 3)
   const myTxRows = myTxList.map((tx) => `
    <Row>
+    <Cell><Data ss:Type="String">${sanitize(tx.publicId)}</Data></Cell>
     <Cell><Data ss:Type="String">${sanitize(tx.title)}</Data></Cell>
     <Cell ss:StyleID="DateStyle"><Data ss:Type="String">${formatDate(tx.date)}</Data></Cell>
     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${tx.amountPaid}</Data></Cell>
@@ -2172,6 +2173,7 @@ export function generateExcelWorkbook(data: ExportReportData): string {
  <Worksheet ss:Name="My Transactions">
   <Table ss:DefaultColumnWidth="130">
    <Row ss:StyleID="Header">
+    <Cell><Data ss:Type="String">Txn ID</Data></Cell>
     <Cell><Data ss:Type="String">Transaction Title</Data></Cell>
     <Cell><Data ss:Type="String">Date</Data></Cell>
     <Cell><Data ss:Type="String">Amount I Paid (₹)</Data></Cell>
@@ -2189,6 +2191,7 @@ export function generateExcelWorkbook(data: ExportReportData): string {
   // Sheet 4: Group Transactions (Table 4)
   const groupTxRows = groupTxList.map((tx) => `
    <Row>
+    <Cell><Data ss:Type="String">${sanitize(tx.publicId)}</Data></Cell>
     <Cell><Data ss:Type="String">${sanitize(tx.title)}</Data></Cell>
     <Cell><Data ss:Type="String">${sanitize(tx.groupName)}</Data></Cell>
     <Cell ss:StyleID="Currency"><Data ss:Type="Number">${tx.totalAmount}</Data></Cell>
@@ -2207,6 +2210,7 @@ export function generateExcelWorkbook(data: ExportReportData): string {
  <Worksheet ss:Name="Group Transactions">
   <Table ss:DefaultColumnWidth="130">
    <Row ss:StyleID="Header">
+    <Cell><Data ss:Type="String">Txn ID</Data></Cell>
     <Cell><Data ss:Type="String">Transaction Name</Data></Cell>
     <Cell><Data ss:Type="String">Group</Data></Cell>
     <Cell><Data ss:Type="String">Total Amount (₹)</Data></Cell>

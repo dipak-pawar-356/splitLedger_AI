@@ -152,14 +152,16 @@ describe("Reports, Search & Export Engine", () => {
   });
 
   describe("Multi-Sheet Excel Workbook Generator", () => {
-    it("should generate valid XML spreadsheet with Summary, Transactions, Groups, Settlements sheets", () => {
+    it("should generate valid XML spreadsheet with Group Summary, Personal Summary, My Transactions, Group Transactions, and Settlements sheets", () => {
       const xml = generateExcelWorkbook(mockReportData);
 
       expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
-      expect(xml).toContain('<Worksheet ss:Name="Summary">');
-      expect(xml).toContain('<Worksheet ss:Name="Transactions">');
-      expect(xml).toContain('<Worksheet ss:Name="Groups">');
-      expect(xml).toContain('<Worksheet ss:Name="Settlements">');
+      expect(xml).toContain('<Worksheet ss:Name="Group Summary">');
+      expect(xml).toContain('<Worksheet ss:Name="Personal Summary">');
+      expect(xml).toContain('<Worksheet ss:Name="My Transactions">');
+      expect(xml).toContain('<Worksheet ss:Name="Group Transactions">');
+      expect(xml).toContain('<Worksheet ss:Name="Pending Settlements">');
+      expect(xml).toContain('<Worksheet ss:Name="Completed Settlements">');
       expect(xml).toContain("txn_A1B2C3D4E5F6G7H8");
       expect(xml).toContain("3500");
     });
