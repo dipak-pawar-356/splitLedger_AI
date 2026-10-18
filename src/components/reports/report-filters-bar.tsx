@@ -15,7 +15,9 @@ import {
   Tag, 
   Layers,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Users,
+  UserCheck
 } from "lucide-react";
 import { type ReportFilterOptions } from "@/actions/reports";
 
@@ -64,6 +66,7 @@ export function ReportFiltersBar({
     filters.maxAmount,
     filters.hasReceipt,
     filters.tag,
+    filters.reportScope && filters.reportScope !== "combined",
   ].filter(Boolean).length;
 
   const handleReset = () => {
@@ -72,11 +75,59 @@ export function ReportFiltersBar({
       period: "all",
       search: "",
       sortBy: "date_desc",
+      reportScope: "combined",
     });
   };
 
   return (
     <div className="space-y-3 bg-card p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+      {/* Scope Selector: Combined | Overall Group | Personal Report */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+            Report Filter:
+          </span>
+          <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-900 rounded-xl gap-1">
+            <Button
+              type="button"
+              variant={(filters.reportScope || "combined") === "combined" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-lg text-xs h-7 px-3 font-semibold"
+              onClick={() => onFiltersChange({ ...filters, reportScope: "combined", page: 1 })}
+            >
+              <Layers className="h-3.5 w-3.5 mr-1" />
+              Combined Report
+            </Button>
+            <Button
+              type="button"
+              variant={filters.reportScope === "group" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-lg text-xs h-7 px-3 font-semibold"
+              onClick={() => onFiltersChange({ ...filters, reportScope: "group", page: 1 })}
+            >
+              <Users className="h-3.5 w-3.5 mr-1" />
+              Overall Group Report
+            </Button>
+            <Button
+              type="button"
+              variant={filters.reportScope === "personal" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-lg text-xs h-7 px-3 font-semibold"
+              onClick={() => onFiltersChange({ ...filters, reportScope: "personal", page: 1 })}
+            >
+              <UserCheck className="h-3.5 w-3.5 mr-1" />
+              Personal Report
+            </Button>
+          </div>
+        </div>
+
+        <div className="text-[11px] text-slate-500 font-medium">
+          {(filters.reportScope || "combined") === "combined" && "Combined overview of group financial activity & personal finances"}
+          {filters.reportScope === "group" && "Showing combined expenses & settlements for selected groups only"}
+          {filters.reportScope === "personal" && "Showing only expenses paid by you or your allocated split share"}
+        </div>
+      </div>
+
       {/* Top Search & Period Presets */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Search Input */}

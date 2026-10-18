@@ -79,18 +79,7 @@ function MiniSparkline({ data, color = "#4f46e5" }: { data?: number[]; color?: s
 }
 
 interface ReportsClientViewProps {
-  initialReportData: {
-    transactions: any[];
-    totalCount: number;
-    totalPages: number;
-    currentPage: number;
-    summary: {
-      totalIncome: number;
-      totalExpense: number;
-      netBalance: number;
-      transactionCount: number;
-    };
-  };
+  initialReportData: any;
   analyticsData: any;
   categories: Array<{ id: number; name: string }>;
   groups: Array<{ id: number; name: string }>;
@@ -114,11 +103,13 @@ export function ReportsClientView({
     reportType: (searchParams.get("reportType") as any) || "overview",
     period: (searchParams.get("period") as any) || "all",
     search: searchParams.get("search") || "",
+    reportScope: (searchParams.get("reportScope") as any) || "combined",
     page: Number(searchParams.get("page") || "1"),
     limit: 50,
   });
 
   const [viewMode, setViewMode] = useState<"analytics" | "table" | "insights">("analytics");
+  const [tableTab, setTableTab] = useState<"my_transactions" | "group_transactions">("my_transactions");
   const [reportData, setReportData] = useState(initialReportData);
   const [analyticsData, setAnalyticsData] = useState(initialAnalytics);
   const [isExporting, setIsExporting] = useState(false);
@@ -132,6 +123,7 @@ export function ReportsClientView({
     if (newFilters.reportType && newFilters.reportType !== "overview") params.set("reportType", newFilters.reportType);
     if (newFilters.period && newFilters.period !== "all") params.set("period", newFilters.period);
     if (newFilters.search) params.set("search", newFilters.search);
+    if (newFilters.reportScope && newFilters.reportScope !== "combined") params.set("reportScope", newFilters.reportScope);
     if (newFilters.categoryId) params.set("categoryId", String(newFilters.categoryId));
     if (newFilters.groupId) params.set("groupId", String(newFilters.groupId));
     if (newFilters.paymentMethod) params.set("paymentMethod", newFilters.paymentMethod);
@@ -206,10 +198,15 @@ export function ReportsClientView({
   };
 
   const kpis = analyticsData?.kpiCards || {};
-  const health = analyticsData?.financialHealthScore || {
-    score: 80,
+  const gSum = analyticsData?.groupSummary || reportData?.groupSummary;
+  const pSum = analyticsData?.personalSummary || reportData?.personalSummary;
+  const paySum = analyticsData?.paymentSummary || reportData?.paymentSummary;
+  const scope = filters.reportScope || "combined";
+
+  const health = analyticsData?.financialHealthScore || pSum?.myFinancialHealth || {
+    score: 85,
     grade: "A",
-    label: "Balanced Baseline",
+    label: "Healthy Cash Flow",
     breakdown: { settlementCompletion: 20, savingsRatio: 20, debtStability: 16, expensePredictability: 12, groupEngagement: 12 },
     tips: ["Record regular transactions to generate predictive analytics."],
   };
@@ -323,312 +320,310 @@ export function ReportsClientView({
         />
       </div>
 
-      {/* SECTION 2: TOP SUMMARY - THE 17 ENTERPRISE KPI CARDS */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-          <span className="font-semibold uppercase tracking-wider text-[11px] text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-            <BarChart3 className="h-3.5 w-3.5 text-primary" />
-            Financial Summary & Key Metrics
-          </span>
-          <span className="text-[11px] text-slate-400">
-            Real-time data • Period: <strong>{(filters.period || "all").replace(/_/g, " ").toUpperCase()}</strong>
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {/* 1. Total Expenses */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-rose-500/50 transition-all cursor-pointer" title={kpis.totalExpenses?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Total Expenses</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <TrendingDown className="h-3.5 w-3.5 text-rose-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-rose-600 dark:text-rose-400 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.totalExpenses?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate max-w-[55px]">
-                {kpis.totalExpenses?.percentChange ? `${kpis.totalExpenses.percentChange > 0 ? "+" : ""}${kpis.totalExpenses.percentChange}%` : "0%"}
+      {/* SECTION 1: OVERALL GROUP FINANCIAL SUMMARY (Shown for Combined or Group scope) */}
+      {(scope === "combined" || scope === "group") && gSum && (
+        <div className="space-y-2.5 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 bg-blue-50/20 dark:bg-blue-950/10">
+          <div className="flex items-center justify-between text-xs px-1">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-blue-600 text-white text-[10px] font-mono px-2 py-0.5">SECTION 1</Badge>
+              <span className="font-bold uppercase tracking-wider text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-blue-600" />
+                Overall Group Financial Summary
               </span>
-              <MiniSparkline data={kpis.totalExpenses?.sparkline} color="#ef4444" />
             </div>
-          </Card>
+            <span className="text-[11px] text-slate-500 font-medium">
+              Represents every member combined across active groups
+            </span>
+          </div>
 
-          {/* 2. Total Income */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-emerald-500/50 transition-all cursor-pointer" title={kpis.totalIncome?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Total Income</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {/* 1. Total Group Expense */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Group Expense</span>
+              <div className="text-base font-bold text-rose-600 dark:text-rose-400 mt-1">
+                <AnimatedCounter value={formatCurrency(gSum.totalGroupExpense || 0)} />
               </div>
-            </div>
-            <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.totalIncome?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate max-w-[55px]">
-                {kpis.totalIncome?.percentChange ? `${kpis.totalIncome.percentChange > 0 ? "+" : ""}${kpis.totalIncome.percentChange}%` : "0%"}
+              <span className="text-[10px] text-slate-400 mt-0.5 block">All members combined</span>
+            </Card>
+
+            {/* 2. Total Group Income */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Group Income</span>
+              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                <AnimatedCounter value={formatCurrency(gSum.totalGroupIncome || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Combined group deposits</span>
+            </Card>
+
+            {/* 3. Total Group Transactions */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Group Txns</span>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
+                <AnimatedCounter value={String(gSum.totalGroupTransactions || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Shared group entries</span>
+            </Card>
+
+            {/* 4. Total Members */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Members</span>
+              <div className="text-base font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+                {gSum.totalMembers || 1}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Across all circles</span>
+            </Card>
+
+            {/* 5. Total Groups */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Groups</span>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
+                {gSum.totalGroups || 0}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Active expense circles</span>
+            </Card>
+
+            {/* 6. Total Pending Settlements */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Pending Settlements</span>
+              <div className="text-base font-bold text-amber-600 dark:text-amber-400 mt-1">
+                <AnimatedCounter value={formatCurrency(gSum.totalPendingSettlements?.amount || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">{gSum.totalPendingSettlements?.count || 0} transfers waiting</span>
+            </Card>
+
+            {/* 7. Total Completed Settlements */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Completed Settl.</span>
+              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                <AnimatedCounter value={formatCurrency(gSum.totalCompletedSettlements?.amount || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">{gSum.totalCompletedSettlements?.count || 0} transfers cleared</span>
+            </Card>
+
+            {/* 8. Largest Group Expense */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Largest Group Expense</span>
+              <div className="text-sm font-bold text-rose-600 dark:text-rose-400 mt-1 truncate">
+                {formatCurrency(gSum.largestGroupExpense?.amount || 0)}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block truncate" title={gSum.largestGroupExpense?.title}>
+                {gSum.largestGroupExpense?.title || "None"}
               </span>
-              <MiniSparkline data={kpis.totalIncome?.sparkline} color="#10b981" />
-            </div>
-          </Card>
+            </Card>
 
-          {/* 3. Net Balance */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-primary/50 transition-all cursor-pointer" title={kpis.netBalance?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Net Balance</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <IndianRupee className="h-3.5 w-3.5 text-primary" />
+            {/* 9. Top Spending Group */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Top Spending Group</span>
+              <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 mt-1 truncate">
+                {formatCurrency(gSum.topSpendingGroup?.amount || 0)}
               </div>
-            </div>
-            <div className={`text-base font-bold truncate tracking-tight ${(kpis.netBalance?.value || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-              <AnimatedCounter value={`${(kpis.netBalance?.value || 0) >= 0 ? "+" : ""}${formatCurrency(kpis.netBalance?.value || 0)}`} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">Cash flow</span>
-              <MiniSparkline data={kpis.netBalance?.sparkline} color="#4f46e5" />
-            </div>
-          </Card>
+              <span className="text-[10px] text-slate-400 mt-0.5 block truncate" title={gSum.topSpendingGroup?.name}>
+                {gSum.topSpendingGroup?.name || "None"}
+              </span>
+            </Card>
 
-          {/* 4. Money You Owe */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-amber-500/50 transition-all cursor-pointer" title={kpis.moneyYouOwe?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Money You Owe</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <ArrowDownLeft className="h-3.5 w-3.5 text-amber-500" />
+            {/* 10. Group Average Expense */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Group Avg Expense</span>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
+                <AnimatedCounter value={formatCurrency(gSum.groupAverageExpense || 0)} />
               </div>
-            </div>
-            <div className="text-base font-bold text-amber-600 dark:text-amber-400 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.moneyYouOwe?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">You owe</span>
-              <MiniSparkline data={kpis.moneyYouOwe?.sparkline} color="#f59e0b" />
-            </div>
-          </Card>
-
-          {/* 5. Money Owed To You */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-blue-500/50 transition-all cursor-pointer" title={kpis.moneyOwedToYou?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Owed To You</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <ArrowUpRight className="h-3.5 w-3.5 text-blue-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-blue-600 dark:text-blue-400 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.moneyOwedToYou?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">Receivable</span>
-              <MiniSparkline data={kpis.moneyOwedToYou?.sparkline} color="#3b82f6" />
-            </div>
-          </Card>
-
-          {/* 6. Pending Settlements */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-amber-500/50 transition-all cursor-pointer" title={kpis.pendingSettlements?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Pending Settl.</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <Clock className="h-3.5 w-3.5 text-amber-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-amber-600 dark:text-amber-400 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.pendingSettlements?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">{kpis.pendingSettlements?.count || 0} pending</span>
-              <MiniSparkline data={kpis.pendingSettlements?.sparkline} color="#f59e0b" />
-            </div>
-          </Card>
-
-          {/* 7. Completed Settlements */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-teal-500/50 transition-all cursor-pointer" title={kpis.completedSettlements?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Completed Settl.</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <CheckCircle className="h-3.5 w-3.5 text-teal-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-teal-600 dark:text-teal-400 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.completedSettlements?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">{kpis.completedSettlements?.count || 0} cleared</span>
-              <MiniSparkline data={kpis.completedSettlements?.sparkline} color="#14b8a6" />
-            </div>
-          </Card>
-
-          {/* 8. Total Groups */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-slate-400/50 transition-all cursor-pointer" title={kpis.totalGroups?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Total Groups</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <Users className="h-3.5 w-3.5 text-slate-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-slate-900 dark:text-slate-100 truncate tracking-tight">
-              {kpis.totalGroups?.value || 0}
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">Circles</span>
-              <span className="text-[10px] text-slate-400 font-mono">active</span>
-            </div>
-          </Card>
-
-          {/* 9. Active Members */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-slate-400/50 transition-all cursor-pointer" title={kpis.activeMembers?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Active Members</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <UserCheck className="h-3.5 w-3.5 text-indigo-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-slate-900 dark:text-slate-100 truncate tracking-tight">
-              {kpis.activeMembers?.value || 0}
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">Peers</span>
-              <span className="text-[10px] text-slate-400 font-mono">connected</span>
-            </div>
-          </Card>
-
-          {/* 10. Monthly Spending */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-purple-500/50 transition-all cursor-pointer" title={kpis.monthlySpending?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Monthly Spending</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <CreditCard className="h-3.5 w-3.5 text-purple-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-purple-600 dark:text-purple-400 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.monthlySpending?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">30d run-rate</span>
-              <MiniSparkline data={kpis.monthlySpending?.sparkline} color="#8b5cf6" />
-            </div>
-          </Card>
-
-          {/* 11. Monthly Saving */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-emerald-500/50 transition-all cursor-pointer" title={kpis.monthlySaving?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Monthly Saving</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <PiggyBank className="h-3.5 w-3.5 text-emerald-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.monthlySaving?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">Retained</span>
-              <MiniSparkline data={kpis.monthlySaving?.sparkline} color="#10b981" />
-            </div>
-          </Card>
-
-          {/* 12. Average Daily Spending */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-slate-400/50 transition-all cursor-pointer" title={kpis.avgDailySpending?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Avg Daily Spend</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <Calendar className="h-3.5 w-3.5 text-slate-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-slate-900 dark:text-slate-100 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.avgDailySpending?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">Burn rate</span>
-              <MiniSparkline data={kpis.avgDailySpending?.sparkline} color="#64748b" />
-            </div>
-          </Card>
-
-          {/* 13. Largest Expense */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-rose-500/50 transition-all cursor-pointer" title={kpis.largestExpense?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Largest Expense</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <AlertCircle className="h-3.5 w-3.5 text-rose-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-rose-600 dark:text-rose-400 truncate tracking-tight">
-              <AnimatedCounter value={formatCurrency(kpis.largestExpense?.value || 0)} />
-            </div>
-            <div className="text-[10px] text-slate-400 truncate mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              {kpis.largestExpense?.subtitle || "None"}
-            </div>
-          </Card>
-
-          {/* 14. Largest Category */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-indigo-500/50 transition-all cursor-pointer" title={kpis.largestCategory?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Top Category</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <PieIcon className="h-3.5 w-3.5 text-indigo-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-indigo-600 dark:text-indigo-400 truncate tracking-tight">
-              {kpis.largestCategory?.name || "General"}
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span>{formatCurrency(kpis.largestCategory?.value || 0)}</span>
-              <span className="font-mono font-semibold">{kpis.largestCategory?.percentage || 0}%</span>
-            </div>
-          </Card>
-
-          {/* 15. Most Active Group */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-emerald-500/50 transition-all cursor-pointer" title={kpis.mostActiveGroup?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Active Group</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <Layers className="h-3.5 w-3.5 text-emerald-500" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 truncate tracking-tight">
-              {kpis.mostActiveGroup?.name || "Personal"}
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span>{formatCurrency(kpis.mostActiveGroup?.value || 0)}</span>
-              <span className="font-mono">{kpis.mostActiveGroup?.txCount || 0} txs</span>
-            </div>
-          </Card>
-
-          {/* 16. Total Transactions */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-card hover:border-slate-400/50 transition-all cursor-pointer" title={kpis.totalTransactions?.tooltip}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Total Txns</span>
-              <div className="p-1 rounded-lg group-hover:scale-110 transition-transform duration-300">
-                <Receipt className="h-3.5 w-3.5 text-slate-600 dark:text-slate-400" />
-              </div>
-            </div>
-            <div className="text-base font-bold text-slate-900 dark:text-slate-100 truncate tracking-tight">
-              <AnimatedCounter value={String(kpis.totalTransactions?.value || 0)} />
-            </div>
-            <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 truncate">Entries</span>
-              <MiniSparkline data={kpis.totalTransactions?.sparkline} color="#6366f1" />
-            </div>
-          </Card>
-
-          {/* 17. Financial Health Score (Hero Pill Card) */}
-          <Card className="card-lift group rounded-2xl border shadow-sm p-3.5 bg-gradient-to-br from-indigo-50/70 via-background to-emerald-50/50 dark:from-indigo-950/20 dark:via-background dark:to-emerald-950/20 border-indigo-200 dark:border-indigo-800 hover:border-indigo-500/70 transition-all cursor-pointer" title={health.tooltip || "Financial Health Score"}>
-            <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-              <span className="font-semibold uppercase tracking-wider text-[10px] text-indigo-700 dark:text-indigo-400">Health Score</span>
-              <Badge className="text-[9px] px-1.5 py-0 h-4 bg-indigo-600 text-white font-mono">
-                {health.grade}
-              </Badge>
-            </div>
-            <div className="text-base font-extrabold text-indigo-700 dark:text-indigo-300 tracking-tight flex items-baseline gap-1">
-              <span>{health.score}</span>
-              <span className="text-[11px] font-normal text-slate-400">/100</span>
-            </div>
-            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold truncate mt-1 pt-1 border-t border-indigo-100 dark:border-indigo-900/40">
-              {health.label}
-            </div>
-          </Card>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Per group transaction</span>
+            </Card>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* SECTION 2: MY PERSONAL FINANCIAL SUMMARY (Shown for Combined or Personal scope) */}
+      {(scope === "combined" || scope === "personal") && pSum && (
+        <div className="space-y-2.5 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/20 dark:bg-emerald-950/10">
+          <div className="flex items-center justify-between text-xs px-1">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-emerald-600 text-white text-[10px] font-mono px-2 py-0.5">SECTION 2</Badge>
+              <span className="font-bold uppercase tracking-wider text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
+                My Personal Financial Summary
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500 font-medium">
+              Belongs ONLY to the logged-in user • Never includes expenses paid by other members
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {/* 1. My Total Spending */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-rose-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Total Spending</span>
+              <div className="text-base font-bold text-rose-600 dark:text-rose-400 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.myTotalSpending || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">My actual share of expenses</span>
+            </Card>
+
+            {/* 2. My Total Income */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-emerald-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Total Income</span>
+              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.myTotalIncome || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Personal receipts</span>
+            </Card>
+
+            {/* 3. My Net Balance */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-primary transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Net Balance</span>
+              <div className={`text-base font-bold mt-1 ${(pSum.myNetBalance || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                <AnimatedCounter value={`${(pSum.myNetBalance || 0) >= 0 ? '+' : ''}${formatCurrency(pSum.myNetBalance || 0)}`} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Personal surplus / deficit</span>
+            </Card>
+
+            {/* 4. Amount I Paid (Contribution) */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-indigo-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Amount I Paid (Contribution)</span>
+              <div className="text-base font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.amountIPaid || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Out-of-pocket money paid</span>
+            </Card>
+
+            {/* 5. Amount I Owe */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-amber-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Pending Amount I Owe</span>
+              <div className="text-base font-bold text-amber-600 dark:text-amber-400 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.amountIOwe || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Liabilities owed to others</span>
+            </Card>
+
+            {/* 6. Amount Others Owe Me */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Amount Others Owe Me</span>
+              <div className="text-base font-bold text-blue-600 dark:text-blue-400 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.amountOthersOweMe || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Receivables from members</span>
+            </Card>
+
+            {/* 7. My Pending Settlements */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-amber-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Pending Settl.</span>
+              <div className="text-base font-bold text-amber-600 dark:text-amber-400 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.myPendingSettlements?.amount || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">{pSum.myPendingSettlements?.count || 0} transfers waiting</span>
+            </Card>
+
+            {/* 8. My Completed Settlements */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-teal-400 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Completed Settl.</span>
+              <div className="text-base font-bold text-teal-600 dark:text-teal-400 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.myCompletedSettlements?.amount || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">{pSum.myCompletedSettlements?.count || 0} transfers cleared</span>
+            </Card>
+
+            {/* 9. My Average Transaction */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Avg Transaction</span>
+              <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.myAverageTransaction || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">My personal average ticket</span>
+            </Card>
+
+            {/* 10. My Largest Expense */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Largest Expense</span>
+              <div className="text-sm font-bold text-rose-600 dark:text-rose-400 mt-1 truncate">
+                {formatCurrency(pSum.myLargestExpense?.amount || 0)}
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block truncate" title={pSum.myLargestExpense?.title}>
+                {pSum.myLargestExpense?.title || "None"}
+              </span>
+            </Card>
+
+            {/* 11. My Monthly Spending */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Monthly Spend</span>
+              <div className="text-base font-bold text-purple-600 dark:text-purple-400 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.myMonthlySpending || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">30-day run rate</span>
+            </Card>
+
+            {/* 12. My Savings */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Savings</span>
+              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                <AnimatedCounter value={formatCurrency(pSum.mySavings || 0)} />
+              </div>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Retained income</span>
+            </Card>
+
+            {/* 13. Financial Health */}
+            <Card className="rounded-xl border shadow-sm p-3 bg-gradient-to-br from-indigo-50/70 to-emerald-50/50 dark:from-indigo-950/20 dark:to-emerald-950/20 border-indigo-200 dark:border-indigo-800">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Financial Health</span>
+                <Badge className="text-[9px] px-1.5 py-0 h-4 bg-indigo-600 text-white font-mono">{health.grade}</Badge>
+              </div>
+              <div className="text-base font-extrabold text-indigo-700 dark:text-indigo-300 mt-1">
+                {health.score}<span className="text-xs font-normal text-slate-400">/100</span>
+              </div>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5 block">{health.label}</span>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION 5: PAYMENT SUMMARY (Shown for Combined scope) */}
+      {scope === "combined" && paySum && (
+        <div className="space-y-2.5 p-4 rounded-2xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/20 dark:bg-purple-950/10">
+          <div className="flex items-center justify-between text-xs px-1">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-purple-600 text-white text-[10px] font-mono px-2 py-0.5">SECTION 5</Badge>
+              <span className="font-bold uppercase tracking-wider text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5 text-purple-600" />
+                Payment Summary & Reconciliation
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500 font-medium">
+              Reconciled payment allocations between physical outflows and member liabilities
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-xs">
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Total Paid By Me</span>
+              <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 mt-1">{formatCurrency(paySum.totalPaidByMe)}</div>
+            </Card>
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Total Paid By Others</span>
+              <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{formatCurrency(paySum.totalPaidByOthers)}</div>
+            </Card>
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Shared Expenses</span>
+              <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{formatCurrency(paySum.totalSharedExpenses)}</div>
+            </Card>
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Personal Expenses</span>
+              <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{formatCurrency(paySum.totalPersonalExpenses)}</div>
+            </Card>
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Settlement Amount</span>
+              <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">{formatCurrency(paySum.settlementAmount)}</div>
+            </Card>
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Outstanding Receivables</span>
+              <div className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-1">{formatCurrency(paySum.outstandingReceivables)}</div>
+            </Card>
+            <Card className="rounded-xl border shadow-sm p-3 bg-card">
+              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Outstanding Payables</span>
+              <div className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-1">{formatCurrency(paySum.outstandingPayables)}</div>
+            </Card>
+          </div>
+        </div>
+      )}
 
       {/* VIEW 1: EXECUTIVE ANALYTICS (Charts & Visualizations) */}
       {viewMode === "analytics" && (
@@ -646,7 +641,7 @@ export function ReportsClientView({
                 AI Financial Intelligence & Behavioral Insights
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Dynamic mathematical synthesis of your transactions, settlements, and shared ledger habits.
+                Dynamic mathematical synthesis separating overall group performance and personal financial activity.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -654,6 +649,64 @@ export function ReportsClientView({
                 {analyticsData?.aiInsights?.length || 0} Dynamic Observations
               </Badge>
             </div>
+          </div>
+
+          {/* SEPARATED AI INSIGHTS: GROUP INSIGHTS VS PERSONAL INSIGHTS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* GROUP INSIGHTS */}
+            {(scope === "combined" || scope === "group") && (
+              <Card className="p-5 rounded-2xl border-2 border-blue-200 dark:border-blue-900/50 bg-blue-50/30 dark:bg-blue-950/20 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-blue-600 text-white font-mono text-[10px] px-2 py-0.5">GROUP INSIGHTS</Badge>
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
+                      Overall Group Financial Activity
+                    </span>
+                  </div>
+                  <Users className="h-4 w-4 text-blue-600" />
+                </div>
+                <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+                  {(analyticsData?.groupInsights || [
+                    `The group spent ${formatCurrency(gSum?.totalGroupExpense || 0)} during the selected period.`,
+                    `Group average transaction value is ${formatCurrency(gSum?.groupAverageExpense || 0)}.`,
+                    gSum?.largestGroupExpense?.amount ? `The largest group transaction was "${gSum.largestGroupExpense.title}" (${formatCurrency(gSum.largestGroupExpense.amount)}) in ${gSum.largestGroupExpense.groupName}.` : "No group transactions recorded."
+                  ]).map((point: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-600 mt-1.5 shrink-0" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
+            {/* PERSONAL INSIGHTS */}
+            {(scope === "combined" || scope === "personal") && (
+              <Card className="p-5 rounded-2xl border-2 border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/20 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-emerald-600 text-white font-mono text-[10px] px-2 py-0.5">PERSONAL INSIGHTS</Badge>
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300">
+                      My Personal Financial Activity
+                    </span>
+                  </div>
+                  <UserCheck className="h-4 w-4 text-emerald-600" />
+                </div>
+                <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300">
+                  {(analyticsData?.personalInsights || [
+                    `You personally contributed ${formatCurrency(pSum?.amountIPaid || 0)}.`,
+                    (pSum?.amountOthersOweMe || 0) > 0 ? `You are expected to receive ${formatCurrency(pSum?.amountOthersOweMe || 0)} from other members.` : "You currently have no pending receivables.",
+                    (pSum?.amountIOwe || 0) === 0 ? "You currently have no outstanding personal dues." : `You currently owe ${formatCurrency(pSum?.amountIOwe || 0)} in personal dues.`,
+                    `Your average transaction value is ${formatCurrency(pSum?.myAverageTransaction || 0)}.`
+                  ]).map((point: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
           </div>
 
           {/* AI Dynamic Insights Grid (8–15 Insights) */}
@@ -728,181 +781,329 @@ export function ReportsClientView({
         </div>
       )}
 
-      {/* VIEW 3: ITEMIZED TRANSACTION LEDGER */}
+      {/* VIEW 3: ITEMIZED TRANSACTION LEDGER WITH SEPARATE MY VS GROUP TRANSACTIONS */}
       {viewMode === "table" && (
         <div className="space-y-4">
-          {/* Quick Summary of Filtered Items */}
-          <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-            <span>
-              Showing <strong>{reportData.transactions.length}</strong> of <strong>{reportData.totalCount}</strong> transactions
-            </span>
-            <div className="flex items-center gap-3">
-              <span>Income: <strong className="text-emerald-600 font-semibold">{formatCurrency(reportData.summary.totalIncome)}</strong></span>
-              <span>•</span>
-              <span>Expenses: <strong className="text-rose-600 font-semibold">{formatCurrency(reportData.summary.totalExpense)}</strong></span>
-              <span>•</span>
-              <span>Net: <strong className={`font-semibold ${reportData.summary.netBalance >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{formatCurrency(reportData.summary.netBalance)}</strong></span>
+          {/* Sub-tab Switcher: My Transactions vs Group Transactions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-2xl border shadow-sm">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant={tableTab === "my_transactions" ? "default" : "outline"}
+                size="sm"
+                className="rounded-xl text-xs h-8 px-3.5 font-semibold gap-1.5"
+                onClick={() => setTableTab("my_transactions")}
+              >
+                <UserCheck className="h-3.5 w-3.5" />
+                <span>My Transactions (Section 3)</span>
+                <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 font-mono">
+                  {reportData?.myTransactions?.length || 0}
+                </Badge>
+              </Button>
+
+              <Button
+                type="button"
+                variant={tableTab === "group_transactions" ? "default" : "outline"}
+                size="sm"
+                className="rounded-xl text-xs h-8 px-3.5 font-semibold gap-1.5"
+                onClick={() => setTableTab("group_transactions")}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>Group Transactions (Section 4)</span>
+                <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 font-mono">
+                  {reportData?.groupTransactions?.length || 0}
+                </Badge>
+              </Button>
+            </div>
+
+            {/* Quick Summary of Active Tab */}
+            <div className="text-xs text-slate-500 flex items-center gap-2">
+              {tableTab === "my_transactions" ? (
+                <>
+                  <span>Amount I Paid: <strong className="text-indigo-600 font-semibold">{formatCurrency(pSum?.amountIPaid || 0)}</strong></span>
+                  <span>•</span>
+                  <span>My Share: <strong className="text-rose-600 font-semibold">{formatCurrency(pSum?.myTotalSpending || 0)}</strong></span>
+                  <span>•</span>
+                  <span>Net: <strong className={`font-semibold ${(pSum?.myNetBalance || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>{formatCurrency(pSum?.myNetBalance || 0)}</strong></span>
+                </>
+              ) : (
+                <>
+                  <span>Total Group Spend: <strong className="text-rose-600 font-semibold">{formatCurrency(gSum?.totalGroupExpense || 0)}</strong></span>
+                  <span>•</span>
+                  <span>Pending Group Settl: <strong className="text-amber-600 font-semibold">{formatCurrency(gSum?.totalPendingSettlements?.amount || 0)}</strong></span>
+                </>
+              )}
             </div>
           </div>
 
-          <Card className="rounded-2xl border shadow-sm overflow-hidden bg-card">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50 dark:bg-slate-900/50">
-                    <th className="text-left py-3 px-4">Txn ID / Date</th>
-                    <th className="text-left py-3 px-4">Title & Description</th>
-                    <th className="text-left py-3 px-4">Category</th>
-                    <th className="text-left py-3 px-4">Group / Contact</th>
-                    <th className="text-left py-3 px-4">Paid By</th>
-                    <th className="text-right py-3 px-4">Amount (₹)</th>
-                    <th className="text-center py-3 px-4">Status</th>
-                    <th className="text-center py-3 px-4 no-print">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
-                  {reportData.transactions.map((tx) => {
-                    const isPositive = tx.type === "received" || tx.type === "lent" || tx.type === "repaid";
+          {/* TABLE: SECTION 3 - MY TRANSACTIONS */}
+          {tableTab === "my_transactions" && (
+            <Card className="rounded-2xl border shadow-sm overflow-hidden bg-card">
+              <div className="p-3 bg-indigo-50/30 dark:bg-indigo-950/20 border-b border-indigo-100 dark:border-indigo-900/30 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-indigo-600 text-white text-[10px] font-mono px-2 py-0.5">SECTION 3</Badge>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    My Transactions (Only transactions created or paid by me, or where I am a participant)
+                  </span>
+                </div>
+                <span className="text-slate-400 text-[11px]">Includes running balance reconciliation</span>
+              </div>
 
-                    return (
-                      <tr key={tx.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors">
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <Link
-                            href={`/dashboard/transactions/${tx.publicId}`}
-                            className="font-mono text-primary font-semibold hover:underline block"
-                          >
-                            {tx.publicId}
-                          </Link>
-                          <span className="text-slate-400 text-[11px] flex items-center gap-1 mt-0.5">
-                            <Calendar className="h-3 w-3 inline" />
-                            {formatDate(tx.date)}
-                          </span>
-                        </td>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50 dark:bg-slate-900/50">
+                      <th className="text-left py-3 px-4">Transaction Title</th>
+                      <th className="text-left py-3 px-4">Date</th>
+                      <th className="text-right py-3 px-4">Amount I Paid</th>
+                      <th className="text-right py-3 px-4">My Share</th>
+                      <th className="text-left py-3 px-4">Category</th>
+                      <th className="text-left py-3 px-4">Group</th>
+                      <th className="text-center py-3 px-4">Split Type</th>
+                      <th className="text-center py-3 px-4">Settlement Status</th>
+                      <th className="text-center py-3 px-4">Payment Method</th>
+                      <th className="text-right py-3 px-4">Running Balance</th>
+                      <th className="text-center py-3 px-4 no-print">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
+                    {(reportData.myTransactions || []).map((tx: any) => {
+                      return (
+                        <tr key={tx.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors">
+                          <td className="py-3 px-4 font-medium max-w-[200px]">
+                            <Link 
+                              href={`/dashboard/transactions/${tx.publicId}`}
+                              className="hover:text-primary hover:underline truncate block text-slate-900 dark:text-slate-100 font-semibold"
+                            >
+                              {tx.title || tx.description}
+                            </Link>
+                            <span className="font-mono text-[10px] text-slate-400 block">{tx.publicId}</span>
+                          </td>
 
-                        <td className="py-3 px-4 font-medium max-w-[220px]">
-                          <Link 
-                            href={`/dashboard/transactions/${tx.publicId}`}
-                            className="hover:text-primary hover:underline truncate block text-slate-900 dark:text-slate-100"
-                          >
-                            {tx.title || tx.description}
-                          </Link>
-                          {tx.notes && (
-                            <span className="text-[11px] text-slate-400 truncate block mt-0.5">{tx.notes}</span>
-                          )}
-                        </td>
+                          <td className="py-3 px-4 whitespace-nowrap text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3 inline text-slate-400" />
+                              {formatDate(tx.date)}
+                            </span>
+                          </td>
 
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                          {tx.categoryName || "General"}
-                        </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-bold">
+                            <span className={tx.amountPaid > 0 ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"}>
+                              {formatCurrency(tx.amountPaid || 0)}
+                            </span>
+                          </td>
 
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                          {tx.groupName ? (
-                            <span className="font-semibold text-primary">Group: {tx.groupName}</span>
-                          ) : (
-                            tx.contactName || "Personal"
-                          )}
-                        </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-semibold text-rose-600 dark:text-rose-400">
+                            {formatCurrency(tx.myShare || 0)}
+                          </td>
 
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                          {tx.paidByName || "Self"}
-                        </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                            <Badge variant="outline" className="text-[10px] font-normal">
+                              {tx.categoryName || "General"}
+                            </Badge>
+                          </td>
 
-                        <td className="py-3 px-4 text-right whitespace-nowrap font-bold">
-                          <span className={isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
-                            {isPositive ? "+" : "-"}
-                            {formatCurrency(tx.amount / 100, tx.currency)}
-                          </span>
-                          <span className="text-[10px] text-slate-400 block font-normal capitalize">
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                            {tx.groupName}
+                          </td>
+
+                          <td className="py-3 px-4 text-center">
+                            <span className="text-[10px] font-mono uppercase bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                              {tx.splitType || "Equal"}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 text-center">
+                            <Badge variant="outline" className={`text-[10px] capitalize font-medium ${
+                              tx.settlementStatus === "completed" 
+                                ? "border-emerald-200 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/20" 
+                                : "border-amber-200 text-amber-700 bg-amber-50 dark:bg-amber-950/20"
+                            }`}>
+                              {tx.settlementStatus || "Pending"}
+                            </Badge>
+                          </td>
+
+                          <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-300 font-mono text-[11px] uppercase">
                             {tx.paymentMethod || "UPI"}
-                          </span>
-                        </td>
+                          </td>
 
-                        <td className="py-3 px-4 text-center">
-                          <Badge variant="outline" className={`text-[10px] capitalize font-medium ${
-                            tx.status === "completed" 
-                              ? "border-emerald-200 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/20" 
-                              : "border-amber-200 text-amber-700 bg-amber-50 dark:bg-amber-950/20"
-                          }`}>
-                            {tx.status}
-                          </Badge>
-                        </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-mono font-semibold">
+                            <span className={tx.runningBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
+                              {formatCurrency(tx.runningBalance || 0)}
+                            </span>
+                          </td>
 
-                        <td className="py-3 px-4 text-center no-print">
-                          <Link href={`/dashboard/transactions/${tx.publicId}`}>
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-slate-500 hover:text-slate-900">
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                          </Link>
+                          <td className="py-3 px-4 text-center no-print">
+                            <Link href={`/dashboard/transactions/${tx.publicId}`}>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-slate-500 hover:text-slate-900">
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {(!reportData.myTransactions || reportData.myTransactions.length === 0) && (
+                      <tr>
+                        <td colSpan={11} className="py-16 text-center text-slate-400">
+                          <FileText className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-700 mb-3" />
+                          <p className="font-bold text-sm text-slate-800 dark:text-slate-200">No personal transactions recorded in this period</p>
+                          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                            Transactions where you are the payer or a split participant will be detailed here with your running balance.
+                          </p>
                         </td>
                       </tr>
-                    );
-                  })}
-
-                  {reportData.transactions.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="py-16 text-center text-slate-400">
-                        <FileText className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-700 mb-3" />
-                        <p className="font-bold text-sm text-slate-800 dark:text-slate-200">No transactions match your report filters</p>
-                        <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                          Adjust your date filters, reset search keywords, or add your first transaction to populate financial analytics.
-                        </p>
-                        <div className="mt-4 flex items-center justify-center gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="rounded-xl text-xs"
-                            onClick={() => updateFilters({ reportType: "overview", period: "all", search: "" })}
-                          >
-                            Reset Filters
-                          </Button>
-                          <Link href="/dashboard/transactions/new">
-                            <Button size="sm" className="rounded-xl text-xs bg-primary font-semibold">
-                              + Add New Expense
-                            </Button>
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Toolbar */}
-            {reportData.totalPages > 1 && (
-              <div className="p-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs no-print">
-                <span className="text-slate-500">
-                  Page <strong>{reportData.currentPage}</strong> of <strong>{reportData.totalPages}</strong>
-                </span>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={reportData.currentPage <= 1 || isPending}
-                    className="h-8 px-2.5 rounded-xl gap-1"
-                    onClick={() => updateFilters({ ...filters, page: reportData.currentPage - 1 })}
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                    <span>Previous</span>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={reportData.currentPage >= reportData.totalPages || isPending}
-                    className="h-8 px-2.5 rounded-xl gap-1"
-                    onClick={() => updateFilters({ ...filters, page: reportData.currentPage + 1 })}
-                  >
-                    <span>Next</span>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </Card>
+            </Card>
+          )}
+
+          {/* TABLE: SECTION 4 - GROUP TRANSACTIONS */}
+          {tableTab === "group_transactions" && (
+            <Card className="rounded-2xl border shadow-sm overflow-hidden bg-card">
+              <div className="p-3 bg-blue-50/30 dark:bg-blue-950/20 border-b border-blue-100 dark:border-blue-900/30 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-blue-600 text-white text-[10px] font-mono px-2 py-0.5">SECTION 4</Badge>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    Group Transactions (Every transaction across active shared groups)
+                  </span>
+                </div>
+                <span className="text-slate-400 text-[11px]">Displays full group ticket vs your allocated share</span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50/50 dark:bg-slate-900/50">
+                      <th className="text-left py-3 px-4">Transaction Name</th>
+                      <th className="text-left py-3 px-4">Group</th>
+                      <th className="text-right py-3 px-4">Total Amount</th>
+                      <th className="text-left py-3 px-4">Paid By</th>
+                      <th className="text-center py-3 px-4">Split Between</th>
+                      <th className="text-right py-3 px-4">My Share</th>
+                      <th className="text-right py-3 px-4">Other Members Share</th>
+                      <th className="text-center py-3 px-4">Settlement Status</th>
+                      <th className="text-center py-3 px-4 no-print">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-xs">
+                    {(reportData.groupTransactions || []).map((tx: any) => {
+                      return (
+                        <tr key={tx.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors">
+                          <td className="py-3 px-4 font-medium max-w-[220px]">
+                            <Link 
+                              href={`/dashboard/transactions/${tx.publicId}`}
+                              className="hover:text-primary hover:underline truncate block text-slate-900 dark:text-slate-100 font-semibold"
+                            >
+                              {tx.title}
+                            </Link>
+                            <span className="text-slate-400 text-[11px] flex items-center gap-1 mt-0.5">
+                              <Calendar className="h-3 w-3 inline text-slate-400" />
+                              {formatDate(tx.date)}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 font-semibold text-primary">
+                            {tx.groupName}
+                          </td>
+
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-bold text-slate-900 dark:text-slate-100">
+                            {formatCurrency(tx.totalAmount || 0)}
+                          </td>
+
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
+                            {tx.paidBy}
+                          </td>
+
+                          <td className="py-3 px-4 text-center">
+                            <Badge variant="outline" className="text-[10px] font-mono">
+                              {tx.splitBetweenCount || 2} members
+                            </Badge>
+                          </td>
+
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-bold text-rose-600 dark:text-rose-400">
+                            {formatCurrency(tx.myShare || 0)}
+                          </td>
+
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-semibold text-slate-500">
+                            {formatCurrency(tx.otherMembersShare || 0)}
+                          </td>
+
+                          <td className="py-3 px-4 text-center">
+                            <Badge variant="outline" className={`text-[10px] capitalize font-medium ${
+                              tx.settlementStatus === "completed" 
+                                ? "border-emerald-200 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/20" 
+                                : "border-amber-200 text-amber-700 bg-amber-50 dark:bg-amber-950/20"
+                            }`}>
+                              {tx.settlementStatus || "Pending"}
+                            </Badge>
+                          </td>
+
+                          <td className="py-3 px-4 text-center no-print">
+                            <Link href={`/dashboard/transactions/${tx.publicId}`}>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-slate-500 hover:text-slate-900">
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {(!reportData.groupTransactions || reportData.groupTransactions.length === 0) && (
+                      <tr>
+                        <td colSpan={9} className="py-16 text-center text-slate-400">
+                          <Users className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-700 mb-3" />
+                          <p className="font-bold text-sm text-slate-800 dark:text-slate-200">No group transactions recorded in this period</p>
+                          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                            Group transactions with member share breakdowns will appear here when active groups have expense activity.
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* Pagination Toolbar */}
+          {reportData.totalPages > 1 && (
+            <div className="p-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs no-print">
+              <span className="text-slate-500">
+                Page <strong>{reportData.currentPage}</strong> of <strong>{reportData.totalPages}</strong>
+              </span>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={reportData.currentPage <= 1 || isPending}
+                  className="h-8 px-2.5 rounded-xl gap-1"
+                  onClick={() => updateFilters({ ...filters, page: reportData.currentPage - 1 })}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <span>Previous</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={reportData.currentPage >= reportData.totalPages || isPending}
+                  className="h-8 px-2.5 rounded-xl gap-1"
+                  onClick={() => updateFilters({ ...filters, page: reportData.currentPage + 1 })}
+                >
+                  <span>Next</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
