@@ -112,13 +112,19 @@ export function ReminderDialog({
   const effectiveGroupName = groupName || "our group";
 
   // Build message based on template, creditor, and debtor(s)
+  // Build message based on template, creditor, debtor(s), and channel method
   const buildTemplateMessage = useCallback((
     type: "payment" | "settlement" | "general", 
     nameVal: string, 
     amountVal: number,
     creditorItem?: CreditorDebtItem | "all" | null,
-    debtorsList?: CreditorDebtItem[]
+    debtorsList?: CreditorDebtItem[],
+    targetMethod: "whatsapp" | "email" | "copy" = method
   ) => {
+    const isWhatsApp = targetMethod === "whatsapp";
+    const b = (str: string) => isWhatsApp ? `*${str}*` : str;
+    const it = (str: string) => isWhatsApp ? `_${str}_` : str;
+
     const formattedAmt = amountVal > 0 ? formatCurrency(amountVal) : "₹0.00";
     const groupText = groupName ? ` in "${groupName}"` : "";
     const baseUrl = getBaseAppUrl();
@@ -133,9 +139,9 @@ export function ReminderDialog({
     const formattedAvgShare = avgPerPerson > 0 ? formatCurrency(avgPerPerson) : null;
     const formattedPaid = memberPaidAmount !== undefined && memberPaidAmount > 0 ? formatCurrency(memberPaidAmount) : null;
 
-    // Thematic row emoji header and clean divider
-    const headerRow = `✨ ═══════ 💰 ═══════ ✨`;
-    const divider = `━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    // Thematic row header and divider based on target channel
+    const headerRow = isWhatsApp ? `✨ ═══════ 💰 ═══════ ✨\n` : "";
+    const divider = isWhatsApp ? `━━━━━━━━━━━━━━━━━━━━━━━━━` : `--------------------------------------------------`;
 
     // ─────────────────────────────────────────────────────────────
     // SCENARIO 1: CREDITOR VIEW / RECEIVER REMINDER
@@ -156,118 +162,122 @@ export function ReminderDialog({
           : [{ name: "Group members", amount: amountVal > 0 ? amountVal : extraAmtVal }];
         
         const pendingAmt = formatCurrency(amountVal > 0 ? amountVal : extraAmtVal);
-        const payersListFormatted = payers.map(p => `▫️ *${p.name}:* *${formatCurrency(p.amount)}* (Pending • QR / Manual)`).join("\n");
+        const payersListFormatted = payers.map(p => 
+          isWhatsApp
+            ? `▫️ *${p.name}*: *${formatCurrency(p.amount)}* (Pending • QR / Manual)`
+            : `▫️ ${p.name}: ${formatCurrency(p.amount)} (Pending • QR / Manual)`
+        ).join("\n");
         const totalPendingFormatted = formatCurrency(payers.reduce((sum, p) => sum + p.amount, 0) || (amountVal > 0 ? amountVal : extraAmtVal));
 
-        return `${headerRow}
-⚡ *SPLITLEDGER AI — SETTLEMENT AWAITING PAYMENT*
+        return `${headerRow}⚡ ${b("SPLITLEDGER AI — SETTLEMENT AWAITING PAYMENT")}
 ${divider}
-👋 Hi *${nameVal}*,
+👋 Hi ${b(nameVal)},
 
 Thank you for contributing toward your group's expenses.
-According to the latest verified settlement calculations, you paid more than your own share to cover expenses on behalf of other group members in *${effectiveGroupName}*.
+According to the latest verified settlement calculations, you paid more than your own share to cover expenses on behalf of other group members in ${b(effectiveGroupName)}.
 
-📊 *YOUR CONTRIBUTION SUMMARY:*
-▫️ *Group:* ${effectiveGroupName}
-▫️ *Your Total Contribution:* *${formattedPaid || pendingAmt}*
-▫️ *Your Own Expense Share:* *${formattedAvgShare || "—"}*
-▫️ *Amount You Paid Extra:* *+${formattedExtra}*
-▫️ *Current Status:* ⏳ *Waiting for reimbursement*
+📊 ${b("YOUR CONTRIBUTION SUMMARY:")}
+▫️ Group: ${effectiveGroupName}
+▫️ Your Total Contribution: ${b(formattedPaid || pendingAmt)}
+▫️ Your Own Expense Share: ${b(formattedAvgShare || "—")}
+▫️ Amount You Paid Extra: ${b("+" + formattedExtra)}
+▫️ Current Status: ⏳ ${b("Waiting for reimbursement")}
 ${divider}
 
-👥 *WHO NEEDS TO PAY YOU:*
+👥 ${b("WHO NEEDS TO PAY YOU:")}
 ${payersListFormatted}
 ${divider}
-💰 *Total Pending To Receive:* *${totalPendingFormatted}*
-⏳ *Status:* *Waiting for Member Payments*
+💰 ${b("Total Pending To Receive")}: ${b(totalPendingFormatted)}
+⏳ ${b("Status")}: ${b("Waiting for Member Payments")}
 
-ℹ️ *IMPORTANT INFORMATION:*
+ℹ️ ${b("IMPORTANT INFORMATION:")}
 • The above members are requested to complete their pending settlement at the earliest.
 • Once payment is completed using SplitLedger AI QR Code or Manual Settlement, your group balance will automatically update.
 • If payment is completed outside SplitLedger AI, kindly request the payer(s) to mark the settlement as completed so your ledger remains accurate.
 
 🤝 You may politely remind the members listed above to complete their pending payment.
 
-✨ *WHAT HAPPENS AFTER PAYMENT?*
+✨ ${b("WHAT HAPPENS AFTER PAYMENT?")}
 Once every pending member completes their settlement:
-• Your outstanding receivable will automatically become *₹0.00*
-• Your member card will change from *Waiting for Payment* to *Settlement Completed*
+• Your outstanding receivable will automatically become ${b("₹0.00")}
+• Your member card will change from ${b("Waiting for Payment")} to ${b("Settlement Completed")}
 • Your group balances will automatically recalculate.
 
-👉 *View Settlement Details:* ${appUrl}/settlements
-👉 *View Group:* ${appUrl}
+👉 ${b("View Settlement Details")}: ${appUrl}/settlements
+👉 ${b("View Group")}: ${appUrl}
 
-🤝 _Generated automatically using verified ledger records inside SplitLedger AI._`;
+🤝 ${it("Generated automatically using verified ledger records inside SplitLedger AI.")}`;
       }
 
       // Subcase 1A: Multiple debtors selected (e.g. DIPAK PAWAR & Rahul)
       if (debtorsList && debtorsList.length > 1) {
         const namesList = debtorsList.map(d => d.name).join(" and ");
-        const breakdownLines = debtorsList.map(d => `▫️ *${d.name}:* *${formatCurrency(d.amount)}*`).join("\n");
+        const breakdownLines = debtorsList.map(d => 
+          isWhatsApp
+            ? `▫️ *${d.name}*: *${formatCurrency(d.amount)}*`
+            : `▫️ ${d.name}: ${formatCurrency(d.amount)}`
+        ).join("\n");
         const totalDebtorsAmt = formatCurrency(debtorsList.reduce((sum, d) => sum + d.amount, 0));
 
         if (type === "settlement") {
-          return `${headerRow}
-⚡ *SPLITLEDGER AI — SETTLEMENT AUDIT*
+          return `${headerRow}⚡ ${b("SPLITLEDGER AI — SETTLEMENT AUDIT")}
 ${divider}
-👥 *Group:* ${groupName || "Shared Expenses"}
-${formattedTotalExp ? `📊 *Total Group Expenses (T):* ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ *Average Fair Share (T/N):* ${formattedAvgShare} per member\n` : ""}${divider}
+👥 ${b("Group:")} ${groupName || "Shared Expenses"}
+${formattedTotalExp ? `📊 ${b("Total Group Expenses (T):")} ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ ${b("Average Fair Share (T/N):")} ${formattedAvgShare} per member\n` : ""}${divider}
 
-🌟 *CREDIT SUMMARY FOR ${recipientName.toUpperCase()}:*
-*${recipientName}* paid a total of *${formattedPaid || formattedExtra}*, which is an extra *+${formattedExtra}* above the fair share.
+🌟 ${b("CREDIT SUMMARY FOR " + recipientName.toUpperCase() + ":")}
+${b(recipientName)} paid a total of ${b(formattedPaid || formattedExtra)}, which is an extra ${b("+" + formattedExtra)} above the fair share.
 
-📋 *RECEIVABLES BREAKDOWN:*
-To settle this extra amount, the following members owe *${recipientName}*:
+📋 ${b("RECEIVABLES BREAKDOWN:")}
+To settle this extra amount, the following members owe ${b(recipientName)}:
 ${breakdownLines}
 ${divider}
-💰 *Total Settlement Amount:* *${totalDebtorsAmt}*
+💰 ${b("Total Settlement Amount:")} ${b(totalDebtorsAmt)}
 
-📲 *HOW TO SETTLE:*
-1️⃣ *Pay in App:* Open SplitLedger AI to scan instant UPI QR:
+📲 ${b("HOW TO SETTLE:")}
+1️⃣ ${b("Pay in App:")} Open SplitLedger AI to scan instant UPI QR:
 👉 ${appUrl}
-2️⃣ *Pay Manually:* Transfer via GPay / PhonePe / Paytm / UPI to *${recipientName}*.
+2️⃣ ${b("Pay Manually:")} Transfer via GPay / PhonePe / Paytm / UPI to ${b(recipientName)}.
 3️⃣ Mark as settled in the app once completed.
 
-🤝 _Please verify and complete payment to balance the ledger. Thanks!_`;
+🤝 ${it("Please verify and complete payment to balance the ledger. Thanks!")}`;
         }
 
         if (type === "general") {
-          return `${headerRow}
-🔔 *SPLITLEDGER AI — QUICK CHECK-IN*
+          return `${headerRow}🔔 ${b("SPLITLEDGER AI — QUICK CHECK-IN")}
 ${divider}
-Hey ${namesList}! 👋 Quick reminder regarding our shared group expenses in *${groupName || "our group"}*.
+Hey ${namesList}! 👋 Quick reminder regarding our shared group expenses in ${b(groupName || "our group")}.
 
-*${recipientName}* paid an extra *+${formattedExtra}* for the group. Pending shares to clear:
+${b(recipientName)} paid an extra ${b("+" + formattedExtra)} for the group. Pending shares to clear:
 ${breakdownLines}
 
-💰 *Total Pending:* *${totalDebtorsAmt}*
+💰 ${b("Total Pending:")} ${b(totalDebtorsAmt)}
 👉 Review & pay on SplitLedger AI: ${appUrl}
 Thanks! 🙏`;
         }
 
         // Default "payment" tone
-        return `${headerRow}
-🌟 *SPLITLEDGER AI — PAYMENT REMINDER* 🌟
+        return `${headerRow}🌟 ${b("SPLITLEDGER AI — PAYMENT REMINDER")} 🌟
 ${divider}
-👥 *Group:* ${groupName || "Shared Expenses"}
-${formattedTotalExp ? `📊 *Total Group Spending:* ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ *Average Fair Share:* ${formattedAvgShare} per person\n` : ""}${divider}
+👥 ${b("Group:")} ${groupName || "Shared Expenses"}
+${formattedTotalExp ? `📊 ${b("Total Group Spending:")} ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ ${b("Average Fair Share:")} ${formattedAvgShare} per person\n` : ""}${divider}
 
-✨ *CREDIT SUMMARY FOR ${recipientName.toUpperCase()}:*
-*${recipientName}* paid a total of *${formattedPaid || formattedExtra}* (an extra *+${formattedExtra}* over the fair share) to cover our shared expenses.
+✨ ${b("CREDIT SUMMARY FOR " + recipientName.toUpperCase() + ":")}
+${b(recipientName)} paid a total of ${b(formattedPaid || formattedExtra)} (an extra ${b("+" + formattedExtra)} over the fair share) to cover our shared expenses.
 
-📋 *PENDING RECEIVABLES (WHO OWES ${recipientName.toUpperCase()}):*
-To settle this amount, *${recipientName}* is due to receive:
+📋 ${b("PENDING RECEIVABLES (WHO OWES " + recipientName.toUpperCase() + "):")}
+To settle this amount, ${b(recipientName)} is due to receive:
 ${breakdownLines}
 ${divider}
-💰 *Total to be Settled:* *${totalDebtorsAmt}*
+💰 ${b("Total to be Settled:")} ${b(totalDebtorsAmt)}
 
-📲 *HOW TO SETTLE:*
-1️⃣ *Pay via SplitLedger App:* Open group to scan instant dynamic UPI QR:
+📲 ${b("HOW TO SETTLE:")}
+1️⃣ ${b("Pay via SplitLedger App:")} Open group to scan instant dynamic UPI QR:
 👉 ${appUrl}
-2️⃣ *Pay Manually:* Transfer via GPay / PhonePe / Paytm directly to *${recipientName}*.
+2️⃣ ${b("Pay Manually:")} Transfer via GPay / PhonePe / Paytm directly to ${b(recipientName)}.
 3️⃣ Confirm or record settlement in the group once paid.
 
-🙏 _Please clear your respective shares when convenient. Thank you!_`;
+🙏 ${it("Please clear your respective shares when convenient. Thank you!")}`;
       }
 
       // Subcase 1B: Single debtor selected (e.g. DIPAK PAWAR owes Raj Pawar ₹490)
@@ -276,65 +286,62 @@ ${divider}
         const debtorAmt = formatCurrency(d.amount);
 
         if (type === "settlement") {
-          return `${headerRow}
-⚡ *SPLITLEDGER AI — SETTLEMENT NOTICE*
+          return `${headerRow}⚡ ${b("SPLITLEDGER AI — SETTLEMENT NOTICE")}
 ${divider}
-👋 Hi *${d.name}*,
+👋 Hi ${b(d.name)},
 
-👥 *Group:* ${groupName || "Shared Expenses"}
-${formattedTotalExp ? `📊 *Total Group Spending:* ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ *Per Person Fair Share:* ${formattedAvgShare}\n` : ""}${divider}
+👥 ${b("Group:")} ${groupName || "Shared Expenses"}
+${formattedTotalExp ? `📊 ${b("Total Group Spending:")} ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ ${b("Per Person Fair Share:")} ${formattedAvgShare}\n` : ""}${divider}
 
-🌟 *EXPENSE AUDIT:*
-*${recipientName}* paid a total of *${formattedPaid || formattedExtra}* (an extra *+${formattedExtra}* over the fair share) to cover group costs.
+🌟 ${b("EXPENSE AUDIT:")}
+${b(recipientName)} paid a total of ${b(formattedPaid || formattedExtra)} (an extra ${b("+" + formattedExtra)} over the fair share) to cover group costs.
 
-💳 *YOUR PENDING SHARE:*
-▫️ Payable to *${recipientName}:* *${debtorAmt}*
+💳 ${b("YOUR PENDING SHARE:")}
+▫️ Payable to ${b(recipientName)}: ${b(debtorAmt)}
 ${divider}
-💰 *Total Due from You:* *${debtorAmt}*
+💰 ${b("Total Due from You:")} ${b(debtorAmt)}
 
-📲 *HOW TO SETTLE:*
-1️⃣ *Pay in App:* Open SplitLedger AI to scan instant UPI QR:
+📲 ${b("HOW TO SETTLE:")}
+1️⃣ ${b("Pay in App:")} Open SplitLedger AI to scan instant UPI QR:
 👉 ${appUrl}
-2️⃣ *Pay Manually:* Transfer directly to *${recipientName}* via GPay / PhonePe / Paytm / UPI.
+2️⃣ ${b("Pay Manually:")} Transfer directly to ${b(recipientName)} via GPay / PhonePe / Paytm / UPI.
 3️⃣ Record as settled in the app once paid.
 
-🤝 _Let's keep our group balances cleared. Thank you!_`;
+🤝 ${it("Let's keep our group balances cleared. Thank you!")}`;
         }
 
         if (type === "general") {
-          return `${headerRow}
-🔔 *SPLITLEDGER AI — FRIENDLY REMINDER*
+          return `${headerRow}🔔 ${b("SPLITLEDGER AI — FRIENDLY REMINDER")}
 ${divider}
-Hi *${d.name}*! 👋 Just a quick check-in for *${groupName || "our group"}*.
-*${recipientName}* paid extra for the group, and your share of *${debtorAmt}* is pending.
+Hi ${b(d.name)}! 👋 Just a quick check-in for ${b(groupName || "our group")}.
+${b(recipientName)} paid extra for the group, and your share of ${b(debtorAmt)} is pending.
 👉 Settle up on SplitLedger AI: ${appUrl}
 Thank you! 🙏`;
         }
 
         // Default "payment" tone
-        return `${headerRow}
-🌟 *SPLITLEDGER AI — PAYMENT REMINDER* 🌟
+        return `${headerRow}🌟 ${b("SPLITLEDGER AI — PAYMENT REMINDER")} 🌟
 ${divider}
-👋 Hi *${d.name}*,
+👋 Hi ${b(d.name)},
 
-👥 *Group:* ${groupName || "Shared Expenses"}
-${formattedTotalExp ? `📊 *Total Group Spending:* ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ *Average Fair Share:* ${formattedAvgShare} per person\n` : ""}${divider}
+👥 ${b("Group:")} ${groupName || "Shared Expenses"}
+${formattedTotalExp ? `📊 ${b("Total Group Spending:")} ${formattedTotalExp}\n` : ""}${formattedAvgShare ? `⚖️ ${b("Average Fair Share:")} ${formattedAvgShare} per person\n` : ""}${divider}
 
-✨ *SUMMARY:*
-*${recipientName}* paid a total of *${formattedPaid || formattedExtra}* (an extra *+${formattedExtra}* over the fair share) to cover our shared expenses.
+✨ ${b("SUMMARY:")}
+${b(recipientName)} paid a total of ${b(formattedPaid || formattedExtra)} (an extra ${b("+" + formattedExtra)} over the fair share) to cover our shared expenses.
 
-💳 *YOUR PENDING SHARE:*
-▫️ Payable to *${recipientName}:* *${debtorAmt}*
+💳 ${b("YOUR PENDING SHARE:")}
+▫️ Payable to ${b(recipientName)}: ${b(debtorAmt)}
 ${divider}
-💰 *Total Payable by You:* *${debtorAmt}*
+💰 ${b("Total Payable by You:")} ${b(debtorAmt)}
 
-📲 *HOW TO SETTLE:*
-1️⃣ *Pay in App:* Open SplitLedger AI to scan instant dynamic UPI QR:
+📲 ${b("HOW TO SETTLE:")}
+1️⃣ ${b("Pay in App:")} Open SplitLedger AI to scan instant dynamic UPI QR:
 👉 ${appUrl}
-2️⃣ *Pay Manually:* Transfer directly to *${recipientName}* via GPay / PhonePe / Paytm / UPI.
+2️⃣ ${b("Pay Manually:")} Transfer directly to ${b(recipientName)} via GPay / PhonePe / Paytm / UPI.
 3️⃣ Mark as settled in the app once transferred.
 
-🤝 _Please settle up when convenient to keep group balances square. Thank you!_`;
+🤝 ${it("Please settle up when convenient to keep group balances square. Thank you!")}`;
       }
     }
 
@@ -355,99 +362,99 @@ ${divider}
       }
 
       const creditorLines = creditors.length > 0
-        ? creditors.map(c => `▫️ Pay to *${c.name}:* *${formatCurrency(c.amount)}*`).join("\n")
-        : `▫️ Pay to *Creditor:* *${formattedAmt}*`;
+        ? creditors.map(c => 
+            isWhatsApp
+              ? `▫️ Pay to *${c.name}*: *${formatCurrency(c.amount)}*`
+              : `▫️ Pay to ${c.name}: ${formatCurrency(c.amount)}`
+          ).join("\n")
+        : (isWhatsApp ? `▫️ Pay to *Creditor*: *${formattedAmt}*` : `▫️ Pay to Creditor: ${formattedAmt}`);
 
       const totalPayableAmt = creditors.length > 0
         ? formatCurrency(creditors.reduce((sum, c) => sum + c.amount, 0))
         : formattedAmt;
 
       if (type === "settlement") {
-        return `${headerRow}
-⚡ *SPLITLEDGER AI — SETTLEMENT AUDIT*
+        return `${headerRow}⚡ ${b("SPLITLEDGER AI — SETTLEMENT AUDIT")}
 ${divider}
-👋 Hi *${recipientName}*,
+👋 Hi ${b(recipientName)},
 
-Official settlement audit summary for *${groupName || "our group"}*.
+Official settlement audit summary for ${b(groupName || "our group")}.
 
-📊 *LEDGER BREAKDOWN:*
-${formattedTotalExp ? `▪️ Total Group Expenses: *${formattedTotalExp}*\n` : ""}${formattedAvgShare ? `▪️ Per Person Fair Share: *${formattedAvgShare}*\n` : ""}${formattedPaid ? `▪️ Amount You Paid: *${formattedPaid}*\n` : ""}⚠️ *Shortfall (You Paid Less Than You Owe):* *-${formattedShortfall}*
+📊 ${b("LEDGER BREAKDOWN:")}
+${formattedTotalExp ? `▪️ Total Group Expenses: ${b(formattedTotalExp)}\n` : ""}${formattedAvgShare ? `▪️ Per Person Fair Share: ${b(formattedAvgShare)}\n` : ""}${formattedPaid ? `▪️ Amount You Paid: ${b(formattedPaid)}\n` : ""}⚠️ ${b("Shortfall (You Paid Less Than You Owe):")} -${b(formattedShortfall)}
 ${divider}
 
-💳 *ACTION REQUIRED (WHO TO PAY):*
+💳 ${b("ACTION REQUIRED (WHO TO PAY):")}
 Please settle your pending share with the following member(s):
 ${creditorLines}
 ${divider}
-💰 *Total Payable Amount:* *${totalPayableAmt}*
+💰 ${b("Total Payable Amount:")} ${b(totalPayableAmt)}
 
-📲 *HOW TO SETTLE:*
-1️⃣ *Pay in App:* Open SplitLedger AI to scan instant UPI QR:
+📲 ${b("HOW TO SETTLE:")}
+1️⃣ ${b("Pay in App:")} Open SplitLedger AI to scan instant UPI QR:
 👉 ${appUrl}
-2️⃣ *Pay Manually:* Transfer via GPay / PhonePe / Paytm / UPI to the payee(s).
+2️⃣ ${b("Pay Manually:")} Transfer via GPay / PhonePe / Paytm / UPI to the payee(s).
 3️⃣ Confirm settlement in the app once transferred.
 
-🤝 _Let's balance the ledger. Thank you!_`;
+🤝 ${it("Let's balance the ledger. Thank you!")}`;
       }
 
       if (type === "general") {
-        return `${headerRow}
-🔔 *SPLITLEDGER AI — FRIENDLY REMINDER*
+        return `${headerRow}🔔 ${b("SPLITLEDGER AI — FRIENDLY REMINDER")}
 ${divider}
-Hi *${recipientName}*! 👋 Just a quick reminder about *${groupName || "our group"}*.
-You have a pending settlement balance of *${totalPayableAmt}*.
+Hi ${b(recipientName)}! 👋 Just a quick reminder about ${b(groupName || "our group")}.
+You have a pending settlement balance of ${b(totalPayableAmt)}.
 ${creditorLines}
 👉 Pay & confirm in SplitLedger AI: ${appUrl}
 Thanks! 🙏`;
       }
 
       // Default "payment" tone
-      return `${headerRow}
-🌟 *SPLITLEDGER AI — SETTLEMENT REMINDER* 🌟
+      return `${headerRow}🌟 ${b("SPLITLEDGER AI — SETTLEMENT REMINDER")} 🌟
 ${divider}
-👋 Hi *${recipientName}*,
+👋 Hi ${b(recipientName)},
 
-This is a friendly reminder regarding your pending balance in *${groupName || "our group"}*.
+This is a friendly reminder regarding your pending balance in ${b(groupName || "our group")}.
 
-📊 *EXPENSE & SHARE SUMMARY:*
-${formattedTotalExp ? `▪️ Total Group Spending: *${formattedTotalExp}*\n` : ""}${formattedAvgShare ? `▪️ Per Person Fair Share: *${formattedAvgShare}*\n` : ""}${formattedPaid ? `▪️ Amount You Paid: *${formattedPaid}*\n` : ""}⚠️ *Shortfall (You Paid Less Than You Owe):* *-${formattedShortfall}*
+📊 ${b("EXPENSE & SHARE SUMMARY:")}
+${formattedTotalExp ? `▪️ Total Group Spending: ${b(formattedTotalExp)}\n` : ""}${formattedAvgShare ? `▪️ Per Person Fair Share: ${b(formattedAvgShare)}\n` : ""}${formattedPaid ? `▪️ Amount You Paid: ${b(formattedPaid)}\n` : ""}⚠️ ${b("Shortfall (You Paid Less Than You Owe):")} -${b(formattedShortfall)}
 ${divider}
 
-💳 *PAYMENT BREAKDOWN (WHO TO PAY):*
+💳 ${b("PAYMENT BREAKDOWN (WHO TO PAY):")}
 Please settle your pending share with the following member(s):
 ${creditorLines}
 ${divider}
-💰 *Total Payable Amount:* *${totalPayableAmt}*
+💰 ${b("Total Payable Amount:")} ${b(totalPayableAmt)}
 
-📲 *HOW TO PAY:*
-1️⃣ *Pay in App:* Open SplitLedger AI to scan instant dynamic UPI QR:
+📲 ${b("HOW TO PAY:")}
+1️⃣ ${b("Pay in App:")} Open SplitLedger AI to scan instant dynamic UPI QR:
 👉 ${appUrl}
-2️⃣ *Pay Manually:* Transfer directly via GPay / PhonePe / Paytm / UPI.
+2️⃣ ${b("Pay Manually:")} Transfer directly via GPay / PhonePe / Paytm / UPI.
 3️⃣ Mark as paid in the app once completed.
 
-🤝 _Let's keep our group balances cleared! Thank you!_`;
+🤝 ${it("Let's keep our group balances cleared! Thank you!")}`;
     }
 
     // ─────────────────────────────────────────────────────────────
     // SCENARIO 3: GENERAL / CONTACT FALLBACK
     // ─────────────────────────────────────────────────────────────
     const greetingName = nameVal || recipientName || "Friend";
-    return `${headerRow}
-🌟 *SPLITLEDGER AI — PAYMENT REMINDER* 🌟
+    return `${headerRow}🌟 ${b("SPLITLEDGER AI — PAYMENT REMINDER")} 🌟
 ${divider}
-👋 Hi *${greetingName}*,
+👋 Hi ${b(greetingName)},
 
 Just a friendly reminder regarding shared expenses${groupText}.
 
-💳 *PAYMENT DETAILS:*
-▫️ Total Pending Amount: *${formattedAmt}*
+💳 ${b("PAYMENT DETAILS:")}
+▫️ Total Pending Amount: ${b(formattedAmt)}
 ${divider}
 
-📲 *HOW TO SETTLE:*
-1️⃣ *Pay in App:* Open SplitLedger AI to view breakdown and scan UPI QR:
+📲 ${b("HOW TO SETTLE:")}
+1️⃣ ${b("Pay in App:")} Open SplitLedger AI to view breakdown and scan UPI QR:
 👉 ${appUrl}
-2️⃣ *Pay Manually:* Transfer via GPay / PhonePe / Paytm / UPI.
+2️⃣ ${b("Pay Manually:")} Transfer via GPay / PhonePe / Paytm / UPI.
 
-🙏 _Please settle when convenient. Thanks!_`;
+🙏 ${it("Please settle when convenient. Thanks!")}`;
   }, [
     groupName, 
     groupPublicId, 
@@ -460,7 +467,8 @@ ${divider}
     receivesFromList, 
     owesToList,
     effectiveGroupName,
-    reminderRole
+    reminderRole,
+    method
   ]);
 
   const applyDebtorSelection = useCallback((list: CreditorDebtItem[], currentType: "payment" | "settlement" | "general" = templateType) => {
@@ -470,14 +478,14 @@ ${divider}
       setTargetAmount(0);
       setTargetEmail("");
       setTargetPhone("");
-      setMessage(buildTemplateMessage(currentType, recipientName || "Friend", 0, null, []));
+      setMessage(buildTemplateMessage(currentType, recipientName || "Friend", 0, null, [], method));
     } else if (list.length === 1) {
       const d = list[0];
       setTargetName(d.name);
       setTargetAmount(d.amount);
       setTargetEmail(d.email || "");
       setTargetPhone(d.phone || "");
-      setMessage(buildTemplateMessage(currentType, d.name, d.amount, null, list));
+      setMessage(buildTemplateMessage(currentType, d.name, d.amount, null, list, method));
     } else {
       const names = list.map((d) => d.name).join(" & ");
       const totalAmt = list.reduce((sum, d) => sum + d.amount, 0);
@@ -487,9 +495,9 @@ ${divider}
       setTargetAmount(totalAmt);
       setTargetEmail(emails);
       setTargetPhone(phones);
-      setMessage(buildTemplateMessage(currentType, names, totalAmt, null, list));
+      setMessage(buildTemplateMessage(currentType, names, totalAmt, null, list, method));
     }
-  }, [recipientName, contactName, templateType, buildTemplateMessage]);
+  }, [recipientName, contactName, templateType, buildTemplateMessage, method]);
 
   // Sync state when props or dialog open
   useEffect(() => {
@@ -529,13 +537,19 @@ ${divider}
         }
       }
 
+      const initialMethod: "whatsapp" | "email" | "copy" = 
+        reminderRole === "receiver" || (recipientEmail && !recipientPhone) 
+          ? "email" 
+          : "whatsapp";
+
+      setMethod(initialMethod);
       setSelectedCreditor(initCreditor);
       setSelectedDebtors(initDebtors);
       setTargetName(initName);
       setTargetPhone(initPhone);
       setTargetEmail(initEmail);
       setTargetAmount(initAmt);
-      setMessage(buildTemplateMessage(templateType, initName, initAmt, initCreditor, initDebtors));
+      setMessage(buildTemplateMessage(templateType, initName, initAmt, initCreditor, initDebtors, initialMethod));
     }
   }, [open, recipientName, contactName, recipientPhone, recipientEmail, amount, groupName, owesToList, receivesFromList, buildTemplateMessage, templateType, reminderRole]);
 
@@ -548,7 +562,7 @@ ${divider}
       newAmt = creditor.amount;
     }
     setTargetAmount(newAmt);
-    setMessage(buildTemplateMessage(templateType, targetName, newAmt, creditor, []));
+    setMessage(buildTemplateMessage(templateType, targetName, newAmt, creditor, [], method));
   };
 
   // Toggle debtor on single click (select or deselect)
@@ -579,7 +593,12 @@ ${divider}
 
   const handleTemplateChange = (type: "payment" | "settlement" | "general") => {
     setTemplateType(type);
-    setMessage(buildTemplateMessage(type, targetName, targetAmount, selectedCreditor, selectedDebtors));
+    setMessage(buildTemplateMessage(type, targetName, targetAmount, selectedCreditor, selectedDebtors, method));
+  };
+
+  const handleMethodChange = (newMethod: "whatsapp" | "email" | "copy") => {
+    setMethod(newMethod);
+    setMessage(buildTemplateMessage(templateType, targetName, targetAmount, selectedCreditor, selectedDebtors, newMethod));
   };
 
   const handleSendReminder = async () => {
@@ -931,7 +950,7 @@ ${divider}
             <div className="grid grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
               <button
                 type="button"
-                onClick={() => setMethod("whatsapp")}
+                onClick={() => handleMethodChange("whatsapp")}
                 className={cn(
                   "flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all",
                   method === "whatsapp"
@@ -944,7 +963,7 @@ ${divider}
               </button>
               <button
                 type="button"
-                onClick={() => setMethod("email")}
+                onClick={() => handleMethodChange("email")}
                 className={cn(
                   "flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all",
                   method === "email"
@@ -957,7 +976,7 @@ ${divider}
               </button>
               <button
                 type="button"
-                onClick={() => setMethod("copy")}
+                onClick={() => handleMethodChange("copy")}
                 className={cn(
                   "flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all",
                   method === "copy"

@@ -1,11 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
   getRichReceiverReminderHtml,
+  getRichSettlementReminderHtml,
   getReceiverPlainTextMessage,
   getReceiverWhatsAppMessage,
   getReceiverSmsMessage,
   getReceiverInAppNotification,
   getReceiverPushNotification,
+  formatMessageForEmailHtml,
+  formatMessageForPlainText,
+  formatMessageForWhatsApp,
   RECEIVER_REMINDER_SUBJECT_OPTIONS,
   type RichReceiverReminderParams,
 } from "@/lib/notifications";
@@ -203,9 +207,9 @@ describe("Receiver Reminder Email & Multi-Channel Experience (SplitLedger AI)", 
       expect(waMsg).toContain("*YOUR CONTRIBUTION SUMMARY:*");
       expect(waMsg).toContain("*+₹3,333.32*");
       expect(waMsg).toContain("*WHO NEEDS TO PAY YOU:*");
-      expect(waMsg).toContain("*Kunal Patil:* *₹3,333.32*");
-      expect(waMsg).toContain("*Raj Pawar:* *₹1,333.32*");
-      expect(waMsg).toContain("*Total Pending To Receive:* *₹4,666.64*");
+      expect(waMsg).toContain("*Kunal Patil*: *₹3,333.32*");
+      expect(waMsg).toContain("*Raj Pawar*: *₹1,333.32*");
+      expect(waMsg).toContain("*Total Pending To Receive*: *₹4,666.64*");
       expect(waMsg).toContain("Settlement Completed");
     });
 
@@ -307,6 +311,110 @@ describe("Receiver Reminder Email & Multi-Channel Experience (SplitLedger AI)", 
       expect(text).toContain("₹333.34");
       expect(text).toContain("Total Pending To Receive: ₹1,666.66");
       expect(text).toContain("Amount You Paid Extra:   +₹1,666.66");
+    });
+  });
+
+  describe("13. Formatting Sanitization (Zero Asterisks in Email & Clean Multi-Channel Output)", () => {
+    const rawMessyMessage = `✨ ═══════ 💰 ═══════ ✨
+*SPLITLEDGER AI — SETTLEMENT REMINDER*
+━━━━━━━━━━━━━━━━━━━━━━━━━
+Hi *Kunal Patil*,
+
+This is a friendly reminder regarding your pending balance in *Summer Trip*.
+
+📊 *EXPENSE & SHARE SUMMARY:*
+▪️ Total Group Spending: *₹14,000.00*
+▪️ Per Person Fair Share: *₹4,666.67*
+⚠️ *Shortfall (You Paid Less Than You Owe):* *-₹1,333.32*
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💳 *PAYMENT BREAKDOWN (WHO TO PAY):*
+Please settle your pending share with the following member(s):
+▫️ Pay to *Dipak Pawar:* *₹1,333.32*
+━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *Total Payable Amount:* *₹1,333.32*
+
+📲 *HOW TO PAY:*
+1️⃣ *Pay in App:* Open SplitLedger AI to scan instant dynamic UPI QR:
+👉 https://split-ledger-ai.vercel.app/dashboard/groups/7029181204442760
+2️⃣ *Pay Manually:* Transfer directly via GPay / PhonePe / Paytm / UPI.
+3️⃣ Mark as paid in the app once completed.
+
+🤝 _Let's keep our group balances cleared! Thank you!_`;
+
+    it("formatMessageForEmailHtml should convert markdown to HTML tags and leave ZERO literal asterisks", () => {
+      const htmlFormatted = formatMessageForEmailHtml(rawMessyMessage);
+
+      // Terminal art stripped
+      expect(htmlFormatted).not.toContain("═══════");
+      // Clean HTML strong tags created
+      expect(htmlFormatted).toContain("<strong style=\"color: #0f172a; font-weight: 700;\">SPLITLEDGER AI — SETTLEMENT REMINDER</strong>");
+      expect(htmlFormatted).toContain("<strong style=\"color: #0f172a; font-weight: 700;\">Kunal Patil</strong>");
+      expect(htmlFormatted).toContain("<strong style=\"color: #0f172a; font-weight: 700;\">Summer Trip</strong>");
+      expect(htmlFormatted).toContain("<strong style=\"color: #0f172a; font-weight: 700;\">₹14,000.00</strong>");
+      // Clean HTML em tag created
+      expect(htmlFormatted).toContain("<em style=\"color: #475569; font-style: italic;\">Let's keep our group balances cleared! Thank you!</em>");
+      // URL converted to clickable link
+      expect(htmlFormatted).toContain("<a href=\"https://split-ledger-ai.vercel.app/dashboard/groups/7029181204442760\"");
+      // Clean divider inserted
+      expect(htmlFormatted).toContain("<div style=\"border-top: 1px solid #e2e8f0; margin: 12px 0;\"></div>");
+
+      // CRITICAL: Zero raw asterisks or literal markdown formatting characters in the output
+      expect(htmlFormatted).not.toContain("*");
+    });
+
+    it("formatMessageForPlainText should strip all asterisks and underscores completely", () => {
+      const plainText = formatMessageForPlainText(rawMessyMessage);
+
+      // No terminal decorative header
+      expect(plainText).not.toContain("═══════");
+      // Clean text without asterisks
+      expect(plainText).toContain("SPLITLEDGER AI — SETTLEMENT REMINDER");
+      expect(plainText).toContain("Hi Kunal Patil,");
+      expect(plainText).toContain("Total Group Spending: ₹14,000.00");
+      expect(plainText).toContain("Total Payable Amount: ₹1,333.32");
+      expect(plainText).toContain("Let's keep our group balances cleared! Thank you!");
+
+      // CRITICAL: Zero asterisks or underscores in plain text output
+      expect(plainText).not.toContain("*");
+      expect(plainText).not.toContain("_");
+    });
+
+    it("formatMessageForWhatsApp should produce valid WhatsApp markdown without double asterisks or broken colons", () => {
+      const waFormatted = formatMessageForWhatsApp(rawMessyMessage);
+
+      // Colons should be placed outside the bold tag so WhatsApp parses it correctly
+      expect(waFormatted).toContain("*Dipak Pawar*: *₹1,333.32*");
+      // No triple asterisks
+      expect(waFormatted).not.toContain("***");
+    });
+
+    it("getRichSettlementReminderHtml should render the user's exact email with ZERO raw asterisks", () => {
+      const { html, text } = getRichSettlementReminderHtml({
+        recipientName: "Kunal Patil",
+        senderName: "Dipak Pawar",
+        groupName: "Summer Trip",
+        amount: 1333.32,
+        currency: "INR",
+        message: rawMessyMessage,
+        totalGroupExpense: 14000,
+        fairShare: 4666.67,
+        netPosition: -1333.32,
+      });
+
+      // The message container must render clean HTML
+      expect(html).toContain("<strong style=\"color: #0f172a; font-weight: 700;\">SPLITLEDGER AI — SETTLEMENT REMINDER</strong>");
+      expect(html).toContain("<strong style=\"color: #0f172a; font-weight: 700;\">Kunal Patil</strong>");
+
+      // No literal asterisks anywhere inside the entire generated HTML
+      expect(html).not.toContain("*Kunal Patil*");
+      expect(html).not.toContain("*Summer Trip*");
+      expect(html).not.toContain("*₹14,000.00*");
+      expect(html).not.toContain("*Total Payable Amount:*");
+
+      // The plain text email must also be clean
+      expect(text).not.toContain("*");
+      expect(text).toContain("Total Group Spending: ₹14000.00");
     });
   });
 });

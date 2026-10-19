@@ -421,6 +421,110 @@ export function getSettlementReminderEmailTemplate(
   };
 }
 
+/**
+ * Transforms reminder messages into clean, modern, professional HTML typography for emails.
+ * Converts markdown bold (*text*) into <strong>, italic (_text_) into <em>,
+ * converts terminal line dividers into elegant CSS dividers,
+ * and strips any stray or raw asterisks so emails look 100% polished and professional without literal asterisks.
+ */
+export function formatMessageForEmailHtml(message: string): string {
+  if (!message) return "";
+
+  // 1. Normalize line endings
+  let text = message.replace(/\r\n/g, "\n");
+
+  // 2. Remove raw decorative terminal emoji borders
+  text = text.replace(/✨\s*═+\s*💰\s*═+\s*✨\s*\n?/g, "");
+
+  // 3. Replace horizontal line dividers with clean HTML divider placeholder token
+  text = text
+    .replace(/━{6,}/g, "[[SPLITLEDGER_HR_TOKEN]]")
+    .replace(/═{6,}/g, "[[SPLITLEDGER_HR_TOKEN]]")
+    .replace(/-{6,}/g, "[[SPLITLEDGER_HR_TOKEN]]");
+
+  // 4. Escape HTML special characters to avoid injection
+  text = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // 5. Convert Markdown bold:
+  // First match double asterisks **text**
+  text = text.replace(/\*\*([^\n*]+?)\*\*/g, '<strong style="color: #0f172a; font-weight: 700;">$1</strong>');
+  // Then match single asterisks *text*
+  text = text.replace(/\*([^\n*]+?)\*/g, '<strong style="color: #0f172a; font-weight: 700;">$1</strong>');
+
+  // 6. Convert Markdown italic: _text_
+  text = text.replace(/(?:^|\s)_([^\n_]+?)_(?=\s|[.,!?:;]|$)/g, ' <em style="color: #475569; font-style: italic;">$1</em>');
+  text = text.replace(/^_([^\n_]+?)_$/gm, '<em style="color: #475569; font-style: italic;">$1</em>');
+
+  // 7. Strip any remaining stray, unclosed, or doubled asterisks so literal asterisks NEVER leak into email
+  text = text.replace(/\*+/g, "");
+
+  // 8. Convert URLs into styled clickable links
+  text = text.replace(
+    /(https?:\/\/[^\s<"']+)/g,
+    '<a href="$1" target="_blank" style="color: #2563eb; text-decoration: underline; font-weight: 600; word-break: break-all;">$1</a>'
+  );
+
+  // 9. Replace HTML divider placeholder with styled HTML hr
+  text = text.replace(
+    /\[\[SPLITLEDGER_HR_TOKEN\]\]/g,
+    '<div style="border-top: 1px solid #e2e8f0; margin: 12px 0;"></div>'
+  );
+
+  // 10. Clean up any excessive blank lines
+  text = text.replace(/\n{3,}/g, "\n\n").trim();
+
+  return text;
+}
+
+/**
+ * Strips all markdown symbols (* and _) and decorative terminal art from messages for SMS, plain text emails, and notifications.
+ */
+export function formatMessageForPlainText(message: string): string {
+  if (!message) return "";
+
+  return message
+    .replace(/\r\n/g, "\n")
+    .replace(/✨\s*═+\s*💰\s*═+\s*✨\s*\n?/g, "")
+    .replace(/━{6,}/g, "----------------------------------------")
+    .replace(/═{6,}/g, "----------------------------------------")
+    .replace(/\*\*([^\n*]+?)\*\*/g, "$1") // unwrap bold
+    .replace(/\*([^\n*]+?)\*/g, "$1") // unwrap bold
+    .replace(/_([^\n_]+?)_/g, "$1") // unwrap italic
+    .replace(/\*+/g, "") // remove any stray asterisks
+    .replace(/(?:^|\s)_+|_+(?=\s|$)/g, "") // remove stray boundary underscores
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Cleans and formats WhatsApp markdown so asterisks and underscores render cleanly in WhatsApp without syntax errors.
+ */
+export function formatMessageForWhatsApp(message: string): string {
+  if (!message) return "";
+
+  let text = message.replace(/\r\n/g, "\n");
+
+  // Fix common broken syntax like `*Heading:*` at end of line -> `*Heading*:`
+  text = text.replace(/\*([^*:\n]+):(?:\*|\s*\*)[ \t]*$/gm, "*$1*:");
+
+  // Fix inline broken syntax like `*Word:* *₹100*` -> `*Word*: *₹100*`
+  text = text.replace(/\*([^*:\n]+):(?:\*|\s*\*)[ \t]*/g, "*$1*: ");
+
+  // Fix `*-₹` -> `-*₹`
+  text = text.replace(/\*-\s*/g, "-*");
+
+  // Fix `* *` double asterisks
+  text = text.replace(/\*\s*\*/g, "");
+
+  // Remove any remaining triple asterisks
+  text = text.replace(/\*{3,}/g, "*");
+
+  return text.trim();
+}
+
 export interface RichReminderEmailParams {
   groupName?: string;
   recipientName: string;
@@ -462,7 +566,7 @@ export function getRichSettlementReminderHtml(params: RichReminderEmailParams): 
     params.senderName ? `Sender: ${params.senderName}` : null,
     ``,
     `Message:`,
-    params.message,
+    formatMessageForPlainText(params.message),
     ``,
     params.amount ? `Your Share to Settle: ${formatAmt(params.amount)}` : null,
     params.totalGroupExpense ? `Total Group Spending: ${formatAmt(params.totalGroupExpense)}` : null,
@@ -556,8 +660,8 @@ export function getRichSettlementReminderHtml(params: RichReminderEmailParams): 
               
               <!-- Formatted Message Box -->
               <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; border-radius: 0 16px 16px 0; padding: 20px; margin: 16px 0; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
-                <div style="font-size: 13px; color: #1e293b; line-height: 1.7; white-space: pre-wrap; font-family: inherit;">
-${params.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+                <div style="font-size: 13.5px; color: #1e293b; line-height: 1.7; white-space: pre-wrap; font-family: inherit;">
+${formatMessageForEmailHtml(params.message)}
                 </div>
               </div>
 
@@ -927,6 +1031,19 @@ export function getRichReceiverReminderHtml(params: RichReceiverReminderParams) 
                 </p>
               </div>
 
+              ${
+                params.customMessage
+                  ? `
+              <!-- Custom Note Box -->
+              <div style="background-color: #f8fafc; border-left: 4px solid #10b981; border-radius: 0 16px 16px 0; padding: 18px 20px; margin: 0 0 22px 0; border-top: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+                <div style="font-size: 13.5px; color: #1e293b; line-height: 1.7; white-space: pre-wrap; font-family: inherit;">
+${formatMessageForEmailHtml(params.customMessage)}
+                </div>
+              </div>
+              `
+                  : ""
+              }
+
               <!-- REQUEST MESSAGE -->
               <p style="font-size: 13.5px; color: #475569; margin: 0 0 24px 0; line-height: 1.6;">
                 You may politely remind the members listed above to complete their pending payment. This helps keep everyone&rsquo;s balances accurate and ensures the group&rsquo;s financial records remain synchronized.
@@ -1038,6 +1155,10 @@ export function getReceiverPlainTextMessage(params: RichReceiverReminderParams):
   const payersWaitingLines = payers.map(p => `  • ${p.name}: ${formatAmt(p.amount)}`).join("\n");
   const payersTableLines = payers.map(p => `  ${p.name.padEnd(20)} | ${formatAmt(p.amount).padEnd(16)} | ${(p.status || "Pending").padEnd(10)} | ${p.paymentMethod || "QR / Manual"}`).join("\n");
 
+  const customNoteSection = params.customMessage
+    ? `\nNOTE:\n${formatMessageForPlainText(params.customMessage)}\n--------------------------------------------------\n`
+    : "";
+
   return `Hi ${params.receiverName},
 
 Thank you for contributing toward your group's expenses.
@@ -1045,7 +1166,7 @@ Thank you for contributing toward your group's expenses.
 According to the latest verified settlement calculations, you paid more than your own share to cover expenses on behalf of other group members.
 
 The following members still need to reimburse you.
-
+${customNoteSection}
 YOUR CONTRIBUTION SUMMARY
 --------------------------------------------------
 Your Total Contribution: ${formatAmt(params.amountPaid)}
@@ -1127,7 +1248,7 @@ export function getReceiverWhatsAppMessage(params: RichReceiverReminderParams): 
     ? params.payers.reduce((sum, p) => sum + (p.amount || 0), 0)
     : (params.pendingAmount || 0);
 
-  const payersLines = payers.map(p => `▫️ *${p.name}:* *${formatAmt(p.amount)}* (${p.status || "Pending"} • ${p.paymentMethod || "QR / Manual"})`).join("\n");
+  const payersLines = payers.map(p => `▫️ *${p.name}*: *${formatAmt(p.amount)}* (${p.status || "Pending"} • ${p.paymentMethod || "QR / Manual"})`).join("\n");
 
   return `✨ ═══════ 💰 ═══════ ✨
 ⚡ *SPLITLEDGER AI — SETTLEMENT AWAITING PAYMENT*
@@ -1146,7 +1267,7 @@ According to the latest verified settlement calculations, you paid more than you
 👥 *WHO NEEDS TO PAY YOU:*
 ${payersLines}
 ━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 *Total Pending To Receive:* *${formatAmt(totalPending)}*
+💰 *Total Pending To Receive*: *${formatAmt(totalPending)}*
 ⏳ *Status:* *Waiting for Member Payments*
 
 ℹ️ *Important Information:*

@@ -21,6 +21,8 @@ import {
   sendEmailWithStatus,
   getRichSettlementReminderHtml,
   getRichReceiverReminderHtml,
+  formatMessageForWhatsApp,
+  formatMessageForPlainText,
   type EmailSendResult,
   type RichReceiverReminderParams,
   type ReceiverPayerItem,
@@ -270,9 +272,10 @@ export async function createReminder(data: CreateReminderInput) {
         ? (data.amount ? `Waiting to Receive ${formatCurrency(data.amount)}` : "Receivable Status Update")
         : (data.title || "Payment Reminder Scheduled");
 
+      const cleanNotifMessage = formatMessageForPlainText(data.message);
       const notifMsg = isReceiverFlow
         ? `${data.payerName || "A group member"} still has a pending settlement with you.`
-        : (data.message.length > 120 ? `${data.message.substring(0, 117)}...` : data.message);
+        : (cleanNotifMessage.length > 120 ? `${cleanNotifMessage.substring(0, 117)}...` : cleanNotifMessage);
 
       await withDbRetry(async () =>
         db.insert(notifications).values({
@@ -657,12 +660,13 @@ export async function createReminder(data: CreateReminderInput) {
       }
     }
 
-    // 9. Generate WhatsApp Link
+    // 9. Generate WhatsApp Link with sanitized markdown
     let whatsappLink: string | null = null;
+    const cleanWhatsAppMessage = formatMessageForWhatsApp(data.message);
     if (data.recipientPhone) {
-      whatsappLink = generateWhatsAppLink(data.recipientPhone, data.message);
+      whatsappLink = generateWhatsAppLink(data.recipientPhone, cleanWhatsAppMessage);
     } else {
-      whatsappLink = `https://wa.me/?text=${encodeURIComponent(data.message)}`;
+      whatsappLink = `https://wa.me/?text=${encodeURIComponent(cleanWhatsAppMessage)}`;
     }
 
     // 10. Revalidate affected cache paths
