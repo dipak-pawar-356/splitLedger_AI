@@ -60,6 +60,7 @@ import { ExpenseInactiveBanner } from "@/components/group/expense-inactive-banne
 import { ExpenseActivationPromptCard } from "@/components/group/expense-activation-prompt-card";
 import { GroupRouteErrorView } from "@/components/group/group-route-error-view";
 import { hasDelegatedGroupPermission } from "@/lib/security/rbac";
+import { GroupExpensesLedger } from "@/components/group/group-expenses-ledger";
 
 export const dynamic = "force-dynamic";
 
@@ -235,6 +236,7 @@ export default async function GroupDetailPage({
       userId: m.userId || undefined,
       contactId: m.contactId || undefined,
       userName: m.name,
+      name: m.name,
       isAdmin: m.role === "admin" || m.role === "owner",
       isGuest: m.isGuest,
     }));
@@ -487,37 +489,16 @@ export default async function GroupDetailPage({
             </CardHeader>
 
             <CardContent className="p-0">
-              {groupExpenses.length > 0 ? (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {groupExpenses.map((exp) => (
-                    <div key={exp.id} className="group p-4 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-all duration-200">
-                      <div className="min-w-0">
-                        <Link
-                          href={`/dashboard/transactions/${exp.publicId}`}
-                          className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors truncate block"
-                        >
-                          {exp.title || exp.description}
-                        </Link>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          {exp.categoryName || "General"} • Paid by <strong className="text-slate-700 dark:text-slate-300 font-semibold">{exp.paidByName || exp.paidByContactName || "Member"}</strong> • {formatDate(exp.date)}
-                        </p>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <span className="text-sm font-black text-slate-900 dark:text-slate-100 block">
-                          {formatCurrency(exp.amount / 100, exp.currency)}
-                        </span>
-                        <span className="text-[10px] text-slate-400 capitalize">{exp.paymentMethod || "UPI"}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-12 text-center text-slate-400 space-y-2">
-                  <Receipt className="h-8 w-8 mx-auto text-slate-300 mb-1" />
-                  <p className="font-semibold text-sm">No expenses added to this group yet</p>
-                </div>
-              )}
+              <GroupExpensesLedger
+                expenses={groupExpenses as any}
+                groupId={group.id}
+                groupPublicId={group.publicId}
+                groupCurrency={group.currency}
+                members={mappedMembersForDialog}
+                currentUserId={user.id}
+                isCurrentUserAdmin={group.isAdmin}
+                isGroupOwner={isGroupOwner}
+              />
             </CardContent>
           </Card>
         </TabsContent>

@@ -74,6 +74,89 @@ describe("Expense Participation Timeline and Recalculation Engine", () => {
       const e2Participants = determineExpenseEligibleParticipants(p4Timeline, T2_5);
       expect(e2Participants.map((p) => p.userId)).toContain(4);
     });
+
+    it("Feature 4: Dynamically switches participation anytime (OFF -> ON, then ON -> OFF)", () => {
+      // Step 1: Raj joins group at T3 with Include Previous Expenses = OFF ("excluded")
+      const rajTimelineStep1: TimelineEntry[] = [
+        {
+          groupId: 1,
+          userId: 7, // Raj
+          participationMode: "excluded",
+          effectiveFrom: T3,
+          effectiveUntil: null,
+          reason: "initial_approval",
+          redistributionVersion: 1,
+        },
+      ];
+
+      // Historical expense E1 at T1 (before T3): Raj is EXCLUDED
+      expect(determineExpenseEligibleParticipants(rajTimelineStep1, T1).map((p) => p.userId)).not.toContain(7);
+      // Expense E3 at T3_5 (after T3): Raj is INCLUDED
+      expect(determineExpenseEligibleParticipants(rajTimelineStep1, T3_5).map((p) => p.userId)).toContain(7);
+
+      // Step 2: Later at T4, Admin changes Include Previous Expenses = ON ("included")
+      const rajTimelineStep2: TimelineEntry[] = [
+        {
+          groupId: 1,
+          userId: 7,
+          participationMode: "excluded",
+          effectiveFrom: T3,
+          effectiveUntil: T4,
+          reason: "initial_approval",
+          redistributionVersion: 1,
+        },
+        {
+          groupId: 1,
+          userId: 7,
+          participationMode: "included",
+          effectiveFrom: T4,
+          effectiveUntil: null,
+          reason: "mode_change",
+          redistributionVersion: 2,
+        },
+      ];
+
+      // Now historical expense E1 at T1 MUST include Raj
+      expect(determineExpenseEligibleParticipants(rajTimelineStep2, T1).map((p) => p.userId)).toContain(7);
+      // And expense E3 at T3_5 still includes Raj
+      expect(determineExpenseEligibleParticipants(rajTimelineStep2, T3_5).map((p) => p.userId)).toContain(7);
+
+      // Step 3: Later at T5, Admin changes Include Previous Expenses = OFF ("excluded")
+      const rajTimelineStep3: TimelineEntry[] = [
+        {
+          groupId: 1,
+          userId: 7,
+          participationMode: "excluded",
+          effectiveFrom: T3,
+          effectiveUntil: T4,
+          reason: "initial_approval",
+          redistributionVersion: 1,
+        },
+        {
+          groupId: 1,
+          userId: 7,
+          participationMode: "included",
+          effectiveFrom: T4,
+          effectiveUntil: T5,
+          reason: "mode_change",
+          redistributionVersion: 2,
+        },
+        {
+          groupId: 1,
+          userId: 7,
+          participationMode: "excluded",
+          effectiveFrom: T5,
+          effectiveUntil: null,
+          reason: "mode_change",
+          redistributionVersion: 3,
+        },
+      ];
+
+      // Now historical expense E1 at T1 MUST exclude Raj again!
+      expect(determineExpenseEligibleParticipants(rajTimelineStep3, T1).map((p) => p.userId)).not.toContain(7);
+      // But expense E3 at T3_5 (after Raj joined) still includes Raj
+      expect(determineExpenseEligibleParticipants(rajTimelineStep3, T3_5).map((p) => p.userId)).toContain(7);
+    });
   });
 
   // =========================================================================

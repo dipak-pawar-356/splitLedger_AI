@@ -22,13 +22,18 @@ import {
   ExternalLink,
   BookOpen,
   QrCode,
-  Smartphone
+  Smartphone,
+  History,
+  AlertCircle,
+  ShieldCheck
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { UpiQuickPayDialog } from "@/components/settlement/upi-quick-pay-dialog";
 import { ReminderDialog } from "@/components/dialogs/reminder-dialog";
 import { MemberProfileModal } from "@/components/group/member-profile-modal";
 import { MemberPermissionsDialog } from "@/components/group/member-permissions-dialog";
-import { removeGroupMember } from "@/actions/group-members";
+import { removeGroupMember, updateMemberRole, toggleMemberExpenseParticipationAction } from "@/actions/group-members";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { type MemberFinancialDetail } from "@/actions/group-financials";
@@ -63,6 +68,10 @@ export function MemberFinancialSummary({
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [pendingParticipationToggle, setPendingParticipationToggle] = useState(false);
+  const [isChangingParticipation, setIsChangingParticipation] = useState(false);
+  const [isRoleUpdating, setIsRoleUpdating] = useState(false);
 
   const isCurrentUser = Boolean(
     (member.userId && currentUserId && member.userId === currentUserId) ||
@@ -89,6 +98,47 @@ export function MemberFinancialSummary({
       toast.error(err.message || "Failed to remove member");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const isHistoricalIncluded =
+    member.role === "owner" || member.historicalInclusionDecision !== "excluded";
+
+  const canChangeParticipation = Boolean(
+    (isGroupOwner || isCurrentUserAdmin) && member.role !== "owner"
+  );
+
+  const handleConfirmParticipationChange = async () => {
+    setIsChangingParticipation(true);
+    try {
+      const res = await toggleMemberExpenseParticipationAction({
+        groupIdOrPublicId: groupPublicId,
+        memberId: member.id,
+        includePreviousExpenses: pendingParticipationToggle,
+      });
+      toast.success(
+        `Expense participation updated for ${member.name}. Recalculated ${res.affectedExpenseCount} historical expenses.`
+      );
+      setConfirmModalOpen(false);
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update expense participation");
+    } finally {
+      setIsChangingParticipation(false);
+    }
+  };
+
+  const handleToggleAdminRole = async () => {
+    setIsRoleUpdating(true);
+    try {
+      const nextIsAdmin = member.role !== "admin";
+      await updateMemberRole(member.id, groupPublicId, nextIsAdmin);
+      toast.success(`${member.name} is now ${nextIsAdmin ? "an Admin" : "a regular Member"}`);
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update member role");
+    } finally {
+      setIsRoleUpdating(false);
     }
   };
 
@@ -287,6 +337,70 @@ export function MemberFinancialSummary({
                   {member.extraPaid > 0 ? `+${formatCurrency(member.extraPaid)} extra` : "Base share"}
                 </span>
               </div>
+            </div>
+
+            {/* Expense Participation Setting (FEATURE 3, 4, 8, 9) */}
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <History className="h-3.5 w-3.5 text-indigo-500" />
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                    Expense Participation
+                  </span>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                    isHistoricalIncluded
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                  }`}
+                >
+                  {isHistoricalIncluded ? "Included in Past" : "New Expenses Only"}
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between pt-0.5">
+                <div className="pr-2">
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                    Included in Previous Expenses
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    {isHistoricalIncluded
+                      ? "Participates in past expenses prior to joining"
+                      : "Participates only in expenses incurred after joining"}
+                  </p>
+                </div>
+
+                {canChangeParticipation ? (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[11px] font-bold uppercase ${isHistoricalIncluded ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}>
+                      {isHistoricalIncluded ? "ON" : "OFF"}
+                    </span>
+                    <Switch
+                      checked={isHistoricalIncluded}
+                      disabled={isChangingParticipation}
+                      onCheckedChange={() => {
+                        setPendingParticipationToggle(!isHistoricalIncluded);
+                        setConfirmModalOpen(true);
+                      }}
+                      className={isHistoricalIncluded ? "data-[state=checked]:bg-emerald-600" : ""}
+                    />
+                  </div>
+                ) : (
+                  <span className={`text-xs font-bold uppercase shrink-0 ${isHistoricalIncluded ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}>
+                    {isHistoricalIncluded ? "ON" : "OFF"}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Member Details & Timestamps (FEATURE 8) */}
+            <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 pt-0.5">
+              <span>Joined: {formatDate(member.joinedAt)}</span>
+              {member.lastActivity && (
+                <span>Updated: {formatDate(member.lastActivity)}</span>
+              )}
             </div>
 
             {/* Completed Settlements Paid/Received Row if any */}
@@ -604,6 +718,21 @@ export function MemberFinancialSummary({
 
           <div className="flex items-center gap-1">
             {isGroupOwner && !isCurrentUser && member.userId && member.role !== "owner" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isRoleUpdating}
+                className="rounded-xl text-[11px] h-7 px-2 gap-1 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
+                onClick={handleToggleAdminRole}
+                title={member.role === "admin" ? "Demote to Member" : "Promote to Admin"}
+              >
+                <Shield className={`h-3 w-3 ${member.role === "admin" ? "text-primary font-bold" : "text-slate-400"}`} />
+                <span>{member.role === "admin" ? "Admin" : "Make Admin"}</span>
+              </Button>
+            )}
+
+            {isGroupOwner && !isCurrentUser && member.userId && member.role !== "owner" && (
               <MemberPermissionsDialog
                 groupId={groupId}
                 targetUserId={member.userId}
@@ -640,6 +769,65 @@ export function MemberFinancialSummary({
         isGroupOwner={isGroupOwner}
         currentUserId={currentUserId}
       />
+
+      {/* Recalculation Confirmation Dialog (FEATURE 9) */}
+      <Dialog open={confirmModalOpen} onOpenChange={setConfirmModalOpen}>
+        <DialogContent className="sm:max-w-[440px] rounded-3xl border shadow-2xl p-6 bg-card">
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-2xl">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                  Recalculate Group Ledger?
+                </DialogTitle>
+                <p className="text-xs text-slate-500 font-medium truncate">
+                  {member.name} • {pendingParticipationToggle ? "Include in Previous Expenses (ON)" : "New Expenses Only (OFF)"}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 space-y-2">
+              <p className="font-semibold text-slate-900 dark:text-slate-100">
+                Changing this setting will
+              </p>
+              <ul className="space-y-1 text-xs list-disc list-inside text-slate-600 dark:text-slate-400 pl-1">
+                <li>Recalculate all balances</li>
+                <li>Update settlements</li>
+                <li>Update reports</li>
+                <li>Update analytics</li>
+                <li>Update member contributions</li>
+                <li>Update debt optimization</li>
+              </ul>
+            </div>
+
+            <p className="text-xs text-slate-500 font-medium">
+              Continue?
+            </p>
+          </DialogHeader>
+
+          <DialogFooter className="flex flex-row items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmModalOpen(false)}
+              disabled={isChangingParticipation}
+              className="rounded-xl px-4 text-xs font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmParticipationChange}
+              disabled={isChangingParticipation}
+              className="rounded-xl px-5 text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-md shadow-primary/20"
+            >
+              {isChangingParticipation ? "Recalculating..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

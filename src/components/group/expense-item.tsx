@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DeleteConfirmDialog } from "@/components/dialogs/delete-confirm-dialog";
-import { FileText, Trash2, ArrowUpRight, ArrowDownLeft, Paperclip } from "lucide-react";
-import { deleteTransaction } from "@/actions/transactions";
+import { TransactionDeleteDialog } from "@/components/dialogs/transaction-delete-dialog";
+import { EditTransactionDialog } from "@/components/dialogs/edit-transaction-dialog";
+import { FileText, Trash2, Edit, ArrowUpRight, ArrowDownLeft, Paperclip } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import Link from "next/link";
 
 interface ExpenseItemProps {
@@ -41,24 +40,9 @@ export function ExpenseItem({
 }: ExpenseItemProps) {
   const router = useRouter();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const isPositive = type === "received" || type === "lent";
   const payerDisplayName = userName || contactName || "Group Member";
-
-  const handleDelete = async () => {
-    setIsDeleting(true);
-    try {
-      await deleteTransaction(publicId);
-      toast.success("Expense deleted successfully");
-      router.refresh();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete expense");
-      console.error("Delete error:", error);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   return (
     <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 rounded-xl hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
@@ -102,8 +86,23 @@ export function ExpenseItem({
 
         {canEdit && (
           <div className="flex items-center gap-1">
+            <EditTransactionDialog
+              transactionPublicId={publicId}
+              initialData={{
+                description,
+                type: type as any,
+                amount,
+                currency,
+                date,
+              }}
+              trigger={
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+                  <Edit className="h-4 w-4" />
+                </Button>
+              }
+            />
             <Link href={`/dashboard/transactions/${publicId}`}>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200" title="View Details">
                 <FileText className="h-4 w-4" />
               </Button>
             </Link>
@@ -112,7 +111,7 @@ export function ExpenseItem({
               size="sm"
               className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
               onClick={() => setDeleteDialogOpen(true)}
-              disabled={isDeleting}
+              title="Delete Transaction"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -120,13 +119,11 @@ export function ExpenseItem({
         )}
       </div>
 
-      <DeleteConfirmDialog
+      <TransactionDeleteDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        onConfirm={handleDelete}
-        itemName={description}
-        itemType="Expense"
-        showUndo={false}
+        transactionPublicId={publicId}
+        transactionTitle={description}
       />
     </div>
   );

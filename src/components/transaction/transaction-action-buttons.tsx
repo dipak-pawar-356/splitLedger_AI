@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, RotateCcw, Ban, CheckCircle2 } from "lucide-react";
 import { EditTransactionDialog } from "@/components/dialogs/edit-transaction-dialog";
-import { DeleteConfirmDialog } from "@/components/dialogs/delete-confirm-dialog";
+import { TransactionDeleteDialog } from "@/components/dialogs/transaction-delete-dialog";
 import { RestoreConfirmDialog } from "@/components/dialogs/restore-confirm-dialog";
 import { deleteTransaction, updateTransaction } from "@/actions/transactions";
 import { toast } from "sonner";
@@ -138,12 +138,11 @@ export function TransactionActionButtons({
         </Button>
       )}
 
-      <DeleteConfirmDialog
+      <TransactionDeleteDialog
         open={deleteModalOpen}
         onOpenChange={setDeleteModalOpen}
-        onConfirm={handleDelete}
-        itemName={transaction.title || transaction.description}
-        itemType="Transaction"
+        transactionPublicId={transaction.publicId}
+        transactionTitle={transaction.title || transaction.description}
       />
     </div>
   );

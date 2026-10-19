@@ -200,8 +200,13 @@ export interface GroupFinancialSummary {
     receiptUrl?: string | null;
     paymentMethod?: string | null;
     categoryName?: string | null;
+    categoryId?: number | null;
+    notes?: string | null;
     paidByName?: string | null;
     paidByContactName?: string | null;
+    paidBy?: number | null;
+    paidByContact?: number | null;
+    createdBy?: number | null;
   }>;
 }
 
@@ -560,7 +565,7 @@ export async function getGroupFinancialDetails(
         isGuest: !!m.isGuest,
         isRegistered: !m.isGuest && !!m.userId,
         membershipStatus: (m.membershipStatus || "active") as "pending" | "expense_inactive" | "active",
-        historicalInclusionDecision: (m.historicalInclusionDecision as any) || null,
+        historicalInclusionDecision: (m.historicalInclusionDecision === "excluded" ? "excluded" : "included") as "included" | "excluded",
         delegatedPermissions: (m.delegatedPermissions as Record<string, boolean>) || {},
         expenseCount,
         totalPaid,
@@ -995,8 +1000,13 @@ export async function getGroupFinancialDetails(
         receiptUrl: e.receiptUrl,
         paymentMethod: e.paymentMethod,
         categoryName: e.categoryName,
+        categoryId: e.categoryId,
+        notes: e.notes,
         paidByName: e.payerName,
         paidByContactName: e.payerContactName,
+        paidBy: e.paidBy,
+        paidByContact: e.paidByContact,
+        createdBy: e.createdBy,
       })),
     };
   } catch (error) {

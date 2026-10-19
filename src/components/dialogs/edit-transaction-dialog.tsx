@@ -59,6 +59,13 @@ interface EditTransactionDialogProps {
     paidByContact?: number | null;
     splitMethod?: "equal" | "exact" | "percentage" | "shares";
   };
+  members?: Array<{
+    id: number;
+    userId?: number | null;
+    contactId?: number | null;
+    name?: string;
+    userName?: string;
+  }>;
   onSuccess?: () => void;
 }
 
@@ -66,6 +73,7 @@ export function EditTransactionDialog({
   trigger,
   transactionPublicId,
   initialData,
+  members,
   onSuccess,
 }: EditTransactionDialogProps) {
   const router = useRouter();
@@ -77,6 +85,13 @@ export function EditTransactionDialog({
   const [description, setDescription] = useState(initialData.description || "");
   const [amount, setAmount] = useState((initialData.amount / 100).toString());
   const [type, setType] = useState<any>(initialData.type || "paid");
+  const [selectedPayer, setSelectedPayer] = useState<string>(
+    initialData.paidBy
+      ? `user:${initialData.paidBy}`
+      : initialData.paidByContact
+      ? `contact:${initialData.paidByContact}`
+      : ""
+  );
   const [categoryId, setCategoryId] = useState<string>(initialData.categoryId ? String(initialData.categoryId) : "");
   const [paymentMethod, setPaymentMethod] = useState(initialData.paymentMethod || "UPI");
   const [date, setDate] = useState(
@@ -111,11 +126,26 @@ export function EditTransactionDialog({
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
 
+      let paidBy: number | null | undefined = undefined;
+      let paidByContact: number | null | undefined = undefined;
+      if (selectedPayer) {
+        const [prefix, idStr] = selectedPayer.split(":");
+        if (prefix === "user") {
+          paidBy = Number(idStr);
+          paidByContact = null;
+        } else if (prefix === "contact") {
+          paidByContact = Number(idStr);
+          paidBy = null;
+        }
+      }
+
       await updateTransaction(transactionPublicId, {
         title: title.trim() || description.trim(),
         description: description.trim(),
         amount: parsedAmount,
         type,
+        paidBy,
+        paidByContact,
         categoryId: categoryId ? Number(categoryId) : null,
         paymentMethod: paymentMethod || null,
         date: new Date(date),
@@ -199,6 +229,30 @@ export function EditTransactionDialog({
               </Select>
             </div>
           </div>
+
+          {/* Paid By (Payer) if group members are present */}
+          {members && members.length > 0 && (
+            <div className="space-y-1.5">
+              <Label htmlFor="payer" className="text-xs font-semibold">
+                Paid By (Payer)
+              </Label>
+              <Select value={selectedPayer} onValueChange={setSelectedPayer}>
+                <SelectTrigger id="payer" className="rounded-xl">
+                  <SelectValue placeholder="Select who paid" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {members.map((m) => {
+                    const val = m.userId ? `user:${m.userId}` : `contact:${m.contactId}`;
+                    return (
+                      <SelectItem key={m.id} value={val}>
+                        {m.name || m.userName || "Member"}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Title & Description */}
           <div className="space-y-1.5">

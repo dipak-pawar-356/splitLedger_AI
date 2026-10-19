@@ -208,7 +208,13 @@ export function isMemberEligibleForExpense(
   if (!memberTimeline || memberTimeline.length === 0) return false;
 
   const expTime = expenseCreatedAt.getTime();
-  const latestEntry = memberTimeline[memberTimeline.length - 1];
+
+  // Sort timeline entries chronologically by effectiveFrom
+  const sorted = [...memberTimeline].sort(
+    (a, b) => new Date(a.effectiveFrom).getTime() - new Date(b.effectiveFrom).getTime()
+  );
+
+  const latestEntry = sorted[sorted.length - 1];
 
   // If member has been removed from the group (effectiveUntil != null),
   // they no longer participate in any expenses in the group:
@@ -218,24 +224,20 @@ export function isMemberEligibleForExpense(
     return false;
   }
 
-  for (const entry of memberTimeline) {
-    const fromTime = new Date(entry.effectiveFrom).getTime();
-    const untilTime = entry.effectiveUntil ? new Date(entry.effectiveUntil).getTime() : Infinity;
+  // Earliest activation/join date of this member in the group
+  const initialJoinTime = new Date(sorted[0].effectiveFrom).getTime();
 
-    if (entry.participationMode === "excluded") {
-      // Mode B: only future expenses created after effectiveFrom and before effectiveUntil
-      if (expTime >= fromTime && expTime < untilTime) {
-        return true;
-      }
-    } else if (entry.participationMode === "included") {
-      // Mode A: participates in all historical and future expenses up to effectiveUntil
-      if (expTime < untilTime) {
-        return true;
-      }
-    }
+  // If the expense was created on or after the member initially joined:
+  // The member was an active member of the group when this expense was incurred
+  if (expTime >= initialJoinTime) {
+    return true;
   }
 
-  return false;
+  // If the expense was created BEFORE the member joined:
+  // Active member participation is governed by their current historical inclusion mode:
+  // Mode A ("included" / Include Previous Expenses = ON): included in historical expenses
+  // Mode B ("excluded" / Include Previous Expenses = OFF): excluded from historical expenses
+  return latestEntry.participationMode === "included";
 }
 
 /**

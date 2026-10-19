@@ -448,3 +448,182 @@ export async function getGroupMembers(groupIdOrPublicId: number | string) {
     throw new DatabaseError("Failed to fetch group members", { originalError: error });
   }
 }
+
+/**
+ * Toggle a group member's participation in historical expenses.
+ * Allows Group Owners and Admins to switch "Include in Previous Expenses" (ON / OFF)
+ * at any time after the member has joined.
+ * Rebuilds the group ledger chronologically from the oldest transaction to the latest.
+ */
+export async function toggleMemberExpenseParticipationAction(params: {
+  groupIdOrPublicId: string | number;
+  memberId: number;
+  includePreviousExpenses: boolean;
+  reason?: string;
+}) {
+  try {
+    const user = await requireAuth();
+
+    // 1. Fetch group
+    const [group] = await db
+      .select()
+      .from(groups)
+      .where(
+        and(
+          buildGroupCondition(params.groupIdOrPublicId),
+          eq(groups.isDeleted, false)
+        )
+      )
+      .limit(1);
+
+    if (!group) {
+      throw new NotFoundError("Group");
+    }
+
+    // 2. Permission check: Only Group Owner or Group Admin can toggle participation
+    const isOwner = group.createdBy === user.id;
+    if (!isOwner) {
+      const [callerAdmin] = await db
+        .select({ isAdmin: groupMembers.isAdmin })
+        .from(groupMembers)
+        .where(
+          and(
+            eq(groupMembers.groupId, group.id),
+            eq(groupMembers.userId, user.id),
+            eq(groupMembers.isAdmin, true)
+          )
+        )
+        .limit(1);
+
+      if (!callerAdmin) {
+        throw new AuthorizationError("Only group owners and admins can change expense participation settings.");
+      }
+    }
+
+    // 3. Fetch target member
+    const [targetMember] = await db
+      .select({
+        id: groupMembers.id,
+        userId: groupMembers.userId,
+        contactId: groupMembers.contactId,
+        isAdmin: groupMembers.isAdmin,
+        isGuest: groupMembers.isGuest,
+        nickname: groupMembers.nickname,
+        membershipStatus: groupMembers.membershipStatus,
+        historicalInclusionDecision: groupMembers.historicalInclusionDecision,
+        userName: users.name,
+        contactName: contacts.name,
+      })
+      .from(groupMembers)
+      .leftJoin(users, eq(groupMembers.userId, users.id))
+      .leftJoin(contacts, eq(groupMembers.contactId, contacts.id))
+      .where(and(eq(groupMembers.id, params.memberId), eq(groupMembers.groupId, group.id)))
+      .limit(1);
+
+    if (!targetMember) {
+      throw new NotFoundError("Group member");
+    }
+
+    // Cannot toggle the group owner's participation
+    if (group.createdBy === targetMember.userId) {
+      throw new ValidationError("Group Owner participation cannot be excluded from historical expenses.");
+    }
+
+    const newMode = params.includePreviousExpenses ? "included" : "excluded";
+    const previousMode = targetMember.historicalInclusionDecision === "excluded" ? "excluded" : "included";
+
+    const memberDisplayName = targetMember.nickname || targetMember.userName || targetMember.contactName || "Member";
+
+    // 4. Update group_members record
+    await db
+      .update(groupMembers)
+      .set({
+        historicalInclusionDecision: newMode,
+      })
+      .where(eq(groupMembers.id, targetMember.id));
+
+    // 5. Append immutable timeline entry for this member
+    await recordTimelineEvent({
+      groupId: group.id,
+      groupMemberId: targetMember.id,
+      userId: targetMember.userId,
+      contactId: targetMember.contactId,
+      participationMode: newMode,
+      reason: "mode_change",
+      approvedBy: user.id,
+    });
+
+    // 6. Chronological Full Ledger Rebuild (Feature 5 & 6)
+    const recalcResult = await executeAtomicGroupRecalculation({
+      groupId: group.id,
+      triggerOperation: "mode_change",
+      initiatedByUserId: user.id,
+    });
+
+    // 7. Record immutable Audit Log (Feature 7)
+    await db.insert(auditLogs).values({
+      publicId: generatePublicId("aud"),
+      userId: user.id,
+      action: "member_participation_changed",
+      entityType: "group_member",
+      entityId: targetMember.id,
+      entityPublicId: group.publicId,
+      beforeData: {
+        memberId: targetMember.id,
+        name: memberDisplayName,
+        historicalInclusionDecision: previousMode,
+        includePreviousExpenses: previousMode === "included",
+      },
+      afterData: {
+        memberId: targetMember.id,
+        name: memberDisplayName,
+        historicalInclusionDecision: newMode,
+        includePreviousExpenses: params.includePreviousExpenses,
+      },
+      changes: {
+        participationMode: { old: previousMode, new: newMode },
+        includePreviousExpenses: { old: previousMode === "included", new: params.includePreviousExpenses },
+        affectedExpenseCount: recalcResult.affectedExpenseCount,
+        settlementVersion: recalcResult.settlementVersion,
+        totalExpensesPaise: recalcResult.totalExpensesPaise,
+        totalSharesPaise: recalcResult.totalSharesPaise,
+      },
+      reason: params.reason || `Admin changed expense participation for ${memberDisplayName} from ${previousMode.toUpperCase()} to ${newMode.toUpperCase()}`,
+      status: "success",
+    });
+
+    // 8. Revalidate all group, dashboard, ledger, reports, and analytics paths (Feature 11 & 12)
+    try {
+      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      if (group.legacyPublicId) {
+        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
+      }
+      revalidatePath(`/dashboard/groups/${group.id}`);
+      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
+      revalidatePath(`/dashboard/groups/${group.id}/expenses`);
+      revalidatePath("/dashboard/groups");
+      revalidatePath("/dashboard/settlements");
+      revalidatePath("/dashboard/reports");
+      revalidatePath("/dashboard/analytics");
+      revalidatePath("/dashboard");
+    } catch (_) {}
+
+    return {
+      success: true,
+      memberId: targetMember.id,
+      memberName: memberDisplayName,
+      previousMode,
+      newMode,
+      affectedExpenseCount: recalcResult.affectedExpenseCount,
+      settlementVersion: recalcResult.settlementVersion,
+      totalExpensesPaise: recalcResult.totalExpensesPaise,
+      totalSharesPaise: recalcResult.totalSharesPaise,
+    };
+  } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError || error instanceof ValidationError) {
+      throw error;
+    }
+    throw new DatabaseError("Failed to update member expense participation", { originalError: error });
+  }
+}
+

@@ -1,13 +1,13 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { settlements, transactions, contacts, groups, expenseSplits } from "@/lib/db/schema/schema";
+import { settlements, transactions, contacts, groups, expenseSplits, groupMembers } from "@/lib/db/schema/schema";
 import { eq, and, or, desc, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { calculateOptimalSettlements, type Balance } from "@/lib/settlements/calculator";
 import { executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
-import { ValidationError, NotFoundError, DatabaseError } from "@/lib/errors";
+import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
 
 export async function createSettlement(data: {
@@ -474,66 +474,103 @@ export async function getGroupSettlementDetailsAction(groupIdOrPublicId: string 
   }
 }
 
-export async function deleteSettlement(publicIdOrId: string | number) {
+/**
+ * Delete a settlement (FEATURE 2).
+ * Allows Owner/Admin or participants to delete/cancel a settlement,
+ * automatically recalculating group balances, debt graph, and reports.
+ */
+export async function deleteSettlement(publicIdOrId: string | number, reason?: string) {
   try {
     const user = await requireAuth();
 
     const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
-    const [existingSettlement] = await db
+    const [existing] = await db
       .select()
       .from(settlements)
-      .where(
-        and(
-          isNumeric ? eq(settlements.id, Number(publicIdOrId)) : eq(settlements.publicId, String(publicIdOrId)),
-          or(eq(settlements.fromUserId, user.id), eq(settlements.toUserId, user.id))
-        )
-      )
+      .where(isNumeric ? eq(settlements.id, Number(publicIdOrId)) : eq(settlements.publicId, String(publicIdOrId)))
       .limit(1);
 
-    if (!existingSettlement) {
+    if (!existing) {
       throw new NotFoundError("Settlement");
     }
 
-    // Check if settlement is already deleted
-    if (existingSettlement.isDeleted) {
-      throw new ValidationError("Settlement is already deleted");
+    if (existing.isDeleted) {
+      return { success: true, alreadyDeleted: true };
     }
 
-    // Soft delete the settlement
+    // Permission check: Caller must be fromUser, toUser, or Group Owner / Admin
+    let hasPermission = existing.fromUserId === user.id || existing.toUserId === user.id;
+
+    if (!hasPermission && existing.groupId) {
+      const [group] = await db
+        .select({ createdBy: groups.createdBy })
+        .from(groups)
+        .where(eq(groups.id, existing.groupId))
+        .limit(1);
+
+      if (group && group.createdBy === user.id) {
+        hasPermission = true;
+      } else {
+        const [member] = await db
+          .select({ isAdmin: groupMembers.isAdmin })
+          .from(groupMembers)
+          .where(and(eq(groupMembers.groupId, existing.groupId), eq(groupMembers.userId, user.id)))
+          .limit(1);
+        if (member?.isAdmin) {
+          hasPermission = true;
+        }
+      }
+    }
+
+    if (!hasPermission) {
+      throw new AuthorizationError("You do not have permission to delete this settlement");
+    }
+
     await db
       .update(settlements)
       .set({
         isDeleted: true,
+        status: "cancelled",
         deletedAt: new Date(),
         deletedBy: user.id,
         updatedAt: new Date(),
       })
-      .where(eq(settlements.id, existingSettlement.id));
+      .where(eq(settlements.id, existing.id));
 
-    // Create audit log entry for the deletion
+    // Audit log
     const { auditLogs } = await import("@/lib/db/schema/schema");
     await db.insert(auditLogs).values({
       userId: user.id,
       action: "delete",
       entityType: "settlement",
-      entityId: existingSettlement.id,
+      entityId: existing.id,
       changes: {
         deleted: true,
         deletedAt: new Date(),
-        originalAmount: existingSettlement.amount,
+        originalAmount: existing.amount,
+        reason: reason || "Admin deletion",
       },
     });
 
-    // Revalidate appropriate paths for real-time updates
-    revalidatePath("/dashboard/settlements");
-    if (existingSettlement.groupId) {
-      revalidatePath(`/dashboard/groups/${existingSettlement.groupId}`);
+    if (existing.groupId) {
+      try {
+        await executeAtomicGroupRecalculation({
+          groupId: existing.groupId,
+          triggerOperation: "recalculate",
+          initiatedByUserId: user.id,
+        });
+      } catch (err) {
+        console.warn("Failed to recalculate group after deleting settlement:", err);
+      }
+      revalidatePath(`/dashboard/groups/${existing.groupId}`);
       revalidatePath("/dashboard/groups");
     }
+    revalidatePath("/dashboard/settlements");
     revalidatePath("/dashboard");
+
     return { success: true };
   } catch (error) {
-    if (error instanceof ValidationError || error instanceof NotFoundError) {
+    if (error instanceof NotFoundError || error instanceof AuthorizationError || error instanceof ValidationError) {
       throw error;
     }
     throw new DatabaseError("Failed to delete settlement", { originalError: error });
@@ -677,3 +714,4 @@ export async function createSettlementsFromCalculation(groupId: number) {
     throw new DatabaseError("Failed to create settlements from calculation", { originalError: error });
   }
 }
+
