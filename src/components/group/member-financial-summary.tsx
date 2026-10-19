@@ -13,6 +13,7 @@ import {
   User, 
   Shield, 
   Bell, 
+  Mail,
   Plus, 
   Trash2, 
   ArrowUpRight, 
@@ -519,36 +520,85 @@ export function MemberFinancialSummary({
               <span>Profile</span>
             </Button>
 
-            {/* Remind Action: Never show for respective current user. Show for group owner & other members when there are pending or incoming settlement amounts */}
-            {!isCurrentUser && hasPendingSettlement && (
-              <ReminderDialog
-                recipientEmail={member.email || undefined}
-                recipientPhone={member.phone || undefined}
-                recipientName={member.name}
-                amount={member.needToPay > 0 ? member.needToPay : member.willReceive}
-                groupId={groupId}
-                groupPublicId={groupPublicId}
-                groupName={groupName}
-                owesToList={member.owesTo}
-                receivesFromList={member.receivesFrom}
-                totalGroupExpense={totalGroupExpense}
-                totalMembers={totalMembers}
-                memberPaidAmount={member.totalPaid}
-                memberOwnShare={member.ownShare}
-                memberNetPosition={member.netPosition}
-                onSuccess={() => router.refresh()}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl text-[11px] h-7 px-2 gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                  >
-                    <Bell className="h-3 w-3" />
-                    <span>Remind</span>
-                  </Button>
-                }
-              />
+            {/* Contextual Reminder Action:
+                IF member.netPosition < -0.01 (owes money): "🔔 Remind to Pay"
+                IF member.netPosition > 0.01 (will receive money): "📨 Request Settlement"
+                IF member.netPosition == 0: Disabled "✓ No Pending Settlements"
+            */}
+            {!isCurrentUser && (
+              member.needToPay > 0.01 ? (
+                <ReminderDialog
+                  recipientEmail={member.email || undefined}
+                  recipientPhone={member.phone || undefined}
+                  recipientName={member.name}
+                  amount={member.needToPay}
+                  groupId={groupId}
+                  groupPublicId={groupPublicId}
+                  groupName={groupName}
+                  owesToList={member.owesTo}
+                  receivesFromList={member.receivesFrom}
+                  totalGroupExpense={totalGroupExpense}
+                  totalMembers={totalMembers}
+                  memberPaidAmount={member.totalPaid}
+                  memberOwnShare={member.ownShare}
+                  memberNetPosition={member.netPosition}
+                  reminderRole="payer"
+                  onSuccess={() => router.refresh()}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl text-[11px] h-7 px-2.5 gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 font-bold"
+                    >
+                      <Bell className="h-3 w-3" />
+                      <span>Remind to Pay</span>
+                    </Button>
+                  }
+                />
+              ) : member.willReceive > 0.01 ? (
+                <ReminderDialog
+                  recipientEmail={member.email || undefined}
+                  recipientPhone={member.phone || undefined}
+                  recipientName={member.name}
+                  amount={member.willReceive}
+                  groupId={groupId}
+                  groupPublicId={groupPublicId}
+                  groupName={groupName}
+                  owesToList={member.owesTo}
+                  receivesFromList={member.receivesFrom}
+                  totalGroupExpense={totalGroupExpense}
+                  totalMembers={totalMembers}
+                  memberPaidAmount={member.totalPaid}
+                  memberOwnShare={member.ownShare}
+                  memberNetPosition={member.netPosition}
+                  reminderRole="receiver"
+                  onSuccess={() => router.refresh()}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl text-[11px] h-7 px-2.5 gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 font-bold"
+                    >
+                      <Mail className="h-3 w-3" />
+                      <span>Request Settlement</span>
+                    </Button>
+                  }
+                />
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  className="rounded-xl text-[11px] h-7 px-2.5 gap-1 text-slate-400 border-slate-200 dark:border-slate-800 opacity-60 cursor-not-allowed"
+                  title="No pending settlements."
+                >
+                  <CheckCircle2 className="h-3 w-3 text-slate-400" />
+                  <span>No Pending Settlements</span>
+                </Button>
+              )
             )}
           </div>
 

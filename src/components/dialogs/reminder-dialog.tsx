@@ -59,6 +59,7 @@ interface ReminderDialogProps {
   memberPaidAmount?: number;
   memberOwnShare?: number;
   memberNetPosition?: number;
+  reminderRole?: "payer" | "receiver";
 }
 
 export function ReminderDialog({ 
@@ -83,6 +84,7 @@ export function ReminderDialog({
   memberPaidAmount,
   memberOwnShare,
   memberNetPosition,
+  reminderRole,
 }: ReminderDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
@@ -136,13 +138,50 @@ export function ReminderDialog({
     const divider = `━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
     // ─────────────────────────────────────────────────────────────
-    // SCENARIO 1: CREDITOR VIEW (Person who paid extra, e.g. Person A)
+    // SCENARIO 1: CREDITOR VIEW / RECEIVER REMINDER
+    // (Person who paid extra and is waiting to receive funds)
     // ─────────────────────────────────────────────────────────────
-    const isCreditorCard = (receivesFromList && receivesFromList.length > 0) || (memberNetPosition !== undefined && memberNetPosition > 0.01);
+    const isCreditorCard = reminderRole === "receiver" || (receivesFromList && receivesFromList.length > 0) || (memberNetPosition !== undefined && memberNetPosition > 0.01);
 
     if (isCreditorCard && recipientName) {
       const extraAmtVal = Math.max(0, memberNetPosition || (memberPaidAmount && avgPerPerson ? memberPaidAmount - avgPerPerson : amountVal));
       const formattedExtra = formatCurrency(extraAmtVal > 0 ? extraAmtVal : amountVal);
+
+      // Direct Receiver Reminder flow: addressed to the person who receives money
+      if (reminderRole === "receiver" || (debtorsList && debtorsList.length === 0)) {
+        const payerNames = owesToList && owesToList.length > 0
+          ? owesToList.map(c => c.name).join(", ")
+          : receivesFromList && receivesFromList.length > 0
+          ? receivesFromList.map(r => r.name).join(", ")
+          : "Group members";
+        const pendingAmt = formatCurrency(amountVal > 0 ? amountVal : extraAmtVal);
+
+        return `${headerRow}
+⚡ *SPLITLEDGER AI — RECEIVABLE NOTICE*
+${divider}
+👋 Hi *${nameVal}*,
+
+Thank you for contributing toward the expenses in *${effectiveGroupName}*.
+Based on current expense calculations, you have paid more than your own share.
+
+📊 *FINANCIAL SUMMARY:*
+▫️ *Group:* ${effectiveGroupName}
+▫️ *Your Total Contribution:* *${formattedPaid || pendingAmt}*
+▫️ *Your Actual Share:* *${formattedAvgShare || "—"}*
+▫️ *Amount You Paid Extra:* *+${formattedExtra}*
+▫️ *Pending From:* *${payerNames}*
+▫️ *Outstanding Amount:* *${pendingAmt}*
+▫️ *Current Status:* ⏳ *Waiting for Payment*
+${divider}
+
+Once *${payerNames}* completes the settlement, your group balances will automatically update.
+If needed, you may politely remind *${payerNames}* to complete the payment.
+
+👉 *View Settlement:* ${appUrl}
+👉 *View Group:* ${appUrl}
+
+🤝 _This reminder was generated automatically using the latest verified ledger calculations inside SplitLedger AI._`;
+      }
 
       // Subcase 1A: Multiple debtors selected (e.g. DIPAK PAWAR & Rahul)
       if (debtorsList && debtorsList.length > 1) {
@@ -530,6 +569,12 @@ ${divider}
 
     setIsLoading(true);
     try {
+      const payerNames = owesToList && owesToList.length > 0 
+        ? owesToList.map(o => o.name).join(", ")
+        : receivesFromList && receivesFromList.length > 0
+        ? receivesFromList.map(r => r.name).join(", ")
+        : undefined;
+
       const res = await createReminder({
         recipientType: groupId ? "group" : "contact",
         recipientId: groupId || contactId || 0,
@@ -547,6 +592,8 @@ ${divider}
         paidAmount: memberPaidAmount,
         netPosition: memberNetPosition,
         sendCopyToMe,
+        reminderRole: reminderRole || (memberNetPosition && memberNetPosition > 0.01 ? "receiver" : "payer"),
+        payerName: payerNames,
       });
 
       if (method === "whatsapp") {
@@ -607,15 +654,28 @@ ${divider}
       <DialogContent className="sm:max-w-[560px] max-h-[92vh] overflow-y-auto p-0 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-2xl">
         <DialogHeader className="p-6 pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20 shadow-xs">
-              <Bell className="h-5 w-5" />
+            <div className={cn(
+              "p-2.5 rounded-2xl border shadow-xs",
+              reminderRole === "receiver" || (memberNetPosition && memberNetPosition > 0.01)
+                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+            )}>
+              {reminderRole === "receiver" || (memberNetPosition && memberNetPosition > 0.01) ? (
+                <Mail className="h-5 w-5" />
+              ) : (
+                <Bell className="h-5 w-5" />
+              )}
             </div>
             <div className="space-y-0.5">
               <DialogTitle className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
-                Send Settlement Reminder
+                {reminderRole === "receiver" || (memberNetPosition && memberNetPosition > 0.01)
+                  ? "Receivable Status & Request Settlement"
+                  : "Send Settlement Reminder"}
               </DialogTitle>
               <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
-                Notify members via WhatsApp, Email, or copy formatted message.
+                {reminderRole === "receiver" || (memberNetPosition && memberNetPosition > 0.01)
+                  ? "Send receivable summary to creditor or follow up on pending incoming funds."
+                  : "Notify member to settle their pending share via WhatsApp, Email, or message."}
               </DialogDescription>
             </div>
           </div>

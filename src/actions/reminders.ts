@@ -16,7 +16,13 @@ import { eq, and, desc, or, ilike, inArray, isNull } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, AuthorizationError, ForbiddenError, DatabaseError } from "@/lib/errors";
-import { sendEmailNotification, sendEmailWithStatus, getRichSettlementReminderHtml, type EmailSendResult } from "@/lib/notifications";
+import {
+  sendEmailNotification,
+  sendEmailWithStatus,
+  getRichSettlementReminderHtml,
+  getRichReceiverReminderHtml,
+  type EmailSendResult,
+} from "@/lib/notifications";
 import { generateWhatsAppLink, formatCurrency, getBaseAppUrl, isDbIntegerId, generatePublicId } from "@/lib/utils";
 
 export interface CreateReminderInput {
@@ -45,6 +51,8 @@ export interface CreateReminderInput {
   paidAmount?: number;
   netPosition?: number;
   sendCopyToMe?: boolean;
+  reminderRole?: "payer" | "receiver";
+  payerName?: string;
 }
 
 export interface UpdateReminderInput {
@@ -243,14 +251,26 @@ export async function createReminder(data: CreateReminderInput) {
 
     // 6. Create in-app Notification record
     try {
+      const isReceiverFlow =
+        data.reminderRole === "receiver" ||
+        (data.netPosition !== undefined && data.netPosition > 0.01);
+
+      const notifTitle = isReceiverFlow
+        ? (data.amount ? `Waiting to Receive ${formatCurrency(data.amount)}` : "Receivable Status Update")
+        : (data.title || "Payment Reminder Scheduled");
+
+      const notifMsg = isReceiverFlow
+        ? `${data.payerName || "A group member"} still has a pending settlement with you.`
+        : (data.message.length > 120 ? `${data.message.substring(0, 117)}...` : data.message);
+
       await withDbRetry(async () =>
         db.insert(notifications).values({
           userId: user.id,
           publicId: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           category: "reminder",
-          type: "reminder_created",
-          title: data.title || "Payment Reminder Scheduled",
-          message: data.message.length > 120 ? `${data.message.substring(0, 117)}...` : data.message,
+          type: isReceiverFlow ? "reminder_receiver" : "reminder_created",
+          title: notifTitle,
+          message: notifMsg,
           priority: data.priority || "medium",
           status: "unread",
           groupId: targetGroupId,
@@ -261,6 +281,7 @@ export async function createReminder(data: CreateReminderInput) {
             reminderPublicId: newReminder.publicId,
             amount: data.amount,
             method: data.method,
+            isReceiverFlow,
           },
         })
       );
@@ -304,19 +325,53 @@ export async function createReminder(data: CreateReminderInput) {
           ? `${getBaseAppUrl()}/dashboard/groups/${targetGroup.publicId}`
           : getBaseAppUrl();
 
-        const { subject, html, text } = getRichSettlementReminderHtml({
-          groupName: targetGroup?.name || undefined,
-          recipientName: data.recipientName || "Member",
-          senderName: user.name || "A friend",
-          amount: data.amount,
-          currency: data.currency || "INR",
-          message: data.message,
-          appUrl,
-          totalGroupExpense: data.totalGroupExpense,
-          fairShare: data.fairShare,
-          paidAmount: data.paidAmount,
-          netPosition: data.netPosition,
-        });
+        const isReceiverFlow =
+          data.reminderRole === "receiver" ||
+          (data.netPosition !== undefined && data.netPosition > 0.01);
+
+        let subject: string;
+        let html: string;
+        let text: string;
+
+        if (isReceiverFlow) {
+          const payerName = data.payerName || user.name || "A group member";
+          const receiverParams = {
+            receiverName: data.recipientName || user.name || "Member",
+            payerName,
+            groupName: targetGroup?.name || "Shared Expenses",
+            amountPaid: data.paidAmount || (data.amount ? data.amount * 2 : 0),
+            ownShare: data.fairShare || (data.amount || 0),
+            extraPaid: data.netPosition && data.netPosition > 0 ? data.netPosition : (data.amount || 0),
+            pendingAmount: data.amount || 0,
+            currency: data.currency || "INR",
+            appUrl,
+            groupLink: appUrl,
+            dashboardLink: `${getBaseAppUrl()}/dashboard`,
+            settlementLink: `${appUrl}/settlements`,
+            customMessage: data.message,
+          };
+          const generated = getRichReceiverReminderHtml(receiverParams);
+          subject = generated.subject;
+          html = generated.html;
+          text = generated.text;
+        } else {
+          const generated = getRichSettlementReminderHtml({
+            groupName: targetGroup?.name || undefined,
+            recipientName: data.recipientName || "Member",
+            senderName: user.name || "A friend",
+            amount: data.amount,
+            currency: data.currency || "INR",
+            message: data.message,
+            appUrl,
+            totalGroupExpense: data.totalGroupExpense,
+            fairShare: data.fairShare,
+            paidAmount: data.paidAmount,
+            netPosition: data.netPosition,
+          });
+          subject = generated.subject;
+          html = generated.html;
+          text = generated.text;
+        }
 
         const targets = rawEmails.length > 0 ? rawEmails : [data.recipientEmail.trim()];
         let lastRes: EmailSendResult = { success: true };
