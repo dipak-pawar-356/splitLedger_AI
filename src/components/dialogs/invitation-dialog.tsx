@@ -113,7 +113,7 @@ export function InvitationDialog({ trigger, open: controlledOpen, onOpenChange: 
     setIsLoading(true);
     setError(null);
     try {
-      await createInvitation({
+      const res = await createInvitation({
         groupId: targetId,
         email: email.trim(),
         name: name.trim() || undefined,
@@ -121,7 +121,19 @@ export function InvitationDialog({ trigger, open: controlledOpen, onOpenChange: 
       });
 
       setEmailSentSuccess(true);
-      toast.success(`Invitation email sent to ${email}!`);
+      if (res.emailSent) {
+        toast.success(`Invitation email delivered to ${email}! (Check Spam/Updates if not in inbox.)`);
+      } else if (res.isSandboxRestriction) {
+        toast.warning(
+          `Invite link created, but Resend is in free sandbox mode (only sends to account email). Add Gmail App Password in .env to email any address!`,
+          { duration: 8000 }
+        );
+      } else if (res.emailError) {
+        toast.warning(`Invite link created, but email dispatch failed: ${res.emailError}`, { duration: 6000 });
+      } else {
+        toast.success(`Invitation link created for ${email}!`);
+      }
+
       setEmail("");
       setName("");
       setPhone("");

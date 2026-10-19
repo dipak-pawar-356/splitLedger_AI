@@ -44,6 +44,7 @@ export interface CreateReminderInput {
   fairShare?: number;
   paidAmount?: number;
   netPosition?: number;
+  sendCopyToMe?: boolean;
 }
 
 export interface UpdateReminderInput {
@@ -320,8 +321,15 @@ export async function createReminder(data: CreateReminderInput) {
         const targets = rawEmails.length > 0 ? rawEmails : [data.recipientEmail.trim()];
         let lastRes: EmailSendResult = { success: true };
 
+        // Determine if sender should receive a copy
+        const authUser = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
+        const senderEmail = (user.email && user.email.includes("@")) ? user.email : authUser;
+        const shouldCopySender = data.sendCopyToMe !== false && Boolean(senderEmail) && !targets.includes(senderEmail);
+
         for (const target of targets) {
-          const res = await sendEmailWithStatus(target, subject, html, text);
+          const res = await sendEmailWithStatus(target, subject, html, text, {
+            bcc: shouldCopySender ? senderEmail : undefined,
+          });
           if (!res.success) {
             lastRes = res;
           }

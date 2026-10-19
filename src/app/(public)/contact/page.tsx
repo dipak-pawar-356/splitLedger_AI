@@ -68,7 +68,7 @@ export default function ContactPage() {
 
       if (res?.success) {
         setSubmittedTicket(res.ticketNumber);
-        toast.success(`Ticket #${res.ticketNumber} submitted! Confirmation email sent.`);
+        toast.success(`Ticket #${res.ticketNumber} submitted! Confirmation email sent. (Check Spam/Updates if not in inbox.)`);
       }
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : "Failed to submit support request";

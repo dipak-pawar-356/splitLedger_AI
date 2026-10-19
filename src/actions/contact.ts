@@ -5,7 +5,7 @@ import { contactRequests, users } from "@/lib/db/schema/schema";
 import { eq, desc, and, or, ilike } from "drizzle-orm";
 import { headers } from "next/headers";
 import { ValidationError, DatabaseError, NotFoundError } from "@/lib/errors";
-import { sendEmailNotification } from "@/lib/notifications";
+import { sendEmailNotification, sendEmailWithStatus, type EmailSendResult } from "@/lib/notifications";
 
 const SUPPORT_EMAIL = "dipakpawar3747@gmail.com";
 const SUPPORT_PHONE = "+91 8669233747";
@@ -161,11 +161,13 @@ export async function submitContactRequest(data: SubmitContactInput) {
       </div>
     `;
 
-    // Attempt support email
+    // 5. Email 1: Send full details to official support (dipakpawar3747@gmail.com)
+    let supportResult: EmailSendResult = { success: false };
     try {
-      await sendEmailNotification(SUPPORT_EMAIL, supportSubject, supportHtml);
-    } catch (mailErr) {
+      supportResult = await sendEmailWithStatus(SUPPORT_EMAIL, supportSubject, supportHtml);
+    } catch (mailErr: any) {
       console.error("Non-fatal: Failed to send email to support address:", mailErr);
+      supportResult = { success: false, error: mailErr?.message };
     }
 
     // 6. Email 2: Auto-reply confirmation to customer
@@ -203,16 +205,20 @@ export async function submitContactRequest(data: SubmitContactInput) {
       </div>
     `;
 
+    let customerResult: EmailSendResult = { success: false };
     try {
-      await sendEmailNotification(data.email.trim(), customerSubject, customerHtml);
-    } catch (custMailErr) {
+      customerResult = await sendEmailWithStatus(data.email.trim(), customerSubject, customerHtml);
+    } catch (custMailErr: any) {
       console.error("Non-fatal: Failed to send auto-reply to customer:", custMailErr);
+      customerResult = { success: false, error: custMailErr?.message };
     }
 
     return {
       success: true,
       ticketNumber,
       requestId: requestRecord.id,
+      supportEmailSent: supportResult.success,
+      customerEmailSent: customerResult.success,
     };
   } catch (error) {
     if (error instanceof ValidationError) throw error;

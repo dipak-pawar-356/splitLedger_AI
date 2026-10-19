@@ -2,7 +2,7 @@ import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { notifications } from "@/lib/db/schema/schema";
 
-import nodemailer from "nodemailer";
+import nodemailer, { type SendMailOptions } from "nodemailer";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -13,22 +13,30 @@ export interface EmailSendResult {
   isSandboxRestriction?: boolean;
 }
 
-function getSmtpTransporter() {
+export interface EmailSendOptions {
+  bcc?: string | string[];
+  cc?: string | string[];
+  replyTo?: string;
+}
+
+function createSmtpTransporter(port: number, secure: boolean) {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const user = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
   const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || "vughrqdcthyeviys";
-  const port = Number(process.env.SMTP_PORT) || 465;
-  const secure = port === 465 || process.env.SMTP_SECURE === "true";
 
   if (user && pass) {
     return nodemailer.createTransport({
       host,
       port,
       secure,
+      requireTLS: !secure,
       auth: { user, pass },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+      tls: {
+        rejectUnauthorized: false,
+      },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 12000,
     });
   }
   return null;
@@ -38,45 +46,83 @@ export async function sendEmailWithStatus(
   to: string,
   subject: string,
   html: string,
-  text?: string
+  text?: string,
+  options?: EmailSendOptions
 ): Promise<EmailSendResult> {
   const cleanTo = to.trim();
-  const smtp = getSmtpTransporter();
+  const authUser = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
+  const from = process.env.SMTP_FROM || `SplitLedger AI <${authUser}>`;
+  const replyTo = options?.replyTo || authUser;
   const plainText = text || html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
-  // 1. If SMTP is configured, use SMTP (delivers to ANY organization/domain)
-  if (smtp) {
+  // Determine primary and secondary ports
+  // Port 587 (STARTTLS) is the cloud serverless standard (Vercel, AWS, GCP)
+  const configuredPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : null;
+  const primaryPort = configuredPort || 587;
+  const primarySecure = primaryPort === 465 || process.env.SMTP_SECURE === "true";
+  const secondaryPort = primaryPort === 587 ? 465 : 587;
+  const secondarySecure = secondaryPort === 465;
+
+  const mailOptions: SendMailOptions = {
+    from,
+    to: cleanTo,
+    replyTo,
+    bcc: options?.bcc,
+    cc: options?.cc,
+    subject,
+    html,
+    text: plainText,
+    headers: {
+      "X-Entity-Ref-ID": `splitledger_${Date.now()}`,
+      "X-Mailer": "SplitLedger-AI/1.0",
+      "X-Auto-Response-Suppress": "All",
+    },
+  };
+
+  // 1. Try Primary SMTP transport
+  const primarySmtp = createSmtpTransporter(primaryPort, primarySecure);
+  if (primarySmtp) {
     try {
-      const authUser = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
-      const from = process.env.SMTP_FROM || `SplitLedger AI <${authUser}>`;
-      await smtp.sendMail({
-        from,
-        to: cleanTo,
-        replyTo: authUser,
-        subject,
-        html,
-        text: plainText,
-        headers: {
-          "X-Entity-Ref-ID": `splitledger_${Date.now()}`,
-        },
-      });
-      console.log(`[Email] Delivered successfully via SMTP to ${cleanTo}`);
+      await primarySmtp.sendMail(mailOptions);
+      console.log(`[Email] Delivered successfully via SMTP (port ${primaryPort}) to ${cleanTo}`);
       return { success: true, provider: "smtp" };
-    } catch (smtpErr: any) {
-      console.error("[Email] SMTP send failed:", smtpErr?.message);
+    } catch (primaryErr: any) {
+      console.warn(`[Email] Primary SMTP (port ${primaryPort}) failed:`, primaryErr?.message);
+
+      // Attempt secondary port fallback before giving up on SMTP
+      const secondarySmtp = createSmtpTransporter(secondaryPort, secondarySecure);
+      if (secondarySmtp) {
+        try {
+          console.log(`[Email] Retrying via fallback SMTP (port ${secondaryPort})...`);
+          await secondarySmtp.sendMail(mailOptions);
+          console.log(`[Email] Delivered successfully via fallback SMTP (port ${secondaryPort}) to ${cleanTo}`);
+          return { success: true, provider: "smtp" };
+        } catch (secondaryErr: any) {
+          console.error(`[Email] Fallback SMTP (port ${secondaryPort}) failed:`, secondaryErr?.message);
+        }
+      }
+
+      // If both SMTP attempts failed and no Resend available, return detailed error
       if (!resend) {
-        return { success: false, error: smtpErr?.message || "SMTP delivery failed", provider: "smtp" };
+        return {
+          success: false,
+          error: `SMTP delivery failed (${primaryErr?.message || "connection error"}). Verify SMTP credentials or port.`,
+          provider: "smtp",
+        };
       }
     }
   }
 
-  // 2. Dispatch via Resend
+  // 2. Dispatch via Resend as backup
   if (resend) {
     try {
       const fromEmail = process.env.RESEND_FROM_EMAIL || "SplitLedger AI <onboarding@resend.dev>";
       const result = await resend.emails.send({
         from: fromEmail,
         to: cleanTo,
+        replyTo,
+        bcc: Array.isArray(options?.bcc) ? options?.bcc : options?.bcc ? [options.bcc] : undefined,
+        cc: Array.isArray(options?.cc) ? options?.cc : options?.cc ? [options.cc] : undefined,
         subject,
         html,
         text: plainText,
@@ -109,7 +155,7 @@ export async function sendEmailWithStatus(
 
   return {
     success: false,
-    error: "No email service configured. Please set RESEND_API_KEY or SMTP credentials in .env.",
+    error: "No email service configured. Please configure SMTP credentials (host, user, pass) or RESEND_API_KEY.",
   };
 }
 

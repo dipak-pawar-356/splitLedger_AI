@@ -105,6 +105,7 @@ export function ReminderDialog({
   const [targetEmail, setTargetEmail] = useState(recipientEmail || "");
   const [targetAmount, setTargetAmount] = useState<number>(amount ? Math.abs(amount) : 0);
   const [message, setMessage] = useState("");
+  const [sendCopyToMe, setSendCopyToMe] = useState(true);
 
   const effectiveGroupName = groupName || "our group";
 
@@ -545,6 +546,7 @@ ${divider}
         fairShare: memberOwnShare || (totalGroupExpense && totalMembers ? totalGroupExpense / totalMembers : undefined),
         paidAmount: memberPaidAmount,
         netPosition: memberNetPosition,
+        sendCopyToMe,
       });
 
       if (method === "whatsapp") {
@@ -563,7 +565,10 @@ ${divider}
             toast.error(`Email delivery failed: ${res.emailError || "Unknown delivery error"}`, { duration: 6000 });
           }
         } else {
-          toast.success(`Reminder email sent successfully to ${targetEmail || targetName}!`);
+          toast.success(
+            `Reminder email dispatched to ${targetEmail || targetName}! (A confirmation copy was also sent to your inbox. Check Spam/Promotions if not found.)`,
+            { duration: 7000 }
+          );
         }
       } else {
         navigator.clipboard.writeText(message);
@@ -899,9 +904,27 @@ ${divider}
                   className="pl-10 text-xs h-10 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 focus-visible:ring-blue-500"
                 />
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 flex items-start gap-2">
-                <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                <span>Emails can be delivered to any organization or email address. Multiple emails can be comma-separated.</span>
+              <div className="flex items-center gap-2 pt-0.5">
+                <input
+                  type="checkbox"
+                  id="sendCopyToMe"
+                  checked={sendCopyToMe}
+                  onChange={(e) => setSendCopyToMe(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                />
+                <label htmlFor="sendCopyToMe" className="text-xs font-medium text-slate-700 dark:text-slate-300 select-none cursor-pointer">
+                  Send a confirmation copy to my email
+                </label>
+              </div>
+
+              <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-900/40 text-[11px] text-blue-950 dark:text-blue-300 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <Info className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>High-Reliability Direct SMTP Dispatch</span>
+                </div>
+                <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Delivered to any email address. <strong>Note:</strong> Some institutional filters (e.g. college/university <code className="bg-slate-200/70 dark:bg-slate-800 px-1 py-0.5 rounded">.ac.in</code>) route payment notices to <strong>Spam</strong> or <strong>Updates</strong> — remind the recipient to check there if not found in Inbox.
+                </p>
               </div>
             </div>
           )}
