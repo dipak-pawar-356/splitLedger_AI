@@ -26,7 +26,12 @@ import {
 } from "@/lib/errors";
 import { isDbIntegerId } from "@/lib/utils";
 import { generatePublicId, formatCurrency, formatDate, getBaseAppUrl } from "@/lib/utils";
-import { sendEmailNotification, sendEmailWithStatus } from "@/lib/notifications";
+import {
+  sendEmailNotification,
+  sendEmailWithStatus,
+  NOTIFICATION_PREFERENCES_URL,
+  APP_BASE_URL,
+} from "@/lib/notifications";
 import { getGroupFinancialDetails } from "@/actions/group-financials";
 
 /**
@@ -705,6 +710,11 @@ export async function generateDebtorReminderEmail(data: {
         <div style="background:#f8fafc;padding:18px 24px;text-align:center;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;">
           <p style="margin:0;">SplitLedger AI • Advanced Group Settlement System</p>
           <p style="margin:4px 0 0;">Group Owner: ${data.ownerName || "Group Admin"} • Support: ${data.supportEmail || "support@splitledger.ai"}</p>
+          <p style="margin:8px 0 0;">
+            <a href="${deepLink}" style="color:#64748b;text-decoration:underline;">Open Group</a> &bull;
+            <a href="${NOTIFICATION_PREFERENCES_URL}" style="color:#64748b;text-decoration:underline;">Notification Preferences</a> &bull;
+            <a href="${APP_BASE_URL}" style="color:#64748b;text-decoration:underline;">SplitLedger AI</a>
+          </p>
         </div>
       </div>
     </body>
@@ -796,6 +806,11 @@ export async function generateCreditorUpdateEmail(data: {
         <div style="background:#f8fafc;padding:18px 24px;text-align:center;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;">
           <p style="margin:0;">SplitLedger AI • Advanced Group Settlement System</p>
           <p style="margin:4px 0 0;">Group Owner: ${data.ownerName || "Group Admin"} • Support: ${data.supportEmail || "support@splitledger.ai"}</p>
+          <p style="margin:8px 0 0;">
+            <a href="${deepLink}" style="color:#64748b;text-decoration:underline;">Open Group</a> &bull;
+            <a href="${NOTIFICATION_PREFERENCES_URL}" style="color:#64748b;text-decoration:underline;">Notification Preferences</a> &bull;
+            <a href="${APP_BASE_URL}" style="color:#64748b;text-decoration:underline;">SplitLedger AI</a>
+          </p>
         </div>
       </div>
     </body>

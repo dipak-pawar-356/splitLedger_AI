@@ -175,6 +175,8 @@ describe("Receiver Reminder Email & Multi-Channel Experience (SplitLedger AI)", 
       expect(html).toContain("Calculated using verified ledger records.");
       expect(html).toContain("This reminder is based on the latest settlement calculations.");
       expect(html).toContain("Notification Preferences");
+      expect(html).toContain("https://split-ledger-ai.vercel.app/dashboard/notifications/preferences");
+      expect(html).not.toContain("/settings");
       // Free of debt collection / threatening words
       expect(html.toLowerCase()).not.toContain("debt collection");
       expect(html.toLowerCase()).not.toContain("overdue notice");
@@ -197,6 +199,7 @@ describe("Receiver Reminder Email & Multi-Channel Experience (SplitLedger AI)", 
       expect(plainText).toContain("Total Pending To Receive: ₹4,666.64");
       expect(plainText).toContain("WHAT HAPPENS AFTER PAYMENT?");
       expect(plainText).toContain("Settlement Completed");
+      expect(plainText).toContain("Notification Preferences: https://split-ledger-ai.vercel.app/dashboard/notifications/preferences");
     });
 
     it("should format rich WhatsApp message with bolding and instructions", () => {

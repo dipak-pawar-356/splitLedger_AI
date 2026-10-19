@@ -19,6 +19,10 @@ export interface EmailSendOptions {
   replyTo?: string;
 }
 
+export const APP_BASE_URL = "https://split-ledger-ai.vercel.app";
+export const NOTIFICATION_PREFERENCES_URL = `${APP_BASE_URL}/dashboard/notifications/preferences`;
+export const DASHBOARD_URL = `${APP_BASE_URL}/dashboard`;
+
 function createSmtpTransporter(port: number, secure: boolean) {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const user = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
@@ -306,6 +310,10 @@ export function getInvitationEmailTemplate(
         <div class="footer">
           <p>SplitLedger AI - Track expenses, settle up easily.</p>
           <p>You received this email because you were invited to join a group on SplitLedger AI.</p>
+          <p style="margin-top: 8px;">
+            <a href="${NOTIFICATION_PREFERENCES_URL}" style="color: #667eea; text-decoration: underline;">Notification Preferences</a> &bull;
+            <a href="${APP_BASE_URL}" style="color: #667eea; text-decoration: underline;">SplitLedger AI</a>
+          </p>
         </div>
       </div>
     </body>
@@ -325,7 +333,7 @@ export function getExpenseAddedEmailTemplate(
   addedBy: string
 ) {
   const subject = `New expense added to ${groupName}`;
-  const text = `Hi there,\n\n${addedBy} added a new expense to "${groupName}".\nDescription: ${expenseDescription}\nAmount: ${amount}\n\nLog in to SplitLedger AI to view the details and settle up.\n\n--\nSplitLedger AI • Track expenses, settle up easily.`;
+  const text = `Hi there,\n\n${addedBy} added a new expense to "${groupName}".\nDescription: ${expenseDescription}\nAmount: ${amount}\n\nLog in to SplitLedger AI to view the details and settle up.\n\n--\nSplitLedger AI • Track expenses, settle up easily.\nNotification Preferences: ${NOTIFICATION_PREFERENCES_URL}`;
   const html = `
     <!DOCTYPE html>
     <html>
@@ -358,6 +366,10 @@ export function getExpenseAddedEmailTemplate(
         </div>
         <div class="footer">
           <p>SplitLedger AI - Track expenses, settle up easily.</p>
+          <p style="margin-top: 8px;">
+            <a href="${NOTIFICATION_PREFERENCES_URL}" style="color: #667eea; text-decoration: underline;">Notification Preferences</a> &bull;
+            <a href="${APP_BASE_URL}" style="color: #667eea; text-decoration: underline;">SplitLedger AI</a>
+          </p>
         </div>
       </div>
     </body>
@@ -376,7 +388,7 @@ export function getSettlementReminderEmailTemplate(
   owedTo: string
 ) {
   const subject = `[SplitLedger] Settlement update for ${groupName}`;
-  const text = `Hi there,\n\nYou have a pending settlement in "${groupName}".\nYou owe: ${amount}\nTo: ${owedTo}\n\nPlease settle this amount to keep your group balances up to date.\n\n--\nSplitLedger AI • Track expenses, settle up easily.`;
+  const text = `Hi there,\n\nYou have a pending settlement in "${groupName}".\nYou owe: ${amount}\nTo: ${owedTo}\n\nPlease settle this amount to keep your group balances up to date.\n\n--\nSplitLedger AI • Track expenses, settle up easily.\nNotification Preferences: ${NOTIFICATION_PREFERENCES_URL}`;
   const html = `
     <!DOCTYPE html>
     <html>
@@ -409,6 +421,10 @@ export function getSettlementReminderEmailTemplate(
         </div>
         <div class="footer">
           <p>SplitLedger AI - Track expenses, settle up easily.</p>
+          <p style="margin-top: 8px;">
+            <a href="${NOTIFICATION_PREFERENCES_URL}" style="color: #f5576c; text-decoration: underline;">Notification Preferences</a> &bull;
+            <a href="${APP_BASE_URL}" style="color: #f5576c; text-decoration: underline;">SplitLedger AI</a>
+          </p>
         </div>
       </div>
     </body>
@@ -550,7 +566,7 @@ export function getRichSettlementReminderHtml(params: RichReminderEmailParams): 
 
   const formattedAmount = params.amount ? formatAmt(params.amount) : "Pending Share";
   const groupLabel = params.groupName || "Shared Expenses";
-  const appLink = params.appUrl || "https://split-ledger-ai.vercel.app";
+  const appLink = params.appUrl || `${APP_BASE_URL}/dashboard/groups`;
 
   const isExtraPaid = params.netPosition && params.netPosition > 0.01;
   const isShortfall = params.netPosition && params.netPosition < -0.01;
@@ -579,7 +595,7 @@ export function getRichSettlementReminderHtml(params: RichReminderEmailParams): 
     `========================================`,
     `This reminder was generated automatically using verified ledger calculations in SplitLedger AI.`,
     `You received this email because you are a member of "${groupLabel}".`,
-    `Manage notification preferences in your dashboard: ${appLink}/dashboard`,
+    `Notification Preferences: ${NOTIFICATION_PREFERENCES_URL}`,
   ]
     .filter((line) => line !== null)
     .join("\n");
@@ -713,8 +729,8 @@ ${formatMessageForEmailHtml(params.message)}
               </p>
               <p style="font-size: 11px; color: #94a3b8; margin: 0;">
                 <a href="${appLink}" style="color: #64748b; text-decoration: underline;">Open Group</a> &bull;
-                <a href="${appLink}/settings" style="color: #64748b; text-decoration: underline;">Notification Preferences</a> &bull;
-                <a href="https://split-ledger-ai.vercel.app" style="color: #64748b; text-decoration: underline;">SplitLedger AI</a>
+                <a href="${NOTIFICATION_PREFERENCES_URL}" style="color: #64748b; text-decoration: underline;">Notification Preferences</a> &bull;
+                <a href="${APP_BASE_URL}" style="color: #64748b; text-decoration: underline;">SplitLedger AI</a>
               </p>
             </td>
           </tr>
@@ -833,10 +849,10 @@ export function getRichReceiverReminderHtml(params: RichReceiverReminderParams) 
   // Inbox-safe subject line (avoids spam filters triggered by raw currency symbols and demanding phrases)
   const subject = params.subject || `[SplitLedger] ${params.groupName}: Settlement awaiting payment from members`;
 
-  const appBase = params.appUrl || "https://split-ledger-ai.vercel.app";
+  const appBase = APP_BASE_URL;
   const groupUrl = params.groupLink || `${appBase}/dashboard/groups`;
   const settlementUrl = params.settlementLink || `${groupUrl}/settlements`;
-  const dashboardUrl = params.dashboardLink || `${appBase}/dashboard`;
+  const dashboardUrl = params.dashboardLink || DASHBOARD_URL;
 
   const text = getReceiverPlainTextMessage({
     ...params,
@@ -1111,7 +1127,7 @@ ${formatMessageForEmailHtml(params.customMessage)}
               </p>
               <p style="font-size: 11px; color: #94a3b8; margin: 0;">
                 <a href="${dashboardUrl}" style="color: #64748b; text-decoration: underline;">Dashboard</a> &bull;
-                <a href="${dashboardUrl}/settings" style="color: #64748b; text-decoration: underline;">Notification Preferences</a> &bull;
+                <a href="${NOTIFICATION_PREFERENCES_URL}" style="color: #64748b; text-decoration: underline;">Notification Preferences</a> &bull;
                 <a href="${appBase}" style="color: #64748b; text-decoration: underline;">SplitLedger AI</a>
               </p>
             </td>
@@ -1134,10 +1150,10 @@ export function getReceiverPlainTextMessage(params: RichReceiverReminderParams):
     if (val === undefined || val === null || isNaN(val)) return "—";
     return `${currencySymbol}${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
-  const appBase = params.appUrl || "https://split-ledger-ai.vercel.app";
+  const appBase = APP_BASE_URL;
   const groupUrl = params.groupLink || `${appBase}/dashboard/groups`;
   const settlementUrl = params.settlementLink || `${groupUrl}/settlements`;
-  const dashboardUrl = params.dashboardLink || `${appBase}/dashboard`;
+  const dashboardUrl = params.dashboardLink || DASHBOARD_URL;
 
   const payers = (params.payers && params.payers.length > 0)
     ? params.payers
@@ -1212,7 +1228,8 @@ Once every pending member completes their settlement:
 --
 Generated automatically by SplitLedger AI
 Calculated using verified ledger records. This reminder is based on the latest settlement calculations.
-If payment has already been completed, please ask the payer(s) to complete the settlement inside SplitLedger AI to keep the group's financial records synchronized.`;
+If payment has already been completed, please ask the payer(s) to complete the settlement inside SplitLedger AI to keep the group's financial records synchronized.
+Notification Preferences: ${NOTIFICATION_PREFERENCES_URL}`;
 }
 
 export function getReceiverSmsMessage(params: RichReceiverReminderParams): string {
@@ -1314,7 +1331,7 @@ export function getMemberAddedEmailTemplate(
   addedBy: string
 ) {
   const subject = `${memberName} joined ${groupName}`;
-  const text = `Hi there,\n\n${memberName} has joined "${groupName}", invited by ${addedBy}.\nWelcome them to the group!\n\n--\nSplitLedger AI • Track expenses, settle up easily.`;
+  const text = `Hi there,\n\n${memberName} has joined "${groupName}", invited by ${addedBy}.\nWelcome them to the group!\n\n--\nSplitLedger AI • Track expenses, settle up easily.\nNotification Preferences: ${NOTIFICATION_PREFERENCES_URL}`;
   const html = `
     <!DOCTYPE html>
     <html>
@@ -1342,6 +1359,10 @@ export function getMemberAddedEmailTemplate(
         </div>
         <div class="footer">
           <p>SplitLedger AI - Track expenses, settle up easily.</p>
+          <p style="margin-top: 8px;">
+            <a href="${NOTIFICATION_PREFERENCES_URL}" style="color: #4facfe; text-decoration: underline;">Notification Preferences</a> &bull;
+            <a href="${APP_BASE_URL}" style="color: #4facfe; text-decoration: underline;">SplitLedger AI</a>
+          </p>
         </div>
       </div>
     </body>
@@ -1360,7 +1381,7 @@ export function getSettlementCompletedEmailTemplate(
   settledWith: string
 ) {
   const subject = `Settlement completed in ${groupName}`;
-  const text = `Hi there,\n\nA settlement of ${amount} has been completed in "${groupName}" with ${settledWith}.\nYour group balances have been updated.\n\n--\nSplitLedger AI • Track expenses, settle up easily.`;
+  const text = `Hi there,\n\nA settlement of ${amount} has been completed in "${groupName}" with ${settledWith}.\nYour group balances have been updated.\n\n--\nSplitLedger AI • Track expenses, settle up easily.\nNotification Preferences: ${NOTIFICATION_PREFERENCES_URL}`;
   const html = `
     <!DOCTYPE html>
     <html>
@@ -1393,6 +1414,10 @@ export function getSettlementCompletedEmailTemplate(
         </div>
         <div class="footer">
           <p>SplitLedger AI - Track expenses, settle up easily.</p>
+          <p style="margin-top: 8px;">
+            <a href="${NOTIFICATION_PREFERENCES_URL}" style="color: #11998e; text-decoration: underline;">Notification Preferences</a> &bull;
+            <a href="${APP_BASE_URL}" style="color: #11998e; text-decoration: underline;">SplitLedger AI</a>
+          </p>
         </div>
       </div>
     </body>
