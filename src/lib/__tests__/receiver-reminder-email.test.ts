@@ -248,4 +248,65 @@ describe("Receiver Reminder Email & Multi-Channel Experience (SplitLedger AI)", 
       expect(text).toContain("₹2,500.00");
     });
   });
+
+  describe("12. Creditor Extra-Paid Multi-Debtor Copy Format (Exact User Scenario)", () => {
+    it("should include all persons who owe money, their individual amounts, and the exact total pending", () => {
+      const summerTripCopyParams: RichReceiverReminderParams = {
+        receiverName: "Dipak Pawar",
+        groupName: "Summer Trip",
+        amountPaid: 8000.0,
+        ownShare: 6333.34,
+        extraPaid: 1666.66,
+        pendingAmount: 1666.66,
+        currency: "INR",
+        subject: "[SplitLedger] Summer Trip: Settlement awaiting payment from members (Your Copy)",
+        payers: [
+          {
+            name: "Kunal Patil",
+            amount: 1333.32,
+            status: "Pending",
+            paymentMethod: "QR / Manual",
+          },
+          {
+            name: "Raj Pawar",
+            amount: 333.34,
+            status: "Pending",
+            paymentMethod: "QR / Manual",
+          },
+        ],
+      };
+
+      const { html, text, subject } = getRichReceiverReminderHtml(summerTripCopyParams);
+
+      // Subject line
+      expect(subject).toBe("[SplitLedger] Summer Trip: Settlement awaiting payment from members (Your Copy)");
+
+      // Receiver greeting
+      expect(html).toContain("Hi <strong>Dipak Pawar</strong>,");
+
+      // Contribution summary
+      expect(html).toContain("₹8,000.00");
+      expect(html).toContain("₹6,333.34");
+      expect(html).toContain("+₹1,666.66");
+
+      // Both debtors and their individual amounts present
+      expect(html).toContain("Kunal Patil");
+      expect(html).toContain("₹1,333.32");
+      expect(html).toContain("Raj Pawar");
+      expect(html).toContain("₹333.34");
+
+      // Overall total pending amount
+      expect(html).toContain("₹1,666.66");
+      expect(html).toContain("Total Pending To Receive");
+
+      // Plain text consistency
+      expect(text).toContain("Dipak Pawar");
+      expect(text).toContain("Kunal Patil");
+      expect(text).toContain("₹1,333.32");
+      expect(text).toContain("Raj Pawar");
+      expect(text).toContain("₹333.34");
+      expect(text).toContain("Total Pending To Receive: ₹1,666.66");
+      expect(text).toContain("Amount You Paid Extra:   +₹1,666.66");
+    });
+  });
 });

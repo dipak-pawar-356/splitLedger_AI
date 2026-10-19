@@ -634,6 +634,39 @@ export function MemberFinancialSummary({
               <span>Profile</span>
             </Button>
 
+            {/* If Current User is owed money, allow them to view or send their own settlement summary directly */}
+            {isCurrentUser && member.willReceive > 0.01 && (
+              <ReminderDialog
+                recipientEmail={member.email || undefined}
+                recipientPhone={member.phone || undefined}
+                recipientName={member.name}
+                amount={member.willReceive}
+                groupId={groupId}
+                groupPublicId={groupPublicId}
+                groupName={groupName}
+                owesToList={member.owesTo}
+                receivesFromList={member.receivesFrom}
+                totalGroupExpense={totalGroupExpense}
+                totalMembers={totalMembers}
+                memberPaidAmount={member.totalPaid}
+                memberOwnShare={member.ownShare}
+                memberNetPosition={member.netPosition}
+                reminderRole="receiver"
+                onSuccess={() => router.refresh()}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-[11px] h-7 px-2.5 gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 font-bold"
+                  >
+                    <Mail className="h-3 w-3" />
+                    <span>Send Settlement Copy</span>
+                  </Button>
+                }
+              />
+            )}
+
             {/* Contextual Reminder Action:
                 IF member.netPosition < -0.01 (owes money): "🔔 Remind to Pay"
                 IF member.netPosition > 0.01 (will receive money): "📨 Request Settlement"

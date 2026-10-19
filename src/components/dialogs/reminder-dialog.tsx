@@ -504,7 +504,14 @@ ${divider}
       let initEmail = recipientEmail || "";
       let initAmt = amount ? Math.abs(amount) : 0;
 
-      if (hasOwes) {
+      if (reminderRole === "receiver") {
+        initDebtors = [...receivesFromList];
+        initName = recipientName || contactName || "Member";
+        initPhone = recipientPhone || "";
+        initEmail = recipientEmail || "";
+        const totalReceivable = receivesFromList.reduce((sum, d) => sum + d.amount, 0);
+        initAmt = totalReceivable > 0 ? totalReceivable : (amount ? Math.abs(amount) : 0);
+      } else if (hasOwes) {
         initCreditor = owesToList[0];
         initAmt = owesToList[0].amount;
       } else if (hasReceives) {
@@ -530,7 +537,7 @@ ${divider}
       setTargetAmount(initAmt);
       setMessage(buildTemplateMessage(templateType, initName, initAmt, initCreditor, initDebtors));
     }
-  }, [open, recipientName, contactName, recipientPhone, recipientEmail, amount, groupName, owesToList, receivesFromList, buildTemplateMessage, templateType]);
+  }, [open, recipientName, contactName, recipientPhone, recipientEmail, amount, groupName, owesToList, receivesFromList, buildTemplateMessage, templateType, reminderRole]);
 
   const handleSelectCreditor = (creditor: CreditorDebtItem | "all") => {
     setSelectedCreditor(creditor);
@@ -594,8 +601,12 @@ ${divider}
         ? receivesFromList.map(r => r.name).join(", ")
         : undefined;
 
-      const debtorsList = receivesFromList && receivesFromList.length > 0
-        ? receivesFromList.map(r => ({
+      const activeDebtors = (selectedDebtors && selectedDebtors.length > 0)
+        ? selectedDebtors
+        : (receivesFromList && receivesFromList.length > 0 ? receivesFromList : []);
+
+      const debtorsList = activeDebtors.length > 0
+        ? activeDebtors.map(r => ({
             name: r.name,
             amount: r.amount,
             status: "Pending",
@@ -604,6 +615,11 @@ ${divider}
             email: r.email,
           }))
         : undefined;
+
+      const totalDebtorsAmt = debtorsList ? debtorsList.reduce((sum, d) => sum + d.amount, 0) : 0;
+      const effectiveAmount = (reminderRole === "receiver" && totalDebtorsAmt > 0)
+        ? totalDebtorsAmt
+        : targetAmount;
 
       const res = await createReminder({
         recipientType: groupId ? "group" : "contact",
@@ -615,7 +631,7 @@ ${divider}
         recipientEmail: targetEmail || undefined,
         method,
         message: message.trim(),
-        amount: targetAmount,
+        amount: effectiveAmount,
         currency: "INR",
         totalGroupExpense,
         fairShare: memberOwnShare || (totalGroupExpense && totalMembers ? totalGroupExpense / totalMembers : undefined),

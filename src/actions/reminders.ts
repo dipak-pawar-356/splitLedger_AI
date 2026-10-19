@@ -22,7 +22,10 @@ import {
   getRichSettlementReminderHtml,
   getRichReceiverReminderHtml,
   type EmailSendResult,
+  type RichReceiverReminderParams,
+  type ReceiverPayerItem,
 } from "@/lib/notifications";
+import { getGroupFinancialDetails, type MemberFinancialDetail } from "@/actions/group-financials";
 import { generateWhatsAppLink, formatCurrency, getBaseAppUrl, isDbIntegerId, generatePublicId } from "@/lib/utils";
 
 export interface CreateReminderInput {
@@ -343,21 +346,62 @@ export async function createReminder(data: CreateReminderInput) {
 
         if (isReceiverFlow) {
           const payerName = data.payerName || user.name || "A group member";
-          const receiverParams = {
+          let payers = data.debtorsList && data.debtorsList.length > 0 ? data.debtorsList : undefined;
+          let amountPaid = data.paidAmount || (data.amount ? data.amount * 2 : 0);
+          let ownShare = data.fairShare || (data.amount || 0);
+          let extraPaid = data.netPosition && data.netPosition > 0 ? data.netPosition : (data.amount || 0);
+          let pendingAmount = data.amount || 0;
+
+          // If debtors list or financial breakdown wasn't fully supplied by the caller, auto-populate from group financials
+          if ((!payers || payers.length === 0 || !data.paidAmount) && targetGroupId) {
+            try {
+              const finDetails = await getGroupFinancialDetails(targetGroupId);
+              const targetMember = finDetails.members.find(
+                (m) =>
+                  (m.userId && m.userId === data.recipientId) ||
+                  (m.email && data.recipientEmail && m.email.toLowerCase() === data.recipientEmail.toLowerCase()) ||
+                  (m.name && data.recipientName && m.name.toLowerCase() === data.recipientName.toLowerCase()) ||
+                  (m.userId && m.userId === user.id)
+              );
+              if (targetMember) {
+                amountPaid = targetMember.totalPaid;
+                ownShare = targetMember.ownShare;
+                extraPaid = targetMember.extraPaid;
+                if (!payers || payers.length === 0) {
+                  payers = (targetMember.receivesFrom || []).map((rf) => ({
+                    name: rf.name,
+                    amount: rf.amount,
+                    status: "Pending",
+                    paymentMethod: "QR / Manual",
+                    phone: rf.phone,
+                    email: rf.email,
+                    userId: rf.userId,
+                    contactId: rf.contactId,
+                  }));
+                }
+                const sumPayers = (payers || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+                pendingAmount = sumPayers > 0 ? sumPayers : (targetMember.willReceive || extraPaid);
+              }
+            } catch (finErr) {
+              console.warn("Could not auto-populate receiver details from group financials:", finErr);
+            }
+          }
+
+          const receiverParams: RichReceiverReminderParams = {
             receiverName: data.recipientName || user.name || "Member",
             payerName,
             groupName: targetGroup?.name || "Shared Expenses",
-            amountPaid: data.paidAmount || (data.amount ? data.amount * 2 : 0),
-            ownShare: data.fairShare || (data.amount || 0),
-            extraPaid: data.netPosition && data.netPosition > 0 ? data.netPosition : (data.amount || 0),
-            pendingAmount: data.amount || 0,
+            amountPaid,
+            ownShare,
+            extraPaid,
+            pendingAmount,
             currency: data.currency || "INR",
             appUrl,
             groupLink: appUrl,
             dashboardLink: `${getBaseAppUrl()}/dashboard`,
             settlementLink: `${appUrl}/settlements`,
             customMessage: data.message,
-            payers: data.debtorsList && data.debtorsList.length > 0 ? data.debtorsList : undefined,
+            payers,
           };
           const generated = getRichReceiverReminderHtml(receiverParams);
           subject = generated.subject;
@@ -388,12 +432,11 @@ export async function createReminder(data: CreateReminderInput) {
         // Determine if sender should receive a copy
         const authUser = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
         const senderEmail = (user.email && user.email.includes("@")) ? user.email : authUser;
-        const shouldCopySender = data.sendCopyToMe !== false && Boolean(senderEmail) && !targets.includes(senderEmail);
+        const shouldCopySender = data.sendCopyToMe !== false && Boolean(senderEmail) && !targets.some(t => t.toLowerCase() === senderEmail.toLowerCase());
 
+        // 1. Dispatch clean email to target(s) without BCC to prevent thread squashing
         for (const target of targets) {
-          const res = await sendEmailWithStatus(target, subject, html, text, {
-            bcc: shouldCopySender ? senderEmail : undefined,
-          });
+          const res = await sendEmailWithStatus(target, subject, html, text);
           if (!res.success) {
             lastRes = res;
           }
@@ -466,6 +509,140 @@ export async function createReminder(data: CreateReminderInput) {
             } catch (logErr) {
               console.error("Non-fatal: Failed to insert into settlementEmailLogs:", logErr);
             }
+          }
+        }
+
+        // 2. Dispatch dedicated copy to sender if requested
+        if (shouldCopySender && senderEmail) {
+          try {
+            let senderMember: MemberFinancialDetail | undefined;
+            if (targetGroupId) {
+              try {
+                const finDetails = await getGroupFinancialDetails(targetGroupId);
+                senderMember = finDetails.members.find(
+                  (m) =>
+                    (m.userId && m.userId === user.id) ||
+                    (m.email && m.email.toLowerCase() === senderEmail.toLowerCase())
+                );
+              } catch (finErr) {
+                console.warn("Could not fetch group financials for sender copy:", finErr);
+              }
+            }
+
+            const senderPaidExtra = senderMember && (
+              senderMember.extraPaid > 0.01 ||
+              senderMember.willReceive > 0.01 ||
+              (senderMember.receivesFrom && senderMember.receivesFrom.length > 0)
+            );
+
+            if (senderMember && senderPaidExtra) {
+              // SENDER IS A CREDITOR WHO PAID EXTRA:
+              // Generate the comprehensive Receiver Reminder format with ALL debtors from whom they will receive,
+              // all individual amounts, and the accurate total amount.
+              const debtorsList: ReceiverPayerItem[] = (senderMember.receivesFrom || []).map((rf) => ({
+                name: rf.name,
+                amount: rf.amount,
+                status: "Pending",
+                paymentMethod: "QR / Manual",
+                phone: rf.phone,
+                email: rf.email,
+                userId: rf.userId,
+                contactId: rf.contactId,
+              }));
+
+              const totalPendingToReceive = debtorsList.length > 0
+                ? debtorsList.reduce((sum, d) => sum + d.amount, 0)
+                : (senderMember.willReceive || senderMember.extraPaid || 0);
+
+              const receiverCopyParams: RichReceiverReminderParams = {
+                receiverName: senderMember.name || user.name || "Member",
+                groupName: targetGroup?.name || "Shared Expenses",
+                amountPaid: senderMember.totalPaid,
+                ownShare: senderMember.ownShare,
+                extraPaid: senderMember.extraPaid,
+                pendingAmount: totalPendingToReceive,
+                currency: data.currency || "INR",
+                appUrl,
+                groupLink: appUrl,
+                dashboardLink: `${getBaseAppUrl()}/dashboard`,
+                settlementLink: `${appUrl}/settlements`,
+                customMessage: data.message,
+                payers: debtorsList.length > 0 ? debtorsList : undefined,
+                subject: `[SplitLedger] ${targetGroup?.name || "Shared Expenses"}: Settlement awaiting payment from members (Your Copy)`,
+              };
+
+              const receiverCopy = getRichReceiverReminderHtml(receiverCopyParams);
+              const copyRes = await sendEmailWithStatus(
+                senderEmail,
+                receiverCopy.subject,
+                receiverCopy.html,
+                receiverCopy.text
+              );
+
+              if (targetGroupId) {
+                try {
+                  await db.insert(settlementEmailLogs).values({
+                    publicId: generatePublicId("semlog"),
+                    groupId: targetGroupId,
+                    recipientUserId: user.id,
+                    recipientName: senderMember.name || user.name || "Creditor",
+                    recipientEmail: senderEmail,
+                    recipientType: "creditor",
+                    subject: receiverCopy.subject,
+                    amountDue: Math.round(totalPendingToReceive * 100),
+                    currency: data.currency || "INR",
+                    reminderCount: 1,
+                    status: copyRes.success ? "delivered" : "failed",
+                    failureReason: copyRes.success ? null : (copyRes.error || "Receiver copy dispatch failed"),
+                    metadata: {
+                      triggeredByUserId: user.id,
+                      triggeredByUserName: user.name,
+                      provider: copyRes.provider || "smtp",
+                      isSandboxRestriction: copyRes.isSandboxRestriction,
+                      isSenderCopy: true,
+                      copyRole: "receiver",
+                      debtorsCount: debtorsList.length,
+                    },
+                  });
+                } catch (copyLogErr) {
+                  console.warn("Non-fatal: Failed to log receiver copy email:", copyLogErr);
+                }
+              }
+            } else {
+              // Sender is not a creditor: send standard confirmation copy
+              const copySubject = `[Copy] ${subject}`;
+              const copyRes = await sendEmailWithStatus(senderEmail, copySubject, html, text);
+
+              if (targetGroupId) {
+                try {
+                  await db.insert(settlementEmailLogs).values({
+                    publicId: generatePublicId("semlog"),
+                    groupId: targetGroupId,
+                    recipientUserId: user.id,
+                    recipientName: user.name || "Member",
+                    recipientEmail: senderEmail,
+                    recipientType: isReceiverFlow ? "creditor" : "debtor",
+                    subject: copySubject,
+                    amountDue: data.amount ? Math.round(data.amount * 100) : 0,
+                    currency: data.currency || "INR",
+                    reminderCount: 1,
+                    status: copyRes.success ? "delivered" : "failed",
+                    failureReason: copyRes.success ? null : (copyRes.error || "Copy dispatch failed"),
+                    metadata: {
+                      triggeredByUserId: user.id,
+                      triggeredByUserName: user.name,
+                      provider: copyRes.provider || "smtp",
+                      isSandboxRestriction: copyRes.isSandboxRestriction,
+                      isSenderCopy: true,
+                    },
+                  });
+                } catch (copyLogErr) {
+                  console.warn("Non-fatal: Failed to log sender copy email:", copyLogErr);
+                }
+              }
+            }
+          } catch (copyErr) {
+            console.error("Non-fatal: Failed to send copy to sender:", copyErr);
           }
         }
 
