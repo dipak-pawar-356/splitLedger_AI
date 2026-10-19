@@ -149,38 +149,55 @@ export function ReminderDialog({
 
       // Direct Receiver Reminder flow: addressed to the person who receives money
       if (reminderRole === "receiver" || (debtorsList && debtorsList.length === 0)) {
-        const payerNames = owesToList && owesToList.length > 0
-          ? owesToList.map(c => c.name).join(", ")
-          : receivesFromList && receivesFromList.length > 0
-          ? receivesFromList.map(r => r.name).join(", ")
-          : "Group members";
+        const payers = (receivesFromList && receivesFromList.length > 0)
+          ? receivesFromList
+          : owesToList && owesToList.length > 0
+          ? owesToList
+          : [{ name: "Group members", amount: amountVal > 0 ? amountVal : extraAmtVal }];
+        
         const pendingAmt = formatCurrency(amountVal > 0 ? amountVal : extraAmtVal);
+        const payersListFormatted = payers.map(p => `▫️ *${p.name}:* *${formatCurrency(p.amount)}* (Pending • QR / Manual)`).join("\n");
+        const totalPendingFormatted = formatCurrency(payers.reduce((sum, p) => sum + p.amount, 0) || (amountVal > 0 ? amountVal : extraAmtVal));
 
         return `${headerRow}
-⚡ *SPLITLEDGER AI — RECEIVABLE NOTICE*
+⚡ *SPLITLEDGER AI — SETTLEMENT AWAITING PAYMENT*
 ${divider}
 👋 Hi *${nameVal}*,
 
-Thank you for contributing toward the expenses in *${effectiveGroupName}*.
-Based on current expense calculations, you have paid more than your own share.
+Thank you for contributing toward your group's expenses.
+According to the latest verified settlement calculations, you paid more than your own share to cover expenses on behalf of other group members in *${effectiveGroupName}*.
 
-📊 *FINANCIAL SUMMARY:*
+📊 *YOUR CONTRIBUTION SUMMARY:*
 ▫️ *Group:* ${effectiveGroupName}
 ▫️ *Your Total Contribution:* *${formattedPaid || pendingAmt}*
-▫️ *Your Actual Share:* *${formattedAvgShare || "—"}*
+▫️ *Your Own Expense Share:* *${formattedAvgShare || "—"}*
 ▫️ *Amount You Paid Extra:* *+${formattedExtra}*
-▫️ *Pending From:* *${payerNames}*
-▫️ *Outstanding Amount:* *${pendingAmt}*
-▫️ *Current Status:* ⏳ *Waiting for Payment*
+▫️ *Current Status:* ⏳ *Waiting for reimbursement*
 ${divider}
 
-Once *${payerNames}* completes the settlement, your group balances will automatically update.
-If needed, you may politely remind *${payerNames}* to complete the payment.
+👥 *WHO NEEDS TO PAY YOU:*
+${payersListFormatted}
+${divider}
+💰 *Total Pending To Receive:* *${totalPendingFormatted}*
+⏳ *Status:* *Waiting for Member Payments*
 
-👉 *View Settlement:* ${appUrl}
+ℹ️ *IMPORTANT INFORMATION:*
+• The above members are requested to complete their pending settlement at the earliest.
+• Once payment is completed using SplitLedger AI QR Code or Manual Settlement, your group balance will automatically update.
+• If payment is completed outside SplitLedger AI, kindly request the payer(s) to mark the settlement as completed so your ledger remains accurate.
+
+🤝 You may politely remind the members listed above to complete their pending payment.
+
+✨ *WHAT HAPPENS AFTER PAYMENT?*
+Once every pending member completes their settlement:
+• Your outstanding receivable will automatically become *₹0.00*
+• Your member card will change from *Waiting for Payment* to *Settlement Completed*
+• Your group balances will automatically recalculate.
+
+👉 *View Settlement Details:* ${appUrl}/settlements
 👉 *View Group:* ${appUrl}
 
-🤝 _This reminder was generated automatically using the latest verified ledger calculations inside SplitLedger AI._`;
+🤝 _Generated automatically using verified ledger records inside SplitLedger AI._`;
       }
 
       // Subcase 1A: Multiple debtors selected (e.g. DIPAK PAWAR & Rahul)
@@ -577,6 +594,17 @@ ${divider}
         ? receivesFromList.map(r => r.name).join(", ")
         : undefined;
 
+      const debtorsList = receivesFromList && receivesFromList.length > 0
+        ? receivesFromList.map(r => ({
+            name: r.name,
+            amount: r.amount,
+            status: "Pending",
+            paymentMethod: "QR / Manual",
+            phone: r.phone,
+            email: r.email,
+          }))
+        : undefined;
+
       const res = await createReminder({
         recipientType: groupId ? "group" : "contact",
         recipientId: groupId || contactId || 0,
@@ -596,6 +624,7 @@ ${divider}
         sendCopyToMe,
         reminderRole: reminderRole || (memberNetPosition && memberNetPosition > 0.01 ? "receiver" : "payer"),
         payerName: payerNames,
+        debtorsList,
       });
 
       if (method === "whatsapp") {

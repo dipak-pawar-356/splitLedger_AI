@@ -53,6 +53,14 @@ export interface CreateReminderInput {
   sendCopyToMe?: boolean;
   reminderRole?: "payer" | "receiver";
   payerName?: string;
+  debtorsList?: Array<{
+    name: string;
+    amount: number;
+    status?: string;
+    paymentMethod?: string;
+    phone?: string;
+    email?: string;
+  }>;
 }
 
 export interface UpdateReminderInput {
@@ -349,6 +357,7 @@ export async function createReminder(data: CreateReminderInput) {
             dashboardLink: `${getBaseAppUrl()}/dashboard`,
             settlementLink: `${appUrl}/settlements`,
             customMessage: data.message,
+            payers: data.debtorsList && data.debtorsList.length > 0 ? data.debtorsList : undefined,
           };
           const generated = getRichReceiverReminderHtml(receiverParams);
           subject = generated.subject;

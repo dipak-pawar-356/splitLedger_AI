@@ -626,14 +626,24 @@ ${params.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt
   return { subject, html, text };
 }
 
+export interface ReceiverPayerItem {
+  name: string;
+  amount: number;
+  status?: string;
+  paymentMethod?: string;
+  phone?: string;
+  email?: string;
+  userId?: number;
+  contactId?: number;
+}
+
 export interface RichReceiverReminderParams {
   receiverName: string;
-  payerName: string;
   groupName: string;
-  amountPaid: number;
-  ownShare: number;
-  extraPaid: number;
-  pendingAmount: number;
+  amountPaid?: number;
+  ownShare?: number;
+  extraPaid?: number;
+  pendingAmount?: number;
   currency?: string;
   subject?: string;
   appUrl?: string;
@@ -641,6 +651,9 @@ export interface RichReceiverReminderParams {
   dashboardLink?: string;
   settlementLink?: string;
   customMessage?: string;
+  payerName?: string;
+  payers?: ReceiverPayerItem[];
+  status?: string;
 }
 
 /**
@@ -648,17 +661,17 @@ export interface RichReceiverReminderParams {
  * Designed without raw currency signs or aggressive debt collection words to prevent spam filtering.
  */
 export const RECEIVER_REMINDER_SUBJECT_OPTIONS = [
-  (group: string, payer: string) => `[SplitLedger] ${group}: Balance update with ${payer}`,
-  (group: string) => `[SplitLedger] Summary of pending balances for ${group}`,
-  (group: string, payer: string) => `${group}: Outstanding receivable from ${payer}`,
-  (group: string) => `SplitLedger update: Your ledger balance for ${group}`,
-  (group: string) => `Pending settlement update for ${group}`,
+  (group: string) => `[SplitLedger] ${group}: Settlement awaiting payment from members`,
+  (group: string) => `[SplitLedger] ${group}: Members need to reimburse you`,
+  (group: string) => `[SplitLedger] Summary of pending reimbursements for ${group}`,
+  (group: string, payer?: string) => payer ? `[SplitLedger] ${group}: Outstanding settlement waiting from ${payer}` : `[SplitLedger] ${group}: Outstanding settlement waiting`,
+  (group: string) => `SplitLedger update: Your verified ledger balance for ${group}`,
 ];
 
 /**
- * Generates the production-ready Receiver Reminder template.
- * Informs the creditor that another member still owes them money without ever asking them to pay.
- * Optimized for primary inbox deliverability (RFC 8058 compliant, anti-phishing verified).
+ * Generates the redesigned production-ready Receiver Reminder template.
+ * Informs the creditor that they contributed more than their share and details who needs to reimburse them.
+ * Structured with high-trust FinTech aesthetics, responsive layout, and anti-spam deliverability.
  */
 export function getRichReceiverReminderHtml(params: RichReceiverReminderParams) {
   const currencySymbol = params.currency === "USD" ? "$" : params.currency === "EUR" ? "€" : "₹";
@@ -667,42 +680,69 @@ export function getRichReceiverReminderHtml(params: RichReceiverReminderParams) 
     return `${currencySymbol}${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  // Resolve payers list
+  let resolvedPayers: ReceiverPayerItem[] = [];
+  if (params.payers && params.payers.length > 0) {
+    resolvedPayers = params.payers;
+  } else if (params.payerName) {
+    // If multiple comma-separated names were passed
+    const splitNames = params.payerName.split(/[,&]/).map(n => n.trim()).filter(Boolean);
+    if (splitNames.length > 1) {
+      const perPayerAmt = (params.pendingAmount || 0) / splitNames.length;
+      resolvedPayers = splitNames.map(name => ({
+        name,
+        amount: perPayerAmt,
+        status: "Pending",
+        paymentMethod: "QR / Manual",
+      }));
+    } else {
+      resolvedPayers = [{
+        name: params.payerName,
+        amount: params.pendingAmount || params.extraPaid || 0,
+        status: "Pending",
+        paymentMethod: "QR / Manual",
+      }];
+    }
+  } else {
+    resolvedPayers = [{
+      name: "Group Members",
+      amount: params.pendingAmount || params.extraPaid || 0,
+      status: "Pending",
+      paymentMethod: "QR / Manual",
+    }];
+  }
+
+  const totalPending = resolvedPayers.length > 0
+    ? resolvedPayers.reduce((sum, p) => sum + (p.amount || 0), 0)
+    : (params.pendingAmount || params.extraPaid || 0);
+
+  const totalContribution = params.amountPaid || 0;
+  const ownShare = params.ownShare || 0;
+  const extraPaid = params.extraPaid !== undefined
+    ? params.extraPaid
+    : Math.max(0, totalContribution - ownShare);
+
+  const primaryPayerDisplay = resolvedPayers.length === 1
+    ? resolvedPayers[0].name
+    : resolvedPayers.map(p => p.name).join(", ");
+
   // Inbox-safe subject line (avoids spam filters triggered by raw currency symbols and demanding phrases)
-  const subject = params.subject || `[SplitLedger] ${params.groupName}: Balance update with ${params.payerName}`;
+  const subject = params.subject || `[SplitLedger] ${params.groupName}: Settlement awaiting payment from members`;
 
   const appBase = params.appUrl || "https://split-ledger-ai.vercel.app";
   const groupUrl = params.groupLink || `${appBase}/dashboard/groups`;
   const settlementUrl = params.settlementLink || `${groupUrl}/settlements`;
   const dashboardUrl = params.dashboardLink || `${appBase}/dashboard`;
 
-  const text = `Hi ${params.receiverName},
-
-Thank you for contributing toward the expenses in your group.
-
-Based on the current expense calculations, you have paid more than your own share.
-
-Summary
---------------------------------------------------
-Group:                   ${params.groupName}
-Your Total Contribution: ${formatAmt(params.amountPaid)}
-Your Actual Share:       ${formatAmt(params.ownShare)}
-Amount You Paid Extra:   ${formatAmt(params.extraPaid)}
-Pending From:            ${params.payerName}
-Outstanding Amount:      ${formatAmt(params.pendingAmount)}
-Current Status:          Waiting for Payment
---------------------------------------------------
-
-Once ${params.payerName} completes the settlement, your group balances will automatically update.
-If needed, you may politely remind ${params.payerName} to complete the payment.
-
-View Settlement: ${settlementUrl}
-View Group:      ${groupUrl}
-Open Dashboard:  ${dashboardUrl}
-
---
-This reminder was generated automatically using verified ledger calculations inside SplitLedger AI.
-You received this notification as a member of "${params.groupName}".
-Manage your notification preferences: ${dashboardUrl}/settings`;
+  const text = getReceiverPlainTextMessage({
+    ...params,
+    payers: resolvedPayers,
+    pendingAmount: totalPending,
+    amountPaid: totalContribution,
+    ownShare,
+    extraPaid,
+    payerName: primaryPayerDisplay,
+  });
 
   const html = `
 <!DOCTYPE html>
@@ -710,25 +750,27 @@ Manage your notification preferences: ${dashboardUrl}/settings`;
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
   <title>${subject}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; color: #1e293b;">
-  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 40px 16px;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f1f5f9; padding: 36px 16px;">
     <tr>
       <td align="center">
         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; background-color: #ffffff; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
           
-          <!-- Header Banner -->
+          <!-- PROFESSIONAL GREEN HEADER -->
           <tr>
-            <td style="background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%); padding: 36px 32px; text-align: left; border-bottom: 2px solid #10b981;">
+            <td style="background: linear-gradient(135deg, #064e3b 0%, #065f46 50%, #047857 100%); padding: 34px 32px; text-align: left; border-bottom: 2px solid #10b981;">
               <table width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
                   <td>
-                    <span style="display: inline-block; background-color: rgba(16, 185, 129, 0.2); color: #a7f3d0; font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; border-radius: 9999px; border: 1px solid rgba(167, 243, 208, 0.3);">
-                      ✨ SplitLedger AI • Receivable Notice
+                    <span style="display: inline-block; background-color: rgba(16, 185, 129, 0.2); color: #a7f3d0; font-size: 11px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; padding: 5px 12px; border-radius: 9999px; border: 1px solid rgba(167, 243, 208, 0.35);">
+                      ✨ SplitLedger AI &bull; Settlement Awaiting Payment
                     </span>
-                    <h1 style="color: #ffffff; margin: 14px 0 6px 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">
-                      Outstanding Receivable Update
+                    <h1 style="color: #ffffff; margin: 14px 0 6px 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.3;">
+                      Settlement Awaiting Payment
                     </h1>
                     <p style="color: #d1fae5; margin: 0; font-size: 13px;">
                       Group: <strong style="color: #ffffff;">${params.groupName}</strong>
@@ -739,83 +781,163 @@ Manage your notification preferences: ${dashboardUrl}/settings`;
             </td>
           </tr>
 
-          <!-- Main Content Body -->
+          <!-- MAIN CONTENT BODY -->
           <tr>
             <td style="padding: 32px 32px 24px 32px;">
-              <p style="font-size: 15px; color: #334155; margin: 0 0 12px 0; line-height: 1.6;">
+              
+              <!-- INTRODUCTION -->
+              <p style="font-size: 15px; color: #1e293b; margin: 0 0 12px 0; line-height: 1.6;">
                 Hi <strong>${params.receiverName}</strong>,
               </p>
-              <p style="font-size: 14px; color: #475569; margin: 0 0 16px 0; line-height: 1.6;">
-                Thank you for contributing toward the expenses in your group.
+              <p style="font-size: 14px; color: #475569; margin: 0 0 12px 0; line-height: 1.6;">
+                Thank you for contributing toward your group&rsquo;s expenses.
+              </p>
+              <p style="font-size: 14px; color: #475569; margin: 0 0 12px 0; line-height: 1.6;">
+                According to the latest verified settlement calculations, you paid more than your own share to cover expenses on behalf of other group members.
               </p>
               <p style="font-size: 14px; color: #475569; margin: 0 0 24px 0; line-height: 1.6;">
-                Based on the current expense calculations, you have paid more than your own share.
+                The following members still need to reimburse you.
               </p>
 
-              <!-- Outstanding Receivable Tile -->
-              <div style="margin: 0 0 24px 0; padding: 20px 24px; background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 16px; border: 1px solid #a7f3d0; text-align: center;">
-                <span style="font-size: 11px; color: #065f46; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; display: block;">
-                  Awaiting Payment From ${params.payerName}
-                </span>
-                <div style="font-size: 32px; font-weight: 900; color: #047857; margin-top: 6px; font-family: monospace;">
-                  ${formatAmt(params.pendingAmount)}
-                </div>
-                <span style="display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 700; color: #065f46; background-color: #ffffff; padding: 3px 10px; border-radius: 9999px; border: 1px solid #6ee7b7;">
-                  ⏳ Current Status: Waiting for Payment
-                </span>
+              <!-- NEW GREEN STATUS CARD -->
+              <div style="margin: 0 0 24px 0; padding: 22px 24px; background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 18px; border: 1.5px solid #a7f3d0; text-align: left;">
+                <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td>
+                      <span style="font-size: 11px; color: #065f46; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; display: block;">
+                        Outstanding Settlement
+                      </span>
+                      <div style="font-size: 32px; font-weight: 900; color: #047857; margin: 6px 0 14px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                        ${formatAmt(totalPending)}
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="border-top: 1px dashed rgba(5, 150, 105, 0.3); padding-top: 14px; padding-bottom: 12px;">
+                      <span style="font-size: 11px; color: #065f46; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 8px;">
+                        Waiting From
+                      </span>
+                      <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                        ${resolvedPayers.map(p => `
+                          <tr>
+                            <td style="padding: 4px 0; font-size: 13.5px; font-weight: 700; color: #064e3b;">
+                              &bull; ${p.name}
+                            </td>
+                            <td align="right" style="padding: 4px 0; font-size: 13.5px; font-weight: 800; color: #047857; font-family: monospace;">
+                              ${formatAmt(p.amount)}
+                            </td>
+                          </tr>
+                        `).join("")}
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="border-top: 1px solid rgba(5, 150, 105, 0.2); padding-top: 12px;">
+                      <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                        <tr>
+                          <td>
+                            <span style="display: inline-block; font-size: 11px; font-weight: 800; color: #065f46; background-color: #ffffff; padding: 4px 12px; border-radius: 9999px; border: 1px solid #6ee7b7;">
+                              ⏳ Status: Waiting for Member Payments
+                            </span>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
               </div>
 
-              <!-- Transparent Ledger Breakdown Table -->
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; margin-bottom: 24px; font-size: 13px;">
-                <tr style="border-bottom: 1px solid #e2e8f0; background-color: #f1f5f9;">
-                  <td colspan="2" style="padding: 12px 16px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #475569;">
-                    📊 Financial Summary
+              <!-- YOUR CONTRIBUTION SUMMARY -->
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; margin-bottom: 24px; font-size: 13px;">
+                <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                  <td colspan="2" style="padding: 12px 18px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #475569;">
+                    📊 Your Contribution Summary
                   </td>
                 </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 12px 16px; color: #64748b; font-weight: 500;">Group</td>
-                  <td align="right" style="padding: 12px 16px; color: #0f172a; font-weight: 700;">${params.groupName}</td>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 12px 18px; color: #64748b; font-weight: 500;">Your Total Contribution</td>
+                  <td align="right" style="padding: 12px 18px; color: #0f172a; font-weight: 700; font-family: monospace;">${formatAmt(totalContribution)}</td>
                 </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 12px 16px; color: #64748b; font-weight: 500;">Your Total Contribution</td>
-                  <td align="right" style="padding: 12px 16px; color: #0f172a; font-weight: 700; font-family: monospace;">${formatAmt(params.amountPaid)}</td>
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 12px 18px; color: #64748b; font-weight: 500;">Your Own Expense Share</td>
+                  <td align="right" style="padding: 12px 18px; color: #0f172a; font-weight: 700; font-family: monospace;">${formatAmt(ownShare)}</td>
                 </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 12px 16px; color: #64748b; font-weight: 500;">Your Actual Share</td>
-                  <td align="right" style="padding: 12px 16px; color: #0f172a; font-weight: 700; font-family: monospace;">${formatAmt(params.ownShare)}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0; background-color: #f0fdf4;">
-                  <td style="padding: 12px 16px; color: #065f46; font-weight: 600;">Amount You Paid Extra</td>
-                  <td align="right" style="padding: 12px 16px; color: #047857; font-weight: 800; font-family: monospace;">+${formatAmt(params.extraPaid)}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 12px 16px; color: #64748b; font-weight: 500;">Pending From</td>
-                  <td align="right" style="padding: 12px 16px; color: #0f172a; font-weight: 700;">${params.payerName}</td>
-                </tr>
-                <tr style="border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 12px 16px; color: #64748b; font-weight: 500;">Outstanding Amount</td>
-                  <td align="right" style="padding: 12px 16px; color: #047857; font-weight: 800; font-family: monospace;">${formatAmt(params.pendingAmount)}</td>
+                <tr style="border-bottom: 1px solid #f1f5f9; background-color: #f0fdf4;">
+                  <td style="padding: 12px 18px; color: #065f46; font-weight: 700;">Amount You Paid Extra</td>
+                  <td align="right" style="padding: 12px 18px; color: #047857; font-weight: 900; font-family: monospace;">+${formatAmt(extraPaid)}</td>
                 </tr>
                 <tr>
-                  <td style="padding: 12px 16px; color: #64748b; font-weight: 500;">Current Status</td>
-                  <td align="right" style="padding: 12px 16px; color: #b45309; font-weight: 700;">Waiting for Payment</td>
+                  <td style="padding: 12px 18px; color: #64748b; font-weight: 500;">Current Status</td>
+                  <td align="right" style="padding: 12px 18px; color: #059669; font-weight: 700;">
+                    Waiting for reimbursement
+                  </td>
                 </tr>
               </table>
 
-              <!-- Automatic Update Explanation -->
-              <p style="font-size: 13px; color: #475569; margin: 0 0 12px 0; line-height: 1.6;">
-                Once <strong>${params.payerName}</strong> completes the settlement, your group balances will automatically update.
-              </p>
-              <p style="font-size: 13px; color: #475569; margin: 0 0 28px 0; line-height: 1.6;">
-                If needed, you may politely remind ${params.payerName} to complete the payment.
+              <!-- WHO NEEDS TO PAY YOU (TABLE) -->
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; margin-bottom: 24px; font-size: 13px;">
+                <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                  <td colspan="4" style="padding: 12px 18px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #475569;">
+                    👥 Who Needs To Pay You
+                  </td>
+                </tr>
+                <tr style="background-color: #f1f5f9; border-bottom: 1px solid #e2e8f0; font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase;">
+                  <th align="left" style="padding: 10px 14px;">Member Name</th>
+                  <th align="right" style="padding: 10px 14px;">Outstanding Amount</th>
+                  <th align="center" style="padding: 10px 14px;">Status</th>
+                  <th align="right" style="padding: 10px 14px;">Payment Method</th>
+                </tr>
+                ${resolvedPayers.map(p => `
+                  <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 12px 14px; font-weight: 700; color: #0f172a;">${p.name}</td>
+                    <td align="right" style="padding: 12px 14px; font-weight: 800; color: #047857; font-family: monospace;">${formatAmt(p.amount)}</td>
+                    <td align="center" style="padding: 12px 14px;">
+                      <span style="display: inline-block; font-size: 10.5px; font-weight: 700; color: #b45309; background-color: #fef3c7; padding: 2px 8px; border-radius: 6px; border: 1px solid #fde68a;">
+                        ${p.status || "Pending"}
+                      </span>
+                    </td>
+                    <td align="right" style="padding: 12px 14px; color: #64748b; font-size: 12px; font-weight: 600;">
+                      ${p.paymentMethod || "QR / Manual"}
+                    </td>
+                  </tr>
+                `).join("")}
+                <tr style="background-color: #f0fdf4; border-top: 2px solid #a7f3d0;">
+                  <td colspan="2" style="padding: 14px 18px; font-size: 13px; font-weight: 800; color: #064e3b;">
+                    Total Pending To Receive
+                  </td>
+                  <td colspan="2" align="right" style="padding: 14px 18px; font-size: 16px; font-weight: 900; color: #047857; font-family: monospace;">
+                    ${formatAmt(totalPending)}
+                  </td>
+                </tr>
+              </table>
+
+              <!-- IMPORTANT MESSAGE -->
+              <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #10b981; border-radius: 14px; padding: 18px 20px; margin-bottom: 22px;">
+                <p style="margin: 0 0 10px 0; font-size: 13.5px; font-weight: 800; color: #064e3b;">
+                  ℹ️ Important Settlement Information
+                </p>
+                <p style="margin: 0 0 8px 0; font-size: 13px; color: #166534; line-height: 1.6;">
+                  The above members are requested to complete their pending settlement at the earliest.
+                </p>
+                <p style="margin: 0 0 8px 0; font-size: 13px; color: #166534; line-height: 1.6;">
+                  Once payment is completed using SplitLedger AI QR Code or Manual Settlement, your group balance will automatically update.
+                </p>
+                <p style="margin: 0; font-size: 13px; color: #166534; line-height: 1.6;">
+                  If payment is completed outside SplitLedger AI, kindly request the payer(s) to mark the settlement as completed so your ledger remains accurate.
+                </p>
+              </div>
+
+              <!-- REQUEST MESSAGE -->
+              <p style="font-size: 13.5px; color: #475569; margin: 0 0 24px 0; line-height: 1.6;">
+                You may politely remind the members listed above to complete their pending payment. This helps keep everyone&rsquo;s balances accurate and ensures the group&rsquo;s financial records remain synchronized.
               </p>
 
-              <!-- Action Buttons (3 Buttons) -->
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 0 0 16px 0;">
+              <!-- ACTION BUTTONS -->
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 0 0 24px 0;">
                 <tr>
                   <td align="center" style="padding-bottom: 12px;">
                     <a href="${settlementUrl}" target="_blank" style="display: inline-block; width: 100%; box-sizing: border-box; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 24px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);">
-                      View Settlement ➔
+                      View Settlement Details &rarr;
                     </a>
                   </td>
                 </tr>
@@ -839,17 +961,36 @@ Manage your notification preferences: ${dashboardUrl}/settings`;
                   </td>
                 </tr>
               </table>
+
+              <!-- AFTER PAYMENT INFORMATION CARD -->
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 12px;">
+                <p style="margin: 0 0 8px 0; font-size: 13px; font-weight: 800; color: #0f172a;">
+                  ✨ What Happens After Payment?
+                </p>
+                <p style="margin: 0 0 8px 0; font-size: 13px; color: #475569; line-height: 1.6;">
+                  Once every pending member completes their settlement:
+                </p>
+                <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #334155; line-height: 1.7;">
+                  <li>Your outstanding receivable will automatically become <strong>${currencySymbol}0.00</strong>.</li>
+                  <li>Your member card will change from <span style="background-color: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 12px;">Waiting for Payment</span> to <span style="background-color: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 12px;">Settlement Completed</span>.</li>
+                  <li>Your group balances will automatically recalculate.</li>
+                </ul>
+              </div>
+
             </td>
           </tr>
 
-          <!-- Footer with anti-spam compliance -->
+          <!-- FOOTER -->
           <tr>
             <td style="background-color: #f8fafc; padding: 24px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
-              <p style="font-size: 12px; color: #64748b; margin: 0 0 6px 0; line-height: 1.5;">
-                This reminder was generated automatically using verified ledger calculations in SplitLedger AI.
+              <p style="font-size: 12px; color: #475569; margin: 0 0 6px 0; line-height: 1.5; font-weight: 600;">
+                Generated automatically by SplitLedger AI
               </p>
-              <p style="font-size: 11px; color: #94a3b8; margin: 0 0 8px 0; line-height: 1.5;">
-                You received this notification as a member of group &ldquo;${params.groupName}&rdquo;.
+              <p style="font-size: 11px; color: #64748b; margin: 0 0 6px 0; line-height: 1.5;">
+                Calculated using verified ledger records. This reminder is based on the latest settlement calculations.
+              </p>
+              <p style="font-size: 11px; color: #64748b; margin: 0 0 12px 0; line-height: 1.5;">
+                If payment has already been completed, please ask the payer(s) to complete the settlement inside SplitLedger AI to keep the group&rsquo;s financial records synchronized.
               </p>
               <p style="font-size: 11px; color: #94a3b8; margin: 0;">
                 <a href="${dashboardUrl}" style="color: #64748b; text-decoration: underline;">Dashboard</a> &bull;
@@ -881,32 +1022,76 @@ export function getReceiverPlainTextMessage(params: RichReceiverReminderParams):
   const settlementUrl = params.settlementLink || `${groupUrl}/settlements`;
   const dashboardUrl = params.dashboardLink || `${appBase}/dashboard`;
 
+  const payers = (params.payers && params.payers.length > 0)
+    ? params.payers
+    : [{
+        name: params.payerName || "A group member",
+        amount: params.pendingAmount || 0,
+        status: "Pending",
+        paymentMethod: "QR / Manual",
+      }];
+
+  const totalPending = params.payers && params.payers.length > 0
+    ? params.payers.reduce((sum, p) => sum + (p.amount || 0), 0)
+    : (params.pendingAmount || 0);
+
+  const payersWaitingLines = payers.map(p => `  • ${p.name}: ${formatAmt(p.amount)}`).join("\n");
+  const payersTableLines = payers.map(p => `  ${p.name.padEnd(20)} | ${formatAmt(p.amount).padEnd(16)} | ${(p.status || "Pending").padEnd(10)} | ${p.paymentMethod || "QR / Manual"}`).join("\n");
+
   return `Hi ${params.receiverName},
 
-Thank you for contributing toward the expenses in your group.
+Thank you for contributing toward your group's expenses.
 
-Based on the current expense calculations, you have paid more than your own share.
+According to the latest verified settlement calculations, you paid more than your own share to cover expenses on behalf of other group members.
 
-Summary
+The following members still need to reimburse you.
+
+YOUR CONTRIBUTION SUMMARY
 --------------------------------------------------
-Group:                   ${params.groupName}
 Your Total Contribution: ${formatAmt(params.amountPaid)}
-Your Actual Share:       ${formatAmt(params.ownShare)}
-Amount You Paid Extra:   ${formatAmt(params.extraPaid)}
-Pending From:            ${params.payerName}
-Outstanding Amount:      ${formatAmt(params.pendingAmount)}
-Current Status:          Waiting for Payment
+Your Own Expense Share:  ${formatAmt(params.ownShare)}
+Amount You Paid Extra:   +${formatAmt(params.extraPaid)}
+Current Status:          Waiting for reimbursement
 --------------------------------------------------
 
-Once ${params.payerName} completes the settlement, your group balances will automatically update.
-If needed, you may politely remind ${params.payerName} to complete the payment.
+OUTSTANDING SETTLEMENT
+--------------------------------------------------
+Total Pending To Receive: ${formatAmt(totalPending)}
+Waiting From:
+${payersWaitingLines}
+Status: Waiting for Member Payments
+--------------------------------------------------
 
-View Settlement: ${settlementUrl}
-View Group:      ${groupUrl}
-Open Dashboard:  ${dashboardUrl}
+WHO NEEDS TO PAY YOU
+--------------------------------------------------
+Member Name          | Outstanding Amt  | Status     | Payment Method
+--------------------------------------------------
+${payersTableLines}
+--------------------------------------------------
+Total Pending To Receive: ${formatAmt(totalPending)}
+
+IMPORTANT SETTLEMENT INFORMATION:
+The above members are requested to complete their pending settlement at the earliest.
+Once payment is completed using SplitLedger AI QR Code or Manual Settlement, your group balance will automatically update.
+If payment is completed outside SplitLedger AI, kindly request the payer(s) to mark the settlement as completed so your ledger remains accurate.
+
+You may politely remind the members listed above to complete their pending payment. This helps keep everyone's balances accurate and ensures the group's financial records remain synchronized.
+
+ACTIONS:
+• View Settlement Details: ${settlementUrl}
+• View Group:              ${groupUrl}
+• Open Dashboard:          ${dashboardUrl}
+
+WHAT HAPPENS AFTER PAYMENT?
+Once every pending member completes their settlement:
+• Your outstanding receivable will automatically become ${currencySymbol}0.00
+• Your member card will change from "Waiting for Payment" to "Settlement Completed"
+• Your group balances will automatically recalculate.
 
 --
-This reminder was generated automatically using the latest verified ledger calculations inside SplitLedger AI.`;
+Generated automatically by SplitLedger AI
+Calculated using verified ledger records. This reminder is based on the latest settlement calculations.
+If payment has already been completed, please ask the payer(s) to complete the settlement inside SplitLedger AI to keep the group's financial records synchronized.`;
 }
 
 export function getReceiverSmsMessage(params: RichReceiverReminderParams): string {
@@ -915,7 +1100,9 @@ export function getReceiverSmsMessage(params: RichReceiverReminderParams): strin
     if (val === undefined || val === null || isNaN(val)) return "—";
     return `${currencySymbol}${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
-  return `Hi ${params.receiverName}, You paid ${formatAmt(params.amountPaid)} while your actual share was ${formatAmt(params.ownShare)}. ${params.payerName} still needs to settle ${formatAmt(params.pendingAmount)} with you. Open SplitLedger AI to track the payment.`;
+  const total = params.pendingAmount || params.extraPaid || 0;
+  const payerText = params.payerName ? `from ${params.payerName}` : "from group members";
+  return `Hi ${params.receiverName}, you paid ${formatAmt(params.amountPaid)} (extra ${formatAmt(params.extraPaid)}). Outstanding settlement of ${formatAmt(total)} is waiting ${payerText} in ${params.groupName}. Check SplitLedger AI for details.`;
 }
 
 export function getReceiverWhatsAppMessage(params: RichReceiverReminderParams): string {
@@ -927,29 +1114,49 @@ export function getReceiverWhatsAppMessage(params: RichReceiverReminderParams): 
   const appBase = params.appUrl || "https://split-ledger-ai.vercel.app";
   const settlementUrl = params.settlementLink || `${appBase}/dashboard/groups`;
 
+  const payers = (params.payers && params.payers.length > 0)
+    ? params.payers
+    : [{
+        name: params.payerName || "Group Members",
+        amount: params.pendingAmount || 0,
+        status: "Pending",
+        paymentMethod: "QR / Manual",
+      }];
+
+  const totalPending = params.payers && params.payers.length > 0
+    ? params.payers.reduce((sum, p) => sum + (p.amount || 0), 0)
+    : (params.pendingAmount || 0);
+
+  const payersLines = payers.map(p => `▫️ *${p.name}:* *${formatAmt(p.amount)}* (${p.status || "Pending"} • ${p.paymentMethod || "QR / Manual"})`).join("\n");
+
   return `✨ ═══════ 💰 ═══════ ✨
-⚡ *SPLITLEDGER AI — RECEIVABLE UPDATE*
+⚡ *SPLITLEDGER AI — SETTLEMENT AWAITING PAYMENT*
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 👋 Hi *${params.receiverName}*,
 
-Thank you for contributing toward the expenses in your group. Based on current expense calculations, you have paid more than your own share.
+Thank you for contributing toward your group's expenses.
+According to the latest verified settlement calculations, you paid more than your own share to cover expenses on behalf of other group members in *${params.groupName}*.
 
-📊 *LEDGER SUMMARY:*
-▫️ *Group:* ${params.groupName}
+📊 *YOUR CONTRIBUTION SUMMARY:*
 ▫️ *Your Total Contribution:* *${formatAmt(params.amountPaid)}*
-▫️ *Your Actual Share:* *${formatAmt(params.ownShare)}*
+▫️ *Your Own Expense Share:* *${formatAmt(params.ownShare)}*
 ▫️ *Amount You Paid Extra:* *+${formatAmt(params.extraPaid)}*
+▫️ *Current Status:* ⏳ *Waiting for reimbursement*
 ━━━━━━━━━━━━━━━━━━━━━━━━━
-💳 *PENDING RECEIVABLE:*
-▫️ *Pending From:* *${params.payerName}*
-▫️ *Outstanding Amount:* *${formatAmt(params.pendingAmount)}*
-▫️ *Current Status:* ⏳ *Waiting for Payment*
+👥 *WHO NEEDS TO PAY YOU:*
+${payersLines}
+━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *Total Pending To Receive:* *${formatAmt(totalPending)}*
+⏳ *Status:* *Waiting for Member Payments*
 
-Once *${params.payerName}* completes the settlement, your group balances will automatically update. If needed, you may politely remind them to complete the payment.
+ℹ️ *Important Information:*
+• Payer(s) can settle via instant UPI QR Code or Manual Settlement in SplitLedger AI.
+• If payment was completed outside the app, please request them to mark it as completed so your ledger updates.
+• Once all members complete payment, your receivable becomes *${currencySymbol}0.00*, your member card updates to *Settlement Completed*, and balances automatically recalculate.
 
-👉 *View Settlement:* ${settlementUrl}
+👉 *View Settlement Details:* ${settlementUrl}
 
-🤝 _Generated automatically using the latest verified ledger calculations inside SplitLedger AI._`;
+🤝 _Generated automatically using verified ledger records inside SplitLedger AI._`;
 }
 
 export function getReceiverInAppNotification(params: RichReceiverReminderParams): { title: string; message: string } {
@@ -958,9 +1165,11 @@ export function getReceiverInAppNotification(params: RichReceiverReminderParams)
     if (val === undefined || val === null || isNaN(val)) return "—";
     return `${currencySymbol}${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
+  const total = params.pendingAmount || params.extraPaid || 0;
+  const payerDisplay = params.payerName || "Group members";
   return {
-    title: `Waiting to Receive ${formatAmt(params.pendingAmount)}`,
-    message: `${params.payerName} still has a pending settlement with you in ${params.groupName}.`,
+    title: `Settlement Awaiting Payment: ${formatAmt(total)}`,
+    message: `${payerDisplay} still need(s) to reimburse you in ${params.groupName}.`,
   };
 }
 
@@ -970,9 +1179,11 @@ export function getReceiverPushNotification(params: RichReceiverReminderParams):
     if (val === undefined || val === null || isNaN(val)) return "—";
     return `${currencySymbol}${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
+  const total = params.pendingAmount || params.extraPaid || 0;
+  const payerDisplay = params.payerName || "Group members";
   return {
-    title: `Waiting to Receive ${formatAmt(params.pendingAmount)}`,
-    body: `${params.payerName} still needs to settle ${formatAmt(params.pendingAmount)} with you in ${params.groupName}. Tap to view.`,
+    title: `Settlement Awaiting Payment: ${formatAmt(total)}`,
+    body: `${payerDisplay} still owe(s) you reimbursement in ${params.groupName}. Tap to view settlement details.`,
   };
 }
 
