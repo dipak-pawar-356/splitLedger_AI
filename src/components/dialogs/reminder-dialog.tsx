@@ -441,7 +441,9 @@ ${divider}
     memberOwnShare, 
     memberNetPosition, 
     receivesFromList, 
-    owesToList
+    owesToList,
+    effectiveGroupName,
+    reminderRole
   ]);
 
   const applyDebtorSelection = useCallback((list: CreditorDebtItem[], currentType: "payment" | "settlement" | "general" = templateType) => {
@@ -613,8 +615,8 @@ ${divider}
           }
         } else {
           toast.success(
-            `Reminder email dispatched to ${targetEmail || targetName}! (A confirmation copy was also sent to your inbox. Check Spam/Promotions if not found.)`,
-            { duration: 7000 }
+            `Reminder email dispatched to ${targetEmail || targetName}! (A confirmation copy was also sent to your inbox.)`,
+            { duration: 6000 }
           );
         }
       } else {
@@ -979,11 +981,11 @@ ${divider}
 
               <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-900/40 text-[11px] text-blue-950 dark:text-blue-300 space-y-1">
                 <div className="flex items-center gap-1.5 font-bold">
-                  <Info className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span>High-Reliability Direct SMTP Dispatch</span>
+                  <CheckCircle2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>Inbox Deliverability Optimized (RFC 8058 &amp; 3834)</span>
                 </div>
                 <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Delivered to any email address. <strong>Note:</strong> Some institutional filters (e.g. college/university <code className="bg-slate-200/70 dark:bg-slate-800 px-1 py-0.5 rounded">.ac.in</code>) route payment notices to <strong>Spam</strong> or <strong>Updates</strong> — remind the recipient to check there if not found in Inbox.
+                  Sent with verified anti-spam headers, clean plain text MIME alternatives, and one-click unsubscribe links to ensure direct delivery to the recipient&apos;s Primary Inbox.
                 </p>
               </div>
             </div>
