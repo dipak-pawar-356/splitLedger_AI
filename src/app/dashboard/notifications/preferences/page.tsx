@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { requireAuth } from "@/lib/auth";
 import { getDetailedNotificationPreferences } from "@/actions/notifications";
 import { NotificationPreferencesClientView } from "@/components/notifications/preferences/notification-preferences-client-view";
@@ -48,11 +49,13 @@ export default async function NotificationPreferencesPage({
         </Link>
       </div>
 
-      <NotificationPreferencesClientView
-        preferences={preferences}
-        userEmail={user.email}
-        initialTab={activeTab}
-      />
+      <Suspense fallback={<div className="h-40 rounded-3xl bg-slate-100/50 dark:bg-slate-800/30 animate-pulse" />}>
+        <NotificationPreferencesClientView
+          preferences={preferences}
+          userEmail={user.email}
+          initialTab={activeTab}
+        />
+      </Suspense>
     </div>
   );
 }
