@@ -102,6 +102,11 @@ export function NotificationCenterDrawer({
       await markAllAsRead();
       setUnreadCount(0);
       if (onUnreadCountChange) onUnreadCountChange(0);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("notifications:updated", { detail: { count: 0 } })
+        );
+      }
       toast.success("All notifications marked as read");
       loadData();
     } catch (e) {

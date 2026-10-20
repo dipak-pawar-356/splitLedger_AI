@@ -19,7 +19,26 @@ export function NotificationBadgeBell({ initialCount = 0 }: NotificationBadgeBel
     loadCount();
     // Periodic refresh every 30 seconds for background sync
     const interval = setInterval(loadCount, 30000);
-    return () => clearInterval(interval);
+
+    const handleNotificationsUpdated = (e: Event) => {
+      const custom = e as CustomEvent<{ count?: number; unreadDelta?: number }>;
+      if (custom.detail?.count !== undefined) {
+        setUnreadCount(custom.detail.count);
+      } else if (custom.detail?.unreadDelta !== undefined) {
+        setUnreadCount((prev) => Math.max(0, prev + custom.detail.unreadDelta!));
+      } else {
+        loadCount();
+      }
+    };
+
+    window.addEventListener("notifications:updated", handleNotificationsUpdated);
+    window.addEventListener("splitledger:sync", loadCount);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("notifications:updated", handleNotificationsUpdated);
+      window.removeEventListener("splitledger:sync", loadCount);
+    };
   }, []);
 
   const loadCount = async () => {

@@ -82,9 +82,29 @@ export default function NotificationsPage() {
     loadData();
   }, [loadData]);
 
+  // Synchronize unread count in real-time across tabs and components
+  useEffect(() => {
+    const handleUpdated = (e: Event) => {
+      const custom = e as CustomEvent<{ count?: number; unreadDelta?: number }>;
+      if (custom.detail?.count !== undefined) {
+        setUnreadCount(custom.detail.count);
+      } else if (custom.detail?.unreadDelta !== undefined) {
+        setUnreadCount((prev) => Math.max(0, prev + custom.detail.unreadDelta!));
+      }
+    };
+    window.addEventListener("notifications:updated", handleUpdated);
+    return () => window.removeEventListener("notifications:updated", handleUpdated);
+  }, []);
+
   const handleMarkAllRead = async () => {
     try {
       await markAllAsRead();
+      setUnreadCount(0);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("notifications:updated", { detail: { count: 0 } })
+        );
+      }
       toast.success("All notifications marked as read");
       loadData();
     } catch (e) {
@@ -130,7 +150,7 @@ export default function NotificationsPage() {
               type="button"
               variant="outline"
               size="sm"
-              className="rounded-xl text-xs gap-1.5"
+              className="rounded-xl text-xs gap-1.5 border-slate-200/80 dark:border-slate-800 hover:border-primary/40 dark:hover:border-primary/50 transition-all"
             >
               <Settings className="h-3.5 w-3.5" />
               <span>Preferences</span>
@@ -142,7 +162,7 @@ export default function NotificationsPage() {
               type="button"
               variant="outline"
               size="sm"
-              className="rounded-xl text-xs gap-1.5 text-primary"
+              className="rounded-xl text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10 transition-all font-semibold"
               onClick={handleMarkAllRead}
             >
               <CheckCheck className="h-3.5 w-3.5" />
@@ -154,7 +174,7 @@ export default function NotificationsPage() {
             type="button"
             variant="ghost"
             size="sm"
-            className="rounded-xl text-xs gap-1.5 text-slate-500 hover:text-slate-900"
+            className="rounded-xl text-xs gap-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
             onClick={loadData}
           >
             <RotateCw className={`h-3.5 w-3.5 ${isPending ? "animate-spin" : ""}`} />
@@ -163,58 +183,101 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      {/* 4 Stat Overview Cards */}
+      {/* 4 Stat Overview Cards with Interactive Theme-Adapted Hover Effects */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="rounded-3xl border p-4 shadow-sm bg-card">
+        {/* Total Alerts Card */}
+        <Card
+          onClick={() => {
+            setActiveTab("all");
+            setSelectedPriority("all");
+            setSelectedCategory("all");
+          }}
+          className={`rounded-3xl border p-4 sm:p-5 shadow-xs cursor-pointer relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg ${
+            activeTab === "all" && selectedPriority === "all" && selectedCategory === "all"
+              ? "bg-gradient-to-br from-primary/10 via-card to-background border-primary/50 shadow-primary/10 ring-2 ring-primary/20"
+              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-primary/40 dark:hover:border-primary/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 hover:shadow-primary/5"
+          }`}
+        >
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Total Alerts</span>
-            <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">Total Alerts</span>
+            <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">
               <Bell className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight group-hover:text-primary transition-colors">
             {totalCount}
           </div>
-          <p className="text-[10px] text-slate-400 mt-0.5">Active notification history</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">Active notification history</p>
         </Card>
 
-        <Card className="rounded-3xl border p-4 shadow-sm bg-card">
+        {/* Unread Alerts Card */}
+        <Card
+          onClick={() => {
+            setActiveTab("unread");
+            setSelectedPriority("all");
+          }}
+          className={`rounded-3xl border p-4 sm:p-5 shadow-xs cursor-pointer relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg ${
+            activeTab === "unread"
+              ? "bg-gradient-to-br from-blue-500/10 via-card to-background border-blue-500/60 shadow-blue-500/10 ring-2 ring-blue-500/20"
+              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-blue-400 dark:hover:border-blue-500/60 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 hover:shadow-blue-500/10"
+          }`}
+        >
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Unread</span>
-            <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-blue-600 dark:text-blue-400">Unread</span>
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
               <Mail className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-blue-600 mt-1">
+          <div className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400 mt-2 tracking-tight">
             {unreadCount}
           </div>
-          <p className="text-[10px] text-slate-400 mt-0.5">Pending user review</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">Pending user review</p>
         </Card>
 
-        <Card className="rounded-3xl border p-4 shadow-sm bg-card">
+        {/* High / Critical Alerts Card */}
+        <Card
+          onClick={() => {
+            setSelectedPriority(selectedPriority === "high" || selectedPriority === "critical" ? "all" : "high");
+          }}
+          className={`rounded-3xl border p-4 sm:p-5 shadow-xs cursor-pointer relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg ${
+            selectedPriority === "high" || selectedPriority === "critical"
+              ? "bg-gradient-to-br from-rose-500/10 via-card to-background border-rose-500/60 shadow-rose-500/10 ring-2 ring-rose-500/20"
+              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-rose-400 dark:hover:border-rose-500/60 hover:bg-rose-50/30 dark:hover:bg-rose-950/20 hover:shadow-rose-500/10"
+          }`}
+        >
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">High / Critical</span>
-            <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-rose-600 dark:text-rose-400">High / Critical</span>
+            <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 group-hover:scale-110 group-hover:bg-rose-600 group-hover:text-white transition-all duration-300">
               <ShieldAlert className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-rose-600 mt-1">
+          <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 mt-2 tracking-tight">
             {criticalCount}
           </div>
-          <p className="text-[10px] text-slate-400 mt-0.5">Urgent actions required</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">Urgent actions required</p>
         </Card>
 
-        <Card className="rounded-3xl border p-4 shadow-sm bg-card">
+        {/* Pinned & Saved Alerts Card */}
+        <Card
+          onClick={() => {
+            setActiveTab(activeTab === "pinned" ? "all" : "pinned");
+          }}
+          className={`rounded-3xl border p-4 sm:p-5 shadow-xs cursor-pointer relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg ${
+            activeTab === "pinned"
+              ? "bg-gradient-to-br from-amber-500/10 via-card to-background border-amber-500/60 shadow-amber-500/10 ring-2 ring-amber-500/20"
+              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-amber-400 dark:hover:border-amber-500/60 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:shadow-amber-500/10"
+          }`}
+        >
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-semibold uppercase tracking-wider text-[10px]">Pinned & Saved</span>
-            <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400">Pinned & Saved</span>
+            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
               <Pin className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-amber-600 mt-1">
+          <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 mt-2 tracking-tight">
             {pinnedCount}
           </div>
-          <p className="text-[10px] text-slate-400 mt-0.5">Flagged for later</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">Flagged for later</p>
         </Card>
       </div>
 
