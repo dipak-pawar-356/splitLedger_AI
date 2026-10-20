@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { askFinancialAssistant } from "@/actions/ai-assistant";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,9 @@ import {
   Mic,
   Maximize2,
   Minimize2,
-  ShieldCheck
+  ShieldCheck,
+  ArrowUpRight,
+  HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +28,8 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   metrics?: Array<{ label: string; value: string }>;
+  insights?: string[];
+  actionSuggestions?: Array<{ label: string; url: string }>;
   timestamp: string;
 }
 
@@ -33,7 +38,23 @@ const QUICK_PROMPTS = [
   "Who owes me the most?",
   "Predict next month's expenses.",
   "What is my financial health score?",
+  "What is my profile status?",
+  "Where is my money going?",
 ];
+
+function formatMessageContent(content: string) {
+  const parts = content.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-semibold text-slate-900 dark:text-slate-100">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+}
 
 export function FloatingAIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -70,6 +91,8 @@ export function FloatingAIAssistant() {
         role: "assistant",
         content: response.answer,
         metrics: response.keyMetrics,
+        insights: response.insights,
+        actionSuggestions: response.actionSuggestions,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -144,7 +167,7 @@ export function FloatingAIAssistant() {
                           : "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800"
                       }`}
                     >
-                      <p>{msg.content}</p>
+                      <p className="whitespace-pre-line">{formatMessageContent(msg.content)}</p>
 
                       {msg.metrics && msg.metrics.length > 0 && (
                         <div className="grid grid-cols-2 gap-1.5 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
@@ -153,6 +176,22 @@ export function FloatingAIAssistant() {
                               <p className="text-slate-500 font-semibold">{m.label}</p>
                               <p className="font-bold text-slate-900 dark:text-slate-100">{m.value}</p>
                             </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                          {msg.actionSuggestions.map((act, idx) => (
+                            <Link key={idx} href={act.url}>
+                              <button
+                                type="button"
+                                className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary font-medium flex items-center gap-0.5 transition-colors"
+                              >
+                                <span>{act.label}</span>
+                                <ArrowUpRight className="h-2.5 w-2.5" />
+                              </button>
+                            </Link>
                           ))}
                         </div>
                       )}

@@ -19,8 +19,10 @@ import {
   profiles,
   receipts,
   auditLogs,
+  contacts,
 } from "@/lib/db/schema/schema";
 import { eq, and, desc, sql, or, gte } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import {
   validateTransactions,
   validateSettlements,
@@ -39,6 +41,16 @@ export interface FinancialKnowledgeContext {
     emailVerified: boolean;
     mobileVerified: boolean;
     twoFactorEnabled: boolean;
+    phone?: string | null;
+    upiId?: string | null;
+    username?: string | null;
+    occupation?: string | null;
+    company?: string | null;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
+    bio?: string | null;
+    accountStatus?: string;
   };
   transactions: {
     all: any[];
@@ -60,9 +72,10 @@ export interface FinancialKnowledgeContext {
   settlements: {
     receivablesTotal: number; // in rupees
     payablesTotal: number; // in rupees
+    completedTotal: number; // in rupees
     netDues: number; // in rupees
     pendingSettlements: any[];
-    debtorRanking: Array<{ name: string; amount: number }>;
+    debtorRanking: Array<{ name: string; amount: number; groupName?: string }>;
   };
   budgets: {
     activeBudgets: any[];
@@ -100,6 +113,12 @@ export async function getFinancialKnowledgeContext(
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
+  // Alias tables for settlement participant joins
+  const settleFromUser = alias(users, "settle_from_user");
+  const settleToUser = alias(users, "settle_to_user");
+  const settleFromContact = alias(contacts, "settle_from_contact");
+  const settleToContact = alias(contacts, "settle_to_contact");
+
   // Parallel live database queries
   const [
     userRows,
@@ -120,11 +139,19 @@ export async function getFinancialKnowledgeContext(
         avatar: users.avatar,
         currency: users.defaultCurrency,
         emailVerified: users.emailVerified,
+        userUpiId: users.upiId,
+        username: profiles.username,
+        bio: profiles.bio,
         phone: profiles.phone,
         mobileVerified: profiles.mobileVerified,
         twoFactor: profiles.twoFactorEnabled,
         occupation: profiles.occupation,
+        company: profiles.company,
         city: profiles.city,
+        state: profiles.state,
+        country: profiles.country,
+        accountStatus: profiles.accountStatus,
+        profileUpiId: profiles.upiId,
       })
       .from(users)
       .leftJoin(profiles, eq(users.id, profiles.userId))
@@ -157,20 +184,29 @@ export async function getFinancialKnowledgeContext(
       .orderBy(desc(transactions.date))
       .limit(300),
 
-    // Live settlements
+    // Live settlements with resolved debtor/creditor names
     db
       .select({
         id: settlements.id,
         fromUserId: settlements.fromUserId,
+        fromContactId: settlements.fromContactId,
         toUserId: settlements.toUserId,
+        toContactId: settlements.toContactId,
+        fromUserName: sql<string>`COALESCE(${settleFromUser.name}, ${settleFromContact.name})`,
+        toUserName: sql<string>`COALESCE(${settleToUser.name}, ${settleToContact.name})`,
         amount: settlements.amount,
         status: settlements.status,
         currency: settlements.currency,
+        groupId: settlements.groupId,
         groupName: groups.name,
         isDeleted: settlements.isDeleted,
       })
       .from(settlements)
       .leftJoin(groups, eq(settlements.groupId, groups.id))
+      .leftJoin(settleFromUser, eq(settlements.fromUserId, settleFromUser.id))
+      .leftJoin(settleToUser, eq(settlements.toUserId, settleToUser.id))
+      .leftJoin(settleFromContact, eq(settlements.fromContactId, settleFromContact.id))
+      .leftJoin(settleToContact, eq(settlements.toContactId, settleToContact.id))
       .where(
         and(
           eq(settlements.isDeleted, false),
@@ -267,14 +303,15 @@ export async function getFinancialKnowledgeContext(
 
   // Compute profile completion percentage
   let profileFieldsFilled = 0;
-  const totalProfileFields = 7;
+  const totalProfileFields = 8;
   if (u.name) profileFieldsFilled++;
   if (u.email) profileFieldsFilled++;
   if (u.emailVerified) profileFieldsFilled++;
   if (u.phone) profileFieldsFilled++;
   if (u.mobileVerified) profileFieldsFilled++;
-  if (u.city) profileFieldsFilled++;
+  if (u.city || u.country) profileFieldsFilled++;
   if (u.twoFactor) profileFieldsFilled++;
+  if (u.userUpiId || u.profileUpiId) profileFieldsFilled++;
   const profileCompletionPct = Math.round((profileFieldsFilled / totalProfileFields) * 100);
 
   // Filter temporal sets
@@ -351,18 +388,34 @@ export async function getFinancialKnowledgeContext(
   // Settlements metrics
   let receivablesTotal = 0;
   let payablesTotal = 0;
+  let completedSettlementsTotal = 0;
   const pendingSettlements: any[] = [];
-  const debtorMap = new Map<string, number>();
+  const debtorMap = new Map<string, { name: string; amount: number; groupName?: string }>();
 
   for (const s of validatedSt.sanitizedData) {
     const sAmt = s.amount / 100;
-    if (s.status === "pending") {
+    if (s.status === "completed") {
+      completedSettlementsTotal += sAmt;
+    } else if (s.status === "pending") {
       pendingSettlements.push(s);
       if (s.toUserId === userId) {
         // Someone owes current user
         receivablesTotal += sAmt;
-        const name = s.fromUserName || s.groupName || "Group Member";
-        debtorMap.set(name, (debtorMap.get(name) || 0) + sAmt);
+        const resolvedName = (s.fromUserName && s.fromUserName.trim() && s.fromUserName !== "Group Member")
+          ? s.fromUserName.trim()
+          : (s.groupName ? `Member in ${s.groupName}` : "Group Member");
+
+        const existing = debtorMap.get(resolvedName);
+        if (existing) {
+          existing.amount += sAmt;
+          if (!existing.groupName && s.groupName) existing.groupName = s.groupName;
+        } else {
+          debtorMap.set(resolvedName, {
+            name: resolvedName,
+            amount: sAmt,
+            groupName: s.groupName || undefined,
+          });
+        }
       } else if (s.fromUserId === userId) {
         // Current user owes someone
         payablesTotal += sAmt;
@@ -370,8 +423,7 @@ export async function getFinancialKnowledgeContext(
     }
   }
 
-  const debtorRanking = Array.from(debtorMap.entries())
-    .map(([name, amount]) => ({ name, amount }))
+  const debtorRanking = Array.from(debtorMap.values())
     .sort((a, b) => b.amount - a.amount);
 
   // Budgets metrics
@@ -410,6 +462,16 @@ export async function getFinancialKnowledgeContext(
       emailVerified: Boolean(u.emailVerified),
       mobileVerified: Boolean(u.mobileVerified),
       twoFactorEnabled: Boolean(u.twoFactor),
+      phone: u.phone || null,
+      upiId: u.userUpiId || u.profileUpiId || null,
+      username: u.username || null,
+      occupation: u.occupation || null,
+      company: u.company || null,
+      city: u.city || null,
+      state: u.state || null,
+      country: u.country || "India",
+      bio: u.bio || null,
+      accountStatus: u.accountStatus || "active",
     },
     transactions: {
       all: allTx,
@@ -431,6 +493,7 @@ export async function getFinancialKnowledgeContext(
     settlements: {
       receivablesTotal: Math.round(receivablesTotal),
       payablesTotal: Math.round(payablesTotal),
+      completedTotal: Math.round(completedSettlementsTotal),
       netDues: Math.round(receivablesTotal - payablesTotal),
       pendingSettlements,
       debtorRanking,

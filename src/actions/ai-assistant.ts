@@ -8,6 +8,7 @@ import { DatabaseError } from "@/lib/errors";
 import { formatCurrency } from "@/lib/utils";
 import { getFinancialKnowledgeContext, FinancialKnowledgeContext } from "@/lib/ai/knowledge-context";
 import { detectSubscriptions, DetectedSubscription } from "@/lib/ai/subscription-detector";
+import { calculateComprehensiveHealthScore, predictFutureExpenses } from "@/lib/ai/financial-health";
 
 export interface AIAssistantResponse {
   answer: string;
@@ -60,8 +61,48 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
     ];
 
     // =========================================================================
-    // 1. TEMPORAL QUERIES (Today, Yesterday, This Week, Last Week, Specific Months)
+    // 1. TEMPORAL QUERIES (This Month, Today, Yesterday, This Week, Last Week, Specific Months)
     // =========================================================================
+
+    // 1.0 THIS MONTH'S SPENDING
+    if (
+      qLower.includes("spend this month") ||
+      qLower.includes("spent this month") ||
+      qLower.includes("spending this month") ||
+      qLower.includes("this month expense") ||
+      qLower.includes("this month's expense") ||
+      qLower.includes("how much did i spend this month") ||
+      qLower.includes("why did i spend so much") ||
+      qLower.includes("overview of my monthly expenses") ||
+      qLower.includes("is mahine ka kharcha") ||
+      (qLower.includes("this month") && (qLower.includes("spend") || qLower.includes("spent") || qLower.includes("much") || qLower.includes("expense") || qLower.includes("outflow") || qLower.includes("cost")))
+    ) {
+      const sortedCategories = Object.entries(ctx.transactions.categoryTotals).sort((a, b) => b[1] - a[1]);
+      const topCat = sortedCategories[0];
+      const dailyVelocity = currentMonthExpenses / Math.max(1, now.getDate());
+
+      return {
+        answer: `This month (**${now.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}**), you have spent **${formatCurrency(currentMonthExpenses, "INR")}** across **${ctx.transactions.currentMonth.length} transaction${ctx.transactions.currentMonth.length === 1 ? "" : "s"}**.${topCat ? ` Your highest spending category is **${topCat[0]}** (${formatCurrency(topCat[1], "INR")}).` : ""}`,
+        insights: [
+          `Total Outflow: ${formatCurrency(currentMonthExpenses, "INR")} across ${ctx.transactions.currentMonth.length} transactions.`,
+          `Daily spending velocity: ~${formatCurrency(dailyVelocity, "INR")}/day (${now.getDate()} days elapsed).`,
+          topCat ? `Top category: ${topCat[0]} (${formatCurrency(topCat[1], "INR")} - ${Math.round((topCat[1] / Math.max(1, currentMonthExpenses)) * 100)}% of monthly spend).` : "No categorized expenses yet this month.",
+          `Net Savings: ${formatCurrency(netSavings, "INR")} (${savingsRate}% savings rate on ${formatCurrency(currentMonthIncome, "INR")} income).`,
+        ],
+        keyMetrics: [
+          { label: "Spent This Month", value: formatCurrency(currentMonthExpenses, "INR") },
+          { label: "Transactions", value: `${ctx.transactions.currentMonth.length}` },
+          { label: "Daily Average", value: formatCurrency(dailyVelocity, "INR") },
+          { label: "Net Savings", value: formatCurrency(netSavings, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "View Analytics", url: "/dashboard/analytics" },
+          { label: "View Ledger", url: "/dashboard/transactions" },
+          { label: "Check Budgets", url: "/dashboard/budgets" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
 
     // 1.1 TODAY'S SPENDING
     if (qLower.includes("today") || qLower.includes("aaj") || qLower.includes("todays")) {
@@ -310,33 +351,91 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       };
     }
 
+    // 2.5 CATEGORY BREAKDOWN / WHERE IS MY MONEY GOING
+    if (
+      qLower.includes("category breakdown") ||
+      qLower.includes("where is my money going") ||
+      qLower.includes("spend the most on") ||
+      qLower.includes("top category") ||
+      qLower.includes("top categories") ||
+      qLower.includes("category spend") ||
+      qLower.includes("categories")
+    ) {
+      const sorted = Object.entries(ctx.transactions.categoryTotals).sort((a, b) => b[1] - a[1]);
+      if (sorted.length === 0) {
+        return {
+          answer: "You have no recorded category expenses for this month yet.",
+          insights: ["Add expenses with categories like Food, Travel, or Bills to see breakdown."],
+          keyMetrics: [{ label: "Categories Tracked", value: "0" }],
+          actionSuggestions: [{ label: "Add Expense", url: "/dashboard/transactions" }],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const topCat = sorted[0];
+      return {
+        answer: `Your highest spending category this month is **${topCat[0]}** with **${formatCurrency(topCat[1], "INR")}** (${Math.round((topCat[1] / Math.max(1, currentMonthExpenses)) * 100)}% of monthly spend). You have active expenses across **${sorted.length} categories**.`,
+        insights: sorted.slice(0, 5).map(([cat, amt]) => `• ${cat}: ${formatCurrency(amt, "INR")} (${Math.round((amt / Math.max(1, currentMonthExpenses)) * 100)}%)`),
+        keyMetrics: [
+          { label: "Top Category", value: topCat[0] },
+          { label: "Top Category Spend", value: formatCurrency(topCat[1], "INR") },
+          { label: "Total Categories", value: `${sorted.length}` },
+          { label: "Monthly Outflow", value: formatCurrency(currentMonthExpenses, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "View Analytics", url: "/dashboard/analytics" },
+          { label: "Manage Budgets", url: "/dashboard/budgets" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     // =========================================================================
     // 3. DEBTS, SETTLEMENTS & RECEIVABLES
     // =========================================================================
 
     // 3.1 WHICH MEMBER OWES ME THE MOST?
-    if (qLower.includes("owes me the most") || qLower.includes("highest debtor") || qLower.includes("kiske paas sabse")) {
+    if (
+      qLower.includes("owes me the most") ||
+      qLower.includes("highest debtor") ||
+      qLower.includes("top debtor") ||
+      qLower.includes("kiske paas sabse") ||
+      qLower.includes("who owes me the most")
+    ) {
       const topDebtor = ctx.settlements.debtorRanking[0];
       if (!topDebtor) {
         return {
-          answer: "None of your group members or contacts currently owe you money. All balances are settled up!",
-          insights: ["Zero outstanding receivables."],
-          keyMetrics: [{ label: "Pending Receivables", value: "₹0.00" }],
-          actionSuggestions: [{ label: "View Groups", url: "/dashboard/groups" }],
+          answer: "None of your group members or contacts currently owe you money. All balances are completely settled up!",
+          insights: ["Zero outstanding receivables across all groups and contacts."],
+          keyMetrics: [
+            { label: "Pending Receivables", value: "₹0.00" },
+            { label: "Settlement Status", value: "All Clear" },
+          ],
+          actionSuggestions: [
+            { label: "View Groups", url: "/dashboard/groups" },
+            { label: "Settlement Center", url: "/dashboard/settlements" },
+          ],
           timestamp: new Date().toISOString(),
         };
       }
 
+      const debtorDisplayName = topDebtor.name;
+      const groupContext = topDebtor.groupName ? ` (from **${topDebtor.groupName}**)` : "";
+
       return {
-        answer: `**${topDebtor.name}** owes you the most with **${formatCurrency(topDebtor.amount, "INR")}** in pending receivables.`,
+        answer: `**${debtorDisplayName}** owes you the most with **${formatCurrency(topDebtor.amount, "INR")}** in pending receivables${groupContext}.`,
         insights: [
-          `Top debtor: ${topDebtor.name} (${formatCurrency(topDebtor.amount, "INR")})`,
+          `Top debtor: ${debtorDisplayName} (${formatCurrency(topDebtor.amount, "INR")})${topDebtor.groupName ? ` in group "${topDebtor.groupName}"` : ""}`,
           `Total pending receivables across all members: ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
+          ...(ctx.settlements.debtorRanking.length > 1
+            ? [`Other pending debtors: ${ctx.settlements.debtorRanking.slice(1, 4).map((d) => `${d.name}: ${formatCurrency(d.amount, "INR")}`).join(", ")}`]
+            : []),
           "Send a friendly settlement reminder via WhatsApp or in-app notification.",
         ],
         keyMetrics: [
-          { label: "Top Debtor", value: topDebtor.name },
+          { label: "Top Debtor", value: debtorDisplayName },
           { label: "Amount Owed", value: formatCurrency(topDebtor.amount, "INR") },
+          ...(topDebtor.groupName ? [{ label: "Group", value: topDebtor.groupName }] : []),
           { label: "Total Receivables", value: formatCurrency(ctx.settlements.receivablesTotal, "INR") },
         ],
         actionSuggestions: [
@@ -365,6 +464,48 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         actionSuggestions: [
           { label: "Open Settlement Center", url: "/dashboard/settlements" },
           { label: "View Groups", url: "/dashboard/groups" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 3.3 FINANCIAL HEALTH SCORE (Comprehensive 7-Factor Scoring Engine)
+    if (
+      qLower.includes("health score") ||
+      qLower.includes("financial health") ||
+      qLower.includes("my score") ||
+      qLower.includes("cibil") ||
+      qLower.includes("credit score") ||
+      (qLower.includes("score") && (qLower.includes("health") || qLower.includes("financial") || qLower.includes("my") || qLower.includes("what is")))
+    ) {
+      const health = calculateComprehensiveHealthScore({
+        monthlyIncome: currentMonthIncome > 0 ? currentMonthIncome : undefined,
+        monthlyExpense: currentMonthExpenses,
+        totalBudget: ctx.budgets.totalAllocatedBudget,
+        settledAmount: ctx.settlements.completedTotal || 0,
+        totalSettlementDue: ctx.settlements.payablesTotal,
+        overdueSettlementCount: 0,
+      });
+
+      return {
+        answer: `Your Financial Health Score is **${health.score}/100** (Rating: **${health.rating}**). ${health.positiveHighlights[0] || "Your live accounts exhibit steady expense tracking."} ${health.riskFlags[0] ? `Attention: ${health.riskFlags[0]}` : ""}`,
+        insights: [
+          `Savings Ratio: ${health.factors.savingsRate.value} (${health.factors.savingsRate.score}/${health.factors.savingsRate.maxScore} pts)`,
+          `Budget Compliance: ${health.factors.budgetCompliance.value} (${health.factors.budgetCompliance.score}/${health.factors.budgetCompliance.maxScore} pts)`,
+          `Settlement Completion: ${health.factors.settlementCompletion.value} (${health.factors.settlementCompletion.score}/${health.factors.settlementCompletion.maxScore} pts)`,
+          `Debt Exposure: ${health.factors.debtRatio.value} (${health.factors.debtRatio.score}/${health.factors.debtRatio.maxScore} pts)`,
+          ...(health.actionableRecommendations.length > 0 ? [`Tip: ${health.actionableRecommendations[0]}`] : []),
+        ],
+        keyMetrics: [
+          { label: "Health Score", value: `${health.score}/100` },
+          { label: "Rating", value: health.rating },
+          { label: "Savings Ratio", value: health.factors.savingsRate.value },
+          { label: "Budget Usage", value: health.factors.budgetCompliance.value },
+        ],
+        actionSuggestions: [
+          { label: "View Analytics", url: "/dashboard/analytics" },
+          { label: "Manage Budgets", url: "/dashboard/budgets" },
+          { label: "Settlement Center", url: "/dashboard/settlements" },
         ],
         timestamp: new Date().toISOString(),
       };
@@ -616,22 +757,37 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
     }
 
     // 7.2 PREDICT NEXT MONTH'S EXPENSES
-    if (qLower.includes("predict") || qLower.includes("forecast") || qLower.includes("next month")) {
-      const predicted = Math.round(currentMonthExpenses > 0 ? currentMonthExpenses * 1.05 : 15000);
+    if (
+      qLower.includes("predict") ||
+      qLower.includes("forecast") ||
+      qLower.includes("next month") ||
+      qLower.includes("future expense") ||
+      qLower.includes("aage ka kharcha")
+    ) {
+      const forecast = predictFutureExpenses({
+        currentMonthSpent: currentMonthExpenses,
+        monthlyBudget: ctx.budgets.totalAllocatedBudget || (currentMonthExpenses > 0 ? currentMonthExpenses * 1.15 : 20000),
+        pendingReceivables: ctx.settlements.receivablesTotal,
+        pendingPayables: ctx.settlements.payablesTotal,
+      });
+
       return {
-        answer: `Based on your historical spending velocity, your predicted expense for next month is approximately **${formatCurrency(predicted, "INR")}**.`,
+        answer: `Based on your live daily spending velocity, your predicted expense for next month is **${formatCurrency(forecast.nextMonthPredictedSpend, "INR")}** (Risk Level: **${forecast.budgetOverrunRisk}**). ${forecast.forecastNarrative}`,
         insights: [
-          `Calculated via rolling moving average of your live ledger.`,
-          `Confidence Score: 88% based on ${ctx.transactions.totalCount} historical transactions.`,
-          `Recommended monthly savings buffer: ${formatCurrency(predicted * 0.2, "INR")}.`,
+          `Next week projected spend: ${formatCurrency(forecast.nextWeekPredictedSpend, "INR")}`,
+          `Primary risk category: ${forecast.primaryRiskCategory}`,
+          `Confidence Score: ${forecast.confidencePercentage}% calculated via verified ledger velocity.`,
+          `Expected incoming receivables to offset: ${formatCurrency(forecast.expectedReceivables, "INR")}`,
         ],
         keyMetrics: [
-          { label: "Predicted Outflow", value: formatCurrency(predicted, "INR") },
-          { label: "Model Confidence", value: "88%" },
+          { label: "Next Month Outflow", value: formatCurrency(forecast.nextMonthPredictedSpend, "INR") },
+          { label: "Next Week Outflow", value: formatCurrency(forecast.nextWeekPredictedSpend, "INR") },
+          { label: "Overrun Risk", value: forecast.budgetOverrunRisk },
+          { label: "Confidence", value: `${forecast.confidencePercentage}%` },
         ],
         actionSuggestions: [
           { label: "View Forecasting Center", url: "/dashboard/ai" },
-          { label: "Set Next Month Budget", url: "/dashboard/budgets" },
+          { label: "Check Budgets", url: "/dashboard/budgets" },
         ],
         timestamp: new Date().toISOString(),
       };
@@ -731,6 +887,110 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         actionSuggestions: [
           { label: "Settlement Center", url: "/dashboard/settlements" },
           { label: "Check Budgets", url: "/dashboard/budgets" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // =========================================================================
+    // 8.5 USER PROFILE, ACCOUNT & SECURITY INQUIRIES
+    // =========================================================================
+    if (
+      qLower.includes("profile") ||
+      qLower.includes("who am i") ||
+      qLower.includes("my account") ||
+      qLower.includes("my details") ||
+      qLower.includes("my email") ||
+      qLower.includes("my phone") ||
+      qLower.includes("my mobile") ||
+      qLower.includes("my upi") ||
+      qLower.includes("my name") ||
+      qLower.includes("registered email") ||
+      qLower.includes("registered phone") ||
+      qLower.includes("2fa") ||
+      qLower.includes("two factor")
+    ) {
+      const u = ctx.user;
+
+      // Specific UPI check
+      if (qLower.includes("upi") || qLower.includes("vpa")) {
+        return {
+          answer: u.upiId
+            ? `Your registered UPI ID is **${u.upiId}**. You can receive group settlements directly via UPI.`
+            : `You have not configured a UPI ID yet. Add your UPI ID in Settings to enable one-tap settlements.`,
+          insights: [
+            u.upiId ? `Active VPA: ${u.upiId}` : "No UPI VPA on file.",
+            "Settlements can be initiated directly through PhonePe, Google Pay, or Paytm.",
+          ],
+          keyMetrics: [
+            { label: "Linked UPI ID", value: u.upiId || "Not Linked" },
+            { label: "Status", value: u.upiId ? "Ready" : "Action Needed" },
+          ],
+          actionSuggestions: [{ label: "Configure UPI in Settings", url: "/dashboard/settings" }],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // Specific 2FA / Security check
+      if (qLower.includes("2fa") || qLower.includes("two factor") || qLower.includes("security")) {
+        return {
+          answer: u.twoFactorEnabled
+            ? `Your account security is **high**: Two-Factor Authentication (2FA) is **enabled** and your email is **${u.emailVerified ? "verified" : "pending verification"}**.`
+            : `Two-Factor Authentication (2FA) is currently **disabled** on your account. We recommend enabling 2FA in Settings for enhanced ledger security.`,
+          insights: [
+            `2FA Status: ${u.twoFactorEnabled ? "Active" : "Disabled"}`,
+            `Email Verification: ${u.emailVerified ? "Verified" : "Unverified"}`,
+            `Mobile Verification: ${u.mobileVerified ? "Verified" : "Unverified"}`,
+          ],
+          keyMetrics: [
+            { label: "2FA Status", value: u.twoFactorEnabled ? "Enabled" : "Disabled" },
+            { label: "Email Status", value: u.emailVerified ? "Verified" : "Pending" },
+          ],
+          actionSuggestions: [{ label: "Security Settings", url: "/dashboard/settings" }],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // Specific profile completion check
+      if (qLower.includes("completion") || qLower.includes("complete")) {
+        return {
+          answer: `Your profile is **${u.profileCompletionPct}% complete**. ${u.profileCompletionPct >= 100 ? "Great job, all profile details are up to date!" : "Complete your missing fields in Settings to unlock all AI insights."}`,
+          insights: [
+            `Name: ${u.name ? "✓ Set" : "✗ Missing"}`,
+            `Email: ${u.emailVerified ? "✓ Verified" : "✗ Unverified"}`,
+            `Phone: ${u.mobileVerified ? "✓ Verified" : (u.phone ? "○ Unverified" : "✗ Missing")}`,
+            `UPI ID: ${u.upiId ? "✓ Configured" : "✗ Missing"}`,
+            `2FA: ${u.twoFactorEnabled ? "✓ Enabled" : "✗ Disabled"}`,
+          ],
+          keyMetrics: [
+            { label: "Profile Completion", value: `${u.profileCompletionPct}%` },
+            { label: "Account Status", value: u.accountStatus || "Active" },
+          ],
+          actionSuggestions: [{ label: "Complete Profile", url: "/dashboard/settings" }],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // General Profile Overview
+      return {
+        answer: `Here is your verified SplitLedger profile: You are logged in as **${u.name}**. Registered email is **${u.email}** (${u.emailVerified ? "Verified" : "Unverified"}), Mobile is **${u.phone || "Not set"}** (${u.mobileVerified ? "Verified" : "Unverified"}), UPI ID is **${u.upiId || "Not configured"}**, Base currency is **${u.defaultCurrency}**, and Profile Completion is at **${u.profileCompletionPct}%**.`,
+        insights: [
+          `Member: ${u.name} (ID: #${u.id})`,
+          `Email: ${u.email} (${u.emailVerified ? "Verified" : "Pending Verification"})`,
+          `Mobile: ${u.phone || "Not set"} (${u.mobileVerified ? "Verified" : "Unverified"})`,
+          `UPI ID: ${u.upiId || "Not configured"}`,
+          `Location: ${[u.city, u.country].filter(Boolean).join(", ") || "India"}${u.occupation ? ` • ${u.occupation}` : ""}`,
+          `Security: 2FA is ${u.twoFactorEnabled ? "Enabled" : "Disabled"}`,
+        ],
+        keyMetrics: [
+          { label: "Member Name", value: u.name },
+          { label: "Profile Completion", value: `${u.profileCompletionPct}%` },
+          { label: "Base Currency", value: u.defaultCurrency },
+          { label: "2FA Status", value: u.twoFactorEnabled ? "Protected" : "Standard" },
+        ],
+        actionSuggestions: [
+          { label: "Edit Profile", url: "/dashboard/settings" },
+          { label: "Security Settings", url: "/dashboard/settings" },
         ],
         timestamp: new Date().toISOString(),
       };
