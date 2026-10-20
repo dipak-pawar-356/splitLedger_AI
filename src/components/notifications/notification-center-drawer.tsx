@@ -24,7 +24,8 @@ import {
   Pin, 
   Archive, 
   X,
-  ExternalLink
+  ExternalLink,
+  Loader2
 } from "lucide-react";
 import { 
   NotificationItem, 
@@ -64,10 +65,28 @@ export function NotificationCenterDrawer({
   const [archivedCount, setArchivedCount] = useState(0);
   const [activeTab, setActiveTab] = useState<"all" | "unread" | "pinned" | "archived">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isDebouncing, setIsDebouncing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedPriority, setSelectedPriority] = useState<"all" | "critical" | "high" | "medium" | "low">("all");
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // Debounce search query changes with 250ms delay
+  useEffect(() => {
+    setIsDebouncing(true);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setIsDebouncing(false);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleImmediateSearch = (query: string) => {
+    setSearchQuery(query);
+    setDebouncedSearch(query);
+    setIsDebouncing(false);
+  };
 
   const loadData = useCallback(() => {
     startTransition(async () => {
@@ -76,7 +95,7 @@ export function NotificationCenterDrawer({
           tab: activeTab,
           category: selectedCategory === "all" ? undefined : selectedCategory,
           priority: selectedPriority === "all" ? undefined : selectedPriority,
-          search: searchQuery.trim() || undefined,
+          search: debouncedSearch.trim() || undefined,
         });
         setNotifications(res.notifications);
         setUnreadCount(res.unreadCount);
@@ -89,7 +108,7 @@ export function NotificationCenterDrawer({
         console.error(e);
       }
     });
-  }, [activeTab, selectedCategory, selectedPriority, searchQuery, onUnreadCountChange]);
+  }, [activeTab, selectedCategory, selectedPriority, debouncedSearch, onUnreadCountChange]);
 
   useEffect(() => {
     if (open) {
@@ -171,18 +190,31 @@ export function NotificationCenterDrawer({
             </div>
 
             {/* Search Input (SECTION 8) */}
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <div className="relative group">
+              {isPending || isDebouncing ? (
+                <Loader2 className="absolute left-3 top-2.5 h-3.5 w-3.5 text-primary animate-spin" />
+              ) : (
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 group-focus-within:text-primary transition-colors" />
+              )}
               <Input
-                placeholder="Search notifications, groups, members..."
+                placeholder="Search by title, group, amount (e.g. 1333)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 h-8 rounded-xl text-xs bg-background"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleImmediateSearch(searchQuery);
+                  } else if (e.key === "Escape") {
+                    handleImmediateSearch("");
+                  }
+                }}
+                className="pl-8 pr-7 h-8 rounded-xl text-xs bg-background transition-all focus-visible:ring-2 focus-visible:ring-primary/20"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                  type="button"
+                  onClick={() => handleImmediateSearch("")}
+                  title="Clear search (Esc)"
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -229,6 +261,25 @@ export function NotificationCenterDrawer({
             </div>
           </div>
 
+          {/* Active Search Results Feedback Banner */}
+          {debouncedSearch.trim().length > 0 && (
+            <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 bg-primary/5 flex items-center justify-between text-[11px] animate-in fade-in-50 duration-200">
+              <div className="flex items-center gap-1.5 truncate">
+                <Search className="h-3 w-3 text-primary shrink-0" />
+                <span className="text-slate-600 dark:text-slate-300 truncate">
+                  Found <strong className="text-primary font-bold">{notifications.length}</strong> matching &ldquo;<span className="font-semibold text-slate-900 dark:text-slate-100">{debouncedSearch}</span>&rdquo;
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleImmediateSearch("")}
+                className="text-primary hover:underline font-semibold shrink-0 ml-2 text-[11px]"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+
           {/* Notification Items Stream */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {notifications.length > 0 ? (
@@ -236,9 +287,33 @@ export function NotificationCenterDrawer({
                 <NotificationCard
                   key={n.id}
                   notification={n}
+                  searchQuery={debouncedSearch}
                   onRefresh={loadData}
                 />
               ))
+            ) : debouncedSearch.trim().length > 0 ? (
+              <div className="py-12 text-center text-slate-400 space-y-2.5 text-xs px-4">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center">
+                  <Search className="h-5 w-5" />
+                </div>
+                <p className="font-bold text-slate-800 dark:text-slate-200 text-sm">
+                  No notifications matching &ldquo;{debouncedSearch}&rdquo;
+                </p>
+                <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                  Try searching by numeric amount (e.g. 1333), member name, group name, or reset search.
+                </p>
+                <div className="pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleImmediateSearch("")}
+                    className="rounded-xl text-xs h-7 gap-1 font-semibold"
+                  >
+                    <X className="h-3 w-3" />
+                    <span>Clear search</span>
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="py-16 text-center text-slate-400 space-y-2 text-xs">
                 <Bell className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-700 mb-2" />

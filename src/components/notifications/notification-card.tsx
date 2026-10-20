@@ -28,10 +28,11 @@ import Link from "next/link";
 
 interface NotificationCardProps {
   notification: NotificationItem;
+  searchQuery?: string;
   onRefresh?: () => void;
 }
 
-export function NotificationCard({ notification, onRefresh }: NotificationCardProps) {
+export function NotificationCard({ notification, searchQuery, onRefresh }: NotificationCardProps) {
   const [isRead, setIsRead] = useState(notification.isRead);
   const [isPinned, setIsPinned] = useState(notification.isPinned);
   const [isArchived, setIsArchived] = useState(notification.isArchived);
@@ -138,6 +139,24 @@ export function NotificationCard({ notification, onRefresh }: NotificationCardPr
 
   const meta = notification.metadata || {};
 
+  const cleanSearch = (searchQuery || "").trim().toLowerCase();
+  const strippedSearch = cleanSearch.replace(/[₹$,]/g, "");
+
+  const isAmountMatch = Boolean(
+    meta.amount !== undefined &&
+    strippedSearch.length > 0 &&
+    (
+      String(meta.amount).includes(strippedSearch) ||
+      formatCurrency(meta.amount, meta.currency || "INR").toLowerCase().replace(/,/g, "").includes(strippedSearch)
+    )
+  );
+
+  const isGroupMatch = Boolean(
+    meta.groupName &&
+    cleanSearch.length > 0 &&
+    meta.groupName.toLowerCase().includes(cleanSearch)
+  );
+
   const priorityBorderClass = 
     notification.priority === "critical"
       ? "border-l-4 border-l-rose-600 dark:border-l-rose-500"
@@ -206,12 +225,26 @@ export function NotificationCard({ notification, onRefresh }: NotificationCardPr
           {/* Metadata Chips: Group Name, Amount in INR (₹) */}
           <div className="flex items-center gap-2 pt-1 flex-wrap text-xs">
             {meta.amount && (
-              <Badge variant="outline" className="text-[11px] font-mono font-bold text-emerald-700 dark:text-emerald-300 border-emerald-300/80 dark:border-emerald-700/60 bg-emerald-50/50 dark:bg-emerald-950/20">
+              <Badge
+                variant="outline"
+                className={`text-[11px] font-mono font-bold transition-all ${
+                  isAmountMatch
+                    ? "text-emerald-950 dark:text-emerald-100 border-emerald-500 bg-emerald-100 dark:bg-emerald-950/90 ring-2 ring-emerald-500/50 shadow-xs shadow-emerald-500/20 scale-105"
+                    : "text-emerald-700 dark:text-emerald-300 border-emerald-300/80 dark:border-emerald-700/60 bg-emerald-50/50 dark:bg-emerald-950/20"
+                }`}
+              >
                 {formatCurrency(meta.amount, meta.currency || "INR")}
               </Badge>
             )}
             {meta.groupName && (
-              <Badge variant="outline" className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40">
+              <Badge
+                variant="outline"
+                className={`text-[10px] font-semibold transition-all ${
+                  isGroupMatch
+                    ? "text-primary border-primary bg-primary/10 ring-2 ring-primary/30 font-bold scale-105"
+                    : "text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/40"
+                }`}
+              >
                 <Layers className="h-2.5 w-2.5 mr-1 inline text-primary" />
                 {meta.groupName}
               </Badge>

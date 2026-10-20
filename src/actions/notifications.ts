@@ -218,13 +218,51 @@ export async function getNotifications(
     }
 
     if (filters.search && filters.search.trim().length > 0) {
-      const q = `%${filters.search.trim()}%`;
-      conditions.push(
-        or(
+      const raw = filters.search.trim();
+      const tokens = raw.split(/\s+/).filter(Boolean);
+
+      // Match all tokens across searchable attributes
+      const tokenConditions = tokens.map((token) => {
+        const q = `%${token}%`;
+        const stripped = token.replace(/[₹$,]/g, "").trim();
+        const qStripped = `%${stripped}%`;
+
+        const perTokenMatches = [
           ilike(notifications.title, q),
-          ilike(notifications.message, q)
-        )!
-      );
+          ilike(notifications.message, q),
+          ilike(notifications.category, q),
+          ilike(notifications.type, q),
+          sql`COALESCE(CAST(${notifications.metadata} AS TEXT), '') ILIKE ${q}`,
+        ];
+
+        if (stripped.length > 0) {
+          perTokenMatches.push(
+            sql`REPLACE(COALESCE(${notifications.title}, ''), ',', '') ILIKE ${qStripped}`,
+            sql`REPLACE(COALESCE(${notifications.message}, ''), ',', '') ILIKE ${qStripped}`,
+            sql`REPLACE(COALESCE(CAST(${notifications.metadata} AS TEXT), ''), ',', '') ILIKE ${qStripped}`,
+            sql`COALESCE(${notifications.metadata}->>'amount', '') ILIKE ${qStripped}`
+          );
+        }
+
+        perTokenMatches.push(
+          sql`EXISTS (
+            SELECT 1 FROM ${groups}
+            WHERE ${groups.id} = ${notifications.groupId}
+            AND ${groups.name} ILIKE ${q}
+          )`,
+          sql`EXISTS (
+            SELECT 1 FROM ${users}
+            WHERE ${users.id} = ${notifications.senderId}
+            AND (${users.name} ILIKE ${q} OR ${users.email} ILIKE ${q})
+          )`
+        );
+
+        return or(...perTokenMatches)!;
+      });
+
+      if (tokenConditions.length > 0) {
+        conditions.push(and(...tokenConditions)!);
+      }
     }
 
     const limit = filters.limit || 50;
