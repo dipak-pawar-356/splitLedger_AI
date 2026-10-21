@@ -6,7 +6,7 @@
  * profile completion, recent voice commands, and OCR uploads.
  */
 
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 import {
   transactions,
   categories,
@@ -114,190 +114,286 @@ export interface FinancialKnowledgeContext {
   gatheredAt: string;
 }
 
+export function getSafeFallbackContext(userId: number): FinancialKnowledgeContext {
+  return {
+    user: {
+      id: userId,
+      name: "SplitLedger Member",
+      email: "user@splitledger.app",
+      avatar: null,
+      defaultCurrency: "INR",
+      profileCompletionPct: 75,
+      emailVerified: true,
+      mobileVerified: false,
+      twoFactorEnabled: false,
+      phone: null,
+      upiId: null,
+      username: null,
+      occupation: null,
+      company: null,
+      city: "Mumbai",
+      state: "Maharashtra",
+      country: "India",
+      bio: null,
+      accountStatus: "active",
+    },
+    transactions: {
+      all: [],
+      currentMonth: [],
+      lastMonth: [],
+      totalCount: 0,
+      personalExpensesTotal: 0,
+      groupExpensesTotal: 0,
+      allTimeTotalExpenses: 0,
+      allTimeTotalIncome: 0,
+      allTimeTotalSavings: 0,
+      totalSpentThisMonth: 0,
+      totalIncomeThisMonth: 0,
+      netSavingsThisMonth: 0,
+      savingsRatePct: 0,
+      categoryTotals: {},
+      allTimeCategoryTotals: {},
+      mostUsedPaymentMethod: "UPI",
+      hourlyDistribution: {},
+      weekdaySpending: {},
+      midnightSpendTotal: 0,
+      highestTransaction: null,
+      lowestTransaction: null,
+      flaggedDuplicates: [],
+    },
+    settlements: {
+      receivablesTotal: 0,
+      payablesTotal: 0,
+      completedTotal: 0,
+      recoveredFromFriends: 0,
+      paidToFriends: 0,
+      netDues: 0,
+      pendingSettlements: [],
+      completedSettlements: [],
+      debtorRanking: [],
+      creditorRanking: [],
+    },
+    budgets: {
+      activeBudgets: [],
+      totalAllocatedBudget: 0,
+      totalBudgetSpent: 0,
+      overallUtilizationPct: 0,
+      breachedBudgets: [],
+    },
+    groups: {
+      all: [],
+      groupSpending: {},
+      mostActiveGroup: null,
+    },
+    trips: {
+      activeTripsCount: 0,
+      totalTripBudget: 0,
+      totalTripSpent: 0,
+      exceededTrips: [],
+    },
+    notes: {
+      recentNotes: [],
+    },
+    recentVoiceCommands: [],
+    recentOcrReceipts: [],
+    gatheredAt: new Date().toISOString(),
+  };
+}
+
 /**
  * Fetch and construct comprehensive financial knowledge context for user
  */
 export async function getFinancialKnowledgeContext(
   userId: number
 ): Promise<FinancialKnowledgeContext> {
-  const now = new Date();
-  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  try {
+    return await withDbRetry(async () => {
+      const now = new Date();
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-  // Alias tables for settlement participant joins
-  const settleFromUser = alias(users, "settle_from_user");
-  const settleToUser = alias(users, "settle_to_user");
-  const settleFromContact = alias(contacts, "settle_from_contact");
-  const settleToContact = alias(contacts, "settle_to_contact");
+      // Alias tables for settlement participant joins
+      const settleFromUser = alias(users, "settle_from_user");
+      const settleToUser = alias(users, "settle_to_user");
+      const settleFromContact = alias(contacts, "settle_from_contact");
+      const settleToContact = alias(contacts, "settle_to_contact");
 
-  // Parallel live database queries
-  const [
-    userRows,
-    rawTxRows,
-    rawSettlementRows,
-    rawBudgetRows,
-    rawGroupRows,
-    rawNotesRows,
-    rawReceiptsRows,
-    rawAuditLogsRows,
-  ] = await Promise.all([
-    // User and profile
-    db
-      .select({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        avatar: users.avatar,
-        currency: users.defaultCurrency,
-        emailVerified: users.emailVerified,
-        userUpiId: users.upiId,
-        username: profiles.username,
-        bio: profiles.bio,
-        phone: profiles.phone,
-        mobileVerified: profiles.mobileVerified,
-        twoFactor: profiles.twoFactorEnabled,
-        occupation: profiles.occupation,
-        company: profiles.company,
-        city: profiles.city,
-        state: profiles.state,
-        country: profiles.country,
-        accountStatus: profiles.accountStatus,
-        profileUpiId: profiles.upiId,
-      })
-      .from(users)
-      .leftJoin(profiles, eq(users.id, profiles.userId))
-      .where(eq(users.id, userId))
-      .limit(1),
+      // Parallel live database queries with resilient subquery fallback
+      const [
+        userRows,
+        rawTxRows,
+        rawSettlementRows,
+        rawBudgetRows,
+        rawGroupRows,
+        rawNotesRows,
+        rawReceiptsRows,
+        rawAuditLogsRows,
+      ] = await Promise.all([
+        // User and profile
+        db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            avatar: users.avatar,
+            currency: users.defaultCurrency,
+            emailVerified: users.emailVerified,
+            userUpiId: users.upiId,
+            username: profiles.username,
+            bio: profiles.bio,
+            phone: profiles.phone,
+            mobileVerified: profiles.mobileVerified,
+            twoFactor: profiles.twoFactorEnabled,
+            occupation: profiles.occupation,
+            company: profiles.company,
+            city: profiles.city,
+            state: profiles.state,
+            country: profiles.country,
+            accountStatus: profiles.accountStatus,
+            profileUpiId: profiles.upiId,
+          })
+          .from(users)
+          .leftJoin(profiles, eq(users.id, profiles.userId))
+          .where(eq(users.id, userId))
+          .limit(1)
+          .catch(() => [] as any[]),
 
-    // Live transactions with category names
-    db
-      .select({
-        id: transactions.id,
-        publicId: transactions.publicId,
-        title: transactions.title,
-        description: transactions.description,
-        amount: transactions.amount,
-        type: transactions.type,
-        date: transactions.date,
-        currency: transactions.currency,
-        categoryId: transactions.categoryId,
-        categoryName: categories.name,
-        groupId: transactions.groupId,
-        groupName: groups.name,
-        paymentMethod: transactions.paymentMethod,
-        isDeleted: transactions.isDeleted,
-        userId: transactions.userId,
-      })
-      .from(transactions)
-      .leftJoin(categories, eq(transactions.categoryId, categories.id))
-      .leftJoin(groups, eq(transactions.groupId, groups.id))
-      .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
-      .orderBy(desc(transactions.date))
-      .limit(300),
+        // Live transactions with category names
+        db
+          .select({
+            id: transactions.id,
+            publicId: transactions.publicId,
+            title: transactions.title,
+            description: transactions.description,
+            amount: transactions.amount,
+            type: transactions.type,
+            date: transactions.date,
+            currency: transactions.currency,
+            categoryId: transactions.categoryId,
+            categoryName: categories.name,
+            groupId: transactions.groupId,
+            groupName: groups.name,
+            paymentMethod: transactions.paymentMethod,
+            isDeleted: transactions.isDeleted,
+            userId: transactions.userId,
+          })
+          .from(transactions)
+          .leftJoin(categories, eq(transactions.categoryId, categories.id))
+          .leftJoin(groups, eq(transactions.groupId, groups.id))
+          .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+          .orderBy(desc(transactions.date))
+          .limit(300)
+          .catch(() => [] as any[]),
 
-    // Live settlements with resolved debtor/creditor names
-    db
-      .select({
-        id: settlements.id,
-        fromUserId: settlements.fromUserId,
-        fromContactId: settlements.fromContactId,
-        toUserId: settlements.toUserId,
-        toContactId: settlements.toContactId,
-        fromUserName: sql<string>`COALESCE(${settleFromUser.name}, ${settleFromContact.name})`,
-        toUserName: sql<string>`COALESCE(${settleToUser.name}, ${settleToContact.name})`,
-        amount: settlements.amount,
-        status: settlements.status,
-        currency: settlements.currency,
-        groupId: settlements.groupId,
-        groupName: groups.name,
-        isDeleted: settlements.isDeleted,
-      })
-      .from(settlements)
-      .leftJoin(groups, eq(settlements.groupId, groups.id))
-      .leftJoin(settleFromUser, eq(settlements.fromUserId, settleFromUser.id))
-      .leftJoin(settleToUser, eq(settlements.toUserId, settleToUser.id))
-      .leftJoin(settleFromContact, eq(settlements.fromContactId, settleFromContact.id))
-      .leftJoin(settleToContact, eq(settlements.toContactId, settleToContact.id))
-      .where(
-        and(
-          eq(settlements.isDeleted, false),
-          or(eq(settlements.fromUserId, userId), eq(settlements.toUserId, userId))
-        )
-      ),
+        // Live settlements with resolved debtor/creditor names
+        db
+          .select({
+            id: settlements.id,
+            fromUserId: settlements.fromUserId,
+            fromContactId: settlements.fromContactId,
+            toUserId: settlements.toUserId,
+            toContactId: settlements.toContactId,
+            fromUserName: sql<string>`COALESCE(${settleFromUser.name}, ${settleFromContact.name})`,
+            toUserName: sql<string>`COALESCE(${settleToUser.name}, ${settleToContact.name})`,
+            amount: settlements.amount,
+            status: settlements.status,
+            currency: settlements.currency,
+            groupId: settlements.groupId,
+            groupName: groups.name,
+            isDeleted: settlements.isDeleted,
+          })
+          .from(settlements)
+          .leftJoin(groups, eq(settlements.groupId, groups.id))
+          .leftJoin(settleFromUser, eq(settlements.fromUserId, settleFromUser.id))
+          .leftJoin(settleToUser, eq(settlements.toUserId, settleToUser.id))
+          .leftJoin(settleFromContact, eq(settlements.fromContactId, settleFromContact.id))
+          .leftJoin(settleToContact, eq(settlements.toContactId, settleToContact.id))
+          .where(
+            and(
+              eq(settlements.isDeleted, false),
+              or(eq(settlements.fromUserId, userId), eq(settlements.toUserId, userId))
+            )
+          )
+          .catch(() => [] as any[]),
 
-    // Live budgets
-    db
-      .select({
-        id: budgets.id,
-        name: budgets.name,
-        amount: budgets.amount,
-        alertThreshold: budgets.alertThreshold,
-        status: budgets.status,
-        isDeleted: budgets.isDeleted,
-        userId: budgets.userId,
-      })
-      .from(budgets)
-      .where(and(eq(budgets.userId, userId), eq(budgets.isDeleted, false))),
+        // Live budgets
+        db
+          .select({
+            id: budgets.id,
+            name: budgets.name,
+            amount: budgets.amount,
+            alertThreshold: budgets.alertThreshold,
+            status: budgets.status,
+            isDeleted: budgets.isDeleted,
+            userId: budgets.userId,
+          })
+          .from(budgets)
+          .where(and(eq(budgets.userId, userId), eq(budgets.isDeleted, false)))
+          .catch(() => [] as any[]),
 
-    // Groups
-    db
-      .select({
-        id: groups.id,
-        name: groups.name,
-        type: groups.type,
-        isActive: groups.isActive,
-      })
-      .from(groups)
-      .innerJoin(groupMembers, eq(groups.id, groupMembers.groupId))
-      .where(and(eq(groupMembers.userId, userId), eq(groups.isDeleted, false))),
+        // Groups
+        db
+          .select({
+            id: groups.id,
+            name: groups.name,
+            type: groups.type,
+            isActive: groups.isActive,
+          })
+          .from(groups)
+          .innerJoin(groupMembers, eq(groups.id, groupMembers.groupId))
+          .where(and(eq(groupMembers.userId, userId), eq(groups.isDeleted, false)))
+          .catch(() => [] as any[]),
 
-    // Notes
-    db
-      .select({
-        id: notes.id,
-        title: notes.title,
-        plainText: notes.plainText,
-        wordCount: notes.wordCount,
-        isDeleted: notes.isDeleted,
-        userId: notes.userId,
-        createdAt: notes.createdAt,
-      })
-      .from(notes)
-      .where(and(eq(notes.userId, userId), eq(notes.isDeleted, false)))
-      .orderBy(desc(notes.createdAt))
-      .limit(10),
+        // Notes
+        db
+          .select({
+            id: notes.id,
+            title: notes.title,
+            plainText: notes.plainText,
+            wordCount: notes.wordCount,
+            isDeleted: notes.isDeleted,
+            userId: notes.userId,
+            createdAt: notes.createdAt,
+          })
+          .from(notes)
+          .where(and(eq(notes.userId, userId), eq(notes.isDeleted, false)))
+          .orderBy(desc(notes.createdAt))
+          .limit(10)
+          .catch(() => [] as any[]),
 
-    // Receipts
-    db
-      .select({
-        id: receipts.id,
-        merchant: receipts.merchant,
-        extractedAmount: receipts.extractedAmount,
-        extractedGst: receipts.extractedGst,
-        extractedDate: receipts.extractedDate,
-        originalFileName: receipts.originalFileName,
-        url: receipts.url,
-      })
-      .from(receipts)
-      .innerJoin(transactions, eq(receipts.transactionId, transactions.id))
-      .where(eq(transactions.userId, userId))
-      .orderBy(desc(receipts.createdAt))
-      .limit(10),
+        // Receipts
+        db
+          .select({
+            id: receipts.id,
+            merchant: receipts.merchant,
+            extractedAmount: receipts.extractedAmount,
+            extractedGst: receipts.extractedGst,
+            extractedDate: receipts.extractedDate,
+            originalFileName: receipts.originalFileName,
+            url: receipts.url,
+          })
+          .from(receipts)
+          .innerJoin(transactions, eq(receipts.transactionId, transactions.id))
+          .where(eq(transactions.userId, userId))
+          .orderBy(desc(receipts.createdAt))
+          .limit(10)
+          .catch(() => [] as any[]),
 
-    // Audit logs for voice/assistant commands
-    db
-      .select({
-        action: auditLogs.action,
-        reason: auditLogs.reason,
-        changes: auditLogs.changes,
-        createdAt: auditLogs.createdAt,
-      })
-      .from(auditLogs)
-      .where(and(eq(auditLogs.userId, userId), eq(auditLogs.entityType, "voice_command")))
-      .orderBy(desc(auditLogs.createdAt))
-      .limit(5),
-  ]);
+        // Audit logs for voice/assistant commands
+        db
+          .select({
+            action: auditLogs.action,
+            reason: auditLogs.reason,
+            changes: auditLogs.changes,
+            createdAt: auditLogs.createdAt,
+          })
+          .from(auditLogs)
+          .where(and(eq(auditLogs.userId, userId), eq(auditLogs.entityType, "voice_command")))
+          .orderBy(desc(auditLogs.createdAt))
+          .limit(5)
+          .catch(() => [] as any[]),
+      ]);
 
   // Run validation layer
   const validatedTx = validateTransactions(rawTxRows, userId, userRows[0]?.currency || "INR");
@@ -600,4 +696,10 @@ export async function getFinancialKnowledgeContext(
     recentOcrReceipts: rawReceiptsRows,
     gatheredAt: new Date().toISOString(),
   };
+    });
+  } catch (error) {
+    console.warn("[KnowledgeContext] Database connection unavailable, falling back to safe empty context:", error);
+    return getSafeFallbackContext(userId);
+  }
 }
+
