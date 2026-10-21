@@ -814,7 +814,7 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         .reduce((sum, s) => sum + s.amount / 100, 0);
 
       return {
-        answer: `In **${matchedGroup.name}**, your recorded shared expenses total **${formatCurrency(gSpend, "INR")}** across **${groupTx.length} transaction${groupTx.length === 1 ? "" : "s"}**.${pendingOwedToUser > 0 ? ` You are currently owed **${formatCurrency(pendingOwedToUser, "INR")}** in pending receivables from this group.` : ""}`,
+        answer: `In *${matchedGroup.name}*, your recorded shared expenses total **${formatCurrency(gSpend, "INR")}** across **${groupTx.length} transaction${groupTx.length === 1 ? "" : "s"}**.${pendingOwedToUser > 0 ? ` You are currently owed **${formatCurrency(pendingOwedToUser, "INR")}** in pending receivables from this group.` : ""}`,
         insights: [
           `Group: ${matchedGroup.name} (${matchedGroup.type || "shared"})`,
           `Total Shared Spending: ${formatCurrency(gSpend, "INR")}`,
@@ -842,7 +842,7 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       const breachedBudgets = ctx.budgets.breachedBudgets;
       return {
         answer: breachedBudgets.length > 0
-          ? `You have **${breachedBudgets.length} budget threshold breach${breachedBudgets.length === 1 ? "" : "es"}**: ${breachedBudgets.map((b) => `"${b.name}" (Allocated ₹${b.amount / 100})`).join(", ")}.`
+          ? `You have *${breachedBudgets.length} budget threshold breach${breachedBudgets.length === 1 ? "" : "es"}*: ${breachedBudgets.map((b) => `"${b.name}" (Allocated ₹${b.amount / 100})`).join(", ")}.`
           : `All your active budgets and trip allowances are currently well within their allocated spending limits!`,
         insights: [
           `Total active budgets: ${ctx.budgets.activeBudgets.length}`,
