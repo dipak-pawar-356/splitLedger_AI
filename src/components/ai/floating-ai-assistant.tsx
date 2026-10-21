@@ -207,6 +207,20 @@ export function FloatingAIAssistant() {
                       </div>
                     )}
 
+                    {msg.insights && msg.insights.length > 0 && !msg.content.includes(msg.insights[0]) && (
+                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800 space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
+                        <p className="font-semibold text-[10px] text-primary flex items-center gap-1">
+                          <Sparkles className="h-2.5 w-2.5" />
+                          Key Takeaways:
+                        </p>
+                        <ul className="list-disc pl-3.5 space-y-0.5 text-[10.5px]">
+                          {msg.insights.map((ins, idx) => (
+                            <li key={idx}>{ins}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
                         {msg.actionSuggestions.map((act, idx) => (
@@ -264,19 +278,19 @@ export function FloatingAIAssistant() {
               </div>
 
               {showSuggestions && (
-                <div className="px-3 pb-2.5 max-h-[140px] overflow-y-auto space-y-1.5 pr-1.5">
+                <div className="px-3 pb-2.5 max-h-[150px] overflow-y-auto space-y-1.5 pr-1.5">
                   {QUICK_PROMPTS.map((prompt, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => handleSend(prompt)}
                       disabled={loading}
-                      className="w-full text-left text-xs px-3 py-1.5 rounded-xl bg-background/95 hover:bg-primary/10 dark:hover:bg-primary/20 hover:border-primary/40 text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-primary transition-all duration-150 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between group cursor-pointer shadow-xs disabled:opacity-50"
+                      className="w-full text-left text-xs px-3 py-2 rounded-xl bg-background/95 hover:bg-primary/10 dark:hover:bg-primary/20 hover:border-primary/40 text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-primary transition-all duration-150 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between group cursor-pointer shadow-xs disabled:opacity-50"
                     >
-                      <span className="font-medium text-[11px] leading-snug truncate pr-2">
+                      <span className="font-medium text-[11px] leading-snug pr-2 whitespace-normal break-words">
                         {prompt}
                       </span>
-                      <ArrowUpRight className="h-3 w-3 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0" />
+                      <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0" />
                     </button>
                   ))}
                 </div>

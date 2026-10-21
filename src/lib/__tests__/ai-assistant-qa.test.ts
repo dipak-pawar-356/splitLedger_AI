@@ -222,8 +222,24 @@ describe("AI Financial Assistant Verified Q&A System", () => {
   it("answers 'How can I reduce my expenses?' with actionable recommendations from data", async () => {
     const res = await askFinancialAssistant("How can I reduce my expenses?");
     expect(res.answer).toContain("personalized AI financial recommendations");
+    expect(res.answer).toMatch(/1\.\s+\*\*/);
     expect(res.insights.length).toBeGreaterThan(0);
     expect(res.keyMetrics.some((m) => m.label === "Top Category")).toBe(true);
+  });
+
+  it("answers '💡 Give me AI financial recommendations.' with numbered actionable recommendations in the answer text", async () => {
+    const res = await askFinancialAssistant("💡 Give me AI financial recommendations.");
+    expect(res.answer).toContain("personalized AI financial recommendations");
+    expect(res.answer).toMatch(/1\.\s+\*\*/);
+    expect(res.insights.length).toBeGreaterThan(0);
+    expect(res.keyMetrics.some((m) => m.label === "Top Category")).toBe(true);
+  });
+
+  it("answers '📑 Summarize my financial report.' with structured bulleted report metrics", async () => {
+    const res = await askFinancialAssistant("📑 Summarize my financial report.");
+    expect(res.answer).toContain("Executive Financial Summary Report");
+    expect(res.answer).toContain("Total All-Time Expenses");
+    expect(res.answer).toContain("Financial Health");
   });
 
   it("answers 'Explain data encryption and security' with bank-grade security facts", async () => {

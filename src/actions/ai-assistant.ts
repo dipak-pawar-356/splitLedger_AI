@@ -89,7 +89,7 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       const dailyVelocity = currentMonthExpenses / Math.max(1, now.getDate());
 
       return {
-        answer: `This month (**${now.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}**), you have spent **${formatCurrency(currentMonthExpenses, "INR")}** across **${ctx.transactions.currentMonth.length} transaction${ctx.transactions.currentMonth.length === 1 ? "" : "s"}**.${topCat ? ` Your highest spending category is **${topCat[0]}** (${formatCurrency(topCat[1], "INR")}).` : ""}`,
+        answer: `This month (**${now.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}**), you have spent **${formatCurrency(currentMonthExpenses, "INR")}** across **${ctx.transactions.currentMonth.length} transaction${ctx.transactions.currentMonth.length === 1 ? "" : "s"}** (Daily Average: ~${formatCurrency(dailyVelocity, "INR")}/day).\n\n• **Highest Category:** ${topCat ? `${topCat[0]} (${formatCurrency(topCat[1], "INR")})` : "Uncategorized"}\n• **Net Savings:** ${netSavings >= 0 ? "+" : ""}${formatCurrency(netSavings, "INR")} (${savingsRate}% rate)\n• **Pending Receivables:** ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
         insights: [
           `Total Outflow: ${formatCurrency(currentMonthExpenses, "INR")} across ${ctx.transactions.currentMonth.length} transactions.`,
           `Daily spending velocity: ~${formatCurrency(dailyVelocity, "INR")}/day (${now.getDate()} days elapsed).`,
@@ -251,7 +251,7 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       const direction = diff >= 0 ? "increased" : "decreased";
 
       return {
-        answer: `Comparing **${m1Name}** vs **${m2Name}**: Spending has **${direction} by ${Math.abs(pctChange)}%** (${diff >= 0 ? "+" : "-"}${formatCurrency(Math.abs(diff), "INR")}).`,
+        answer: `Comparing **${m1Name}** vs **${m2Name}**: Spending has **${direction} by ${Math.abs(pctChange)}%** (${diff >= 0 ? "+" : "-"}${formatCurrency(Math.abs(diff), "INR")}).\n\n• **${m1Name} Outflow:** ${formatCurrency(m1Total, "INR")}\n• **${m2Name} Outflow:** ${formatCurrency(m2Total, "INR")}\n• **Net Difference:** ${diff >= 0 ? "+" : "-"}${formatCurrency(Math.abs(diff), "INR")}`,
         insights: [
           `${m1Name}: ${formatCurrency(m1Total, "INR")}`,
           `${m2Name}: ${formatCurrency(m2Total, "INR")}`,
@@ -366,7 +366,10 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       qLower.includes("top category") ||
       qLower.includes("top categories") ||
       qLower.includes("category spend") ||
-      qLower.includes("categories")
+      qLower.includes("categories") ||
+      qLower.includes("costs me the most") ||
+      qLower.includes("cost me the most") ||
+      qLower.includes("which category")
     ) {
       const sorted = Object.entries(ctx.transactions.categoryTotals).sort((a, b) => b[1] - a[1]);
       if (sorted.length === 0) {
@@ -380,8 +383,10 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       }
 
       const topCat = sorted[0];
+      const catList = sorted.slice(0, 5).map(([cat, amt]) => `• **${cat}:** ${formatCurrency(amt, "INR")} (${Math.round((amt / Math.max(1, currentMonthExpenses)) * 100)}% of monthly spend)`).join("\n");
+
       return {
-        answer: `Your highest spending category this month is **${topCat[0]}** with **${formatCurrency(topCat[1], "INR")}** (${Math.round((topCat[1] / Math.max(1, currentMonthExpenses)) * 100)}% of monthly spend). You have active expenses across **${sorted.length} categories**.`,
+        answer: `Here is where your money is going this month (**${formatCurrency(currentMonthExpenses, "INR")}** total across ${ctx.transactions.currentMonth.length} transactions):\n\n${catList}\n\nYour highest outflow category is **${topCat[0]}** (${formatCurrency(topCat[1], "INR")}).`,
         insights: sorted.slice(0, 5).map(([cat, amt]) => `• ${cat}: ${formatCurrency(amt, "INR")} (${Math.round((amt / Math.max(1, currentMonthExpenses)) * 100)}%)`),
         keyMetrics: [
           { label: "Top Category", value: topCat[0] },
@@ -428,9 +433,13 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
 
       const debtorDisplayName = topDebtor.name;
       const groupContext = topDebtor.groupName ? ` (from **${topDebtor.groupName}**)` : "";
+      const otherDebtors = ctx.settlements.debtorRanking.slice(1, 4);
+      const otherDebtorsText = otherDebtors.length > 0
+        ? `\n\n**Other Pending Receivables:**\n${otherDebtors.map((d) => `• **${d.name}:** ${formatCurrency(d.amount, "INR")}${d.groupName ? ` (${d.groupName})` : ""}`).join("\n")}`
+        : "";
 
       return {
-        answer: `**${debtorDisplayName}** owes you the most with **${formatCurrency(topDebtor.amount, "INR")}** in pending receivables${groupContext}.`,
+        answer: `**${debtorDisplayName}** owes you the most with **${formatCurrency(topDebtor.amount, "INR")}** in pending receivables${groupContext}.\n\n• **Total Receivables:** ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}\n• **Total Pending Debtors:** ${ctx.settlements.debtorRanking.length}${otherDebtorsText}`,
         insights: [
           `Top debtor: ${debtorDisplayName} (${formatCurrency(topDebtor.amount, "INR")})${topDebtor.groupName ? ` in group "${topDebtor.groupName}"` : ""}`,
           `Total pending receivables across all members: ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
@@ -456,8 +465,18 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
     // 3.2 SHOW PENDING SETTLEMENTS / WHO OWES ME
     if (qLower.includes("pending settlement") || qLower.includes("who owes me") || qLower.includes("unsettled") || qLower.includes("paisa lena")) {
       const net = ctx.settlements.netDues;
+      const debtorList = ctx.settlements.debtorRanking.slice(0, 4);
+      const debtorLines = debtorList.length > 0
+        ? `\n\n**Pending Receivables (Owed to you):**\n${debtorList.map((d) => `• **${d.name}:** ${formatCurrency(d.amount, "INR")}${d.groupName ? ` (${d.groupName})` : ""}`).join("\n")}`
+        : "";
+
+      const creditorList = ctx.settlements.creditorRanking.slice(0, 4);
+      const creditorLines = creditorList.length > 0
+        ? `\n\n**Pending Payables (You owe):**\n${creditorList.map((c) => `• **${c.name}:** ${formatCurrency(c.amount, "INR")}${c.groupName ? ` (${c.groupName})` : ""}`).join("\n")}`
+        : "";
+
       return {
-        answer: `You have **${ctx.settlements.pendingSettlements.length} pending settlement${ctx.settlements.pendingSettlements.length === 1 ? "" : "s"}**. You are owed **${formatCurrency(ctx.settlements.receivablesTotal, "INR")}** in receivables, and owe **${formatCurrency(ctx.settlements.payablesTotal, "INR")}** in payables (Net: **${net >= 0 ? "+" : ""}${formatCurrency(net, "INR")}**).`,
+        answer: `You have **${ctx.settlements.pendingSettlements.length} pending settlement${ctx.settlements.pendingSettlements.length === 1 ? "" : "s"}** totaling **${formatCurrency(ctx.settlements.receivablesTotal, "INR")}** in receivables and **${formatCurrency(ctx.settlements.payablesTotal, "INR")}** in payables (Net Balance: **${net >= 0 ? "+" : ""}${formatCurrency(net, "INR")}**).${debtorLines}${creditorLines}`,
         insights: [
           `Receivables (owed to you): ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
           `Payables (you owe): ${formatCurrency(ctx.settlements.payablesTotal, "INR")}`,
@@ -535,7 +554,7 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       qLower.includes("how much did i recover")
     ) {
       return {
-        answer: `You have successfully recovered **${formatCurrency(ctx.settlements.recoveredFromFriends, "INR")}** from friends across **${ctx.settlements.completedSettlements.length} completed settlement${ctx.settlements.completedSettlements.length === 1 ? "" : "s"}**.`,
+        answer: `You have successfully recovered **${formatCurrency(ctx.settlements.recoveredFromFriends, "INR")}** from friends across **${ctx.settlements.completedSettlements.length} completed settlement${ctx.settlements.completedSettlements.length === 1 ? "" : "s"}**.\n\n• **Total Recovered:** ${formatCurrency(ctx.settlements.recoveredFromFriends, "INR")}\n• **Completed Settlements:** ${ctx.settlements.completedSettlements.length}\n• **Remaining Pending Receivables:** ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
         insights: [
           `Total Recovered: ${formatCurrency(ctx.settlements.recoveredFromFriends, "INR")}`,
           `Completed Settlements: ${ctx.settlements.completedSettlements.length}`,
@@ -670,8 +689,12 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         overdueSettlementCount: 0,
       });
 
+      const positiveNote = health.positiveHighlights[0] ? `\n\n✅ **Strength:** ${health.positiveHighlights[0]}` : "";
+      const riskNote = health.riskFlags[0] ? `\n\n⚠️ **Area for Growth:** ${health.riskFlags[0]}` : "";
+      const tipNote = health.actionableRecommendations[0] ? `\n\n💡 **Actionable Tip:** ${health.actionableRecommendations[0]}` : "";
+
       return {
-        answer: `Your Financial Health Score is **${health.score}/100** (Rating: **${health.rating}**). ${health.positiveHighlights[0] || "Your live accounts exhibit steady expense tracking."} ${health.riskFlags[0] ? `Attention: ${health.riskFlags[0]}` : ""}`,
+        answer: `Your Financial Health Score is **${health.score}/100** (Grade: **${health.rating}**).${positiveNote}${riskNote}\n\n**Score Factors Breakdown:**\n• **Savings Rate:** ${health.factors.savingsRate.value} (${health.factors.savingsRate.score}/${health.factors.savingsRate.maxScore} pts)\n• **Budget Discipline:** ${health.factors.budgetCompliance.value} (${health.factors.budgetCompliance.score}/${health.factors.budgetCompliance.maxScore} pts)\n• **Settlement Reliability:** ${health.factors.settlementCompletion.value} (${health.factors.settlementCompletion.score}/${health.factors.settlementCompletion.maxScore} pts)\n• **Debt Exposure:** ${health.factors.debtRatio.value} (${health.factors.debtRatio.score}/${health.factors.debtRatio.maxScore} pts)${tipNote}`,
         insights: [
           `Savings Ratio: ${health.factors.savingsRate.value} (${health.factors.savingsRate.score}/${health.factors.savingsRate.maxScore} pts)`,
           `Budget Compliance: ${health.factors.budgetCompliance.value} (${health.factors.budgetCompliance.score}/${health.factors.budgetCompliance.maxScore} pts)`,
@@ -776,8 +799,13 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         };
       }
 
+      const otherGroups = entries.slice(1, 4);
+      const otherGroupsText = otherGroups.length > 0
+        ? `\n\n**Other Active Groups:**\n${otherGroups.map(([name, amt]) => `• **${name}:** ${formatCurrency(amt, "INR")}`).join("\n")}`
+        : "";
+
       return {
-        answer: `**${topGroup[0]}** is your highest spending group with **${formatCurrency(topGroup[1], "INR")}** in total shared expenses.`,
+        answer: `**${topGroup[0]}** is your highest spending group with **${formatCurrency(topGroup[1], "INR")}** in total shared expenses across your ledger.${otherGroupsText}`,
         insights: [
           `Top group: ${topGroup[0]} (${formatCurrency(topGroup[1], "INR")})`,
           ...entries.slice(1, 4).map(([name, amt]) => `• ${name}: ${formatCurrency(amt, "INR")}`),
@@ -1157,7 +1185,7 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       });
 
       return {
-        answer: `Based on your live daily spending velocity, your predicted expense for next month is **${formatCurrency(forecast.nextMonthPredictedSpend, "INR")}** (Risk Level: **${forecast.budgetOverrunRisk}**). ${forecast.forecastNarrative}`,
+        answer: `🎯 **AI Expense Forecast for Next Month:**\n\nBased on your live daily spending velocity, your predicted expense for next month is **${formatCurrency(forecast.nextMonthPredictedSpend, "INR")}** (Risk Level: **${forecast.budgetOverrunRisk}**).\n\n• **Next Week Projected Outflow:** ${formatCurrency(forecast.nextWeekPredictedSpend, "INR")}\n• **Primary Risk Category:** ${forecast.primaryRiskCategory}\n• **Model Confidence:** ${forecast.confidencePercentage}%\n• **Expected Receivables to Offset:** ${formatCurrency(forecast.expectedReceivables, "INR")}\n\n💡 ${forecast.forecastNarrative}`,
         insights: [
           `Next week projected spend: ${formatCurrency(forecast.nextWeekPredictedSpend, "INR")}`,
           `Primary risk category: ${forecast.primaryRiskCategory}`,
@@ -1297,41 +1325,67 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
 
       if (topCat && currentMonthExpenses > 0) {
         const pct = Math.round((topCat[1] / currentMonthExpenses) * 100);
-        recommendations.push(
-          `Set a spending ceiling for **${topCat[0]}**: It represents **${pct}%** (${formatCurrency(topCat[1], "INR")}) of this month's outflow. Trimming 15% would save ${formatCurrency(topCat[1] * 0.15, "INR")}.`
-        );
+        if (topCat[0].toLowerCase() === "uncategorized") {
+          recommendations.push(
+            `**Assign categories to Uncategorized expenses:** You have **${formatCurrency(topCat[1], "INR")}** (${pct}% of your outflow) marked as Uncategorized. Tagging them into Travel, Accommodation, Dining, or Bills enables automated budget tracking and tax optimization.`
+          );
+        } else {
+          recommendations.push(
+            `**Set a spending ceiling for ${topCat[0]}:** It represents **${pct}%** (${formatCurrency(topCat[1], "INR")}) of this month's outflow. Trimming 15% would save ${formatCurrency(topCat[1] * 0.15, "INR")}.`
+          );
+        }
       }
 
       if (ctx.settlements.receivablesTotal > 0) {
         recommendations.push(
-          `Collect pending group receivables: Friends owe you **${formatCurrency(ctx.settlements.receivablesTotal, "INR")}**. Clearing these pending settlements immediately bolsters your cash flow.`
+          `**Collect pending group dues:** Friends owe you **${formatCurrency(ctx.settlements.receivablesTotal, "INR")}** in pending settlements. Clearing these pending balances immediately bolsters your cash flow.`
+        );
+      }
+
+      if (ctx.settlements.payablesTotal > 0) {
+        recommendations.push(
+          `**Clear outstanding liabilities:** You owe **${formatCurrency(ctx.settlements.payablesTotal, "INR")}** in shared group splits. Settling these promptly maintains your high financial health score.`
+        );
+      }
+
+      if (ctx.transactions.groupExpensesTotal > 0 && ctx.transactions.personalExpensesTotal === 0) {
+        recommendations.push(
+          `**Track personal expenses:** 100% of your recorded expenses are currently group/shared. Logging personal daily spending will provide a complete 360° financial profile.`
         );
       }
 
       if (ctx.transactions.midnightSpendTotal > 0) {
         recommendations.push(
-          `Curtail late-night discretionary spending: You have logged **${formatCurrency(ctx.transactions.midnightSpendTotal, "INR")}** between 11 PM and 5 AM this month.`
+          `**Curtail late-night discretionary purchases:** You have logged **${formatCurrency(ctx.transactions.midnightSpendTotal, "INR")}** between 11 PM and 5 AM this month.`
         );
       }
 
       if (savingsRate < 20) {
         recommendations.push(
-          `Target a 20% savings threshold: Your current rate is **${savingsRate}%**. Automating personal savings on income day ensures steady wealth preservation.`
+          `**Target a 20% savings threshold:** Your current savings rate is **${savingsRate}%**. Automating personal savings on the day income arrives ensures continuous wealth preservation.`
         );
       } else {
         recommendations.push(
-          `Strong savings momentum: You are saving **${savingsRate}%** of your monthly income. Consider allocating surplus into an emergency liquidity reserve.`
+          `**Strong savings momentum:** You are saving **${savingsRate}%** of your monthly income. Consider allocating surplus into an emergency liquidity reserve.`
         );
       }
 
       if (ctx.budgets.breachedBudgets.length > 0) {
         recommendations.push(
-          `Review **${ctx.budgets.breachedBudgets.length} exceeded budget${ctx.budgets.breachedBudgets.length === 1 ? "" : "s"}** in the Budget Manager to re-anchor category limits.`
+          `**Review exceeded budgets:** **${ctx.budgets.breachedBudgets.length} budget limit${ctx.budgets.breachedBudgets.length === 1 ? "" : "s"}** are exceeded. Re-anchor limits in the Budget Manager.`
+        );
+      } else if (ctx.budgets.activeBudgets.length === 0) {
+        recommendations.push(
+          `**Establish monthly category budgets:** You currently have no active budget limits set. Creating budgets for your top spending areas prevents unexpected overruns.`
         );
       }
 
+      const formattedRecommendations = recommendations.length > 0
+        ? recommendations.map((r, i) => `${i + 1}. ${r}`).join("\n\n")
+        : "1. **Log daily transactions regularly:** Keep tracking your expenses to unlock richer predictive insights.\n\n2. **Establish monthly budgets:** Set up category allowances in the Budget Manager.\n\n3. **Settle shared expenses:** Keep settling dues promptly to maintain a high financial health rating.";
+
       return {
-        answer: `Here are your personalized AI financial recommendations based strictly on your verified ledger data:`,
+        answer: `Here are your personalized AI financial recommendations based strictly on your verified ledger data:\n\n${formattedRecommendations}`,
         insights: recommendations,
         keyMetrics: [
           { label: "Top Category", value: topCat ? topCat[0] : "General" },
@@ -1403,7 +1457,7 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       });
 
       return {
-        answer: `📊 Financial Summary\n\nTotal Expenses\n**${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}**\n\nPersonal Expenses\n**${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")}**\n\nGroup Expenses\n**${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}**\n\nLargest Expense\n**${ctx.transactions.highestTransaction ? ctx.transactions.highestTransaction.title : "None"}**\n\nTop Category\n**${topCat ? topCat[0] : "General"}**\n\nFinancial Health\n**${health.score}/100**\n\n💡 AI Insight\n${topCat ? `Your ${topCat[0]} expenses account for ${Math.round((topCat[1] / Math.max(1, currentMonthExpenses)) * 100)}% of this month's spending. Setting a budget could improve your savings next month.` : "Your accounts show steady transaction tracking across personal and shared ledgers."}`,
+        answer: `📊 **Executive Financial Summary Report**\n\n• **Total All-Time Expenses:** ${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}\n• **Personal Expenses:** ${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")}\n• **Group Expenses:** ${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}\n• **Largest Expense:** ${ctx.transactions.highestTransaction ? `${ctx.transactions.highestTransaction.title} (${formatCurrency(ctx.transactions.highestTransaction.amount, "INR")})` : "None"}\n• **Top Spending Category:** ${topCat ? `${topCat[0]} (${formatCurrency(topCat[1], "INR")})` : "General"}\n• **Financial Health:** ${health.score}/100 (${health.rating})\n• **Pending Receivables:** ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}\n\n💡 **AI Insight:**\n${topCat ? `Your **${topCat[0]}** expenses account for **${Math.round((topCat[1] / Math.max(1, currentMonthExpenses)) * 100)}%** of this month's spending. Setting a budget could improve your savings next month.` : "Your accounts show steady transaction tracking across personal and shared ledgers."}`,
         insights: [
           `Total All-Time Outflow: ${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}`,
           `Personal vs Group Split: ${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")} personal / ${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")} shared`,
@@ -1542,54 +1596,7 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         overdueSettlementCount: 0,
       });
 
-      const profileCard = [
-        "Your SplitLedger AI Profile",
-        "",
-        "Name",
-        u.name,
-        "",
-        "Email",
-        u.email,
-        "",
-        "Account",
-        "PRO",
-        "",
-        "Currency",
-        "INR ₹",
-        "",
-        "Profile Status",
-        u.emailVerified ? "Verified" : (u.accountStatus ? u.accountStatus.charAt(0).toUpperCase() + u.accountStatus.slice(1) : "Active"),
-        "",
-        "Groups",
-        `${ctx.groups.all.length} Active`,
-        "",
-        "Transactions",
-        `${ctx.transactions.totalCount}`,
-        "",
-        "Financial Health",
-        `${health.score}/100`,
-        "",
-        "Total Personal Expenses",
-        formatCurrency(ctx.transactions.personalExpensesTotal, "INR"),
-        "",
-        "Total Group Expenses",
-        formatCurrency(ctx.transactions.groupExpensesTotal, "INR"),
-        "",
-        "Total Expenses",
-        formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR"),
-        "",
-        "Outstanding Receivable",
-        formatCurrency(ctx.settlements.receivablesTotal, "INR"),
-        "",
-        "Outstanding Payable",
-        formatCurrency(ctx.settlements.payablesTotal, "INR"),
-        "",
-        "Largest Expense",
-        largestExpTitle,
-        "",
-        "Top Category",
-        topCatName,
-      ].join("\n");
+      const profileCard = `👤 **Your SplitLedger AI Profile**\n\n• **Name:** ${u.name}\n• **Email:** ${u.email}\n• **Account Tier:** PRO\n• **Currency:** INR ₹\n• **Profile Status:** ${u.emailVerified ? "Verified ✅" : (u.accountStatus ? u.accountStatus.charAt(0).toUpperCase() + u.accountStatus.slice(1) : "Active")}\n• **Active Groups:** ${ctx.groups.all.length} active\n• **Verified Ledger Records:** ${ctx.transactions.totalCount} transaction${ctx.transactions.totalCount === 1 ? "" : "s"}\n• **Financial Health Score:** ${health.score}/100 (${health.rating})\n\n**Financial Standing:**\n• **Total Personal Expenses:** ${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")}\n• **Total Group Expenses:** ${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}\n• **Total Expenses:** ${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}\n• **Outstanding Receivable:** ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}\n• **Outstanding Payable:** ${formatCurrency(ctx.settlements.payablesTotal, "INR")}\n• **Largest Expense:** ${largestExpTitle}\n• **Top Category:** ${topCatName}`;
 
       return {
         answer: profileCard,
