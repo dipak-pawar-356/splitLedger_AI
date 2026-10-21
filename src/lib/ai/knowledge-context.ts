@@ -57,11 +57,18 @@ export interface FinancialKnowledgeContext {
     currentMonth: any[];
     lastMonth: any[];
     totalCount: number;
+    personalExpensesTotal: number; // in rupees
+    groupExpensesTotal: number; // in rupees
+    allTimeTotalExpenses: number; // in rupees
+    allTimeTotalIncome: number; // in rupees
+    allTimeTotalSavings: number; // in rupees
     totalSpentThisMonth: number; // in rupees
     totalIncomeThisMonth: number; // in rupees
     netSavingsThisMonth: number; // in rupees
     savingsRatePct: number;
     categoryTotals: Record<string, number>; // in rupees
+    allTimeCategoryTotals: Record<string, number>; // in rupees
+    mostUsedPaymentMethod: string;
     hourlyDistribution: Record<number, number>; // hour -> count
     weekdaySpending: Record<string, number>; // day name -> rupees
     midnightSpendTotal: number; // transactions between 11PM and 5AM in rupees
@@ -73,9 +80,13 @@ export interface FinancialKnowledgeContext {
     receivablesTotal: number; // in rupees
     payablesTotal: number; // in rupees
     completedTotal: number; // in rupees
+    recoveredFromFriends: number; // in rupees
+    paidToFriends: number; // in rupees
     netDues: number; // in rupees
     pendingSettlements: any[];
+    completedSettlements: any[];
     debtorRanking: Array<{ name: string; amount: number; groupName?: string }>;
+    creditorRanking: Array<{ name: string; amount: number; groupName?: string }>;
   };
   budgets: {
     activeBudgets: any[];
@@ -87,6 +98,7 @@ export interface FinancialKnowledgeContext {
   groups: {
     all: any[];
     groupSpending: Record<string, number>;
+    mostActiveGroup: { name: string; amount: number } | null;
   };
   trips: {
     activeTripsCount: number;
@@ -331,6 +343,12 @@ export async function getFinancialKnowledgeContext(
   let midnightSpendTotal = 0;
   let highestTransaction: any = null;
   let lowestTransaction: any = null;
+  let personalExpensesTotal = 0;
+  let groupExpensesTotal = 0;
+  let allTimeTotalExpenses = 0;
+  let allTimeTotalIncome = 0;
+  const allTimeCategoryTotals: Record<string, number> = {};
+  const paymentMethodCounts: Record<string, number> = {};
 
   for (const t of allTx) {
     const amtRupees = t.amount / 100;
@@ -339,6 +357,10 @@ export async function getFinancialKnowledgeContext(
     const dayName = weekdayNames[dateObj.getDay()];
 
     hourlyDistribution[hour] = (hourlyDistribution[hour] || 0) + 1;
+
+    // Track payment methods
+    const pm = t.paymentMethod || "UPI";
+    paymentMethodCounts[pm] = (paymentMethodCounts[pm] || 0) + 1;
 
     // Track midnight spending (11PM to 5AM)
     if (hour >= 23 || hour <= 4) {
@@ -349,6 +371,17 @@ export async function getFinancialKnowledgeContext(
 
     if (t.type === "paid" || t.type === "borrowed") {
       weekdaySpending[dayName] = (weekdaySpending[dayName] || 0) + amtRupees;
+      allTimeTotalExpenses += amtRupees;
+      const cat = t.categoryName || "General";
+      allTimeCategoryTotals[cat] = (allTimeCategoryTotals[cat] || 0) + amtRupees;
+
+      if (t.groupId) {
+        groupExpensesTotal += amtRupees;
+      } else {
+        personalExpensesTotal += amtRupees;
+      }
+    } else if (t.type === "received" || t.type === "lent" || t.type === "repaid") {
+      allTimeTotalIncome += amtRupees;
     }
 
     // Extremes check
@@ -379,23 +412,36 @@ export async function getFinancialKnowledgeContext(
     }
   }
 
+  const allTimeTotalSavings = allTimeTotalIncome - allTimeTotalExpenses;
   const netSavingsThisMonth = totalIncomeThisMonth - totalSpentThisMonth;
   const savingsRatePct =
     totalIncomeThisMonth > 0
       ? Math.max(0, Math.round((netSavingsThisMonth / totalIncomeThisMonth) * 100))
       : 0;
 
+  const mostUsedPaymentMethod = Object.entries(paymentMethodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "UPI";
+
   // Settlements metrics
   let receivablesTotal = 0;
   let payablesTotal = 0;
   let completedSettlementsTotal = 0;
+  let recoveredFromFriends = 0;
+  let paidToFriends = 0;
   const pendingSettlements: any[] = [];
+  const completedSettlements: any[] = [];
   const debtorMap = new Map<string, { name: string; amount: number; groupName?: string }>();
+  const creditorMap = new Map<string, { name: string; amount: number; groupName?: string }>();
 
   for (const s of validatedSt.sanitizedData) {
     const sAmt = s.amount / 100;
     if (s.status === "completed") {
       completedSettlementsTotal += sAmt;
+      completedSettlements.push(s);
+      if (s.toUserId === userId) {
+        recoveredFromFriends += sAmt;
+      } else if (s.fromUserId === userId) {
+        paidToFriends += sAmt;
+      }
     } else if (s.status === "pending") {
       pendingSettlements.push(s);
       if (s.toUserId === userId) {
@@ -419,11 +465,28 @@ export async function getFinancialKnowledgeContext(
       } else if (s.fromUserId === userId) {
         // Current user owes someone
         payablesTotal += sAmt;
+        const resolvedName = (s.toUserName && s.toUserName.trim() && s.toUserName !== "Group Member")
+          ? s.toUserName.trim()
+          : (s.groupName ? `Member in ${s.groupName}` : "Group Member");
+
+        const existing = creditorMap.get(resolvedName);
+        if (existing) {
+          existing.amount += sAmt;
+          if (!existing.groupName && s.groupName) existing.groupName = s.groupName;
+        } else {
+          creditorMap.set(resolvedName, {
+            name: resolvedName,
+            amount: sAmt,
+            groupName: s.groupName || undefined,
+          });
+        }
       }
     }
   }
 
   const debtorRanking = Array.from(debtorMap.values())
+    .sort((a, b) => b.amount - a.amount);
+  const creditorRanking = Array.from(creditorMap.values())
     .sort((a, b) => b.amount - a.amount);
 
   // Budgets metrics
@@ -445,6 +508,9 @@ export async function getFinancialKnowledgeContext(
       groupSpending[t.groupName] = (groupSpending[t.groupName] || 0) + t.amount / 100;
     }
   }
+
+  const sortedGroupSpend = Object.entries(groupSpending).sort((a, b) => b[1] - a[1]);
+  const mostActiveGroup = sortedGroupSpend[0] ? { name: sortedGroupSpend[0][0], amount: sortedGroupSpend[0][1] } : null;
 
   // Flagged duplicates
   const flaggedDuplicates = validatedTx.issues
@@ -478,11 +544,18 @@ export async function getFinancialKnowledgeContext(
       currentMonth: currentMonthTx,
       lastMonth: lastMonthTx,
       totalCount: allTx.length,
+      personalExpensesTotal: Math.round(personalExpensesTotal),
+      groupExpensesTotal: Math.round(groupExpensesTotal),
+      allTimeTotalExpenses: Math.round(allTimeTotalExpenses),
+      allTimeTotalIncome: Math.round(allTimeTotalIncome),
+      allTimeTotalSavings: Math.round(allTimeTotalSavings),
       totalSpentThisMonth: Math.round(totalSpentThisMonth),
       totalIncomeThisMonth: Math.round(totalIncomeThisMonth),
       netSavingsThisMonth: Math.round(netSavingsThisMonth),
       savingsRatePct,
       categoryTotals,
+      allTimeCategoryTotals,
+      mostUsedPaymentMethod,
       hourlyDistribution,
       weekdaySpending,
       midnightSpendTotal: Math.round(midnightSpendTotal),
@@ -494,9 +567,13 @@ export async function getFinancialKnowledgeContext(
       receivablesTotal: Math.round(receivablesTotal),
       payablesTotal: Math.round(payablesTotal),
       completedTotal: Math.round(completedSettlementsTotal),
+      recoveredFromFriends: Math.round(recoveredFromFriends),
+      paidToFriends: Math.round(paidToFriends),
       netDues: Math.round(receivablesTotal - payablesTotal),
       pendingSettlements,
+      completedSettlements,
       debtorRanking,
+      creditorRanking,
     },
     budgets: {
       activeBudgets,
@@ -508,6 +585,7 @@ export async function getFinancialKnowledgeContext(
     groups: {
       all: rawGroupRows,
       groupSpending,
+      mostActiveGroup,
     },
     trips: {
       activeTripsCount: rawGroupRows.filter((g) => g.type === "trip").length,

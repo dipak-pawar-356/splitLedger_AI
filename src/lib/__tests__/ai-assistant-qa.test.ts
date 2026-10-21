@@ -49,11 +49,22 @@ vi.mock("@/lib/ai/knowledge-context", () => ({
       totalIncomeThisMonth: 0,
       netSavingsThisMonth: -8000,
       savingsRatePct: 0,
+      personalExpensesTotal: 2000,
+      groupExpensesTotal: 6000,
+      allTimeTotalExpenses: 8000,
+      allTimeTotalIncome: 0,
+      allTimeTotalSavings: -8000,
       categoryTotals: {
         "Groceries": 6000,
         "Food & Dining": 1500,
         "Transportation": 500,
       },
+      allTimeCategoryTotals: {
+        "Groceries": 6000,
+        "Food & Dining": 1500,
+        "Transportation": 500,
+      },
+      mostUsedPaymentMethod: "UPI",
       hourlyDistribution: {},
       weekdaySpending: {},
       midnightSpendTotal: 0,
@@ -65,6 +76,8 @@ vi.mock("@/lib/ai/knowledge-context", () => ({
       receivablesTotal: 1667,
       payablesTotal: 0,
       completedTotal: 5000,
+      recoveredFromFriends: 5000,
+      paidToFriends: 0,
       netDues: 1667,
       pendingSettlements: [
         {
@@ -75,11 +88,25 @@ vi.mock("@/lib/ai/knowledge-context", () => ({
           amount: 166666,
           status: "pending",
           groupName: "Summer Trip",
+          groupId: 1,
+        },
+      ],
+      completedSettlements: [
+        {
+          id: 2,
+          fromUserId: 11,
+          fromUserName: "Rohan Verma",
+          toUserId: 42,
+          amount: 500000,
+          status: "completed",
+          groupName: "Summer Trip",
+          groupId: 1,
         },
       ],
       debtorRanking: [
         { name: "Aarav Sharma", amount: 1666.66, groupName: "Summer Trip" },
       ],
+      creditorRanking: [],
     },
     budgets: {
       activeBudgets: [{ id: 1, name: "Monthly Allowance", amount: 1500000 }],
@@ -91,6 +118,7 @@ vi.mock("@/lib/ai/knowledge-context", () => ({
     groups: {
       all: [{ id: 1, name: "Summer Trip", type: "trip" }],
       groupSpending: { "Summer Trip": 8000 },
+      mostActiveGroup: { name: "Summer Trip", amount: 8000 },
     },
     trips: {
       activeTripsCount: 1,
@@ -154,5 +182,59 @@ describe("AI Financial Assistant Verified Q&A System", () => {
     const res = await askFinancialAssistant("Where is my money going?");
     expect(res.answer).toContain("Groceries");
     expect(res.keyMetrics.some((m) => m.label === "Top Category" && m.value === "Groceries")).toBe(true);
+  });
+
+  it("answers 'Who am I?' with the Master Profile Card format", async () => {
+    const res = await askFinancialAssistant("Who am I?");
+    expect(res.answer).toContain("Your SplitLedger AI Profile");
+    expect(res.answer).toContain("Dipak Pawar");
+    expect(res.answer).toContain("PRO");
+    expect(res.answer).toContain("INR ₹");
+    expect(res.answer).toContain("Total Personal Expenses");
+    expect(res.answer).toContain("Total Group Expenses");
+    expect(res.answer).toContain("Total Expenses");
+    expect(res.answer).toContain("Outstanding Receivable");
+    expect(res.answer).toContain("Largest Expense");
+    expect(res.keyMetrics.some((m) => m.label === "Account" && m.value === "PRO")).toBe(true);
+  });
+
+  it("answers 'How much have I recovered from friends?' using verified settlement recovery metrics", async () => {
+    const res = await askFinancialAssistant("How much have I recovered from friends?");
+    expect(res.answer).toContain("₹5,000.00");
+    expect(res.answer).toContain("1 completed settlement");
+    expect(res.keyMetrics.some((m) => m.label === "Recovered from Friends" && m.value === "₹5,000.00")).toBe(true);
+  });
+
+  it("answers specific group inquiry 'How much did I spend in Summer Trip?'", async () => {
+    const res = await askFinancialAssistant("How much did I spend in Summer Trip?");
+    expect(res.answer).toContain("Summer Trip");
+    expect(res.answer).toContain("₹8,000.00");
+    expect(res.keyMetrics.some((m) => m.label === "Group Spend" && m.value === "₹8,000.00")).toBe(true);
+  });
+
+  it("answers 'Who do I owe?' when there are zero outstanding liabilities", async () => {
+    const res = await askFinancialAssistant("Who do I owe?");
+    expect(res.answer).toContain("₹0.00");
+    expect(res.answer).toContain("zero outstanding liabilities");
+    expect(res.keyMetrics.some((m) => m.label === "Total Payables" && m.value === "₹0.00")).toBe(true);
+  });
+
+  it("answers 'How can I reduce my expenses?' with actionable recommendations from data", async () => {
+    const res = await askFinancialAssistant("How can I reduce my expenses?");
+    expect(res.answer).toContain("personalized AI financial recommendations");
+    expect(res.insights.length).toBeGreaterThan(0);
+    expect(res.keyMetrics.some((m) => m.label === "Top Category")).toBe(true);
+  });
+
+  it("answers 'Explain data encryption and security' with bank-grade security facts", async () => {
+    const res = await askFinancialAssistant("Explain data encryption and security");
+    expect(res.answer).toContain("bank-grade security");
+    expect(res.insights.some((i) => i.includes("256-bit AES"))).toBe(true);
+    expect(res.keyMetrics.some((m) => m.label === "Encryption")).toBe(true);
+  });
+
+  it("returns zero-hallucination notice when data does not exist", async () => {
+    const res = await askFinancialAssistant("How much did I spend on luxury yacht?");
+    expect(res.answer).toContain("I couldn't find any verified data for that request.");
   });
 });

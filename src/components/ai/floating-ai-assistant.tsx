@@ -22,6 +22,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { SUGGESTED_QUICK_QUESTIONS } from "@/lib/ai/prompts";
 
 interface Message {
   id: string;
@@ -33,14 +34,7 @@ interface Message {
   timestamp: string;
 }
 
-const QUICK_PROMPTS = [
-  "How much did I spend this month?",
-  "Who owes me the most?",
-  "Predict next month's expenses.",
-  "What is my financial health score?",
-  "What is my profile status?",
-  "Where is my money going?",
-];
+const QUICK_PROMPTS = SUGGESTED_QUICK_QUESTIONS;
 
 function formatMessageContent(content: string) {
   const parts = content.split(/(\*\*.*?\*\*)/g);
@@ -214,16 +208,21 @@ export function FloatingAIAssistant() {
               </div>
 
               {/* Quick Prompts */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-1">
-                {QUICK_PROMPTS.map((prompt, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSend(prompt)}
-                    className="text-[10px] px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 hover:bg-primary/10 text-slate-600 dark:text-slate-400 hover:text-primary transition-colors text-left"
-                  >
-                    {prompt}
-                  </button>
-                ))}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block px-0.5">
+                  Suggested Prompts
+                </span>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {QUICK_PROMPTS.map((prompt, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSend(prompt)}
+                      className="text-[10px] whitespace-nowrap px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-900 hover:bg-primary/10 text-slate-600 dark:text-slate-300 hover:text-primary transition-colors shrink-0 border border-slate-200/60 dark:border-slate-800 font-medium"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
             </CardContent>
 

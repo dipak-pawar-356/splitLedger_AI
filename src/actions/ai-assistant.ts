@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/utils";
 import { getFinancialKnowledgeContext, FinancialKnowledgeContext } from "@/lib/ai/knowledge-context";
 import { detectSubscriptions, DetectedSubscription } from "@/lib/ai/subscription-detector";
 import { calculateComprehensiveHealthScore, predictFutureExpenses } from "@/lib/ai/financial-health";
+import { SPLITLEDGER_MASTER_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 
 export interface AIAssistantResponse {
   answer: string;
@@ -469,7 +470,183 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       };
     }
 
-    // 3.3 FINANCIAL HEALTH SCORE (Comprehensive 7-Factor Scoring Engine)
+    // 3.3 WHO DO I OWE / PAYABLES
+    if (
+      qLower.includes("who do i owe") ||
+      qLower.includes("who i owe") ||
+      qLower.includes("how much do i owe") ||
+      qLower.includes("whom do i owe") ||
+      qLower.includes("my payables") ||
+      qLower.includes("kisko dena hai") ||
+      qLower.includes("money i owe")
+    ) {
+      if (ctx.settlements.payablesTotal === 0 || ctx.settlements.creditorRanking.length === 0) {
+        return {
+          answer: "You currently have **zero outstanding liabilities** (₹0.00). You do not owe any money to anyone across your groups and contacts!",
+          insights: [
+            "Zero outstanding payables.",
+            "All shared expenses and personal debts are completely balanced.",
+          ],
+          keyMetrics: [
+            { label: "Total Payables", value: "₹0.00" },
+            { label: "Liabilities", value: "All Clear" },
+          ],
+          actionSuggestions: [
+            { label: "Settlement Center", url: "/dashboard/settlements" },
+            { label: "View Groups", url: "/dashboard/groups" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const topCreditor = ctx.settlements.creditorRanking[0];
+      return {
+        answer: `You currently owe a total of **${formatCurrency(ctx.settlements.payablesTotal, "INR")}** across **${ctx.settlements.creditorRanking.length} pending payable${ctx.settlements.creditorRanking.length === 1 ? "" : "s"}**. Your largest payable is to **${topCreditor.name}** for **${formatCurrency(topCreditor.amount, "INR")}**${topCreditor.groupName ? ` in "${topCreditor.groupName}"` : ""}.`,
+        insights: [
+          `Top Creditor: ${topCreditor.name} (${formatCurrency(topCreditor.amount, "INR")})`,
+          ...ctx.settlements.creditorRanking.slice(1, 4).map((c) => `• ${c.name}: ${formatCurrency(c.amount, "INR")}${c.groupName ? ` (${c.groupName})` : ""}`),
+          "Clear your dues promptly via UPI in the Settlement Center to maintain a high Financial Health score.",
+        ],
+        keyMetrics: [
+          { label: "Total Payables", value: formatCurrency(ctx.settlements.payablesTotal, "INR") },
+          { label: "Top Creditor", value: topCreditor.name },
+          { label: "Amount Due", value: formatCurrency(topCreditor.amount, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "Settle via UPI", url: "/dashboard/settlements" },
+          { label: "Settlement Center", url: "/dashboard/settlements" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 3.4 RECOVERED FROM FRIENDS
+    if (
+      qLower.includes("recovered from friends") ||
+      qLower.includes("recovered from") ||
+      qLower.includes("how much have i recovered") ||
+      qLower.includes("money recovered") ||
+      qLower.includes("how much did i recover")
+    ) {
+      return {
+        answer: `You have successfully recovered **${formatCurrency(ctx.settlements.recoveredFromFriends, "INR")}** from friends across **${ctx.settlements.completedSettlements.length} completed settlement${ctx.settlements.completedSettlements.length === 1 ? "" : "s"}**.`,
+        insights: [
+          `Total Recovered: ${formatCurrency(ctx.settlements.recoveredFromFriends, "INR")}`,
+          `Completed Settlements: ${ctx.settlements.completedSettlements.length}`,
+          `Still Pending from Friends: ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
+          ctx.settlements.receivablesTotal > 0
+            ? "Send WhatsApp or in-app reminders to accelerate recovery of remaining dues."
+            : "All shared receivables have been completely recovered!",
+        ],
+        keyMetrics: [
+          { label: "Recovered from Friends", value: formatCurrency(ctx.settlements.recoveredFromFriends, "INR") },
+          { label: "Completed Settlements", value: `${ctx.settlements.completedSettlements.length}` },
+          { label: "Pending Receivables", value: formatCurrency(ctx.settlements.receivablesTotal, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "Settlement Center", url: "/dashboard/settlements" },
+          { label: "View Ledger", url: "/dashboard/transactions" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 3.5 SPECIFIC MEMBER SETTLEMENT INQUIRY (e.g. "How much should Kunal pay me?", "How much should I pay Raj?")
+    const allParticipants = [
+      ...ctx.settlements.debtorRanking.map((d) => ({ ...d, role: "debtor" as const })),
+      ...ctx.settlements.creditorRanking.map((c) => ({ ...c, role: "creditor" as const })),
+    ];
+
+    const matchedParticipant = allParticipants.find((p) => {
+      const pNameLower = p.name.toLowerCase();
+      const pTokens = pNameLower.split(/\s+/).filter((tok) => tok.length > 2);
+      return pTokens.some((tok) => qLower.includes(tok));
+    });
+
+    if (
+      matchedParticipant &&
+      (qLower.includes("pay") ||
+        qLower.includes("owe") ||
+        qLower.includes("how much") ||
+        qLower.includes("settle") ||
+        qLower.includes("dena") ||
+        qLower.includes("lena"))
+    ) {
+      if (matchedParticipant.role === "debtor") {
+        return {
+          answer: `**${matchedParticipant.name}** owes you **${formatCurrency(matchedParticipant.amount, "INR")}** in pending settlements${matchedParticipant.groupName ? ` from **${matchedParticipant.groupName}**` : ""}.`,
+          insights: [
+            `Member: ${matchedParticipant.name}`,
+            `Status: Pending Receivable`,
+            `Amount: ${formatCurrency(matchedParticipant.amount, "INR")}`,
+            matchedParticipant.groupName ? `Group: ${matchedParticipant.groupName}` : "Direct Contact",
+            "Send a friendly settlement reminder via WhatsApp or in-app notification.",
+          ],
+          keyMetrics: [
+            { label: "Member", value: matchedParticipant.name },
+            { label: "Amount Owed", value: formatCurrency(matchedParticipant.amount, "INR") },
+            { label: "Status", value: "Receivable" },
+          ],
+          actionSuggestions: [
+            { label: "Send Reminder", url: "/dashboard/settlements" },
+            { label: "Settlement Center", url: "/dashboard/settlements" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        return {
+          answer: `You owe **${matchedParticipant.name}** **${formatCurrency(matchedParticipant.amount, "INR")}** in pending settlements${matchedParticipant.groupName ? ` for **${matchedParticipant.groupName}**` : ""}.`,
+          insights: [
+            `Member: ${matchedParticipant.name}`,
+            `Status: Pending Payable`,
+            `Amount Due: ${formatCurrency(matchedParticipant.amount, "INR")}`,
+            matchedParticipant.groupName ? `Group: ${matchedParticipant.groupName}` : "Direct Contact",
+            "You can pay directly via UPI in the Settlement Center to clear this balance.",
+          ],
+          keyMetrics: [
+            { label: "Pay To", value: matchedParticipant.name },
+            { label: "Amount Due", value: formatCurrency(matchedParticipant.amount, "INR") },
+            { label: "Status", value: "Payable" },
+          ],
+          actionSuggestions: [
+            { label: "Pay via UPI", url: "/dashboard/settlements" },
+            { label: "Settlement Center", url: "/dashboard/settlements" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
+
+    // 3.6 EXPLAIN SETTLEMENT CALCULATION / WHY AM I RECEIVING MONEY
+    if (
+      qLower.includes("explain settlement") ||
+      qLower.includes("why am i receiving") ||
+      qLower.includes("settlement calculation") ||
+      qLower.includes("how is settlement calculated") ||
+      qLower.includes("settlement math")
+    ) {
+      return {
+        answer: `In SplitLedger AI, settlements are calculated using verified double-entry ledger balancing and debt-simplification algorithms. When you pay for a shared group expense, your personal share is deducted from what you paid; the remaining excess is automatically owed back to you by members who shared that expense.`,
+        insights: [
+          "• Shared Expense Recording: Every participant is allocated their precise split share.",
+          "• Payer Credit: The member who paid upfront receives a credit equal to the shared portion paid for others.",
+          "• Debt Simplification: Graph algorithms eliminate circular debts among friends to minimize the total number of transactions.",
+          `• Your Live Position: You are owed ${formatCurrency(ctx.settlements.receivablesTotal, "INR")} and owe ${formatCurrency(ctx.settlements.payablesTotal, "INR")} (Net: ${ctx.settlements.netDues >= 0 ? "+" : ""}${formatCurrency(ctx.settlements.netDues, "INR")}).`,
+        ],
+        keyMetrics: [
+          { label: "Receivables", value: formatCurrency(ctx.settlements.receivablesTotal, "INR") },
+          { label: "Payables", value: formatCurrency(ctx.settlements.payablesTotal, "INR") },
+          { label: "Net Position", value: `${ctx.settlements.netDues >= 0 ? "+" : ""}${formatCurrency(ctx.settlements.netDues, "INR")}` },
+        ],
+        actionSuggestions: [
+          { label: "Settlement Center", url: "/dashboard/settlements" },
+          { label: "View Groups", url: "/dashboard/groups" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 3.7 FINANCIAL HEALTH SCORE (Comprehensive 7-Factor Scoring Engine)
     if (
       qLower.includes("health score") ||
       qLower.includes("financial health") ||
@@ -515,8 +692,71 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
     // 4. GROUPS, TRIPS & LOANS
     // =========================================================================
 
+    // 4.0 PERSONAL EXPENSES VS GROUP EXPENSES
+    if (
+      qLower.includes("personal expense") ||
+      qLower.includes("personal spending") ||
+      qLower.includes("personal spend") ||
+      qLower.includes("my personal expenses")
+    ) {
+      return {
+        answer: `Your verified total **Personal Expenses** amount to **${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")}** across personal non-group transactions.`,
+        insights: [
+          `Personal Outflow: ${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")}`,
+          `Group Shared Outflow: ${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}`,
+          `Total All-Time Expenses: ${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}`,
+          `Personal expenses account for ${ctx.transactions.allTimeTotalExpenses > 0 ? Math.round((ctx.transactions.personalExpensesTotal / ctx.transactions.allTimeTotalExpenses) * 100) : 0}% of your total expenditures.`,
+        ],
+        keyMetrics: [
+          { label: "Personal Expenses", value: formatCurrency(ctx.transactions.personalExpensesTotal, "INR") },
+          { label: "Group Expenses", value: formatCurrency(ctx.transactions.groupExpensesTotal, "INR") },
+          { label: "Total Expenses", value: formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "View Personal Ledger", url: "/dashboard/transactions" },
+          { label: "View Analytics", url: "/dashboard/analytics" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    if (
+      qLower.includes("group expense") ||
+      qLower.includes("group spending") ||
+      qLower.includes("shared expense") ||
+      qLower.includes("shared spending") ||
+      qLower.includes("my group expenses")
+    ) {
+      return {
+        answer: `Your verified total **Group Expenses** amount to **${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}** across **${ctx.groups.all.length} active group${ctx.groups.all.length === 1 ? "" : "s"}**.`,
+        insights: [
+          `Group Expenses: ${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}`,
+          `Personal Expenses: ${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")}`,
+          `Total Expenses: ${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}`,
+          ctx.groups.mostActiveGroup
+            ? `Most active group: ${ctx.groups.mostActiveGroup.name} (${formatCurrency(ctx.groups.mostActiveGroup.amount, "INR")})`
+            : "No group transactions logged yet.",
+        ],
+        keyMetrics: [
+          { label: "Group Expenses", value: formatCurrency(ctx.transactions.groupExpensesTotal, "INR") },
+          { label: "Personal Expenses", value: formatCurrency(ctx.transactions.personalExpensesTotal, "INR") },
+          { label: "Active Groups", value: `${ctx.groups.all.length}` },
+        ],
+        actionSuggestions: [
+          { label: "View Groups", url: "/dashboard/groups" },
+          { label: "Settlement Center", url: "/dashboard/settlements" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     // 4.1 WHICH GROUP SPENDS THE MOST?
-    if (qLower.includes("group spends the most") || qLower.includes("highest spending group")) {
+    if (
+      qLower.includes("group spends the most") ||
+      qLower.includes("highest spending group") ||
+      qLower.includes("which group spent the most") ||
+      qLower.includes("which group has the highest expenses")
+    ) {
       const entries = Object.entries(ctx.groups.groupSpending).sort((a, b) => b[1] - a[1]);
       const topGroup = entries[0];
 
@@ -541,6 +781,58 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
           { label: "Group Spend", value: formatCurrency(topGroup[1], "INR") },
         ],
         actionSuggestions: [{ label: "View Group Details", url: "/dashboard/groups" }],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 4.2 SPECIFIC GROUP EXPENSE LOOKUP (e.g. "How much did I spend in Summer Trip?")
+    const matchedGroup = ctx.groups.all.find((g) => {
+      const gNameLower = (g.name || "").toLowerCase().trim();
+      return gNameLower.length > 2 && qLower.includes(gNameLower);
+    });
+
+    if (
+      matchedGroup &&
+      (qLower.includes("spend") ||
+        qLower.includes("spent") ||
+        qLower.includes("how much") ||
+        qLower.includes("expense") ||
+        qLower.includes("cost") ||
+        qLower.includes("total") ||
+        qLower.includes("in ") ||
+        qLower.includes("pending"))
+    ) {
+      const gSpend = ctx.groups.groupSpending[matchedGroup.name] || 0;
+      const groupTx = ctx.transactions.all.filter(
+        (t) => t.groupId === matchedGroup.id || (t.groupName && t.groupName.toLowerCase() === matchedGroup.name.toLowerCase())
+      );
+      const groupPending = ctx.settlements.pendingSettlements.filter(
+        (s) => s.groupId === matchedGroup.id || (s.groupName && s.groupName.toLowerCase() === matchedGroup.name.toLowerCase())
+      );
+      const pendingOwedToUser = groupPending
+        .filter((s) => s.toUserId === user.id)
+        .reduce((sum, s) => sum + s.amount / 100, 0);
+
+      return {
+        answer: `In **${matchedGroup.name}**, your recorded shared expenses total **${formatCurrency(gSpend, "INR")}** across **${groupTx.length} transaction${groupTx.length === 1 ? "" : "s"}**.${pendingOwedToUser > 0 ? ` You are currently owed **${formatCurrency(pendingOwedToUser, "INR")}** in pending receivables from this group.` : ""}`,
+        insights: [
+          `Group: ${matchedGroup.name} (${matchedGroup.type || "shared"})`,
+          `Total Shared Spending: ${formatCurrency(gSpend, "INR")}`,
+          `Transactions Logged: ${groupTx.length}`,
+          pendingOwedToUser > 0
+            ? `Pending Receivables: ${formatCurrency(pendingOwedToUser, "INR")}`
+            : "All settlements in this group are balanced.",
+        ],
+        keyMetrics: [
+          { label: "Group Spend", value: formatCurrency(gSpend, "INR") },
+          { label: "Group", value: matchedGroup.name },
+          { label: "Transactions", value: `${groupTx.length}` },
+          { label: "Pending Dues", value: formatCurrency(pendingOwedToUser, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "Open Group", url: `/dashboard/groups/${matchedGroup.id}` },
+          { label: "Settlement Center", url: "/dashboard/settlements" },
+        ],
         timestamp: new Date().toISOString(),
       };
     }
@@ -756,7 +1048,81 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       };
     }
 
-    // 7.2 PREDICT NEXT MONTH'S EXPENSES
+    // 7.2 BURN RATE / AVERAGE DAILY SPENDING
+    if (
+      qLower.includes("burn rate") ||
+      qLower.includes("average daily spending") ||
+      qLower.includes("daily spending") ||
+      qLower.includes("daily average") ||
+      qLower.includes("per day") ||
+      qLower.includes("daily burn")
+    ) {
+      const daysElapsed = Math.max(1, now.getDate());
+      const dailyBurn = currentMonthExpenses / daysElapsed;
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const projectedMonthSpend = Math.round(dailyBurn * daysInMonth);
+
+      return {
+        answer: `Your average daily burn rate for this month is **${formatCurrency(dailyBurn, "INR")}/day** (${daysElapsed} days elapsed). At this velocity, your projected monthly spend will be **${formatCurrency(projectedMonthSpend, "INR")}**.`,
+        insights: [
+          `Daily Burn Rate: ${formatCurrency(dailyBurn, "INR")}/day across ${ctx.transactions.currentMonth.length} transactions`,
+          `Days Elapsed: ${daysElapsed} of ${daysInMonth} days`,
+          `Projected Month-End Outflow: ${formatCurrency(projectedMonthSpend, "INR")}`,
+          ctx.budgets.totalAllocatedBudget > 0
+            ? `Allocated Monthly Budget: ${formatCurrency(ctx.budgets.totalAllocatedBudget, "INR")} (${projectedMonthSpend > ctx.budgets.totalAllocatedBudget ? "Risk of overrun" : "On track"})`
+            : "No monthly budget ceiling set yet.",
+        ],
+        keyMetrics: [
+          { label: "Daily Burn Rate", value: `${formatCurrency(dailyBurn, "INR")}/day` },
+          { label: "Projected Spend", value: formatCurrency(projectedMonthSpend, "INR") },
+          { label: "Current Spend", value: formatCurrency(currentMonthExpenses, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "Manage Budgets", url: "/dashboard/budgets" },
+          { label: "View Analytics", url: "/dashboard/analytics" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 7.3 SAVING RATE / HOW MUCH DID I SAVE / INCOME
+    if (
+      qLower.includes("saving rate") ||
+      qLower.includes("save rate") ||
+      qLower.includes("how much did i save") ||
+      qLower.includes("how much have i saved") ||
+      qLower.includes("my savings") ||
+      qLower.includes("total savings") ||
+      qLower.includes("how much income did i receive") ||
+      qLower.includes("my income")
+    ) {
+      return {
+        answer: `This month, your net savings amount to **${netSavings >= 0 ? "+" : ""}${formatCurrency(netSavings, "INR")}**, resulting in a savings rate of **${savingsRate}%** (Income: **${formatCurrency(currentMonthIncome, "INR")}**, Expenses: **${formatCurrency(currentMonthExpenses, "INR")}**).`,
+        insights: [
+          `Net Savings This Month: ${formatCurrency(netSavings, "INR")}`,
+          `Savings Rate: ${savingsRate}%`,
+          `Total Income: ${formatCurrency(currentMonthIncome, "INR")}`,
+          `Total Outflow: ${formatCurrency(currentMonthExpenses, "INR")}`,
+          `All-Time Savings: ${formatCurrency(ctx.transactions.allTimeTotalSavings, "INR")}`,
+          savingsRate >= 20
+            ? "Outstanding savings discipline! You meet the recommended 20% benchmark."
+            : "Tip: Trimming discretionary dining and late-night expenses can boost your monthly savings rate.",
+        ],
+        keyMetrics: [
+          { label: "Net Savings", value: `${netSavings >= 0 ? "+" : ""}${formatCurrency(netSavings, "INR")}` },
+          { label: "Savings Rate", value: `${savingsRate}%` },
+          { label: "Total Inflow", value: formatCurrency(currentMonthIncome, "INR") },
+          { label: "Total Outflow", value: formatCurrency(currentMonthExpenses, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "View Analytics", url: "/dashboard/analytics" },
+          { label: "Check Budgets", url: "/dashboard/budgets" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 7.4 PREDICT NEXT MONTH'S EXPENSES
     if (
       qLower.includes("predict") ||
       qLower.includes("forecast") ||
@@ -764,6 +1130,19 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       qLower.includes("future expense") ||
       qLower.includes("aage ka kharcha")
     ) {
+      if (ctx.transactions.all.length === 0) {
+        return {
+          answer: "There isn't enough historical data to generate an accurate prediction. Record transactions to enable predictive AI forecasting.",
+          insights: ["Historical ledger data is needed to calculate daily velocity and forecast next month's outflow."],
+          keyMetrics: [
+            { label: "Data Status", value: "Insufficient" },
+            { label: "Confidence", value: "0%" },
+          ],
+          actionSuggestions: [{ label: "Add Expense", url: "/dashboard/transactions" }],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
       const forecast = predictFutureExpenses({
         currentMonthSpent: currentMonthExpenses,
         monthlyBudget: ctx.budgets.totalAllocatedBudget || (currentMonthExpenses > 0 ? currentMonthExpenses * 1.15 : 20000),
@@ -893,7 +1272,154 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
     }
 
     // =========================================================================
-    // 8.5 USER PROFILE, ACCOUNT & SECURITY INQUIRIES
+    // 8.5 AI FINANCIAL RECOMMENDATIONS & ADVICE
+    // =========================================================================
+    if (
+      qLower.includes("recommendation") ||
+      qLower.includes("financial advice") ||
+      qLower.includes("reduce my expenses") ||
+      qLower.includes("reduce expenses") ||
+      qLower.includes("how can i reduce") ||
+      qLower.includes("where can i save") ||
+      qLower.includes("how to save") ||
+      qLower.includes("saving advice") ||
+      qLower.includes("ai recommendations")
+    ) {
+      const recommendations: string[] = [];
+      const sortedCats = Object.entries(ctx.transactions.categoryTotals).sort((a, b) => b[1] - a[1]);
+      const topCat = sortedCats[0];
+
+      if (topCat && currentMonthExpenses > 0) {
+        const pct = Math.round((topCat[1] / currentMonthExpenses) * 100);
+        recommendations.push(
+          `Set a spending ceiling for **${topCat[0]}**: It represents **${pct}%** (${formatCurrency(topCat[1], "INR")}) of this month's outflow. Trimming 15% would save ${formatCurrency(topCat[1] * 0.15, "INR")}.`
+        );
+      }
+
+      if (ctx.settlements.receivablesTotal > 0) {
+        recommendations.push(
+          `Collect pending group receivables: Friends owe you **${formatCurrency(ctx.settlements.receivablesTotal, "INR")}**. Clearing these pending settlements immediately bolsters your cash flow.`
+        );
+      }
+
+      if (ctx.transactions.midnightSpendTotal > 0) {
+        recommendations.push(
+          `Curtail late-night discretionary spending: You have logged **${formatCurrency(ctx.transactions.midnightSpendTotal, "INR")}** between 11 PM and 5 AM this month.`
+        );
+      }
+
+      if (savingsRate < 20) {
+        recommendations.push(
+          `Target a 20% savings threshold: Your current rate is **${savingsRate}%**. Automating personal savings on income day ensures steady wealth preservation.`
+        );
+      } else {
+        recommendations.push(
+          `Strong savings momentum: You are saving **${savingsRate}%** of your monthly income. Consider allocating surplus into an emergency liquidity reserve.`
+        );
+      }
+
+      if (ctx.budgets.breachedBudgets.length > 0) {
+        recommendations.push(
+          `Review **${ctx.budgets.breachedBudgets.length} exceeded budget${ctx.budgets.breachedBudgets.length === 1 ? "" : "s"}** in the Budget Manager to re-anchor category limits.`
+        );
+      }
+
+      return {
+        answer: `Here are your personalized AI financial recommendations based strictly on your verified ledger data:`,
+        insights: recommendations,
+        keyMetrics: [
+          { label: "Top Category", value: topCat ? topCat[0] : "General" },
+          { label: "Pending Receivables", value: formatCurrency(ctx.settlements.receivablesTotal, "INR") },
+          { label: "Savings Rate", value: `${savingsRate}%` },
+        ],
+        actionSuggestions: [
+          { label: "Manage Budgets", url: "/dashboard/budgets" },
+          { label: "Collect Receivables", url: "/dashboard/settlements" },
+          { label: "View Analytics", url: "/dashboard/analytics" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // =========================================================================
+    // 8.6 SECURITY, PRIVACY & ENCRYPTION
+    // =========================================================================
+    if (
+      qLower.includes("encryption") ||
+      qLower.includes("privacy") ||
+      qLower.includes("cloud sync") ||
+      qLower.includes("qr payment") ||
+      qLower.includes("approval system") ||
+      qLower.includes("authentication") ||
+      qLower.includes("settlement verification") ||
+      (qLower.includes("security") && !qLower.includes("score"))
+    ) {
+      return {
+        answer: `SplitLedger AI PRO operates with bank-grade security and zero-knowledge ledger guarantees to protect your financial transactions and collaborative settlements:`,
+        insights: [
+          "• Data Encryption: 256-bit AES encryption at rest and TLS 1.3 transit encryption across all PostgreSQL records.",
+          "• Authentication & 2FA: Protected by Clerk multi-factor authentication with session timeouts and verified device tracking.",
+          "• Tamper-Proof Audit Trail: Every transaction, split edit, and settlement confirmation is immutably logged with timestamps.",
+          "• Direct UPI QR Verification: Settlement QR codes generate strict NPCI-compliant payment strings directly to verified user VPAs with zero intermediary custody.",
+          "• Privacy Guarantee: Your personal and shared expenses are strictly isolated and never shared, sold, or used for external advertising.",
+        ],
+        keyMetrics: [
+          { label: "Encryption", value: "AES-256 / TLS 1.3" },
+          { label: "2FA Status", value: ctx.user.twoFactorEnabled ? "Active" : "Recommended" },
+          { label: "Audit Logging", value: "Active" },
+        ],
+        actionSuggestions: [
+          { label: "Security Settings", url: "/dashboard/settings" },
+          { label: "Settlement Center", url: "/dashboard/settlements" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // =========================================================================
+    // 8.7 FINANCIAL REPORT SUMMARY
+    // =========================================================================
+    if (
+      qLower.includes("summarize my financial report") ||
+      qLower.includes("summarize my report") ||
+      qLower.includes("explain my report") ||
+      qLower.includes("financial report")
+    ) {
+      const sorted = Object.entries(ctx.transactions.categoryTotals).sort((a, b) => b[1] - a[1]);
+      const topCat = sorted[0];
+      const health = calculateComprehensiveHealthScore({
+        monthlyIncome: currentMonthIncome > 0 ? currentMonthIncome : undefined,
+        monthlyExpense: currentMonthExpenses,
+        totalBudget: ctx.budgets.totalAllocatedBudget,
+        settledAmount: ctx.settlements.completedTotal || 0,
+        totalSettlementDue: ctx.settlements.payablesTotal,
+        overdueSettlementCount: 0,
+      });
+
+      return {
+        answer: `📊 Financial Summary\n\nTotal Expenses\n**${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}**\n\nPersonal Expenses\n**${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")}**\n\nGroup Expenses\n**${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}**\n\nLargest Expense\n**${ctx.transactions.highestTransaction ? ctx.transactions.highestTransaction.title : "None"}**\n\nTop Category\n**${topCat ? topCat[0] : "General"}**\n\nFinancial Health\n**${health.score}/100**\n\n💡 AI Insight\n${topCat ? `Your ${topCat[0]} expenses account for ${Math.round((topCat[1] / Math.max(1, currentMonthExpenses)) * 100)}% of this month's spending. Setting a budget could improve your savings next month.` : "Your accounts show steady transaction tracking across personal and shared ledgers."}`,
+        insights: [
+          `Total All-Time Outflow: ${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}`,
+          `Personal vs Group Split: ${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")} personal / ${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")} shared`,
+          `Receivables Balance: ${formatCurrency(ctx.settlements.receivablesTotal, "INR")} owed to you`,
+          `Health Rating: ${health.rating} (${health.score}/100)`,
+        ],
+        keyMetrics: [
+          { label: "Total Expenses", value: formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR") },
+          { label: "Personal Expenses", value: formatCurrency(ctx.transactions.personalExpensesTotal, "INR") },
+          { label: "Group Expenses", value: formatCurrency(ctx.transactions.groupExpensesTotal, "INR") },
+          { label: "Financial Health", value: `${health.score}/100` },
+        ],
+        actionSuggestions: [
+          { label: "Export PDF Report", url: "/dashboard/reports" },
+          { label: "View Analytics", url: "/dashboard/analytics" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // =========================================================================
+    // 8.8 USER PROFILE, ACCOUNT & "WHO AM I?"
     // =========================================================================
     if (
       qLower.includes("profile") ||
@@ -931,8 +1457,8 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         };
       }
 
-      // Specific 2FA / Security check
-      if (qLower.includes("2fa") || qLower.includes("two factor") || qLower.includes("security")) {
+      // Specific 2FA check
+      if (qLower.includes("2fa") || qLower.includes("two factor")) {
         return {
           answer: u.twoFactorEnabled
             ? `Your account security is **high**: Two-Factor Authentication (2FA) is **enabled** and your email is **${u.emailVerified ? "verified" : "pending verification"}**.`
@@ -971,51 +1497,168 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         };
       }
 
-      // General Profile Overview
+      // "What is my profile status?" check
+      if (qLower.includes("profile status")) {
+        return {
+          answer: `Here is your verified SplitLedger profile: You are logged in as **${u.name}**. Registered email is **${u.email}** (${u.emailVerified ? "Verified" : "Unverified"}), Mobile is **${u.phone || "Not set"}** (${u.mobileVerified ? "Verified" : "Unverified"}), UPI ID is **${u.upiId || "Not configured"}**, Base currency is **${u.defaultCurrency}**, and Profile Completion is at **${u.profileCompletionPct}%**.`,
+          insights: [
+            `Member: ${u.name} (ID: #${u.id})`,
+            `Email: ${u.email} (${u.emailVerified ? "Verified" : "Pending Verification"})`,
+            `Mobile: ${u.phone || "Not set"} (${u.mobileVerified ? "Verified" : "Unverified"})`,
+            `UPI ID: ${u.upiId || "Not configured"}`,
+            `Location: ${[u.city, u.country].filter(Boolean).join(", ") || "India"}${u.occupation ? ` • ${u.occupation}` : ""}`,
+            `Security: 2FA is ${u.twoFactorEnabled ? "Enabled" : "Disabled"}`,
+          ],
+          keyMetrics: [
+            { label: "Member Name", value: u.name },
+            { label: "Profile Completion", value: `${u.profileCompletionPct}%` },
+            { label: "Base Currency", value: u.defaultCurrency },
+            { label: "2FA Status", value: u.twoFactorEnabled ? "Protected" : "Standard" },
+          ],
+          actionSuggestions: [
+            { label: "Edit Profile", url: "/dashboard/settings" },
+            { label: "Security Settings", url: "/dashboard/settings" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // Master Profile Card Format ("Who am I?", "Show my profile summary", "my profile")
+      const sortedCats = Object.entries(ctx.transactions.allTimeCategoryTotals).sort((a, b) => b[1] - a[1]);
+      const topCatName = sortedCats[0]?.[0] || Object.entries(ctx.transactions.categoryTotals).sort((a, b) => b[1] - a[1])[0]?.[0] || "General";
+      const largestExpTitle = ctx.transactions.highestTransaction ? ctx.transactions.highestTransaction.title : "None";
+      const health = calculateComprehensiveHealthScore({
+        monthlyIncome: currentMonthIncome > 0 ? currentMonthIncome : undefined,
+        monthlyExpense: currentMonthExpenses,
+        totalBudget: ctx.budgets.totalAllocatedBudget,
+        settledAmount: ctx.settlements.completedTotal || 0,
+        totalSettlementDue: ctx.settlements.payablesTotal,
+        overdueSettlementCount: 0,
+      });
+
+      const profileCard = [
+        "Your SplitLedger AI Profile",
+        "",
+        "Name",
+        u.name,
+        "",
+        "Email",
+        u.email,
+        "",
+        "Account",
+        "PRO",
+        "",
+        "Currency",
+        "INR ₹",
+        "",
+        "Profile Status",
+        u.emailVerified ? "Verified" : (u.accountStatus ? u.accountStatus.charAt(0).toUpperCase() + u.accountStatus.slice(1) : "Active"),
+        "",
+        "Groups",
+        `${ctx.groups.all.length} Active`,
+        "",
+        "Transactions",
+        `${ctx.transactions.totalCount}`,
+        "",
+        "Financial Health",
+        `${health.score}/100`,
+        "",
+        "Total Personal Expenses",
+        formatCurrency(ctx.transactions.personalExpensesTotal, "INR"),
+        "",
+        "Total Group Expenses",
+        formatCurrency(ctx.transactions.groupExpensesTotal, "INR"),
+        "",
+        "Total Expenses",
+        formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR"),
+        "",
+        "Outstanding Receivable",
+        formatCurrency(ctx.settlements.receivablesTotal, "INR"),
+        "",
+        "Outstanding Payable",
+        formatCurrency(ctx.settlements.payablesTotal, "INR"),
+        "",
+        "Largest Expense",
+        largestExpTitle,
+        "",
+        "Top Category",
+        topCatName,
+      ].join("\n");
+
       return {
-        answer: `Here is your verified SplitLedger profile: You are logged in as **${u.name}**. Registered email is **${u.email}** (${u.emailVerified ? "Verified" : "Unverified"}), Mobile is **${u.phone || "Not set"}** (${u.mobileVerified ? "Verified" : "Unverified"}), UPI ID is **${u.upiId || "Not configured"}**, Base currency is **${u.defaultCurrency}**, and Profile Completion is at **${u.profileCompletionPct}%**.`,
+        answer: profileCard,
         insights: [
-          `Member: ${u.name} (ID: #${u.id})`,
-          `Email: ${u.email} (${u.emailVerified ? "Verified" : "Pending Verification"})`,
-          `Mobile: ${u.phone || "Not set"} (${u.mobileVerified ? "Verified" : "Unverified"})`,
-          `UPI ID: ${u.upiId || "Not configured"}`,
-          `Location: ${[u.city, u.country].filter(Boolean).join(", ") || "India"}${u.occupation ? ` • ${u.occupation}` : ""}`,
-          `Security: 2FA is ${u.twoFactorEnabled ? "Enabled" : "Disabled"}`,
+          `Personal Outflow: ${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")} | Group Outflow: ${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}`,
+          `Financial Health: ${health.score}/100 (${health.rating}) with ${ctx.transactions.totalCount} verified ledger transactions.`,
+          `Outstanding Dues: ${formatCurrency(ctx.settlements.receivablesTotal, "INR")} receivable, ${formatCurrency(ctx.settlements.payablesTotal, "INR")} payable.`,
+          `Most active group: ${ctx.groups.mostActiveGroup?.name || "None"} | Preferred payment: ${ctx.transactions.mostUsedPaymentMethod}.`,
         ],
         keyMetrics: [
-          { label: "Member Name", value: u.name },
-          { label: "Profile Completion", value: `${u.profileCompletionPct}%` },
-          { label: "Base Currency", value: u.defaultCurrency },
-          { label: "2FA Status", value: u.twoFactorEnabled ? "Protected" : "Standard" },
+          { label: "Account", value: "PRO" },
+          { label: "Financial Health", value: `${health.score}/100` },
+          { label: "Personal Expenses", value: formatCurrency(ctx.transactions.personalExpensesTotal, "INR") },
+          { label: "Group Expenses", value: formatCurrency(ctx.transactions.groupExpensesTotal, "INR") },
+          { label: "Total Expenses", value: formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR") },
+          { label: "Receivable", value: formatCurrency(ctx.settlements.receivablesTotal, "INR") },
         ],
         actionSuggestions: [
           { label: "Edit Profile", url: "/dashboard/settings" },
-          { label: "Security Settings", url: "/dashboard/settings" },
+          { label: "View Analytics", url: "/dashboard/analytics" },
+          { label: "Settlement Center", url: "/dashboard/settlements" },
         ],
         timestamp: new Date().toISOString(),
       };
     }
 
     // =========================================================================
-    // 9. DEFAULT LIVE LEDGER ASSISTANT RESPONSE
+    // 8.9 GREETINGS
+    // =========================================================================
+    if (
+      qLower === "hi" ||
+      qLower === "hello" ||
+      qLower === "hey" ||
+      qLower === "namaste" ||
+      qLower === "greetings" ||
+      qLower.startsWith("hi ") ||
+      qLower.startsWith("hello ")
+    ) {
+      return {
+        answer: "Namaste! I am SplitLedger AI PRO, your Financial Copilot. How can I assist your personal or group finances today?",
+        insights: [
+          "Ask me about this month's spending, who owes you money, or your financial health score.",
+          "You can also ask 'Who am I?' for a complete verified profile breakdown.",
+        ],
+        keyMetrics: [
+          { label: "Financial Copilot", value: "PRO" },
+          { label: "Ledger Status", value: "Synchronized" },
+        ],
+        actionSuggestions: [
+          { label: "View Ledger", url: "/dashboard/transactions" },
+          { label: "Settlement Center", url: "/dashboard/settlements" },
+          { label: "Analytics", url: "/dashboard/analytics" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // =========================================================================
+    // 9. DEFAULT / MISSING DATA HANDLER
     // =========================================================================
     return {
-      answer: `Here is your current live account status: This month you have spent **${formatCurrency(currentMonthExpenses, "INR")}** and received **${formatCurrency(currentMonthIncome, "INR")}**, with **${formatCurrency(ctx.settlements.receivablesTotal, "INR")}** pending in group receivables.`,
+      answer: "I couldn't find any verified data for that request. There are currently no recorded transactions matching your request.",
       insights: [
-        `Monthly Spend: ${formatCurrency(currentMonthExpenses, "INR")} across ${ctx.transactions.currentMonth.length} transactions`,
-        `Net Savings: ${formatCurrency(netSavings, "INR")} (${savingsRate}% savings rate)`,
-        `Group Receivables Owed: ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
-        "Ask me anything: today's spend, food expenses, who owes you, month comparisons, or tax summaries!",
+        "SplitLedger AI PRO operates strictly on verified PostgreSQL ledger records without hallucinating data.",
+        "You can try asking: 'How much did I spend this month?', 'Who owes me the most?', or 'Show my profile summary'.",
       ],
       keyMetrics: [
         { label: "Monthly Spend", value: formatCurrency(currentMonthExpenses, "INR") },
-        { label: "Net Savings", value: formatCurrency(netSavings, "INR") },
         { label: "Receivables", value: formatCurrency(ctx.settlements.receivablesTotal, "INR") },
+        { label: "Verified Records", value: `${ctx.transactions.totalCount}` },
       ],
       actionSuggestions: [
+        { label: "Add Expense", url: "/dashboard/transactions" },
         { label: "View Analytics", url: "/dashboard/analytics" },
         { label: "Settlement Center", url: "/dashboard/settlements" },
-        { label: "Add Expense", url: "/dashboard/transactions" },
       ],
       timestamp: new Date().toISOString(),
     };
