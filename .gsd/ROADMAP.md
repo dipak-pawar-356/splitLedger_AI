@@ -38,18 +38,18 @@ updated: 2026-10-22T13:30:00+05:30
 ### Milestone 2: Enterprise Authentication, Session Management & Security Architecture
 
 ### Phase 7: Financial-Grade Database Schema, Cryptographic Engine & Token Rotation Core
-**Status:** ⏳ Ready for Execution
+**Status:** ✅ Complete
 **Objective:** Establish relational `sessions`, `devices`, and `security_audit_events` tables in Drizzle schema & auto-migration. Implement high-entropy HMAC-SHA256 JWT access tokens, SHA-256 hashed refresh tokens, constant-time validation, atomic refresh rotation with reuse detection, and centralized session revocation for password updates and forced logout.
 
 **Plans:**
-- [ ] Plan 7.1: PostgreSQL Security Schema & Auto-Migration Pipeline (wave 1)
-- [ ] Plan 7.2: Cryptographic Engine & Refresh Token Rotation Core (wave 2)
-- [ ] Plan 7.3: Centralized Session Invalidation & Force Logout Engine (wave 2)
+- [x] Plan 7.1: PostgreSQL Security Schema & Auto-Migration Pipeline (wave 1)
+- [x] Plan 7.2: Cryptographic Engine & Refresh Token Rotation Core (wave 2)
+- [x] Plan 7.3: Centralized Session Invalidation & Force Logout Engine (wave 2)
 
 ---
 
 ### Phase 8: Anomaly Detection, Suspicious Login Defense & Security Middleware
-**Status:** 📋 Planned
+**Status:** ⏳ Ready for Execution
 **Objective:** Build continuous anomaly detection engine (Haversine impossible travel calculation, device fingerprinting, IP velocity, brute-force tracking, risk scoring 0–100) and automated alert dispatcher. Configure enterprise HTTP security headers in `next.config.ts`, cookie hardening, and enhance `requireAuth()` & `getCurrentUser()` to validate active sessions and token revocation.
 
 **Plans:**
