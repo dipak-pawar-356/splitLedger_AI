@@ -49,17 +49,17 @@ updated: 2026-10-22T13:30:00+05:30
 ---
 
 ### Phase 8: Anomaly Detection, Suspicious Login Defense & Security Middleware
-**Status:** ⏳ Ready for Execution
+**Status:** ✅ Complete
 **Objective:** Build continuous anomaly detection engine (Haversine impossible travel calculation, device fingerprinting, IP velocity, brute-force tracking, risk scoring 0–100) and automated alert dispatcher. Configure enterprise HTTP security headers in `next.config.ts`, cookie hardening, and enhance `requireAuth()` & `getCurrentUser()` to validate active sessions and token revocation.
 
 **Plans:**
-- [ ] Plan 8.1: Real-Time Anomaly & Threat Detection Engine (wave 1)
-- [ ] Plan 8.2: Security Headers, Cookie Hardening & API Middleware Pipeline (wave 2)
+- [x] Plan 8.1: Real-Time Anomaly & Threat Detection Engine (wave 1)
+- [x] Plan 8.2: Security Headers, Cookie Hardening & API Middleware Pipeline (wave 2)
 
 ---
 
 ### Phase 9: User Security Center, Multi-Device Management UI & End-to-End Verification
-**Status:** 📋 Planned
+**Status:** ⏳ Ready for Execution
 **Objective:** Upgrade `/dashboard/account` UI to display live active sessions, trusted device management (rename, trust, remove), force logout all devices dialog, login history, and security alert banners. Implement unified client and server logout orchestration and build a comprehensive test suite in `enterprise-auth.test.ts` verifying 100% test pass rate with zero regressions.
 
 **Plans:**
