@@ -13,6 +13,7 @@ import {
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { serverLogout } from "@/actions/auth-session";
 
 interface ProfileMenuProps {
   initialUser?: {
@@ -84,11 +85,18 @@ export function ProfileMenu({ initialUser }: ProfileMenuProps = {}) {
 
   const handleSignOut = async () => {
     try {
+      // 1. Invalidate server-side session and purge cookies
+      try {
+        await serverLogout();
+      } catch (_) {}
+
+      // 2. Client Clerk sign out
       await signOut();
       toast.success("Signed out successfully");
       router.push("/sign-in");
     } catch (error) {
       toast.error("Failed to sign out");
+      router.push("/sign-in");
     }
   };
 
