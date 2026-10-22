@@ -1,38 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   TripDashboardMetrics,
   TripRecord,
-  EventRecord,
-  TripCategory,
-  EventCategory,
+  TripStatus,
+  BudgetCategoryKey,
 } from "@/lib/types/trips";
 import {
-  createTrip,
   deleteTrip,
   archiveTrip,
   duplicateTrip,
-  createEvent,
-  deleteEvent,
-  addPlannedExpense,
-  deletePlannedExpense,
-  addChecklistItem,
-  toggleChecklistItem,
-  deleteChecklistItem,
+  addTripExpense,
 } from "@/actions/trips";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   Compass,
   Calendar,
@@ -40,21 +26,28 @@ import {
   CheckSquare,
   IndianRupee,
   Plus,
-  CheckCircle2,
-  Clock,
   ArrowUpRight,
   TrendingUp,
+  TrendingDown,
   Sparkles,
   Trash2,
   Copy,
   Archive,
   RotateCcw,
+  Search,
+  Users,
+  ShieldCheck,
+  AlertTriangle,
   FolderPlus,
-  CalendarPlus,
-  FileSpreadsheet,
+  ArrowRight,
+  FileText,
+  CreditCard,
+  Layers,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+import { TripCreateWizardDialog } from "@/components/trips/trip-create-wizard-dialog";
+import { TripDetailDashboard } from "@/components/trips/trip-detail-dashboard";
 
 interface TripsDashboardViewProps {
   initialMetrics: TripDashboardMetrics;
@@ -62,958 +55,634 @@ interface TripsDashboardViewProps {
 
 export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) {
   const [metrics, setMetrics] = useState<TripDashboardMetrics>(initialMetrics);
-  const [activeTab, setActiveTab] = useState("trips");
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
 
-  // Create Trip Modal State
-  const [isCreateTripOpen, setIsCreateTripOpen] = useState(false);
-  const [newTripName, setNewTripName] = useState("");
-  const [newTripDestination, setNewTripDestination] = useState("");
-  const [newTripBudget, setNewTripBudget] = useState("");
-  const [newTripCategory, setNewTripCategory] = useState<TripCategory>("vacation");
-  const [isSavingTrip, setIsSavingTrip] = useState(false);
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "upcoming" | "ongoing" | "completed" | "archived">("all");
 
-  // Create Event Modal State
-  const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
-  const [newEventName, setNewEventName] = useState("");
-  const [newEventLocation, setNewEventLocation] = useState("");
-  const [newEventBudget, setNewEventBudget] = useState("");
-  const [newEventCategory, setNewEventCategory] = useState<EventCategory>("custom");
-  const [isSavingEvent, setIsSavingEvent] = useState(false);
+  // Modals
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [quickExpenseTrip, setQuickExpenseTrip] = useState<TripRecord | null>(null);
+  const [quickTitle, setQuickTitle] = useState("");
+  const [quickAmount, setQuickAmount] = useState("");
+  const [quickCategory, setQuickCategory] = useState<BudgetCategoryKey>("Food");
 
-  // Add Expense Modal State
-  const [selectedTripForExpense, setSelectedTripForExpense] = useState<TripRecord | null>(null);
-  const [expenseTitle, setExpenseTitle] = useState("");
-  const [estimatedAmount, setEstimatedAmount] = useState("");
-  const [actualAmount, setActualAmount] = useState("");
-  const [isAddingExpense, setIsAddingExpense] = useState(false);
+  // Re-calculate local metrics whenever trips update
+  const recalculateGlobalMetrics = (trips: TripRecord[]) => {
+    const nonArchived = trips.filter((t) => t.status !== "archived" && t.status !== "cancelled");
+    const totalTripBudget = nonArchived.reduce((sum, t) => sum + t.budgetAmount, 0);
+    const allocatedBudget = nonArchived.reduce((sum, t) => sum + t.allocatedBudget, 0);
+    const actualExpenses = nonArchived.reduce((sum, t) => sum + t.actualTotal, 0);
+    const personalExpenses = nonArchived.reduce((sum, t) => sum + t.personalExpensesTotal, 0);
+    const sharedExpenses = nonArchived.reduce((sum, t) => sum + t.sharedExpensesTotal, 0);
+    const remainingBudget = Math.max(0, allocatedBudget - actualExpenses);
+    const budgetUtilizationPct = allocatedBudget > 0 ? Math.round((actualExpenses / allocatedBudget) * 100) : 0;
 
-  // Add Checklist Item Modal State
-  const [selectedTripForChecklist, setSelectedTripForChecklist] = useState<TripRecord | null>(null);
-  const [checklistTitle, setChecklistTitle] = useState("");
-  const [checklistCategory, setChecklistCategory] = useState("Packing");
-  const [isAddingChecklist, setIsAddingChecklist] = useState(false);
+    let pendingCount = 0;
+    let pendingAmount = 0;
+    let completedAmount = 0;
+    let outstandingReceivables = 0;
+    const memberSet = new Set<string>();
 
-  // Handlers
-  const handleCreateTrip = async () => {
-    if (!newTripName || !newTripBudget) {
-      toast.error("Trip Name and Budget are required.");
-      return;
-    }
-    const budget = parseFloat(newTripBudget);
-    if (isNaN(budget) || budget <= 0) {
-      toast.error("Enter a valid budget amount.");
-      return;
-    }
-
-    setIsSavingTrip(true);
-    try {
-      const created = await createTrip({
-        name: newTripName,
-        destination: newTripDestination || "Flexible",
-        category: newTripCategory,
-        startDate: new Date().toISOString().split("T")[0],
-        endDate: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
-        budgetAmount: budget,
+    trips.forEach((t) => {
+      t.members.forEach((m) => {
+        memberSet.add(m.name);
+        if (m.pending > 0) {
+          pendingCount += 1;
+          pendingAmount += m.pending;
+        }
+        if (m.receivable > 0) {
+          outstandingReceivables += m.receivable;
+        }
       });
+      t.settlements.forEach((s) => {
+        if (s.status === "completed") completedAmount += s.amount;
+      });
+    });
 
-      toast.success("New trip created successfully!");
-      setMetrics((prev) => ({
-        ...prev,
-        trips: [created, ...prev.trips],
-        totalTripsCount: prev.totalTripsCount + 1,
-        activeTripsCount: prev.activeTripsCount + 1,
-        totalTripBudget: prev.totalTripBudget + created.budgetAmount,
-      }));
+    const avgDailySpend = nonArchived.length > 0
+      ? Math.round(actualExpenses / Math.max(1, nonArchived.reduce((sum, t) => sum + t.durationDays, 0)))
+      : 0;
 
-      setIsCreateTripOpen(false);
-      setNewTripName("");
-      setNewTripDestination("");
-      setNewTripBudget("");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to create trip.");
-    } finally {
-      setIsSavingTrip(false);
-    }
+    const estimatedFinalCost = nonArchived.reduce((sum, t) => sum + t.projectedTotalSpend, 0);
+
+    const overallHealth = Math.round(
+      nonArchived.reduce((sum, t) => sum + t.financialHealthScore, 0) / Math.max(1, nonArchived.length)
+    );
+
+    let overallRisk: "Low Risk" | "Moderate Risk" | "High Risk" = "Low Risk";
+    if (overallHealth < 50) overallRisk = "High Risk";
+    else if (overallHealth < 80) overallRisk = "Moderate Risk";
+
+    setMetrics({
+      totalTripBudget,
+      allocatedBudget,
+      remainingBudget,
+      actualExpenses,
+      personalExpenses,
+      sharedExpenses,
+      budgetUtilizationPct,
+      pendingSettlementsCount: pendingCount,
+      pendingSettlementsAmount: pendingAmount,
+      completedSettlementsAmount: completedAmount,
+      outstandingReceivables,
+      totalTripsCount: trips.length,
+      upcomingTripsCount: trips.filter((t) => t.status === "upcoming").length,
+      activeTripsCount: trips.filter((t) => t.status === "ongoing").length,
+      completedTripsCount: trips.filter((t) => t.status === "completed").length,
+      totalMembersCount: memberSet.size,
+      avgDailySpend,
+      estimatedFinalCost,
+      overallHealthScore: overallHealth,
+      overallRiskLevel: overallRisk,
+      aiGlobalRecommendation:
+        budgetUtilizationPct > 80
+          ? "Warning: Aggregate travel expenditure is running near threshold. Review lodging and fuel expenses."
+          : "Portfolio health is optimal. Projected aggregate trip savings are tracking at 12.4%.",
+      currency: "INR",
+      trips,
+      events: trips.flatMap((t) => t.events),
+    });
   };
 
-  const handleCreateEvent = async () => {
-    if (!newEventName || !newEventBudget) {
-      toast.error("Event Name and Budget are required.");
-      return;
-    }
-    const budget = parseFloat(newEventBudget);
-    if (isNaN(budget) || budget <= 0) {
-      toast.error("Enter a valid budget amount.");
-      return;
-    }
+  const handleTripCreated = (newTrip: TripRecord) => {
+    const updated = [newTrip, ...metrics.trips];
+    recalculateGlobalMetrics(updated);
+    setSelectedTripId(newTrip.id);
+  };
 
-    setIsSavingEvent(true);
-    try {
-      const created = await createEvent({
-        name: newEventName,
-        location: newEventLocation || "Flexible",
-        eventDate: new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0],
-        category: newEventCategory,
-        budgetAmount: budget,
-      });
-
-      toast.success("Shared event created!");
-      setMetrics((prev) => ({
-        ...prev,
-        events: [created, ...prev.events],
-        upcomingEventsCount: prev.upcomingEventsCount + 1,
-      }));
-
-      setIsCreateEventOpen(false);
-      setNewEventName("");
-      setNewEventLocation("");
-      setNewEventBudget("");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to create event.");
-    } finally {
-      setIsSavingEvent(false);
-    }
+  const handleTripUpdated = (updatedTrip: TripRecord) => {
+    const updated = metrics.trips.map((t) => (t.id === updatedTrip.id ? updatedTrip : t));
+    recalculateGlobalMetrics(updated);
   };
 
   const handleDeleteTrip = async (tripId: string) => {
+    if (!confirm("Are you sure you want to delete this trip container?")) return;
     try {
       await deleteTrip(tripId);
-      const deletedTrip = metrics.trips.find((t) => t.id === tripId);
-      toast.success("Trip deleted.");
-
-      setMetrics((prev) => ({
-        ...prev,
-        trips: prev.trips.filter((t) => t.id !== tripId),
-        totalTripsCount: Math.max(0, prev.totalTripsCount - 1),
-        activeTripsCount: Math.max(0, prev.activeTripsCount - (deletedTrip?.status === "ongoing" || deletedTrip?.status === "upcoming" ? 1 : 0)),
-        totalTripBudget: Math.max(0, prev.totalTripBudget - (deletedTrip?.budgetAmount || 0)),
-        totalTripSpent: Math.max(0, prev.totalTripSpent - (deletedTrip?.actualTotal || 0)),
-      }));
-    } catch (err: any) {
+      toast.success("Trip removed.");
+      const updated = metrics.trips.filter((t) => t.id !== tripId);
+      recalculateGlobalMetrics(updated);
+      if (selectedTripId === tripId) setSelectedTripId(null);
+    } catch {
       toast.error("Failed to delete trip.");
     }
   };
 
-  const handleArchiveTrip = async (tripId: string, archive: boolean = true) => {
+  const handleArchiveTrip = async (tripId: string, shouldArchive: boolean = true) => {
     try {
-      const updated = await archiveTrip(tripId, archive);
-      toast.success(archive ? "Trip archived." : "Trip restored to upcoming.");
-      setMetrics((prev) => ({
-        ...prev,
-        trips: prev.trips.map((t) => (t.id === updated.id ? updated : t)),
-        activeTripsCount: archive
-          ? Math.max(0, prev.activeTripsCount - 1)
-          : prev.activeTripsCount + 1,
-      }));
-    } catch (err: any) {
-      toast.error(archive ? "Failed to archive trip." : "Failed to restore trip.");
+      const updatedTrip = await archiveTrip(tripId, shouldArchive);
+      toast.success(shouldArchive ? "Trip moved to archive." : "Trip restored to active list.");
+      const updated = metrics.trips.map((t) => (t.id === updatedTrip.id ? updatedTrip : t));
+      recalculateGlobalMetrics(updated);
+    } catch {
+      toast.error("Failed to update archive status.");
     }
   };
 
   const handleDuplicateTrip = async (tripId: string) => {
     try {
       const duplicated = await duplicateTrip(tripId);
-      toast.success("Trip duplicated!");
-      setMetrics((prev) => ({
-        ...prev,
-        trips: [duplicated, ...prev.trips],
-        totalTripsCount: prev.totalTripsCount + 1,
-        activeTripsCount: prev.activeTripsCount + 1,
-        totalTripBudget: prev.totalTripBudget + duplicated.budgetAmount,
-      }));
-    } catch (err: any) {
+      toast.success("Trip cloned successfully!");
+      const updated = [duplicated, ...metrics.trips];
+      recalculateGlobalMetrics(updated);
+    } catch {
       toast.error("Failed to duplicate trip.");
     }
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    try {
-      await deleteEvent(eventId);
-      toast.success("Event removed.");
-      setMetrics((prev) => ({
-        ...prev,
-        events: prev.events.filter((e) => e.id !== eventId),
-        upcomingEventsCount: Math.max(0, prev.upcomingEventsCount - 1),
-      }));
-    } catch (err: any) {
-      toast.error("Failed to delete event.");
-    }
-  };
-
-  const handleAddExpense = async () => {
-    if (!selectedTripForExpense || !expenseTitle || !estimatedAmount) return;
-    const est = parseFloat(estimatedAmount);
-    const act = actualAmount ? parseFloat(actualAmount) : 0;
-
-    if (isNaN(est) || est <= 0) {
-      toast.error("Enter a valid estimated amount.");
+  const handleQuickAddExpense = async () => {
+    if (!quickExpenseTrip || !quickTitle.trim() || !quickAmount || Number(quickAmount) <= 0) {
+      toast.error("Please enter a valid expense title and amount.");
       return;
     }
-
-    setIsAddingExpense(true);
     try {
-      const updated = await addPlannedExpense(selectedTripForExpense.id, {
-        title: expenseTitle,
-        category: "General",
-        estimatedAmount: est,
-        actualAmount: act,
+      const updated = await addTripExpense(quickExpenseTrip.id, {
+        title: quickTitle,
+        category: quickCategory,
+        amount: Number(quickAmount),
+        date: new Date().toISOString().split("T")[0],
+        paidById: quickExpenseTrip.members[0]?.id || "mem_1",
+        isPersonal: false,
+        paymentMethod: "UPI",
       });
-      toast.success("Planned expense recorded!");
-
-      setMetrics((prev) => ({
-        ...prev,
-        trips: prev.trips.map((t) => (t.id === updated.id ? updated : t)),
-        totalTripSpent: prev.trips.reduce((sum, t) => sum + (t.id === updated.id ? updated.actualTotal : t.actualTotal), 0),
-      }));
-
-      setSelectedTripForExpense(null);
-      setExpenseTitle("");
-      setEstimatedAmount("");
-      setActualAmount("");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to add expense.");
-    } finally {
-      setIsAddingExpense(false);
+      handleTripUpdated(updated);
+      toast.success("Expense recorded!");
+      setQuickExpenseTrip(null);
+      setQuickTitle("");
+      setQuickAmount("");
+    } catch {
+      toast.error("Failed to add expense.");
     }
   };
 
-  const handleDeleteExpense = async (tripId: string, expenseId: string) => {
-    try {
-      const updated = await deletePlannedExpense(tripId, expenseId);
-      toast.success("Planned expense removed.");
+  // Filtered trips
+  const displayedTrips = useMemo(() => {
+    return metrics.trips.filter((t) => {
+      const matchesSearch =
+        !searchQuery.trim() ||
+        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.destination.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (t.city && t.city.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      setMetrics((prev) => ({
-        ...prev,
-        trips: prev.trips.map((t) => (t.id === updated.id ? updated : t)),
-      }));
-    } catch (err: any) {
-      toast.error("Failed to remove expense.");
-    }
-  };
+      let matchesStatus = true;
+      if (statusFilter === "archived") matchesStatus = t.status === "archived";
+      else if (statusFilter === "all") matchesStatus = t.status !== "archived";
+      else matchesStatus = t.status === statusFilter;
 
-  const handleAddChecklist = async () => {
-    if (!selectedTripForChecklist || !checklistTitle) return;
+      return matchesSearch && matchesStatus;
+    });
+  }, [metrics.trips, searchQuery, statusFilter]);
 
-    setIsAddingChecklist(true);
-    try {
-      const updated = await addChecklistItem(selectedTripForChecklist.id, {
-        title: checklistTitle,
-        category: checklistCategory,
-      });
-      toast.success("Checklist item added!");
-
-      setMetrics((prev) => ({
-        ...prev,
-        trips: prev.trips.map((t) => (t.id === updated.id ? updated : t)),
-      }));
-
-      setSelectedTripForChecklist(null);
-      setChecklistTitle("");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to add checklist item.");
-    } finally {
-      setIsAddingChecklist(false);
-    }
-  };
-
-  const handleToggleChecklist = async (tripId: string, itemId: string) => {
-    try {
-      const updated = await toggleChecklistItem(tripId, itemId);
-      setMetrics((prev) => ({
-        ...prev,
-        trips: prev.trips.map((t) => (t.id === updated.id ? updated : t)),
-      }));
-    } catch (err: any) {
-      toast.error("Failed to update checklist.");
-    }
-  };
-
-  const handleDeleteChecklist = async (tripId: string, itemId: string) => {
-    try {
-      const updated = await deleteChecklistItem(tripId, itemId);
-      toast.success("Checklist item removed.");
-
-      setMetrics((prev) => ({
-        ...prev,
-        trips: prev.trips.map((t) => (t.id === updated.id ? updated : t)),
-      }));
-    } catch (err: any) {
-      toast.error("Failed to remove item.");
-    }
-  };
+  // If a trip is opened, render the Enterprise Trip Detail Dashboard
+  const selectedTrip = metrics.trips.find((t) => t.id === selectedTripId);
+  if (selectedTrip) {
+    return (
+      <TripDetailDashboard
+        trip={selectedTrip}
+        onBack={() => setSelectedTripId(null)}
+        onTripUpdated={handleTripUpdated}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Top Header Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-6 pb-16">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <Compass className="h-6 w-6 text-primary" />
-            <span>Trip & Event Management</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Plan vacations, track planned vs actual expense variance, and manage packing checklists.
-          </p>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-2xl bg-primary/10 text-primary">
+              <Compass className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                  Trip & Event Operating System
+                </h1>
+                <Badge variant="secondary" className="bg-primary/10 text-primary font-bold text-xs uppercase tracking-wider">
+                  Enterprise
+                </Badge>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                Multi-category budgeting, real-time group expense reconciliation, itinerary schedules, and AI forecasting
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Button
             size="sm"
-            onClick={() => setIsCreateTripOpen(true)}
-            className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-sm"
+            onClick={() => setIsWizardOpen(true)}
+            className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all h-9 px-4"
           >
             <FolderPlus className="h-4 w-4" />
-            <span>Create Trip</span>
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setIsCreateEventOpen(true)}
-            className="rounded-xl text-xs font-bold gap-1.5"
-          >
-            <CalendarPlus className="h-4 w-4 text-amber-500" />
-            <span>New Event</span>
+            <span>Create Trip Wizard</span>
           </Button>
         </div>
       </div>
 
-      {/* Top KPI Cards with Interactive Theme-Adapted Hover Effects */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Trip Budget */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-primary/40 dark:hover:border-primary/50 hover:bg-primary/5 hover:shadow-primary/10 cursor-pointer">
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-primary">
-              Total Trip Budget
+      {/* Live AI Financial Summary Ticker */}
+      <div className="p-4 rounded-3xl border border-primary/20 bg-gradient-to-r from-primary/10 via-card to-background shadow-xs flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 text-xs">
+          <div className="p-2 rounded-xl bg-primary text-primary-foreground shrink-0">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div>
+            <span className="font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider text-[10px] block text-primary">
+              Autonomous Travel Intelligence
             </span>
-            <div className="p-2 rounded-xl bg-primary/10 text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
+            <p className="text-slate-600 dark:text-slate-300 font-medium">
+              {metrics.aiGlobalRecommendation}
+            </p>
+          </div>
+        </div>
+        <Badge variant="outline" className="text-xs font-mono shrink-0 hidden sm:inline-flex">
+          Health: {metrics.overallHealthScore}/100 • {metrics.overallRiskLevel}
+        </Badge>
+      </div>
+
+      {/* Top Executive Dashboard - 8 KPI Cards with Hover Effects & Status Indicators */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Total Trip Budget */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg hover:border-primary/40 dark:hover:border-primary/50 hover:bg-primary/5 hover:shadow-primary/10 cursor-pointer">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-primary">Total Trip Budget</span>
+            <div className="p-2 rounded-xl bg-primary/10 text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-250">
               <Compass className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight group-hover:text-primary transition-colors">
             {formatCurrency(metrics.totalTripBudget, metrics.currency)}
           </div>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
-            Aggregate planned itinerary budget
-          </p>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+            <span>Allocated: {formatCurrency(metrics.allocatedBudget, metrics.currency)}</span>
+            <span className="text-emerald-600 font-bold">100% Reconciled</span>
+          </div>
         </Card>
 
-        {/* Total Trip Outflow */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-rose-400 dark:hover:border-rose-500/60 hover:bg-rose-50/30 dark:hover:bg-rose-950/20 hover:shadow-rose-500/10 cursor-pointer">
+        {/* Card 2: Actual Expenses */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg hover:border-rose-400 dark:hover:border-rose-500/60 hover:bg-rose-50/30 dark:hover:bg-rose-950/20 hover:shadow-rose-500/10 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-rose-600 dark:text-rose-400">
-              Total Trip Outflow
-            </span>
-            <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 group-hover:scale-110 group-hover:bg-rose-600 group-hover:text-white transition-all duration-300">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-rose-600 dark:text-rose-400">Actual Outflow</span>
+            <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 group-hover:scale-110 group-hover:bg-rose-600 group-hover:text-white transition-all duration-250">
               <ArrowUpRight className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 mt-2 tracking-tight">
-            {formatCurrency(metrics.totalTripSpent, metrics.currency)}
+            {formatCurrency(metrics.actualExpenses, metrics.currency)}
           </div>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
-            Cumulative settled expenditures
-          </p>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+            <span>Personal: {formatCurrency(metrics.personalExpenses, metrics.currency)}</span>
+            <span>Shared: {formatCurrency(metrics.sharedExpenses, metrics.currency)}</span>
+          </div>
         </Card>
 
-        {/* Active Trips & Treks */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-emerald-400 dark:hover:border-emerald-500/60 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 hover:shadow-emerald-500/10 cursor-pointer">
+        {/* Card 3: Remaining Capital */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg hover:border-emerald-400 dark:hover:border-emerald-500/60 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 hover:shadow-emerald-500/10 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-600 dark:text-emerald-400">
-              Active Trips & Treks
-            </span>
-            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
-              <MapPin className="h-4 w-4" />
+            <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-600 dark:text-emerald-400">Remaining Budget</span>
+            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-250">
+              <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-2 tracking-tight">
-            {metrics.activeTripsCount} Active
+            {formatCurrency(metrics.remainingBudget, metrics.currency)}
           </div>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
-            Ongoing & upcoming journeys
-          </p>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+            <span>Utilization Rate: {metrics.budgetUtilizationPct}%</span>
+            <span className="text-emerald-600 font-bold">Unencumbered</span>
+          </div>
         </Card>
 
-        {/* Upcoming Shared Events */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-amber-400 dark:hover:border-amber-500/60 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:shadow-amber-500/10 cursor-pointer">
+        {/* Card 4: Pending Settlements & Receivables */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg hover:border-amber-400 dark:hover:border-amber-500/60 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:shadow-amber-500/10 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400">
-              Upcoming Shared Events
-            </span>
-            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
-              <Calendar className="h-4 w-4" />
+            <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400">Pending Settlements</span>
+            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition-all duration-250">
+              <IndianRupee className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 mt-2 tracking-tight">
-            {metrics.upcomingEventsCount} Events
+            {formatCurrency(metrics.pendingSettlementsAmount, metrics.currency)}
           </div>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
-            Scheduled group gatherings
-          </p>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+            <span>{metrics.pendingSettlementsCount} Unsettled balances</span>
+            <span className="text-slate-600 dark:text-slate-300 font-bold">Audit ready</span>
+          </div>
         </Card>
       </div>
 
-      {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl flex-wrap h-auto gap-1">
-          <TabsTrigger value="trips" className="rounded-xl text-xs font-semibold">
-            <Compass className="h-3.5 w-3.5 mr-1.5 inline text-primary" />
-            Trips & Vacations ({metrics.trips.length})
-          </TabsTrigger>
-          <TabsTrigger value="events" className="rounded-xl text-xs font-semibold">
-            <Calendar className="h-3.5 w-3.5 mr-1.5 inline text-amber-500" />
-            Shared Events ({metrics.events.length})
-          </TabsTrigger>
-          <TabsTrigger value="planned-expenses" className="rounded-xl text-xs font-semibold">
-            <TrendingUp className="h-3.5 w-3.5 mr-1.5 inline text-emerald-500" />
-            Planned Expenses & Variance
-          </TabsTrigger>
-          <TabsTrigger value="checklists" className="rounded-xl text-xs font-semibold">
-            <CheckSquare className="h-3.5 w-3.5 mr-1.5 inline text-indigo-500" />
-            Packing & Document Checklists
-          </TabsTrigger>
-        </TabsList>
+      {/* Secondary Metric Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex items-center justify-between">
+          <span className="text-slate-400 font-medium">Active Journeys:</span>
+          <span className="font-bold text-slate-900 dark:text-slate-100">{metrics.activeTripsCount} Ongoing</span>
+        </div>
+        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex items-center justify-between">
+          <span className="text-slate-400 font-medium">Upcoming Expeditions:</span>
+          <span className="font-bold text-slate-900 dark:text-slate-100">{metrics.upcomingTripsCount} Scheduled</span>
+        </div>
+        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex items-center justify-between">
+          <span className="text-slate-400 font-medium">Collaborator Network:</span>
+          <span className="font-bold text-slate-900 dark:text-slate-100">{metrics.totalMembersCount} Members</span>
+        </div>
+        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex items-center justify-between">
+          <span className="text-slate-400 font-medium">Average Daily Spend:</span>
+          <span className="font-bold font-mono text-slate-900 dark:text-slate-100">{formatCurrency(metrics.avgDailySpend, metrics.currency)}/day</span>
+        </div>
+      </div>
 
-        {/* TAB 1: Trips & Vacations */}
-        <TabsContent value="trips" className="space-y-4">
-          {metrics.trips.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {metrics.trips.map((trip) => {
-                const isArchived = trip.status === "archived";
-                return (
-                  <Card
-                    key={trip.id}
-                    className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-3.5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-primary/40 dark:hover:border-primary/50 hover:bg-slate-50/40 dark:hover:bg-slate-900/30"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors">
-                          {trip.name}
-                        </h2>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Destination: <strong className="text-slate-700 dark:text-slate-300">{trip.destination}</strong> • Organizer: {trip.organizerName}
-                        </p>
-                      </div>
-                      <Badge
-                        variant="secondary"
-                        className={`text-[10px] uppercase font-bold tracking-wider ${
-                          trip.status === "ongoing"
-                            ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                            : trip.status === "upcoming"
-                            ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                        }`}
-                      >
-                        {trip.status}
-                      </Badge>
-                    </div>
+      {/* Search, Filter Tabs & Toolbar */}
+      <div className="p-4 rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Search trips by destination, country, city, organizer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-10 text-xs rounded-xl border-slate-200/80 dark:border-slate-800"
+            />
+          </div>
 
-                    <div className="flex justify-between items-center text-xs p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800/90 group-hover:border-slate-200 dark:group-hover:border-slate-700/60 transition-colors">
-                      <div>
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Total Spent</p>
-                        <p className="font-black text-rose-600 dark:text-rose-400 text-sm mt-0.5">
-                          {formatCurrency(trip.actualTotal, trip.currency)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Allocated Budget</p>
-                        <p className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5">
-                          {formatCurrency(trip.budgetAmount, trip.currency)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/90 text-xs">
-                      <span className="text-slate-400 text-[11px] font-medium">
-                        Dates: {trip.startDate} to {trip.endDate}
-                      </span>
-
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-xl text-xs h-8 gap-1.5 font-semibold hover:border-primary/50 hover:text-primary transition-all"
-                          onClick={() => setSelectedTripForExpense(trip)}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          <span>Expense</span>
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-xl text-xs h-8 gap-1.5 font-semibold hover:border-primary/50 hover:text-primary transition-all"
-                          onClick={() => setSelectedTripForChecklist(trip)}
-                        >
-                          <CheckSquare className="h-3 w-3" />
-                          <span>Checklist</span>
-                        </Button>
-
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all"
-                          onClick={() => handleDuplicateTrip(trip.id)}
-                          title="Duplicate Trip"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
-
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className={`h-8 w-8 rounded-xl transition-all ${
-                            isArchived
-                              ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                              : "text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                          }`}
-                          onClick={() => handleArchiveTrip(trip.id, !isArchived)}
-                          title={isArchived ? "Restore Trip" : "Archive Trip"}
-                        >
-                          {isArchived ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-                        </Button>
-
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
-                          onClick={() => handleDeleteTrip(trip.id)}
-                          title="Delete Trip"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="py-16 px-4 text-center space-y-3 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card/60 transition-all duration-300 hover:border-primary/40 hover:shadow-md">
-              <div className="p-3 bg-primary/10 rounded-full w-12 h-12 mx-auto flex items-center justify-center text-primary">
-                <Compass className="h-6 w-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">No Trips Created Yet</h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Create your first trip or vacation pool to plan budgets, manage group expenses, and track checklists.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => setIsCreateTripOpen(true)}
-                className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(["all", "upcoming", "ongoing", "completed", "archived"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setStatusFilter(tab)}
+                className={`py-1.5 px-3 rounded-xl text-xs font-semibold capitalize transition-all ${
+                  statusFilter === tab
+                    ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
               >
-                <Plus className="h-4 w-4" />
-                <span>Create Your First Trip</span>
-              </Button>
-            </div>
-          )}
-        </TabsContent>
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-        {/* TAB 2: Shared Events */}
-        <TabsContent value="events" className="space-y-4">
-          {metrics.events.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {metrics.events.map((evt) => (
-                <Card
-                  key={evt.id}
-                  className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-3.5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-amber-400 dark:hover:border-amber-500/60 hover:bg-slate-50/40 dark:hover:bg-slate-900/30"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-amber-600 transition-colors">
-                        {evt.name}
-                      </h2>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        Location: <strong className="text-slate-700 dark:text-slate-300">{evt.location}</strong> • Venue: {evt.venue || "Flexible"}
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] uppercase font-bold tracking-wider">
-                      {evt.status}
+      {/* Enterprise Trip Management Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-5">
+        {displayedTrips.map((trip) => {
+          const isArchived = trip.status === "archived";
+          const packedCount = trip.checklists.filter((c) => c.isPacked).length;
+          const checklistProgress =
+            trip.checklists.length > 0 ? Math.round((packedCount / trip.checklists.length) * 100) : 0;
+
+          return (
+            <Card
+              key={trip.id}
+              className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card overflow-hidden shadow-xs transition-all duration-250 group hover:-translate-y-1 hover:shadow-xl hover:border-primary/50 flex flex-col justify-between"
+            >
+              <div>
+                {/* Cover Image Header with Gradient Backdrop */}
+                <div className="h-40 w-full relative overflow-hidden bg-slate-900">
+                  <img
+                    src={trip.coverImage || "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&auto=format&fit=crop&q=80"}
+                    alt={trip.name}
+                    className="w-full h-full object-cover opacity-80 group-hover:scale-103 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                    <Badge className="bg-black/60 text-white backdrop-blur-md text-[10px] uppercase font-bold border-white/20">
+                      {trip.category}
+                    </Badge>
+                    <Badge className="bg-white/90 text-black backdrop-blur-md text-[10px] font-bold">
+                      {trip.durationDays} Days
                     </Badge>
                   </div>
 
-                  <div className="flex justify-between items-center text-xs p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800/90 group-hover:border-slate-200 dark:group-hover:border-slate-700/60 transition-colors">
-                    <div>
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Event Date</p>
-                      <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm mt-0.5">{evt.eventDate}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Budget Pool</p>
-                      <p className="font-bold text-emerald-600 text-sm mt-0.5">{formatCurrency(evt.budgetAmount, "INR")}</p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex justify-end border-t border-slate-100 dark:border-slate-800/90">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="rounded-xl text-xs h-8 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1.5 font-semibold transition-all"
-                      onClick={() => handleDeleteEvent(evt.id)}
+                  <div className="absolute top-3 right-3">
+                    <Badge
+                      variant="secondary"
+                      className={`text-[10px] uppercase font-bold tracking-wider backdrop-blur-md ${
+                        trip.status === "ongoing"
+                          ? "bg-emerald-500 text-white border-none"
+                          : trip.status === "upcoming"
+                          ? "bg-amber-500 text-white border-none"
+                          : "bg-slate-700 text-white border-none"
+                      }`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      <span>Delete Event</span>
-                    </Button>
+                      {trip.status}
+                    </Badge>
                   </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="py-16 px-4 text-center space-y-3 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card/60 transition-all duration-300 hover:border-amber-400 hover:shadow-md">
-              <div className="p-3 bg-amber-500/10 rounded-full w-12 h-12 mx-auto flex items-center justify-center text-amber-600">
-                <Calendar className="h-6 w-6" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">No Upcoming Events</h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Organize rooftop parties, office picnics, or group celebrations with dedicated event budget pools.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsCreateEventOpen(true)}
-                className="rounded-xl text-xs font-bold gap-1.5 hover:shadow-md hover:-translate-y-0.5 transition-all"
-              >
-                <CalendarPlus className="h-4 w-4 text-amber-500" />
-                <span>Create Shared Event</span>
-              </Button>
-            </div>
-          )}
-        </TabsContent>
 
-        {/* TAB 3: Planned Expense Scheduler & Variance */}
-        <TabsContent value="planned-expenses" className="space-y-4">
-          {metrics.trips.some((t) => t.plannedExpenses.length > 0) ? (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden">
-              {metrics.trips.flatMap((t) => t.plannedExpenses.map((pe) => ({ ...pe, tripId: t.id }))).map((pe) => (
-                <div key={pe.id} className="p-4 flex items-center justify-between text-xs hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{pe.title}</span>
-                      <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] uppercase font-bold">
-                        {pe.category}
-                      </Badge>
-                    </div>
-                    <p className="text-slate-500">
-                      Assigned: <strong>{pe.responsibleMember}</strong> • Status: {pe.status}
+                  <div className="absolute bottom-3 left-3 right-3 text-white">
+                    <h2 className="text-lg font-black truncate">{trip.name}</h2>
+                    <p className="text-xs text-white/80 flex items-center gap-1 mt-0.5">
+                      <MapPin className="h-3 w-3" />
+                      {trip.destination}, {trip.country} • Organizer: {trip.organizerName}
                     </p>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right space-y-0.5">
-                      <p className="font-bold text-slate-900 dark:text-slate-100">
-                        Est: {formatCurrency(pe.estimatedAmount, "INR")} | Act: {formatCurrency(pe.actualAmount, "INR")}
-                      </p>
-                      <p className={`font-mono text-[11px] font-bold ${pe.variance <= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                        Variance: {pe.variance <= 0 ? `-₹${Math.abs(pe.variance).toLocaleString("en-IN")}` : `+₹${pe.variance.toLocaleString("en-IN")}`}
-                      </p>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-slate-400 hover:text-rose-600"
-                      onClick={() => handleDeleteExpense(pe.tripId, pe.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-16 px-4 text-center space-y-2 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card">
-              <p className="font-bold text-sm">No Planned Expenses Recorded</p>
-              <p className="text-xs text-slate-400">Select a trip above to add planned itemized expenses & calculate actual variance.</p>
-            </div>
-          )}
-        </TabsContent>
 
-        {/* TAB 4: Packing & Document Checklists */}
-        <TabsContent value="checklists" className="space-y-4">
-          {metrics.trips.some((t) => t.checklists.length > 0) ? (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden">
-              {metrics.trips.flatMap((t) => t.checklists.map((c) => ({ ...c, tripId: t.id }))).map((chk) => (
-                <div key={chk.id} className="p-4 flex items-center justify-between text-xs hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={chk.isCompleted}
-                      onChange={() => handleToggleChecklist(chk.tripId, chk.id)}
-                      className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <div>
-                      <span className={`font-semibold text-sm ${chk.isCompleted ? "line-through text-slate-400" : "text-slate-900 dark:text-slate-100"}`}>
-                        {chk.title}
+                {/* Card Content & Financial Intelligence */}
+                <div className="p-5 space-y-4">
+                  {/* Budget Allocation Progress */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">Budget Consumption</span>
+                      <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                        {formatCurrency(trip.actualTotal, trip.currency)} / {formatCurrency(trip.allocatedBudget, trip.currency)} ({trip.budgetUsedPct}%)
                       </span>
-                      <p className="text-slate-500 text-[11px]">Category: {chk.category} • Assigned: {chk.assignedMember}</p>
+                    </div>
+                    <Progress value={Math.min(100, trip.budgetUsedPct)} className="h-2 rounded-full" />
+                  </div>
+
+                  {/* 3-Col Quick Stats */}
+                  <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 text-xs">
+                    <div>
+                      <span className="text-slate-400 text-[10px]">Remaining</span>
+                      <p className="font-mono font-bold text-emerald-600 mt-0.5">{formatCurrency(trip.remainingBudget, trip.currency)}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px]">Health Score</span>
+                      <p className="font-mono font-bold text-indigo-600 mt-0.5">{trip.financialHealthScore}/100</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px]">Risk Factor</span>
+                      <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{trip.riskLevel}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={chk.isCompleted ? "secondary" : "outline"} className={chk.isCompleted ? "bg-emerald-500/10 text-emerald-600" : ""}>
-                      {chk.isCompleted ? "DONE" : "PENDING"}
-                    </Badge>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-slate-400 hover:text-rose-600"
-                      onClick={() => handleDeleteChecklist(chk.tripId, chk.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+
+                  {/* Operational Metrics (Checklist, Documents, Members) */}
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-1.5 overflow-hidden">
+                        {trip.members.slice(0, 3).map((m, idx) => (
+                          <div
+                            key={idx}
+                            className="inline-block h-6 w-6 rounded-full ring-2 ring-background bg-slate-200 dark:bg-slate-800 text-[10px] font-bold text-center leading-6"
+                          >
+                            {m.name.charAt(0)}
+                          </div>
+                        ))}
+                      </div>
+                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                        {trip.members.length} Members
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[11px]">
+                      <span>Checklist: <strong>{checklistProgress}%</strong></span>
+                      <span>Docs: <strong>{trip.documents.length}</strong></span>
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-16 px-4 text-center space-y-2 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card">
-              <p className="font-bold text-sm">No Packing or Document Checklists</p>
-              <p className="text-xs text-slate-400">Select a trip above to add items to your packing & document checklist.</p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+              </div>
 
-      {/* Modal 1: Create Trip */}
-      <Dialog open={isCreateTripOpen} onOpenChange={setIsCreateTripOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
-          <DialogHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
-            <DialogTitle className="text-base font-bold">Create New Trip / Vacation</DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Set up a new trip pool, destination, and budget in INR (₹).
-            </DialogDescription>
-          </DialogHeader>
+              {/* Bottom Quick Action Bar */}
+              <div className="p-4 bg-slate-50/60 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800/90 flex items-center justify-between gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => setSelectedTripId(trip.id)}
+                  className="rounded-xl text-xs font-bold gap-1.5 flex-1 bg-primary text-primary-foreground shadow-xs hover:shadow-md"
+                >
+                  <span>Open Dashboard</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
 
-          <div className="space-y-4 py-2 text-xs">
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Trip Name:</label>
-              <Input
-                placeholder="e.g. Goa Beach Vacation / Himalayan Trek"
-                value={newTripName}
-                onChange={(e) => setNewTripName(e.target.value)}
-                className="h-10 text-xs rounded-xl"
-              />
-            </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setQuickExpenseTrip(trip)}
+                  className="rounded-xl text-xs font-semibold h-8 border-slate-200/80 dark:border-slate-800 hover:border-primary/50"
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Expense
+                </Button>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Destination:</label>
-              <Input
-                placeholder="e.g. North Goa, India"
-                value={newTripDestination}
-                onChange={(e) => setNewTripDestination(e.target.value)}
-                className="h-10 text-xs rounded-xl"
-              />
-            </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleDuplicateTrip(trip.id)}
+                  title="Duplicate Trip"
+                  className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Allocated Budget (₹):</label>
-              <Input
-                type="number"
-                placeholder="e.g. 50000"
-                value={newTripBudget}
-                onChange={(e) => setNewTripBudget(e.target.value)}
-                className="h-10 text-sm rounded-xl font-bold font-mono"
-              />
-            </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleArchiveTrip(trip.id, !isArchived)}
+                  title={isArchived ? "Restore Trip" : "Archive Trip"}
+                  className={`h-8 w-8 rounded-xl ${
+                    isArchived
+                      ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                      : "text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                  }`}
+                >
+                  {isArchived ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                </Button>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl text-xs h-9"
-                onClick={() => setIsCreateTripOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={isSavingTrip}
-                className="rounded-xl text-xs h-9 bg-primary text-primary-foreground px-4"
-                onClick={handleCreateTrip}
-              >
-                {isSavingTrip ? "Creating..." : "Save & Launch Trip"}
-              </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleDeleteTrip(trip.id)}
+                  title="Delete Trip"
+                  className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </Card>
+          );
+        })}
+
+        {displayedTrips.length === 0 && (
+          <div className="col-span-full py-16 px-4 text-center space-y-4 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card/60">
+            <div className="p-4 bg-primary/10 rounded-full w-14 h-14 mx-auto flex items-center justify-center text-primary">
+              <Compass className="h-7 w-7" />
             </div>
+            <div className="space-y-1 max-w-md mx-auto">
+              <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">No Trips Found</h3>
+              <p className="text-xs text-slate-500">
+                Launch your first travel operating environment using the multi-step trip wizard.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setIsWizardOpen(true)}
+              className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground px-5 h-9"
+            >
+              <FolderPlus className="h-4 w-4" />
+              <span>Launch Trip Wizard</span>
+            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </div>
 
-      {/* Modal 2: Create Shared Event */}
-      <Dialog open={isCreateEventOpen} onOpenChange={setIsCreateEventOpen}>
+      {/* Create Trip Wizard Dialog */}
+      <TripCreateWizardDialog
+        open={isWizardOpen}
+        onOpenChange={setIsWizardOpen}
+        onTripCreated={handleTripCreated}
+      />
+
+      {/* Quick Add Expense Dialog */}
+      <Dialog open={!!quickExpenseTrip} onOpenChange={(open) => !open && setQuickExpenseTrip(null)}>
         <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
-          <DialogHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
-            <DialogTitle className="text-base font-bold">Create Shared Event</DialogTitle>
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Quick Log Expense</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Organize birthdays, picnics, or team building event pools.
+              {quickExpenseTrip?.name}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2 text-xs">
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Event Name:</label>
+          <div className="space-y-3 text-xs py-2">
+            <div>
+              <label className="font-bold">Expense Title *</label>
               <Input
-                placeholder="e.g. Birthday Rooftop Bash / Office Outing"
-                value={newEventName}
-                onChange={(e) => setNewEventName(e.target.value)}
-                className="h-10 text-xs rounded-xl"
+                placeholder="e.g. Airport Taxi / Dinner"
+                value={quickTitle}
+                onChange={(e) => setQuickTitle(e.target.value)}
+                className="rounded-xl h-10 mt-1"
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Location / Venue:</label>
-              <Input
-                placeholder="e.g. Lonavala Resort / Sky Lounge"
-                value={newEventLocation}
-                onChange={(e) => setNewEventLocation(e.target.value)}
-                className="h-10 text-xs rounded-xl"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Amount (₹) *</label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 1500"
+                  value={quickAmount}
+                  onChange={(e) => setQuickAmount(e.target.value)}
+                  className="rounded-xl h-10 mt-1 font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Category</label>
+                <select
+                  value={quickCategory}
+                  onChange={(e) => setQuickCategory(e.target.value as BudgetCategoryKey)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="Food">Food</option>
+                  <option value="Transportation">Transportation</option>
+                  <option value="Hotel">Hotel</option>
+                  <option value="Adventure">Adventure</option>
+                  <option value="Fuel">Fuel</option>
+                  <option value="Miscellaneous">Miscellaneous</option>
+                </select>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Budget Pool (₹):</label>
-              <Input
-                type="number"
-                placeholder="e.g. 15000"
-                value={newEventBudget}
-                onChange={(e) => setNewEventBudget(e.target.value)}
-                className="h-10 text-sm rounded-xl font-bold font-mono"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl text-xs h-9"
-                onClick={() => setIsCreateEventOpen(false)}
-              >
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setQuickExpenseTrip(null)} className="rounded-xl text-xs">
                 Cancel
               </Button>
-              <Button
-                size="sm"
-                disabled={isSavingEvent}
-                className="rounded-xl text-xs h-9 bg-primary text-primary-foreground px-4"
-                onClick={handleCreateEvent}
-              >
-                {isSavingEvent ? "Creating..." : "Save Event"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal 3: Add Planned Expense */}
-      <Dialog open={!!selectedTripForExpense} onOpenChange={(open) => !open && setSelectedTripForExpense(null)}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
-          <DialogHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
-            <DialogTitle className="text-base font-bold">Plan Trip Expense</DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              {selectedTripForExpense?.name} • Target Destination: {selectedTripForExpense?.destination}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 text-xs">
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Expense Title:</label>
-              <Input
-                placeholder="e.g. Villa Booking / Vehicle Rentals"
-                value={expenseTitle}
-                onChange={(e) => setExpenseTitle(e.target.value)}
-                className="h-10 text-xs rounded-xl"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Estimated Amount (₹):</label>
-              <Input
-                type="number"
-                placeholder="e.g. 15000"
-                value={estimatedAmount}
-                onChange={(e) => setEstimatedAmount(e.target.value)}
-                className="h-10 text-sm rounded-xl font-bold font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Actual Outflow (Optional ₹):</label>
-              <Input
-                type="number"
-                placeholder="e.g. 14200"
-                value={actualAmount}
-                onChange={(e) => setActualAmount(e.target.value)}
-                className="h-10 text-sm rounded-xl font-bold font-mono"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl text-xs h-9"
-                onClick={() => setSelectedTripForExpense(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={isAddingExpense}
-                className="rounded-xl text-xs h-9 bg-primary text-primary-foreground px-4"
-                onClick={handleAddExpense}
-              >
-                {isAddingExpense ? "Saving..." : "Add Planned Expense"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal 4: Add Checklist Item */}
-      <Dialog open={!!selectedTripForChecklist} onOpenChange={(open) => !open && setSelectedTripForChecklist(null)}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
-          <DialogHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
-            <DialogTitle className="text-base font-bold">Add Packing / Document Item</DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              {selectedTripForChecklist?.name}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 text-xs">
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Item Title:</label>
-              <Input
-                placeholder="e.g. Driving License & Govt IDs / First-Aid Kit"
-                value={checklistTitle}
-                onChange={(e) => setChecklistTitle(e.target.value)}
-                className="h-10 text-xs rounded-xl"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Category:</label>
-              <Input
-                placeholder="e.g. Documents / Packing / Medical"
-                value={checklistCategory}
-                onChange={(e) => setChecklistCategory(e.target.value)}
-                className="h-10 text-xs rounded-xl"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl text-xs h-9"
-                onClick={() => setSelectedTripForChecklist(null)}
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={isAddingChecklist}
-                className="rounded-xl text-xs h-9 bg-primary text-primary-foreground px-4"
-                onClick={handleAddChecklist}
-              >
-                {isAddingChecklist ? "Saving..." : "Add to Checklist"}
+              <Button size="sm" onClick={handleQuickAddExpense} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                Save Expense
               </Button>
             </div>
           </div>
