@@ -59,7 +59,9 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "upcoming" | "ongoing" | "completed" | "archived">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "ongoing" | "upcoming" | "planning" | "paused" | "completed" | "draft" | "archived"
+  >("all");
 
   // Modals
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -410,7 +412,7 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
-            {(["all", "upcoming", "ongoing", "completed", "archived"] as const).map((tab) => (
+            {(["all", "ongoing", "upcoming", "planning", "paused", "completed", "draft", "archived"] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -421,7 +423,7 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                 }`}
               >
-                {tab}
+                {tab === "ongoing" ? "Active" : tab}
               </button>
             ))}
           </div>

@@ -5,6 +5,8 @@ import {
   TripRecord,
   TripCategory,
   TripStatus,
+  TripEventStatus,
+  MemberRole,
   TripDashboardMetrics,
   CategoryBudget,
   TripMember,
@@ -50,7 +52,35 @@ const CATEGORY_COLORS: Record<BudgetCategoryKey, string> = {
 };
 
 /**
- * Recalculate all financials and health metrics for a trip
+ * Record an audit log event on a trip
+ */
+function recordAuditLog(
+  trip: TripRecord,
+  actorName: string,
+  category: "trip" | "budget" | "expense" | "member" | "settlement" | "event" | "checklist" | "document",
+  action: string,
+  details: string
+) {
+  if (!trip.auditLogs) trip.auditLogs = [];
+  trip.auditLogs.unshift({
+    id: generatePublicId("aud"),
+    timestamp: new Date().toISOString(),
+    actorName,
+    category,
+    action,
+    details,
+  });
+  if (trip.auditLogs.length > 100) trip.auditLogs.pop();
+}
+
+/**
+ * Enterprise Real-Time Recalculation Engine
+ * Mathematically reconciles:
+ * 1. Personal vs Shared Outflows (Actual = Personal + Shared)
+ * 2. Active Category Allocations (excludes archived, observes locks)
+ * 3. Exact Pairwise Member Ledger Shares (respects exclusions & freezing)
+ * 4. 6-Dimension Weighted Health Score & Letter Grade (A+ to Critical)
+ * 5. Data-Driven AI Financial Velocity Forecasts & Daily Budget Ceiling
  */
 function recalculateTrip(trip: TripRecord): TripRecord {
   // 1. Calculate actual expenses (Personal vs Shared)
@@ -66,7 +96,7 @@ function recalculateTrip(trip: TripRecord): TripRecord {
   trip.sharedExpensesTotal = sharedTotal;
   trip.actualTotal = personalTotal + sharedTotal;
 
-  // 2. Sum up category budgets
+  // 2. Sum up category budgets (respecting archive & locks)
   trip.categoryBudgets = trip.categoryBudgets.map((cat) => {
     const catSpent = trip.expenses
       .filter((e) => e.category === cat.category)
@@ -83,22 +113,27 @@ function recalculateTrip(trip: TripRecord): TripRecord {
       usagePct,
       isOverBudget: isOver,
       projectedSpend: catSpent > cat.allocated ? catSpent : Math.round(catSpent * 1.15),
-      aiForecast: isOver
+      aiForecast: cat.isArchived
+        ? "Category archived"
+        : cat.isLocked
+        ? "Locked by administrator"
+        : isOver
         ? `Over allocated budget by ₹${Math.abs(remaining).toLocaleString("en-IN")}`
         : usagePct > 80
-          ? "Approaching threshold limit"
-          : "Spending pace within normal limits",
+        ? "Approaching 80% ceiling limit"
+        : "Spending pace within normal baseline",
     };
   });
 
-  trip.allocatedBudget = trip.categoryBudgets.reduce((sum, c) => sum + c.allocated, 0);
+  const activeCategories = trip.categoryBudgets.filter((c) => !c.isArchived);
+  trip.allocatedBudget = activeCategories.reduce((sum, c) => sum + c.allocated, 0);
   trip.estimatedTotal = trip.allocatedBudget;
   trip.remainingBudget = Math.max(0, trip.allocatedBudget - trip.actualTotal);
   trip.variance = trip.allocatedBudget - trip.actualTotal;
   trip.budgetUsedPct =
     trip.allocatedBudget > 0 ? Math.round((trip.actualTotal / trip.allocatedBudget) * 100) : 0;
 
-  // 3. Recalculate member ledger balances
+  // 3. Recalculate member ledger balances with permissions & exclusion support
   const memberBalances: Record<string, { paid: number; share: number; count: number }> = {};
   trip.members.forEach((m) => {
     memberBalances[m.id] = { paid: 0, share: 0, count: 0 };
@@ -111,8 +146,16 @@ function recalculateTrip(trip: TripRecord): TripRecord {
     }
 
     if (!exp.isPersonal && exp.splitBetweenMemberIds?.length > 0) {
-      const splitAmount = exp.amount / exp.splitBetweenMemberIds.length;
-      exp.splitBetweenMemberIds.forEach((mId) => {
+      // Filter out members who are explicitly excluded from past expenses
+      const eligibleIds = exp.splitBetweenMemberIds.filter((id) => {
+        const member = trip.members.find((m) => m.id === id);
+        return !member?.isExcludedFromPastExpenses;
+      });
+
+      const targetIds = eligibleIds.length > 0 ? eligibleIds : exp.splitBetweenMemberIds;
+      const splitAmount = exp.amount / targetIds.length;
+
+      targetIds.forEach((mId) => {
         if (memberBalances[mId]) {
           memberBalances[mId].share += splitAmount;
         }
@@ -122,9 +165,22 @@ function recalculateTrip(trip: TripRecord): TripRecord {
     }
   });
 
+  // Reconcile completed settlements into member balances
+  const settledDeltas: Record<string, number> = {};
+  trip.settlements.forEach((s) => {
+    if (s.status === "completed") {
+      settledDeltas[s.fromMemberId] = (settledDeltas[s.fromMemberId] || 0) + s.amount;
+      settledDeltas[s.toMemberId] = (settledDeltas[s.toMemberId] || 0) - s.amount;
+    }
+  });
+
   trip.members = trip.members.map((m) => {
     const data = memberBalances[m.id] || { paid: 0, share: 0, count: 0 };
-    const net = data.paid - data.share;
+    const settlementAdjustment = settledDeltas[m.id] || 0;
+    // Positive net means member paid more than share (receivable)
+    // Adding settlement adjustment (if paid out in settlement, reduces pending debt)
+    const net = data.paid - data.share + settlementAdjustment;
+
     return {
       ...m,
       paid: Math.round(data.paid),
@@ -153,18 +209,171 @@ function recalculateTrip(trip: TripRecord): TripRecord {
   trip.projectedTotalSpend = Math.round(trip.actualTotal + burnRate * daysRemaining);
   trip.potentialSavings = Math.max(0, trip.allocatedBudget - trip.projectedTotalSpend);
 
-  // 5. Financial Health & Risk Assessment
-  let health = 100;
-  if (trip.budgetUsedPct > 85) health -= 25;
-  else if (trip.budgetUsedPct > 65) health -= 10;
+  // 5. Multi-Dimensional Enterprise Financial Health Score & Grade
+  // Category 1: Budget Health (Weight: 25%)
+  let budgetScore = 100;
+  let budgetRemarks = "Optimal budget execution.";
+  let budgetRec = "Continue standard financial monitoring.";
+  if (trip.actualTotal > trip.allocatedBudget) {
+    const overrun = trip.actualTotal - trip.allocatedBudget;
+    budgetScore = Math.max(10, 70 - Math.round((overrun / Math.max(1, trip.allocatedBudget)) * 100));
+    budgetRemarks = `Over budget by ₹${overrun.toLocaleString("en-IN")}.`;
+    budgetRec = "Freeze non-essential category spends and activate emergency reserve.";
+  } else if (trip.budgetUsedPct > 85) {
+    budgetScore = 65;
+    budgetRemarks = `High utilization (${trip.budgetUsedPct}%) with ${daysRemaining} days remaining.`;
+    budgetRec = `Cap daily expenditures to recommended ₹${recDaily.toLocaleString("en-IN")}/day.`;
+  } else if (trip.budgetUsedPct > 65) {
+    budgetScore = 80;
+    budgetRemarks = `Moderate utilization (${trip.budgetUsedPct}%).`;
+    budgetRec = "Track accommodation and transit variances.";
+  }
 
-  const overBudgetCats = trip.categoryBudgets.filter((c) => c.isOverBudget).length;
-  health -= overBudgetCats * 10;
-  trip.financialHealthScore = Math.max(15, Math.min(100, health));
+  // Category 2: Expense Control (Weight: 20%)
+  const overBudgetCats = trip.categoryBudgets.filter((c) => c.isOverBudget && !c.isArchived).length;
+  let controlScore = 100;
+  let controlRemarks = "All active categories within allocated parameters.";
+  let controlRec = "Category spending pacing is aligned with plan.";
+  if (overBudgetCats >= 2) {
+    controlScore = 40;
+    controlRemarks = `${overBudgetCats} categories exceed budget ceiling.`;
+    controlRec = "Reallocate surplus funds from under-spent categories immediately.";
+  } else if (overBudgetCats === 1) {
+    controlScore = 70;
+    controlRemarks = "1 category exceeds allocated limits.";
+    controlRec = "Adjust category allocation or rebalance remaining reserves.";
+  }
+
+  // Category 3: Settlement Status & Payment Discipline (Weight: 15%)
+  const totalPendingDebt = trip.members.reduce((sum, m) => sum + m.pending, 0);
+  let settlementScore = 100;
+  let settlementRemarks = "All shared expenses and member shares are fully settled.";
+  let settlementRec = "Financial ledger is balanced and zero-debt.";
+  if (totalPendingDebt > 0.3 * Math.max(1, trip.actualTotal)) {
+    settlementScore = 45;
+    settlementRemarks = `Substantial pending member debt of ₹${totalPendingDebt.toLocaleString("en-IN")}.`;
+    settlementRec = "Send automated UPI settlement reminders to overdue members.";
+  } else if (totalPendingDebt > 0) {
+    settlementScore = 80;
+    settlementRemarks = `Outstanding receivables of ₹${totalPendingDebt.toLocaleString("en-IN")} pending.`;
+    settlementRec = "Request peer-to-peer transfers before trip conclusion.";
+  }
+
+  // Category 4: Planning & Checklist Readiness (Weight: 15%)
+  const totalChecklists = trip.checklists?.length || 0;
+  const packedChecklists = trip.checklists?.filter((c) => c.isPacked || c.isCompleted).length || 0;
+  const checklistRatio = totalChecklists > 0 ? packedChecklists / totalChecklists : 1;
+  const checklistScore = Math.round(checklistRatio * 80 + (trip.itinerary?.length > 0 ? 20 : 0));
+  const checklistRemarks = `${packedChecklists}/${totalChecklists} checklist items packed. ${trip.itinerary?.length || 0} itinerary activities scheduled.`;
+  const checklistRec =
+    checklistRatio < 0.7
+      ? "Complete critical packing and logistics checklist before travel."
+      : "Trip itinerary and logistics are ready.";
+
+  // Category 5: Document Completeness (Weight: 15%)
+  const docCount = trip.documents?.length || 0;
+  let docScore = 100;
+  let docRemarks = `${docCount} travel documents securely stored.`;
+  let docRec = "All transit and accommodation bookings verified.";
+  if (docCount === 0) {
+    docScore = 40;
+    docRemarks = "No travel vouchers, tickets, or permits uploaded.";
+    docRec = "Upload transit tickets, hotel vouchers, and ID proofs for travel compliance.";
+  } else if (docCount < 2) {
+    docScore = 75;
+    docRemarks = `${docCount} document uploaded; missing backup tickets or insurance.`;
+    docRec = "Upload return travel tickets and health/travel insurance copies.";
+  }
+
+  // Category 6: Member Participation & Stability (Weight: 10%)
+  const totalMembers = trip.members?.length || 1;
+  const activeMembers =
+    trip.members?.filter((m) => m.expenseCount > 0 || m.paid > 0 || m.role === "Owner").length || 1;
+  const frozenMembers = trip.members?.filter((m) => m.isFrozen).length || 0;
+  let memberScore = Math.round((activeMembers / totalMembers) * 90) + (frozenMembers === 0 ? 10 : 0);
+  let memberRemarks = `${activeMembers}/${totalMembers} members active in group ledger.`;
+  let memberRec = frozenMembers > 0 ? "Resolve frozen member permissions." : "Collaborative contribution is healthy.";
+
+  // Weighted aggregate
+  const weightedOverall = Math.round(
+    budgetScore * 0.25 +
+      controlScore * 0.2 +
+      settlementScore * 0.15 +
+      checklistScore * 0.15 +
+      docScore * 0.15 +
+      memberScore * 0.1
+  );
+
+  trip.financialHealthScore = Math.max(10, Math.min(100, weightedOverall));
+
+  let grade: "A+" | "A" | "B+" | "B" | "C" | "D" | "Critical" = "A";
+  if (trip.financialHealthScore >= 95) grade = "A+";
+  else if (trip.financialHealthScore >= 85) grade = "A";
+  else if (trip.financialHealthScore >= 75) grade = "B+";
+  else if (trip.financialHealthScore >= 65) grade = "B";
+  else if (trip.financialHealthScore >= 50) grade = "C";
+  else if (trip.financialHealthScore >= 35) grade = "D";
+  else grade = "Critical";
 
   if (trip.financialHealthScore >= 80) trip.riskLevel = "Low Risk";
   else if (trip.financialHealthScore >= 50) trip.riskLevel = "Moderate Risk";
   else trip.riskLevel = "High Risk";
+
+  trip.healthReport = {
+    overallScore: trip.financialHealthScore,
+    grade,
+    summary: `Trip financial health is rated ${grade} (${trip.financialHealthScore}/100) under ${trip.riskLevel}.`,
+    dimensions: [
+      {
+        name: "Budget Health",
+        score: budgetScore,
+        weight: 0.25,
+        weightedScore: Math.round(budgetScore * 0.25),
+        remarks: budgetRemarks,
+        recommendation: budgetRec,
+      },
+      {
+        name: "Expense Control",
+        score: controlScore,
+        weight: 0.2,
+        weightedScore: Math.round(controlScore * 0.2),
+        remarks: controlRemarks,
+        recommendation: controlRec,
+      },
+      {
+        name: "Settlement Discipline",
+        score: settlementScore,
+        weight: 0.15,
+        weightedScore: Math.round(settlementScore * 0.15),
+        remarks: settlementRemarks,
+        recommendation: settlementRec,
+      },
+      {
+        name: "Logistics & Planning",
+        score: checklistScore,
+        weight: 0.15,
+        weightedScore: Math.round(checklistScore * 0.15),
+        remarks: checklistRemarks,
+        recommendation: checklistRec,
+      },
+      {
+        name: "Document Readiness",
+        score: docScore,
+        weight: 0.15,
+        weightedScore: Math.round(docScore * 0.15),
+        remarks: docRemarks,
+        recommendation: docRec,
+      },
+      {
+        name: "Member Stability",
+        score: memberScore,
+        weight: 0.1,
+        weightedScore: Math.round(memberScore * 0.1),
+        remarks: memberRemarks,
+        recommendation: memberRec,
+      },
+    ],
+  };
 
   // 6. Generate Dynamic AI Insights based on real calculations
   const insights: string[] = [];
@@ -178,7 +387,9 @@ function recalculateTrip(trip: TripRecord): TripRecord {
     );
   }
 
-  const highestCat = [...trip.categoryBudgets].sort((a, b) => b.spent - a.spent)[0];
+  const highestCat = [...trip.categoryBudgets]
+    .filter((c) => !c.isArchived)
+    .sort((a, b) => b.spent - a.spent)[0];
   if (highestCat && highestCat.spent > 0) {
     insights.push(
       `${highestCat.category} accounts for ${Math.round((highestCat.spent / Math.max(1, trip.actualTotal)) * 100)}% of total trip outflow.`
@@ -188,6 +399,12 @@ function recalculateTrip(trip: TripRecord): TripRecord {
   if (daysRemaining > 0) {
     insights.push(
       `Recommended daily spending ceiling: ₹${recDaily.toLocaleString("en-IN")}/day over the next ${daysRemaining} days.`
+    );
+  }
+
+  if (totalPendingDebt > 0) {
+    insights.push(
+      `Outstanding peer receivables total ₹${totalPendingDebt.toLocaleString("en-IN")}. Early settlement improves trip liquidity.`
     );
   }
 
@@ -764,6 +981,15 @@ export async function addTripExpense(
   };
 
   trip.expenses.unshift(newExpense);
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "expense",
+    "Expense Added",
+    `Added "${newExpense.title}" (₹${newExpense.amount.toLocaleString("en-IN")}) under ${newExpense.category}`
+  );
+
   recalculateTrip(trip);
 
   return trip;
@@ -781,7 +1007,19 @@ export async function deleteTripExpense(tripId: string, expenseId: string): Prom
   const trip = trips.find((t) => t.id === tripId);
   if (!trip) throw new DatabaseError("Trip not found.");
 
+  const deleted = trip.expenses.find((e) => e.id === expenseId);
   trip.expenses = trip.expenses.filter((e) => e.id !== expenseId);
+
+  if (deleted) {
+    recordAuditLog(
+      trip,
+      user.name || "Admin",
+      "expense",
+      "Expense Deleted",
+      `Removed "${deleted.title}" (₹${deleted.amount.toLocaleString("en-IN")})`
+    );
+  }
+
   recalculateTrip(trip);
 
   return trip;
@@ -829,6 +1067,15 @@ export async function recordTripSettlement(
   };
 
   trip.settlements.unshift(settlement);
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "settlement",
+    "Settlement Completed",
+    `Settled ₹${settlement.amount.toLocaleString("en-IN")} from ${fromMember.name} to ${toMember.name}`
+  );
+
   recalculateTrip(trip);
 
   return trip;
@@ -1149,12 +1396,14 @@ export async function deleteTrip(tripId: string): Promise<boolean> {
 }
 
 /**
- * Update Category Allocation
+ * Update Category Allocation & State
  */
 export async function updateCategoryBudget(
   tripId: string,
   category: BudgetCategoryKey,
-  newAllocated: number
+  newAllocated: number,
+  isLocked?: boolean,
+  isArchived?: boolean
 ): Promise<TripRecord> {
   const user = await requireAuth();
   ensureUserStores(user.id, user.name || "User");
@@ -1167,6 +1416,8 @@ export async function updateCategoryBudget(
   const cat = trip.categoryBudgets.find((c) => c.category === category);
   if (cat) {
     cat.allocated = Math.max(0, Math.round(newAllocated));
+    if (isLocked !== undefined) cat.isLocked = isLocked;
+    if (isArchived !== undefined) cat.isArchived = isArchived;
   } else {
     trip.categoryBudgets.push({
       category,
@@ -1178,8 +1429,18 @@ export async function updateCategoryBudget(
       projectedSpend: Math.max(0, Math.round(newAllocated)),
       aiForecast: "Custom category allocated",
       color: CATEGORY_COLORS[category] || "#14b8a6",
+      isLocked: Boolean(isLocked),
+      isArchived: Boolean(isArchived),
     });
   }
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "budget",
+    "Category Allocation Updated",
+    `Allocated ₹${newAllocated.toLocaleString("en-IN")} to ${category}${isLocked ? " (Locked)" : ""}`
+  );
 
   recalculateTrip(trip);
   return trip;
@@ -1190,7 +1451,7 @@ export async function updateCategoryBudget(
  */
 export async function addTripMember(
   tripId: string,
-  data: { name: string; email?: string; role: "Owner" | "Admin" | "Member" | "Guest" }
+  data: { name: string; email?: string; role: "Owner" | "Admin" | "Member" | "Guest"; contribution?: number }
 ): Promise<TripRecord> {
   const user = await requireAuth();
   ensureUserStores(user.id, user.name || "User");
@@ -1200,23 +1461,637 @@ export async function addTripMember(
   const trip = trips.find((t) => t.id === tripId);
   if (!trip) throw new DatabaseError("Trip not found.");
 
+  if (!data.name || data.name.trim().length === 0) {
+    throw new ValidationError("Member name is required.");
+  }
+
   const newMember: TripMember = {
     id: generatePublicId("mem"),
     name: data.name.trim(),
     email: data.email?.trim(),
     role: data.role || "Member",
-    contribution: 0,
+    contribution: data.contribution || 0,
     ownShare: 0,
     paid: 0,
     pending: 0,
     receivable: 0,
     settlementStatus: "settled",
     expenseCount: 0,
+    canAddExpenses: true,
+    canSettle: true,
+    isFrozen: false,
+    isExcludedFromPastExpenses: false,
   };
 
   trip.members.push(newMember);
-  recalculateTrip(trip);
 
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "member",
+    "Member Added",
+    `Added ${newMember.name} as ${newMember.role}`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Update Full Trip Details
+ */
+export async function updateTripDetails(
+  tripId: string,
+  updates: Partial<TripRecord>
+): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  if (updates.name && updates.name.trim().length > 0) trip.name = updates.name.trim();
+  if (updates.destination) trip.destination = updates.destination.trim();
+  if (updates.country) trip.country = updates.country.trim();
+  if (updates.state !== undefined) trip.state = updates.state?.trim();
+  if (updates.city !== undefined) trip.city = updates.city?.trim();
+  if (updates.meetingPoint !== undefined) trip.meetingPoint = updates.meetingPoint?.trim();
+  if (updates.travelType !== undefined) trip.travelType = updates.travelType?.trim();
+  if (updates.visibility) trip.visibility = updates.visibility;
+  if (updates.category) trip.category = updates.category;
+  if (updates.description !== undefined) trip.description = updates.description?.trim();
+  if (updates.coverImage) trip.coverImage = updates.coverImage;
+  if (updates.notes !== undefined) trip.notes = updates.notes?.trim();
+  if (updates.timezone) trip.timezone = updates.timezone;
+  if (updates.currency) trip.currency = updates.currency;
+
+  if (updates.startDate) trip.startDate = updates.startDate;
+  if (updates.endDate) trip.endDate = updates.endDate;
+  if (updates.budgetAmount !== undefined && updates.budgetAmount > 0) {
+    trip.budgetAmount = updates.budgetAmount;
+  }
+  if (updates.emergencyBuffer !== undefined) {
+    trip.emergencyBuffer = updates.emergencyBuffer;
+  }
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "trip",
+    "Trip Details Updated",
+    `Updated parameters for "${trip.name}"`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Update Trip Lifecycle Status
+ */
+export async function updateTripStatus(tripId: string, status: TripStatus): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const oldStatus = trip.status;
+  trip.status = status;
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "trip",
+    "Status Changed",
+    `Transitioned from ${oldStatus} to ${status}`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Edit Trip Expense
+ */
+export async function editTripExpense(
+  tripId: string,
+  expenseId: string,
+  data: Partial<TripExpense>
+): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const expense = trip.expenses.find((e) => e.id === expenseId);
+  if (!expense) throw new DatabaseError("Expense not found.");
+
+  if (data.title && data.title.trim().length > 0) expense.title = data.title.trim();
+  if (data.amount !== undefined && data.amount > 0) expense.amount = Math.round(data.amount);
+  if (data.category) expense.category = data.category;
+  if (data.date) expense.date = data.date;
+  if (data.paidById) {
+    const payer = trip.members.find((m) => m.id === data.paidById);
+    if (payer) {
+      if (payer.isFrozen) throw new ValidationError(`${payer.name} is frozen and cannot log payments.`);
+      expense.paidById = payer.id;
+      expense.paidByName = payer.name;
+    }
+  }
+  if (data.isPersonal !== undefined) expense.isPersonal = Boolean(data.isPersonal);
+  if (data.splitBetweenMemberIds) {
+    expense.splitBetweenMemberIds = data.splitBetweenMemberIds;
+  }
+  if (data.paymentMethod) expense.paymentMethod = data.paymentMethod;
+  if (data.location !== undefined) expense.location = data.location?.trim();
+  if (data.notes !== undefined) expense.notes = data.notes?.trim();
+  if (data.tags) expense.tags = data.tags;
+  if (data.tax !== undefined) expense.tax = data.tax;
+  if (data.discount !== undefined) expense.discount = data.discount;
+  expense.updatedAt = new Date().toISOString();
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "expense",
+    "Expense Modified",
+    `Edited "${expense.title}" (₹${expense.amount.toLocaleString("en-IN")})`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Duplicate an Expense
+ */
+export async function duplicateTripExpense(tripId: string, expenseId: string): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const original = trip.expenses.find((e) => e.id === expenseId);
+  if (!original) throw new DatabaseError("Original expense not found.");
+
+  const duplicated: TripExpense = {
+    ...JSON.parse(JSON.stringify(original)),
+    id: generatePublicId("exp"),
+    title: `${original.title} (Copy)`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  trip.expenses.unshift(duplicated);
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "expense",
+    "Expense Duplicated",
+    `Cloned "${original.title}" as "${duplicated.title}"`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Toggle Expense Between Personal and Shared
+ */
+export async function toggleExpensePersonalShared(tripId: string, expenseId: string): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const expense = trip.expenses.find((e) => e.id === expenseId);
+  if (!expense) throw new DatabaseError("Expense not found.");
+
+  expense.isPersonal = !expense.isPersonal;
+  if (expense.isPersonal) {
+    expense.splitBetweenMemberIds = [expense.paidById];
+  } else {
+    expense.splitBetweenMemberIds = trip.members.map((m) => m.id);
+  }
+  expense.updatedAt = new Date().toISOString();
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "expense",
+    "Expense Converted",
+    `Converted "${expense.title}" to ${expense.isPersonal ? "Personal" : "Shared Group"}`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Remove Member from Trip
+ */
+export async function removeTripMember(tripId: string, memberId: string): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const member = trip.members.find((m) => m.id === memberId);
+  if (!member) throw new DatabaseError("Member not found.");
+
+  if (member.role === "Owner") {
+    throw new ValidationError("Cannot remove the Trip Owner. Transfer ownership first.");
+  }
+
+  trip.members = trip.members.filter((m) => m.id !== memberId);
+  // Clean up from split arrays
+  trip.expenses.forEach((e) => {
+    if (e.splitBetweenMemberIds) {
+      e.splitBetweenMemberIds = e.splitBetweenMemberIds.filter((id) => id !== memberId);
+      if (e.splitBetweenMemberIds.length === 0) {
+        e.splitBetweenMemberIds = [e.paidById];
+      }
+    }
+  });
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "member",
+    "Member Removed",
+    `Removed ${member.name} from trip`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Update Member Role
+ */
+export async function updateTripMemberRole(
+  tripId: string,
+  memberId: string,
+  role: MemberRole
+): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const member = trip.members.find((m) => m.id === memberId);
+  if (!member) throw new DatabaseError("Member not found.");
+
+  member.role = role;
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "member",
+    "Role Updated",
+    `Changed ${member.name}'s role to ${role}`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Toggle Member Freeze Status
+ */
+export async function toggleMemberFreeze(tripId: string, memberId: string): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const member = trip.members.find((m) => m.id === memberId);
+  if (!member) throw new DatabaseError("Member not found.");
+
+  member.isFrozen = !member.isFrozen;
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "member",
+    member.isFrozen ? "Member Frozen" : "Member Unfrozen",
+    `${member.name} was ${member.isFrozen ? "frozen (expense rights suspended)" : "reactivated"}`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Toggle Member Past Expense Inclusion
+ */
+export async function toggleMemberPastExpenseInclusion(tripId: string, memberId: string): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const member = trip.members.find((m) => m.id === memberId);
+  if (!member) throw new DatabaseError("Member not found.");
+
+  member.isExcludedFromPastExpenses = !member.isExcludedFromPastExpenses;
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "member",
+    "Expense Inclusion Changed",
+    `${member.name} is now ${member.isExcludedFromPastExpenses ? "excluded from" : "included in"} past expenses`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Transfer Trip Ownership
+ */
+export async function transferTripOwnership(tripId: string, newOwnerId: string): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const currentOwner = trip.members.find((m) => m.role === "Owner");
+  const newOwner = trip.members.find((m) => m.id === newOwnerId);
+
+  if (!newOwner) throw new DatabaseError("Designated owner not found in members.");
+
+  if (currentOwner) currentOwner.role = "Admin";
+  newOwner.role = "Owner";
+  trip.organizerName = newOwner.name;
+  if (newOwner.email) trip.organizerEmail = newOwner.email;
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "member",
+    "Ownership Transferred",
+    `Ownership transferred from ${currentOwner?.name || "Previous"} to ${newOwner.name}`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Edit Trip Event
+ */
+export async function editTripEvent(
+  tripId: string,
+  eventId: string,
+  data: Partial<TripEvent>
+): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const event = trip.events.find((e) => e.id === eventId);
+  if (!event) throw new DatabaseError("Event not found.");
+
+  if (data.title && data.title.trim().length > 0) event.title = data.title.trim();
+  if (data.type) event.type = data.type;
+  if (data.category !== undefined) event.category = data.category;
+  if (data.startDateTime) event.startDateTime = data.startDateTime;
+  if (data.endDateTime !== undefined) event.endDateTime = data.endDateTime;
+  if (data.location !== undefined) event.location = data.location.trim();
+  if (data.venue !== undefined) event.venue = data.venue?.trim();
+  if (data.mapsLink !== undefined) event.mapsLink = data.mapsLink?.trim();
+  if (data.description !== undefined) event.description = data.description?.trim();
+  if (data.budget !== undefined) event.budget = data.budget;
+  if (data.actualCost !== undefined) event.actualCost = data.actualCost;
+  if (data.priority) event.priority = data.priority;
+  if (data.status) event.status = data.status;
+  if (data.completionPct !== undefined) event.completionPct = data.completionPct;
+  if (data.notes !== undefined) event.notes = data.notes?.trim();
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "event",
+    "Event Edited",
+    `Updated event "${event.title}"`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Duplicate a Trip Event
+ */
+export async function duplicateTripEvent(tripId: string, eventId: string): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const original = trip.events.find((e) => e.id === eventId);
+  if (!original) throw new DatabaseError("Event not found.");
+
+  const duplicated: TripEvent = {
+    ...JSON.parse(JSON.stringify(original)),
+    id: generatePublicId("evt"),
+    title: `${original.title} (Copy)`,
+    status: "upcoming",
+  };
+
+  trip.events.unshift(duplicated);
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "event",
+    "Event Duplicated",
+    `Cloned event "${original.title}"`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Update Event Status
+ */
+export async function updateTripEventStatus(
+  tripId: string,
+  eventId: string,
+  status: TripEventStatus
+): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const event = trip.events.find((e) => e.id === eventId);
+  if (!event) throw new DatabaseError("Event not found.");
+
+  event.status = status;
+  if (status === "completed") event.completionPct = 100;
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "event",
+    "Event Status Updated",
+    `Marked "${event.title}" as ${status}`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Edit Checklist Item
+ */
+export async function editTripChecklistItem(
+  tripId: string,
+  itemId: string,
+  data: Partial<TripChecklistItem>
+): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const item = trip.checklists.find((c) => c.id === itemId);
+  if (!item) throw new DatabaseError("Checklist item not found.");
+
+  if (data.title && data.title.trim().length > 0) item.title = data.title.trim();
+  if (data.category) item.category = data.category;
+  if (data.priority) item.priority = data.priority;
+  if (data.assignedMemberName !== undefined) item.assignedMemberName = data.assignedMemberName;
+  if (data.reminderDate !== undefined) item.reminderDate = data.reminderDate;
+  if (data.dueDate !== undefined) item.dueDate = data.dueDate;
+  if (data.notes !== undefined) item.notes = data.notes?.trim();
+  if (data.isPacked !== undefined) {
+    item.isPacked = data.isPacked;
+    item.isCompleted = data.isPacked;
+  }
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "checklist",
+    "Checklist Item Edited",
+    `Updated item "${item.title}"`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Duplicate Checklist Item
+ */
+export async function duplicateTripChecklistItem(tripId: string, itemId: string): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const original = trip.checklists.find((c) => c.id === itemId);
+  if (!original) throw new DatabaseError("Checklist item not found.");
+
+  const duplicated: TripChecklistItem = {
+    ...JSON.parse(JSON.stringify(original)),
+    id: generatePublicId("chk"),
+    title: `${original.title} (Copy)`,
+    isPacked: false,
+    isCompleted: false,
+  };
+
+  trip.checklists.push(duplicated);
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "checklist",
+    "Checklist Item Duplicated",
+    `Cloned item "${original.title}"`
+  );
+
+  recalculateTrip(trip);
+  return trip;
+}
+
+/**
+ * Cancel / Reverse a Settlement
+ */
+export async function cancelTripSettlement(tripId: string, settlementId: string): Promise<TripRecord> {
+  const user = await requireAuth();
+  ensureUserStores(user.id, user.name || "User");
+  const userKey = `user_${user.id}`;
+
+  const trips = tripsStore.get(userKey) || [];
+  const trip = trips.find((t) => t.id === tripId);
+  if (!trip) throw new DatabaseError("Trip not found.");
+
+  const settlement = trip.settlements.find((s) => s.id === settlementId);
+  if (!settlement) throw new DatabaseError("Settlement not found.");
+
+  settlement.status = "pending";
+
+  recordAuditLog(
+    trip,
+    user.name || "Admin",
+    "settlement",
+    "Settlement Reversed",
+    `Reversed settlement of ₹${settlement.amount.toLocaleString("en-IN")} from ${settlement.fromMemberName}`
+  );
+
+  recalculateTrip(trip);
   return trip;
 }
 

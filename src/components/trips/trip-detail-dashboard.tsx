@@ -26,6 +26,12 @@ import {
   ArrowUpRight,
   Plus,
   Trash2,
+  Edit2,
+  Copy,
+  Lock,
+  Unlock,
+  Archive,
+  RotateCcw,
   ShieldCheck,
   AlertTriangle,
   MapPin,
@@ -35,15 +41,20 @@ import {
   Download,
   Search,
   Filter,
-  DollarSign,
   Layers,
   Plane,
   Hotel,
   Car,
   Utensils,
-  Camera,
-  Shirt,
-  Zap,
+  History,
+  Activity,
+  UserPlus,
+  UserMinus,
+  Crown,
+  Snowflake,
+  ExternalLink,
+  Printer,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   TripRecord,
@@ -52,21 +63,41 @@ import {
   TripDocument,
   TripChecklistItem,
   TripEvent,
+  TripStatus,
+  TripEventStatus,
+  MemberRole,
 } from "@/lib/types/trips";
 import {
   addTripExpense,
+  editTripExpense,
+  duplicateTripExpense,
+  toggleExpensePersonalShared,
   deleteTripExpense,
   recordTripSettlement,
+  cancelTripSettlement,
   addItineraryStop,
   deleteItineraryStop,
   addTripEvent,
+  editTripEvent,
+  duplicateTripEvent,
   deleteTripEvent,
+  updateTripEventStatus,
   addTripDocument,
   deleteTripDocument,
   addTripChecklistItem,
+  editTripChecklistItem,
+  duplicateTripChecklistItem,
   toggleChecklistItem,
   deleteChecklistItem,
   addTripMember,
+  removeTripMember,
+  updateTripMemberRole,
+  toggleMemberFreeze,
+  toggleMemberPastExpenseInclusion,
+  transferTripOwnership,
+  updateTripDetails,
+  updateTripStatus,
+  updateCategoryBudget,
 } from "@/actions/trips";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
@@ -88,43 +119,78 @@ interface TripDetailDashboardProps {
   onTripUpdated: (updatedTrip: TripRecord) => void;
 }
 
-const CATEGORY_ICONS: Record<string, any> = {
-  Hotel: Hotel,
-  Transportation: Plane,
-  Food: Utensils,
-  Fuel: Car,
-  Adventure: MountainIcon,
-  "Entry Tickets": TicketIcon,
-  Medical: ShieldCheck,
-  Emergency: AlertTriangle,
-  Shopping: ShoppingIcon,
-  Miscellaneous: Layers,
+const CATEGORY_COLORS: Record<string, string> = {
+  Transportation: "#3b82f6",
+  Hotel: "#8b5cf6",
+  Food: "#10b981",
+  Fuel: "#f59e0b",
+  Shopping: "#ec4899",
+  Adventure: "#06b6d4",
+  "Entry Tickets": "#6366f1",
+  Medical: "#ef4444",
+  Emergency: "#f97316",
+  Miscellaneous: "#64748b",
+  Custom: "#14b8a6",
 };
 
-function MountainIcon(props: any) {
-  return <Compass {...props} />;
-}
-function TicketIcon(props: any) {
-  return <Receipt {...props} />;
-}
-function ShoppingIcon(props: any) {
-  return <CreditCard {...props} />;
+function downloadCsv(filename: string, rows: (string | number)[][]) {
+  const csvContent =
+    "data:text/csv;charset=utf-8," +
+    rows.map((e) => e.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }: TripDetailDashboardProps) {
   const [trip, setTrip] = useState<TripRecord>(initialTrip);
   const [activeTab, setActiveTab] = useState<string>("overview");
 
-  // Modals
+  // Modals for CRUD & Inspections
+  const [isEditTripOpen, setIsEditTripOpen] = useState(false);
+  const [isHealthBreakdownOpen, setIsHealthBreakdownOpen] = useState(false);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const [isEditExpenseOpen, setIsEditExpenseOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<TripExpense | null>(null);
+
   const [isRecordSettlementOpen, setIsRecordSettlementOpen] = useState(false);
   const [isAddItineraryOpen, setIsAddItineraryOpen] = useState(false);
   const [isAddEventOpen, setIsAddEventOpen] = useState(false);
+  const [isEditEventOpen, setIsEditEventOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<TripEvent | null>(null);
+
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
   const [isAddChecklistOpen, setIsAddChecklistOpen] = useState(false);
-  const [isInviteMemberOpen, setIsInviteMemberOpen] = useState(false);
+  const [isEditChecklistOpen, setIsEditChecklistOpen] = useState(false);
+  const [editingChecklist, setEditingChecklist] = useState<TripChecklistItem | null>(null);
 
-  // Form states for Expense
+  const [isInviteMemberOpen, setIsInviteMemberOpen] = useState(false);
+  const [isEditCategoryOpen, setIsEditCategoryOpen] = useState(false);
+  const [editingCategoryKey, setEditingCategoryKey] = useState<BudgetCategoryKey>("Transportation");
+  const [editingCategoryAllocated, setEditingCategoryAllocated] = useState("");
+
+  // Edit Trip Form States
+  const [editName, setEditName] = useState(trip.name);
+  const [editDestination, setEditDestination] = useState(trip.destination);
+  const [editCountry, setEditCountry] = useState(trip.country);
+  const [editState, setEditState] = useState(trip.state || "");
+  const [editCity, setEditCity] = useState(trip.city || "");
+  const [editMeetingPoint, setEditMeetingPoint] = useState(trip.meetingPoint || "");
+  const [editTravelType, setEditTravelType] = useState(trip.travelType || "Leisure / Holiday");
+  const [editVisibility, setEditVisibility] = useState(trip.visibility || "shared");
+  const [editDescription, setEditDescription] = useState(trip.description || "");
+  const [editCoverImage, setEditCoverImage] = useState(trip.coverImage || "");
+  const [editNotes, setEditNotes] = useState(trip.notes || "");
+  const [editStartDate, setEditStartDate] = useState(trip.startDate);
+  const [editEndDate, setEditEndDate] = useState(trip.endDate);
+  const [editTotalBudget, setEditTotalBudget] = useState(String(trip.budgetAmount));
+  const [editEmergencyBuffer, setEditEmergencyBuffer] = useState(String(trip.emergencyBuffer));
+
+  // Form states for Expense Add/Edit
   const [expenseTitle, setExpenseTitle] = useState("");
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseCategory, setExpenseCategory] = useState<BudgetCategoryKey>("Food");
@@ -133,6 +199,8 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
   const [expenseLocation, setExpenseLocation] = useState("");
   const [expenseNotes, setExpenseNotes] = useState("");
   const [expensePaymentMethod, setExpensePaymentMethod] = useState<TripExpense["paymentMethod"]>("UPI");
+  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split("T")[0]);
+  const [expenseSplitMembers, setExpenseSplitMembers] = useState<string[]>(trip.members.map((m) => m.id));
 
   // Filter states for Expense Tab
   const [expenseSearch, setExpenseSearch] = useState("");
@@ -157,6 +225,11 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
   const [eventDate, setEventDate] = useState(trip.startDate);
   const [eventLocation, setEventLocation] = useState("");
   const [eventBudget, setEventBudget] = useState("");
+  const [eventActualCost, setEventActualCost] = useState("");
+  const [eventPriority, setEventPriority] = useState<"High" | "Medium" | "Low">("Medium");
+  const [eventStatus, setEventStatus] = useState<TripEventStatus>("upcoming");
+  const [eventMapsLink, setEventMapsLink] = useState("");
+  const [eventNotes, setEventNotes] = useState("");
 
   // Form states for Document
   const [docTitle, setDocTitle] = useState("");
@@ -168,17 +241,59 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
   const [chkCategory, setChkCategory] = useState<TripChecklistItem["category"]>("Clothes");
   const [chkPriority, setChkPriority] = useState<TripChecklistItem["priority"]>("Medium");
   const [chkMember, setChkMember] = useState(trip.members[0]?.name || "Member");
+  const [chkDueDate, setChkDueDate] = useState("");
 
   // Form states for Member
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [newMemberRole, setNewMemberRole] = useState<MemberRole>("Member");
+  const [newMemberContribution, setNewMemberContribution] = useState("0");
 
   const updateTripState = (updated: TripRecord) => {
     setTrip(updated);
     onTripUpdated(updated);
   };
 
-  // Handlers
+  // Status Change Handler
+  const handleStatusChange = async (newStatus: TripStatus) => {
+    try {
+      const updated = await updateTripStatus(trip.id, newStatus);
+      updateTripState(updated);
+      toast.success(`Trip status moved to ${newStatus.toUpperCase()}`);
+    } catch {
+      toast.error("Failed to update status");
+    }
+  };
+
+  // Save Full Trip Details
+  const handleSaveTripDetails = async () => {
+    try {
+      const updated = await updateTripDetails(trip.id, {
+        name: editName,
+        destination: editDestination,
+        country: editCountry,
+        state: editState,
+        city: editCity,
+        meetingPoint: editMeetingPoint,
+        travelType: editTravelType,
+        visibility: editVisibility as any,
+        description: editDescription,
+        coverImage: editCoverImage,
+        notes: editNotes,
+        startDate: editStartDate,
+        endDate: editEndDate,
+        budgetAmount: Number(editTotalBudget) || trip.budgetAmount,
+        emergencyBuffer: Number(editEmergencyBuffer) || trip.emergencyBuffer,
+      });
+      updateTripState(updated);
+      setIsEditTripOpen(false);
+      toast.success("Trip configuration and budget parameters synchronized!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update trip details");
+    }
+  };
+
+  // Expense Handlers
   const handleCreateExpense = async () => {
     if (!expenseTitle.trim() || !expenseAmount || Number(expenseAmount) <= 0) {
       toast.error("Please enter a valid expense title and amount.");
@@ -189,15 +304,16 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
         title: expenseTitle,
         category: expenseCategory,
         amount: Number(expenseAmount),
-        date: new Date().toISOString().split("T")[0],
+        date: expenseDate,
         paidById: expensePaidById || trip.members[0].id,
         isPersonal: expenseIsPersonal,
+        splitBetweenMemberIds: expenseIsPersonal ? [expensePaidById] : expenseSplitMembers,
         paymentMethod: expensePaymentMethod,
         location: expenseLocation,
         notes: expenseNotes,
       });
       updateTripState(updated);
-      toast.success("Expense recorded and budgets updated!");
+      toast.success("Expense recorded and budgets recalculated!");
       setIsAddExpenseOpen(false);
       setExpenseTitle("");
       setExpenseAmount("");
@@ -205,6 +321,65 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
       setExpenseNotes("");
     } catch (err: any) {
       toast.error(err?.message || "Failed to record expense");
+    }
+  };
+
+  const handleOpenEditExpense = (exp: TripExpense) => {
+    setEditingExpense(exp);
+    setExpenseTitle(exp.title);
+    setExpenseAmount(String(exp.amount));
+    setExpenseCategory(exp.category);
+    setExpensePaidById(exp.paidById);
+    setExpenseIsPersonal(exp.isPersonal);
+    setExpenseDate(exp.date);
+    setExpensePaymentMethod(exp.paymentMethod);
+    setExpenseLocation(exp.location || "");
+    setExpenseNotes(exp.notes || "");
+    setExpenseSplitMembers(exp.splitBetweenMemberIds || trip.members.map((m) => m.id));
+    setIsEditExpenseOpen(true);
+  };
+
+  const handleSaveEditExpense = async () => {
+    if (!editingExpense) return;
+    try {
+      const updated = await editTripExpense(trip.id, editingExpense.id, {
+        title: expenseTitle,
+        amount: Number(expenseAmount),
+        category: expenseCategory,
+        paidById: expensePaidById,
+        isPersonal: expenseIsPersonal,
+        date: expenseDate,
+        paymentMethod: expensePaymentMethod,
+        location: expenseLocation,
+        notes: expenseNotes,
+        splitBetweenMemberIds: expenseIsPersonal ? [expensePaidById] : expenseSplitMembers,
+      });
+      updateTripState(updated);
+      setIsEditExpenseOpen(false);
+      setEditingExpense(null);
+      toast.success("Expense changes reconciled across all ledgers!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to edit expense");
+    }
+  };
+
+  const handleDuplicateExpense = async (expId: string) => {
+    try {
+      const updated = await duplicateTripExpense(trip.id, expId);
+      updateTripState(updated);
+      toast.success("Expense duplicated!");
+    } catch {
+      toast.error("Failed to duplicate expense.");
+    }
+  };
+
+  const handleTogglePersonalShared = async (expId: string) => {
+    try {
+      const updated = await toggleExpensePersonalShared(trip.id, expId);
+      updateTripState(updated);
+      toast.success("Expense split type updated and shares re-distributed!");
+    } catch {
+      toast.error("Failed to convert expense.");
     }
   };
 
@@ -218,6 +393,63 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
     }
   };
 
+  // Category Budget Handlers
+  const handleOpenEditCategory = (cat: BudgetCategoryKey, currentAllocated: number) => {
+    setEditingCategoryKey(cat);
+    setEditingCategoryAllocated(String(currentAllocated));
+    setIsEditCategoryOpen(true);
+  };
+
+  const handleSaveCategoryAllocation = async () => {
+    try {
+      const updated = await updateCategoryBudget(
+        trip.id,
+        editingCategoryKey,
+        Number(editingCategoryAllocated) || 0
+      );
+      updateTripState(updated);
+      setIsEditCategoryOpen(false);
+      toast.success(`Allocated budget updated for ${editingCategoryKey}!`);
+    } catch {
+      toast.error("Failed to update allocation.");
+    }
+  };
+
+  const handleToggleCategoryLock = async (cat: BudgetCategoryKey, isCurrentlyLocked: boolean) => {
+    try {
+      const target = trip.categoryBudgets.find((c) => c.category === cat);
+      const updated = await updateCategoryBudget(
+        trip.id,
+        cat,
+        target?.allocated || 0,
+        !isCurrentlyLocked,
+        target?.isArchived
+      );
+      updateTripState(updated);
+      toast.success(`${cat} is now ${!isCurrentlyLocked ? "Locked" : "Unlocked"}`);
+    } catch {
+      toast.error("Failed to toggle category lock");
+    }
+  };
+
+  const handleToggleCategoryArchive = async (cat: BudgetCategoryKey, isCurrentlyArchived: boolean) => {
+    try {
+      const target = trip.categoryBudgets.find((c) => c.category === cat);
+      const updated = await updateCategoryBudget(
+        trip.id,
+        cat,
+        target?.allocated || 0,
+        target?.isLocked,
+        !isCurrentlyArchived
+      );
+      updateTripState(updated);
+      toast.success(`${cat} is now ${!isCurrentlyArchived ? "Archived" : "Restored"}`);
+    } catch {
+      toast.error("Failed to archive category");
+    }
+  };
+
+  // Settlement Handlers
   const handleRecordSettlement = async () => {
     if (!settleAmount || Number(settleAmount) <= 0) {
       toast.error("Enter a valid settlement amount.");
@@ -230,7 +462,7 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
         amount: Number(settleAmount),
       });
       updateTripState(updated);
-      toast.success("Debt settlement confirmed!");
+      toast.success("Debt settlement confirmed and balances updated!");
       setIsRecordSettlementOpen(false);
       setSettleAmount("");
     } catch (err: any) {
@@ -238,28 +470,92 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
     }
   };
 
-  const handleAddItinerary = async () => {
-    if (!itActivity.trim()) return;
+  const handleReverseSettlement = async (stlId: string) => {
     try {
-      const updated = await addItineraryStop(trip.id, {
-        dayNumber: Number(itDayNumber),
-        slot: itSlot,
-        time: itTime,
-        activity: itActivity,
-        location: itLocation,
-        estimatedCost: Number(itCost) || 0,
-      });
+      const updated = await cancelTripSettlement(trip.id, stlId);
       updateTripState(updated);
-      toast.success("Itinerary item scheduled!");
-      setIsAddItineraryOpen(false);
-      setItActivity("");
-      setItLocation("");
-      setItCost("");
+      toast.success("Settlement reversed and member balances adjusted.");
     } catch {
-      toast.error("Failed to add itinerary stop.");
+      toast.error("Failed to reverse settlement.");
     }
   };
 
+  // Member Management Handlers
+  const handleAddMember = async () => {
+    if (!newMemberName.trim()) {
+      toast.error("Member name is required.");
+      return;
+    }
+    try {
+      const updated = await addTripMember(trip.id, {
+        name: newMemberName,
+        email: newMemberEmail,
+        role: newMemberRole,
+        contribution: Number(newMemberContribution) || 0,
+      });
+      updateTripState(updated);
+      setIsInviteMemberOpen(false);
+      setNewMemberName("");
+      setNewMemberEmail("");
+      toast.success(`${newMemberName} added to the travel group!`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to add member");
+    }
+  };
+
+  const handleMemberRoleChange = async (memberId: string, role: MemberRole) => {
+    try {
+      const updated = await updateTripMemberRole(trip.id, memberId, role);
+      updateTripState(updated);
+      toast.success("Member role updated!");
+    } catch {
+      toast.error("Failed to update role");
+    }
+  };
+
+  const handleToggleFreeze = async (memberId: string) => {
+    try {
+      const updated = await toggleMemberFreeze(trip.id, memberId);
+      updateTripState(updated);
+      toast.success("Member access status toggled!");
+    } catch {
+      toast.error("Failed to toggle freeze state");
+    }
+  };
+
+  const handleTogglePastExpenses = async (memberId: string) => {
+    try {
+      const updated = await toggleMemberPastExpenseInclusion(trip.id, memberId);
+      updateTripState(updated);
+      toast.success("Member past expense share recalculated!");
+    } catch {
+      toast.error("Failed to update past expense inclusion");
+    }
+  };
+
+  const handleTransferOwnership = async (newOwnerId: string) => {
+    if (!confirm("Are you sure you want to transfer full trip ownership?")) return;
+    try {
+      const updated = await transferTripOwnership(trip.id, newOwnerId);
+      updateTripState(updated);
+      toast.success("Ownership transferred successfully!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to transfer ownership");
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!confirm("Remove this member from the trip? Existing expenses will be re-split.")) return;
+    try {
+      const updated = await removeTripMember(trip.id, memberId);
+      updateTripState(updated);
+      toast.success("Member removed and group ledger rebalanced.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to remove member");
+    }
+  };
+
+  // Event Handlers
   const handleAddEvent = async () => {
     if (!eventTitle.trim()) return;
     try {
@@ -281,145 +577,314 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
     }
   };
 
-  const handleAddDocument = async () => {
-    if (!docTitle.trim() || !docFileName.trim()) return;
+  const handleOpenEditEvent = (evt: TripEvent) => {
+    setEditingEvent(evt);
+    setEventTitle(evt.title);
+    setEventType(evt.type);
+    setEventDate(evt.startDateTime);
+    setEventLocation(evt.location);
+    setEventBudget(String(evt.budget || 0));
+    setEventActualCost(String(evt.actualCost || 0));
+    setEventPriority(evt.priority || "Medium");
+    setEventStatus(evt.status);
+    setEventMapsLink(evt.mapsLink || "");
+    setEventNotes(evt.notes || "");
+    setIsEditEventOpen(true);
+  };
+
+  const handleSaveEditEvent = async () => {
+    if (!editingEvent) return;
     try {
-      const updated = await addTripDocument(trip.id, {
-        title: docTitle,
-        category: docCategory,
-        fileName: docFileName,
-        fileType: docFileName.endsWith(".pdf") ? "pdf" : "image",
+      const updated = await editTripEvent(trip.id, editingEvent.id, {
+        title: eventTitle,
+        type: eventType,
+        startDateTime: eventDate,
+        location: eventLocation,
+        budget: Number(eventBudget) || 0,
+        actualCost: Number(eventActualCost) || 0,
+        priority: eventPriority,
+        status: eventStatus,
+        mapsLink: eventMapsLink,
+        notes: eventNotes,
       });
       updateTripState(updated);
-      toast.success("Travel document saved!");
-      setIsAddDocOpen(false);
-      setDocTitle("");
-      setDocFileName("");
+      setIsEditEventOpen(false);
+      setEditingEvent(null);
+      toast.success("Event details updated!");
     } catch {
-      toast.error("Failed to add document.");
+      toast.error("Failed to update event.");
     }
   };
 
-  const handleAddChecklist = async () => {
-    if (!chkTitle.trim()) return;
+  const handleDuplicateEvent = async (evtId: string) => {
     try {
-      const updated = await addTripChecklistItem(trip.id, {
+      const updated = await duplicateTripEvent(trip.id, evtId);
+      updateTripState(updated);
+      toast.success("Event duplicated!");
+    } catch {
+      toast.error("Failed to duplicate event.");
+    }
+  };
+
+  const handleEventStatusChange = async (evtId: string, status: TripEventStatus) => {
+    try {
+      const updated = await updateTripEventStatus(trip.id, evtId, status);
+      updateTripState(updated);
+      toast.success(`Event status set to ${status}!`);
+    } catch {
+      toast.error("Failed to update event status.");
+    }
+  };
+
+  // Checklist Handlers
+  const handleToggleChecklist = async (itemId: string) => {
+    try {
+      const updated = await toggleChecklistItem(trip.id, itemId);
+      updateTripState(updated);
+    } catch {
+      toast.error("Failed to toggle checklist item.");
+    }
+  };
+
+  const handleOpenEditChecklist = (chk: TripChecklistItem) => {
+    setEditingChecklist(chk);
+    setChkTitle(chk.title);
+    setChkCategory(chk.category);
+    setChkPriority(chk.priority);
+    setChkMember(chk.assignedMemberName);
+    setChkDueDate(chk.dueDate || "");
+    setIsEditChecklistOpen(true);
+  };
+
+  const handleSaveEditChecklist = async () => {
+    if (!editingChecklist) return;
+    try {
+      const updated = await editTripChecklistItem(trip.id, editingChecklist.id, {
         title: chkTitle,
         category: chkCategory,
         priority: chkPriority,
         assignedMemberName: chkMember,
+        dueDate: chkDueDate,
       });
       updateTripState(updated);
-      toast.success("Checklist item created!");
-      setIsAddChecklistOpen(false);
-      setChkTitle("");
+      setIsEditChecklistOpen(false);
+      setEditingChecklist(null);
+      toast.success("Checklist item updated!");
     } catch {
-      toast.error("Failed to add checklist item.");
+      toast.error("Failed to update checklist item.");
     }
   };
 
-  const handleToggleChecklist = async (id: string) => {
+  const handleDuplicateChecklist = async (itemId: string) => {
     try {
-      const updated = await toggleChecklistItem(trip.id, id);
+      const updated = await duplicateTripChecklistItem(trip.id, itemId);
       updateTripState(updated);
+      toast.success("Checklist item duplicated!");
     } catch {
-      toast.error("Failed to toggle item.");
+      toast.error("Failed to duplicate checklist item.");
     }
   };
 
-  const handleInviteMember = async () => {
-    if (!newMemberName.trim()) return;
-    try {
-      const updated = await addTripMember(trip.id, {
-        name: newMemberName,
-        email: newMemberEmail,
-        role: "Member",
-      });
-      updateTripState(updated);
-      toast.success(`${newMemberName} added to trip!`);
-      setIsInviteMemberOpen(false);
-      setNewMemberName("");
-      setNewMemberEmail("");
-    } catch {
-      toast.error("Failed to add member.");
-    }
-  };
-
-  // Filtered expenses
+  // Filtered Expenses
   const filteredExpenses = useMemo(() => {
-    return trip.expenses.filter((e) => {
+    return trip.expenses.filter((exp) => {
       const matchesSearch =
-        !expenseSearch.trim() ||
-        e.title.toLowerCase().includes(expenseSearch.toLowerCase()) ||
-        e.category.toLowerCase().includes(expenseSearch.toLowerCase()) ||
-        e.paidByName.toLowerCase().includes(expenseSearch.toLowerCase());
+        exp.title.toLowerCase().includes(expenseSearch.toLowerCase()) ||
+        exp.paidByName.toLowerCase().includes(expenseSearch.toLowerCase()) ||
+        (exp.location && exp.location.toLowerCase().includes(expenseSearch.toLowerCase()));
       const matchesCategory =
-        expenseCategoryFilter === "all" || e.category === expenseCategoryFilter;
+        expenseCategoryFilter === "all" || exp.category === expenseCategoryFilter;
       return matchesSearch && matchesCategory;
     });
   }, [trip.expenses, expenseSearch, expenseCategoryFilter]);
 
-  // Chart data
-  const chartCategoryData = trip.categoryBudgets.map((c) => ({
-    name: c.category,
-    Allocated: c.allocated,
-    Spent: c.spent,
-    fill: c.color,
-  }));
-
-  const pieData = trip.categoryBudgets
-    .filter((c) => c.spent > 0)
-    .map((c) => ({
+  // Analytics Chart Data
+  const chartCategoryData = useMemo(() => {
+    return trip.categoryBudgets.map((c) => ({
       name: c.category,
-      value: c.spent,
-      color: c.color,
+      Allocated: c.allocated,
+      Spent: c.spent,
     }));
+  }, [trip.categoryBudgets]);
 
-  const packedCount = trip.checklists.filter((c) => c.isPacked).length;
-  const checklistProgress =
-    trip.checklists.length > 0 ? Math.round((packedCount / trip.checklists.length) * 100) : 0;
+  const checklistProgress = useMemo(() => {
+    if (!trip.checklists || trip.checklists.length === 0) return 0;
+    const packed = trip.checklists.filter((c) => c.isPacked || c.isCompleted).length;
+    return Math.round((packed / trip.checklists.length) * 100);
+  }, [trip.checklists]);
+
+  // Status Badge Styling Helper
+  const getStatusBadgeClass = (status: TripStatus) => {
+    switch (status) {
+      case "active":
+      case "ongoing":
+        return "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30";
+      case "upcoming":
+      case "planning":
+        return "bg-amber-500/15 text-amber-600 border border-amber-500/30";
+      case "completed":
+        return "bg-blue-500/15 text-blue-600 border border-blue-500/30";
+      case "paused":
+      case "draft":
+        return "bg-purple-500/15 text-purple-600 border border-purple-500/30";
+      case "cancelled":
+      case "archived":
+        return "bg-slate-500/15 text-slate-500 border border-slate-500/30";
+      default:
+        return "bg-slate-100 dark:bg-slate-800 text-slate-600";
+    }
+  };
+
+  const handleExportExpensesCsv = () => {
+    if (!trip.expenses || trip.expenses.length === 0) {
+      toast.info("No expenses to export.");
+      return;
+    }
+    const headers = ["Title", "Category", "Amount", "Currency", "Paid By", "Date", "Location", "Split Method", "Personal"];
+    const rows = trip.expenses.map((e) => [
+      `"${e.title.replace(/"/g, '""')}"`,
+      `"${e.category}"`,
+      e.amount,
+      `"${trip.currency}"`,
+      `"${e.paidByName}"`,
+      `"${e.date}"`,
+      `"${(e.location || "").replace(/"/g, '""')}"`,
+      `"${e.splitMethod || "EQUAL"}"`,
+      e.isPersonal ? "Yes" : "No",
+    ]);
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${trip.name.replace(/[^a-z0-9]/gi, "_")}_expenses.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Expenses CSV exported!");
+  };
+
+  const handleExportBudgetCsv = () => {
+    if (!trip.categoryBudgets || trip.categoryBudgets.length === 0) {
+      toast.info("No budget data to export.");
+      return;
+    }
+    const headers = ["Category", "Allocated", "Spent", "Remaining", "Usage Pct", "Status", "Locked", "Archived"];
+    const rows = trip.categoryBudgets.map((c) => [
+      `"${c.category}"`,
+      c.allocated,
+      c.spent,
+      c.allocated - c.spent,
+      `${c.usagePct}%`,
+      c.isOverBudget ? "Over Budget" : "Within Budget",
+      c.isLocked ? "Yes" : "No",
+      c.isArchived ? "Yes" : "No",
+    ]);
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${trip.name.replace(/[^a-z0-9]/gi, "_")}_budget_reconciliation.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Budget CSV exported!");
+  };
+
+  const handleExportMembersCsv = () => {
+    if (!trip.members || trip.members.length === 0) {
+      toast.info("No members to export.");
+      return;
+    }
+    const headers = ["Member Name", "Role", "Paid Amount", "Fair Share", "Receivable", "Payable", "Status", "Frozen", "Excluded From Past"];
+    const rows = trip.members.map((m) => [
+      `"${m.name}"`,
+      `"${m.role}"`,
+      m.paid,
+      m.ownShare,
+      m.receivable,
+      m.pending,
+      `"${m.settlementStatus}"`,
+      m.isFrozen ? "Yes" : "No",
+      m.isExcludedFromPastExpenses ? "Yes" : "No",
+    ]);
+    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${trip.name.replace(/[^a-z0-9]/gi, "_")}_member_ledger.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Member Ledger CSV exported!");
+  };
 
   return (
-    <div className="space-y-6 pb-16">
-      {/* Top Navigation & Breadcrumb */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
+    <div className="space-y-6 pb-20">
+      {/* Top Header & Breadcrumb Nav */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800/80">
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={onBack}
-            className="rounded-xl text-xs gap-1.5 h-9 font-semibold border-slate-200/80 dark:border-slate-800 hover:border-primary/50"
+            className="rounded-2xl h-10 w-10 border-slate-200/80 dark:border-slate-800 shrink-0 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            <span>All Trips</span>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
 
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
                 {trip.name}
               </h1>
-              <Badge
-                variant="secondary"
-                className={`text-[10px] uppercase font-bold tracking-wider ${
-                  trip.status === "ongoing"
-                    ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-                    : trip.status === "upcoming"
-                    ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                }`}
+
+              {/* Editable Trip Status Selector */}
+              <select
+                value={trip.status}
+                onChange={(e) => handleStatusChange(e.target.value as TripStatus)}
+                className={`text-[10px] uppercase font-bold tracking-wider rounded-lg px-2.5 py-1 border transition-all cursor-pointer ${getStatusBadgeClass(
+                  trip.status
+                )}`}
               >
-                {trip.status}
-              </Badge>
+                <option value="draft">Draft</option>
+                <option value="planning">Planning</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="active">Active</option>
+                <option value="ongoing">Ongoing</option>
+                <option value="paused">Paused</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="archived">Archived</option>
+              </select>
+
+              {/* Health Score Pill (Clickable for Modal Breakdown) */}
+              <button
+                onClick={() => setIsHealthBreakdownOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 text-[10px] font-bold tracking-wider uppercase hover:bg-indigo-500/20 transition-all cursor-pointer"
+                title="Click to view weighted health score audit"
+              >
+                <ShieldCheck className="h-3 w-3" />
+                <span>
+                  {trip.financialHealthScore}/100 Grade {trip.healthReport?.grade || "A"}
+                </span>
+              </button>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              <MapPin className="h-3 w-3 inline mr-1 text-slate-400" />
-              {trip.destination}, {trip.country} • {trip.startDate} to {trip.endDate} ({trip.durationDays} Days)
+
+            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1 flex-wrap">
+              <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+              <span>
+                {trip.destination}, {trip.country}
+                {trip.state ? ` (${trip.state})` : ""} • {trip.startDate} to {trip.endDate} ({trip.durationDays} Days)
+                • Organizer: <strong>{trip.organizerName}</strong>
+              </span>
             </p>
           </div>
         </div>
 
-        {/* Global Action Buttons */}
+        {/* Global Quick Action Bar */}
         <div className="flex items-center gap-2 flex-wrap">
           <Button
             size="sm"
@@ -442,17 +907,66 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
 
           <Button
             size="sm"
+            variant="outline"
+            onClick={() => setIsEditTripOpen(true)}
+            className="rounded-xl text-xs font-bold gap-1.5 border-slate-200/80 dark:border-slate-800 hover:border-primary hover:text-primary transition-all"
+          >
+            <Edit2 className="h-3.5 w-3.5" />
+            <span>Edit Trip</span>
+          </Button>
+
+          <Button
+            size="sm"
             variant="ghost"
-            onClick={() => {
-              window.print();
-            }}
+            onClick={() => window.print()}
             className="rounded-xl text-xs font-bold gap-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
           >
-            <Download className="h-4 w-4" />
-            <span>Export Report</span>
+            <Printer className="h-4 w-4" />
+            <span>Print PDF</span>
           </Button>
         </div>
       </div>
+
+      {/* Live Budget Validation Warnings (Data-Driven Alerts) */}
+      {trip.actualTotal > trip.allocatedBudget && (
+        <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3 text-xs text-rose-800 dark:text-rose-200">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+            <div>
+              <span className="font-bold">Budget Overrun Detected:</span> Actual outflow exceeds category allocation by{" "}
+              <strong>₹{(trip.actualTotal - trip.allocatedBudget).toLocaleString("en-IN")}</strong>.
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setActiveTab("budget")}
+            className="rounded-xl text-[11px] h-7 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 font-bold"
+          >
+            Rebalance Budget
+          </Button>
+        </div>
+      )}
+
+      {trip.actualTotal <= trip.allocatedBudget && trip.budgetUsedPct >= 80 && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-800 dark:text-amber-200">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+            <div>
+              <span className="font-bold">80% Budget Ceiling Warning:</span> {trip.budgetUsedPct}% of allocated funds consumed.
+              Recommended ceiling: <strong>₹{trip.recommendedDailySpend.toLocaleString("en-IN")}/day</strong>.
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setActiveTab("analytics")}
+            className="rounded-xl text-[11px] h-7 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-bold"
+          >
+            Inspect Velocity
+          </Button>
+        </div>
+      )}
 
       {/* Quick KPI Ribbon for This Trip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -482,10 +996,16 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
           <p className="text-base font-black text-primary mt-0.5">{trip.budgetUsedPct}%</p>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Health Score</span>
+        <div
+          onClick={() => setIsHealthBreakdownOpen(true)}
+          className="p-3.5 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs cursor-pointer hover:border-indigo-500 transition-all"
+        >
+          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 flex items-center justify-between">
+            <span>Health Score</span>
+            <span className="text-[9px] font-black underline">View</span>
+          </span>
           <p className="text-base font-black text-indigo-600 dark:text-indigo-400 mt-0.5">
-            {trip.financialHealthScore}/100
+            {trip.financialHealthScore}/100 <span className="text-xs font-bold">({trip.healthReport?.grade || "A"})</span>
           </p>
         </div>
 
@@ -504,7 +1024,7 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
         </div>
       </div>
 
-      {/* 11 Deep Sub-Tabs */}
+      {/* 12 Deep Sub-Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="bg-slate-100 dark:bg-slate-800/90 p-1 rounded-2xl flex-wrap h-auto gap-1">
           <TabsTrigger value="overview" className="rounded-xl text-xs font-semibold">Overview</TabsTrigger>
@@ -518,6 +1038,10 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
           <TabsTrigger value="members" className="rounded-xl text-xs font-semibold">Members & Roles ({trip.members.length})</TabsTrigger>
           <TabsTrigger value="analytics" className="rounded-xl text-xs font-semibold">Analytics</TabsTrigger>
           <TabsTrigger value="reports" className="rounded-xl text-xs font-semibold">Reports & AI</TabsTrigger>
+          <TabsTrigger value="audit" className="rounded-xl text-xs font-semibold flex items-center gap-1">
+            <History className="h-3 w-3" />
+            <span>Audit Trail</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* 1. OVERVIEW TAB */}
@@ -575,7 +1099,7 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                       <div>
                         <p className="font-bold text-slate-900 dark:text-slate-100">{exp.title}</p>
                         <p className="text-[11px] text-slate-400">
-                          {exp.category} • Paid by {exp.paidByName} • {exp.date}
+                          {exp.category} • Paid by {exp.paidByName} • {exp.date} • {exp.isPersonal ? "Personal" : "Shared"}
                         </p>
                       </div>
                       <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
@@ -599,21 +1123,25 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                 </div>
                 <div className="space-y-2 text-xs">
                   {trip.aiInsights.map((insight, idx) => (
-                    <div key={idx} className="p-2.5 rounded-xl bg-primary/10 text-slate-800 dark:text-slate-200 leading-relaxed">
-                      {insight}
+                    <div key={idx} className="p-2.5 rounded-xl bg-background/80 border border-primary/20 text-slate-700 dark:text-slate-300">
+                      • {insight}
                     </div>
                   ))}
+                  {trip.aiInsights.length === 0 && (
+                    <p className="text-slate-400">All trip systems are currently within optimal parameters.</p>
+                  )}
                 </div>
               </Card>
 
+              {/* Checklist Progress Card */}
               <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Packing Readiness</h3>
-                  <span className="text-xs font-mono font-bold text-primary">{checklistProgress}%</span>
+                  <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">Luggage & Packing Health</h4>
+                  <span className="font-mono font-bold text-xs text-primary">{checklistProgress}%</span>
                 </div>
                 <Progress value={checklistProgress} className="h-2 rounded-full" />
                 <p className="text-[11px] text-slate-400">
-                  {packedCount} of {trip.checklists.length} mandatory luggage & document items packed.
+                  {trip.checklists.filter((c) => c.isPacked || c.isCompleted).length} of {trip.checklists.length} essentials verified.
                 </p>
               </Card>
             </div>
@@ -622,15 +1150,44 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
 
         {/* 2. BUDGET MANAGEMENT TAB */}
         <TabsContent value="budget" className="space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Category Allocations & Variance</h3>
+              <p className="text-xs text-slate-500">
+                Total Budget: {formatCurrency(trip.budgetAmount, trip.currency)} • Allocated: {formatCurrency(trip.allocatedBudget, trip.currency)} • Emergency Reserve: {formatCurrency(trip.emergencyBuffer, trip.currency)}
+              </p>
+            </div>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleOpenEditCategory("Transportation", 0)}
+              className="rounded-xl text-xs font-bold gap-1 border-slate-200/80 dark:border-slate-800"
+            >
+              <Plus className="h-4 w-4" /> Adjust Category Budget
+            </Button>
+          </div>
+
           {/* Multi-Category Breakdown Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {trip.categoryBudgets.map((cat) => (
               <Card
                 key={cat.category}
-                className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-3 transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg"
+                className={`rounded-3xl border bg-card p-5 space-y-3 transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg ${
+                  cat.isOverBudget
+                    ? "border-rose-300 dark:border-rose-900/60"
+                    : cat.isLocked
+                    ? "border-amber-300 dark:border-amber-900/60 opacity-85"
+                    : "border-slate-200/80 dark:border-slate-800/90"
+                }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{cat.category}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{cat.category}</span>
+                    {cat.isLocked && <span title="Category Locked"><Lock className="h-3 w-3 text-amber-500" /></span>}
+                    {cat.isArchived && <span title="Category Archived"><Archive className="h-3 w-3 text-slate-400" /></span>}
+                  </div>
+
                   <Badge
                     variant={cat.isOverBudget ? "destructive" : "secondary"}
                     className="text-[10px] font-bold uppercase"
@@ -655,7 +1212,35 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                       ? `Over by ₹${Math.abs(cat.remaining).toLocaleString("en-IN")}`
                       : `Remaining: ₹${cat.remaining.toLocaleString("en-IN")}`}
                   </span>
-                  <span className="text-slate-400">{cat.aiForecast}</span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleOpenEditCategory(cat.category, cat.allocated)}
+                      className="h-6 w-6 text-slate-400 hover:text-primary"
+                      title="Edit Category Allocation"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleToggleCategoryLock(cat.category, Boolean(cat.isLocked))}
+                      className="h-6 w-6 text-slate-400 hover:text-amber-500"
+                      title={cat.isLocked ? "Unlock Category" : "Lock Category"}
+                    >
+                      {cat.isLocked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleToggleCategoryArchive(cat.category, Boolean(cat.isArchived))}
+                      className="h-6 w-6 text-slate-400 hover:text-rose-500"
+                      title={cat.isArchived ? "Restore Category" : "Archive Category"}
+                    >
+                      <Archive className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))}
@@ -663,11 +1248,21 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
 
           {/* Variance Comparison Table */}
           <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold">Category Financial Reconciliation</CardTitle>
-              <CardDescription className="text-xs">
-                Variance is automatically audited against real expense receipts.
-              </CardDescription>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-bold">Category Financial Reconciliation</CardTitle>
+                <CardDescription className="text-xs">
+                  Variance is automatically audited against real expense receipts and logged allocations.
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleExportBudgetCsv}
+                className="rounded-xl text-xs font-bold gap-1.5"
+              >
+                <Download className="h-3.5 w-3.5" /> Export Budget CSV
+              </Button>
             </CardHeader>
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
@@ -685,7 +1280,11 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {trip.categoryBudgets.map((c) => (
                     <tr key={c.category} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                      <td className="p-3.5 font-bold text-slate-900 dark:text-slate-100">{c.category}</td>
+                      <td className="p-3.5 font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        {c.category}
+                        {c.isLocked && <Badge variant="outline" className="text-[8px] py-0">Locked</Badge>}
+                        {c.isArchived && <Badge variant="secondary" className="text-[8px] py-0">Archived</Badge>}
+                      </td>
                       <td className="p-3.5 font-mono">{formatCurrency(c.allocated, trip.currency)}</td>
                       <td className="p-3.5 font-mono text-rose-600">{formatCurrency(c.spent, trip.currency)}</td>
                       <td className="p-3.5 font-mono text-emerald-600">{formatCurrency(c.remaining, trip.currency)}</td>
@@ -719,7 +1318,7 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
               <select
                 value={expenseCategoryFilter}
                 onChange={(e) => setExpenseCategoryFilter(e.target.value)}
@@ -733,12 +1332,29 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
 
               <Button
                 size="sm"
+                variant="outline"
+                onClick={handleExportExpensesCsv}
+                className="rounded-xl text-xs font-bold gap-1 h-10 border-slate-200/80 dark:border-slate-800"
+              >
+                <Download className="h-3.5 w-3.5" /> CSV
+              </Button>
+
+              <Button
+                size="sm"
                 onClick={() => setIsAddExpenseOpen(true)}
                 className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground h-10 px-4"
               >
                 <Plus className="h-4 w-4" /> Add Expense
               </Button>
             </div>
+          </div>
+
+          {/* Outflow Breakdown Bar */}
+          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between text-xs flex-wrap gap-2 font-mono">
+            <span>Logged: <strong>{trip.expenses.length} Expenses</strong></span>
+            <span>Personal Spend: <strong className="text-slate-800 dark:text-slate-200">{formatCurrency(trip.personalExpensesTotal, trip.currency)}</strong></span>
+            <span>Shared Outflow: <strong className="text-primary">{formatCurrency(trip.sharedExpensesTotal, trip.currency)}</strong></span>
+            <span>Reconciled Actual: <strong className="text-rose-600">{formatCurrency(trip.actualTotal, trip.currency)}</strong></span>
           </div>
 
           <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card overflow-hidden">
@@ -753,7 +1369,7 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                     <th className="p-3.5">Date</th>
                     <th className="p-3.5">Payment</th>
                     <th className="p-3.5 text-right">Amount</th>
-                    <th className="p-3.5 text-right">Action</th>
+                    <th className="p-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -768,9 +1384,15 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                       </td>
                       <td className="p-3.5 font-semibold text-slate-700 dark:text-slate-300">{exp.paidByName}</td>
                       <td className="p-3.5">
-                        <Badge variant={exp.isPersonal ? "outline" : "secondary"} className="text-[9px] uppercase">
-                          {exp.isPersonal ? "Personal" : "Shared Group"}
-                        </Badge>
+                        <button
+                          onClick={() => handleTogglePersonalShared(exp.id)}
+                          className="cursor-pointer"
+                          title="Click to toggle between Personal and Shared"
+                        >
+                          <Badge variant={exp.isPersonal ? "outline" : "secondary"} className="text-[9px] uppercase hover:bg-primary/20">
+                            {exp.isPersonal ? "Personal" : "Shared Group"}
+                          </Badge>
+                        </button>
                       </td>
                       <td className="p-3.5 text-slate-500 font-mono">{exp.date}</td>
                       <td className="p-3.5 text-slate-500">{exp.paymentMethod}</td>
@@ -778,21 +1400,42 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                         {formatCurrency(exp.amount, trip.currency)}
                       </td>
                       <td className="p-3.5 text-right">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleDeleteExpense(exp.id)}
-                          className="h-7 w-7 text-slate-400 hover:text-rose-600"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleOpenEditExpense(exp)}
+                            className="h-7 w-7 text-slate-400 hover:text-primary"
+                            title="Edit Expense"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDuplicateExpense(exp.id)}
+                            className="h-7 w-7 text-slate-400 hover:text-indigo-600"
+                            title="Duplicate Expense"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleDeleteExpense(exp.id)}
+                            className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                            title="Delete Expense"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {filteredExpenses.length === 0 && (
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-slate-400">
-                        No expenses match your criteria.
+                        No expenses match your search criteria.
                       </td>
                     </tr>
                   )}
@@ -804,6 +1447,30 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
 
         {/* 4. SETTLEMENTS TAB */}
         <TabsContent value="settlements" className="space-y-5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">Pairwise Debt & Balance Matrix</h3>
+              <p className="text-xs text-slate-500">Every member balance automatically reconciles with shared expenses and completed transfers.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleExportMembersCsv}
+                className="rounded-xl text-xs font-bold gap-1"
+              >
+                <Download className="h-3.5 w-3.5" /> Ledger CSV
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setIsRecordSettlementOpen(true)}
+                className="rounded-xl text-xs font-bold gap-1 bg-primary text-primary-foreground"
+              >
+                <Plus className="h-4 w-4" /> Settle Debt
+              </Button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {trip.members.map((m) => (
               <Card key={m.id} className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-3">
@@ -845,7 +1512,17 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                     </p>
                     <p className="text-[11px] text-slate-400">{s.paymentMethod} • {s.settledAt?.split("T")[0]}</p>
                   </div>
-                  <span className="font-mono font-bold text-emerald-600">{formatCurrency(s.amount, trip.currency)}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-bold text-emerald-600">{formatCurrency(s.amount, trip.currency)}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleReverseSettlement(s.id)}
+                      className="text-xs text-rose-500 hover:text-rose-700 h-7"
+                    >
+                      Reverse
+                    </Button>
+                  </div>
                 </div>
               ))}
               {trip.settlements.length === 0 && (
@@ -923,16 +1600,61 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                   <p><strong>Scheduled:</strong> {evt.startDateTime}</p>
                   <p><strong>Location:</strong> {evt.location}</p>
                   <p><strong>Budget Pool:</strong> {formatCurrency(evt.budget, trip.currency)}</p>
+                  {evt.mapsLink && (
+                    <a
+                      href={evt.mapsLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary flex items-center gap-1 hover:underline pt-0.5"
+                    >
+                      <ExternalLink className="h-3 w-3" /> View Map Location
+                    </a>
+                  )}
                 </div>
-                <div className="pt-2 flex justify-end border-t border-slate-100 dark:border-slate-800">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => deleteTripEvent(trip.id, evt.id).then(updateTripState)}
-                    className="text-xs text-rose-600 hover:bg-rose-50 h-8 gap-1"
+
+                <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+                  <select
+                    value={evt.status}
+                    onChange={(e) => handleEventStatusChange(evt.id, e.target.value as TripEventStatus)}
+                    className="text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-0.5 bg-background cursor-pointer"
                   >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete
-                  </Button>
+                    <option value="upcoming">Upcoming</option>
+                    <option value="ongoing">Ongoing</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                    <option value="missed">Missed</option>
+                    <option value="rescheduled">Rescheduled</option>
+                  </select>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleOpenEditEvent(evt)}
+                      className="h-7 w-7 text-slate-400 hover:text-primary"
+                      title="Edit Event"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleDuplicateEvent(evt.id)}
+                      className="h-7 w-7 text-slate-400 hover:text-indigo-600"
+                      title="Duplicate Event"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => deleteTripEvent(trip.id, evt.id).then(updateTripState)}
+                      className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                      title="Delete Event"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))}
@@ -994,12 +1716,12 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
-                    checked={chk.isPacked}
+                    checked={Boolean(chk.isPacked || chk.isCompleted)}
                     onChange={() => handleToggleChecklist(chk.id)}
                     className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
                   />
                   <div>
-                    <span className={`font-semibold ${chk.isPacked ? "line-through text-slate-400" : "text-slate-900 dark:text-slate-100"}`}>
+                    <span className={`font-semibold ${chk.isPacked || chk.isCompleted ? "line-through text-slate-400" : "text-slate-900 dark:text-slate-100"}`}>
                       {chk.title}
                     </span>
                     <p className="text-[10px] text-slate-400">Assigned: {chk.assignedMemberName} • {chk.category}</p>
@@ -1012,8 +1734,27 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                   <Button
                     size="icon"
                     variant="ghost"
+                    onClick={() => handleOpenEditChecklist(chk)}
+                    className="h-7 w-7 text-slate-400 hover:text-primary"
+                    title="Edit Item"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleDuplicateChecklist(chk.id)}
+                    className="h-7 w-7 text-slate-400 hover:text-indigo-600"
+                    title="Duplicate Item"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
                     onClick={() => deleteChecklistItem(trip.id, chk.id).then(updateTripState)}
                     className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                    title="Delete Item"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -1028,25 +1769,103 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">Travel Group Members & Permissions</h3>
             <Button size="sm" onClick={() => setIsInviteMemberOpen(true)} className="rounded-xl text-xs font-bold gap-1">
-              <Plus className="h-4 w-4" /> Invite Member
+              <UserPlus className="h-4 w-4" /> Invite Member
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {trip.members.map((m) => (
-              <Card key={m.id} className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">
-                    {m.name.charAt(0)}
+              <Card
+                key={m.id}
+                className={`rounded-3xl border bg-card p-5 space-y-3.5 transition-all ${
+                  m.isFrozen
+                    ? "border-amber-300 dark:border-amber-900/60 opacity-80"
+                    : "border-slate-200/80 dark:border-slate-800/90"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm shrink-0">
+                      {m.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        {m.name}
+                        {m.role === "Owner" && <Crown className="h-3.5 w-3.5 text-amber-500" />}
+                      </p>
+                      <select
+                        value={m.role}
+                        disabled={m.role === "Owner"}
+                        onChange={(e) => handleMemberRoleChange(m.id, e.target.value as MemberRole)}
+                        className="text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-0.5 bg-background cursor-pointer mt-0.5"
+                      >
+                        <option value="Owner">Owner</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Member">Member</option>
+                        <option value="Guest">Guest</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-sm text-slate-900 dark:text-slate-100">{m.name}</p>
-                    <Badge variant="outline" className="text-[9px] uppercase">{m.role}</Badge>
+
+                  <Badge variant={m.settlementStatus === "settled" ? "outline" : m.settlementStatus === "overpaid" ? "secondary" : "destructive"}>
+                    {m.settlementStatus}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1 text-xs border-t border-slate-100 dark:border-slate-800 pt-2 text-slate-500 font-mono">
+                  <div className="flex justify-between">
+                    <span>Paid Out:</span>
+                    <strong className="text-slate-900 dark:text-slate-100">{formatCurrency(m.paid, trip.currency)}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Own Share:</span>
+                    <strong>{formatCurrency(m.ownShare, trip.currency)}</strong>
+                  </div>
+                  <div className="flex justify-between font-bold">
+                    <span>Net Balance:</span>
+                    <span className={m.receivable > 0 ? "text-emerald-600" : m.pending > 0 ? "text-rose-600" : "text-slate-500"}>
+                      {m.receivable > 0 ? `+${formatCurrency(m.receivable, trip.currency)}` : m.pending > 0 ? `-${formatCurrency(m.pending, trip.currency)}` : "Settled"}
+                    </span>
                   </div>
                 </div>
-                <div className="space-y-1 text-xs border-t border-slate-100 dark:border-slate-800 pt-2 text-slate-500">
-                  <p>Expenses Logged: <strong>{m.expenseCount}</strong></p>
-                  <p>Settlement Status: <strong className="capitalize">{m.settlementStatus}</strong></p>
+
+                {/* Member Governance Toggles */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] gap-2 flex-wrap">
+                  <button
+                    onClick={() => handleToggleFreeze(m.id)}
+                    className="flex items-center gap-1 text-slate-500 hover:text-amber-600 transition-colors cursor-pointer"
+                  >
+                    <Snowflake className="h-3 w-3" />
+                    <span>{m.isFrozen ? "Unfreeze" : "Freeze"}</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleTogglePastExpenses(m.id)}
+                    className="text-slate-500 hover:text-primary transition-colors cursor-pointer"
+                  >
+                    {m.isExcludedFromPastExpenses ? "Include in Past" : "Exclude Past"}
+                  </button>
+
+                  {m.role !== "Owner" && (
+                    <button
+                      onClick={() => handleTransferOwnership(m.id)}
+                      className="text-amber-600 hover:underline cursor-pointer"
+                    >
+                      Make Owner
+                    </button>
+                  )}
+
+                  {m.role !== "Owner" && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleRemoveMember(m.id)}
+                      className="h-6 w-6 text-slate-400 hover:text-rose-600"
+                      title="Remove Member"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               </Card>
             ))}
@@ -1075,7 +1894,7 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
               <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">Outflow Velocity & Burn Rate</h3>
               <div className="space-y-3 text-xs pt-4">
                 <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
-                  <span className="text-slate-500">Average Burn Rate:</span>
+                  <span className="text-slate-500">Average Daily Burn Rate:</span>
                   <span className="font-mono font-bold text-rose-600">{formatCurrency(trip.burnRatePerDay, trip.currency)} / day</span>
                 </div>
                 <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
@@ -1088,6 +1907,10 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                     {formatCurrency(Math.round(trip.actualTotal / Math.max(1, trip.members.length)), trip.currency)}
                   </span>
                 </div>
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 flex justify-between items-center">
+                  <span className="text-slate-500">Expected Trip Savings:</span>
+                  <span className="font-mono font-bold text-emerald-600">{formatCurrency(trip.potentialSavings, trip.currency)}</span>
+                </div>
               </div>
             </Card>
           </div>
@@ -1096,41 +1919,308 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
         {/* 11. REPORTS & AI TAB */}
         <TabsContent value="reports" className="space-y-5">
           <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 flex-wrap gap-2">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Executive Trip Audit Report</h3>
-                <p className="text-xs text-slate-500">Generated by SplitLedger AI Autonomous Financial Engine</p>
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Executive Travel Financial Statement</h3>
+                <p className="text-xs text-slate-500">Generated directly from dynamic SplitLedger records. Ready for audit or download.</p>
               </div>
-              <Button size="sm" onClick={() => window.print()} className="rounded-xl text-xs gap-1.5 font-bold">
-                <Download className="h-4 w-4" /> Export Document
-              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleExportExpensesCsv}
+                  className="rounded-xl text-xs font-bold gap-1"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Export All CSVs
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground"
+                >
+                  <Printer className="h-4 w-4" /> Print Statement
+                </Button>
+              </div>
             </div>
 
-            <div className="space-y-3 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
-              <p>
-                <strong>Executive Summary:</strong> {trip.name} has incurred a total expenditure of{" "}
-                <strong>{formatCurrency(trip.actualTotal, trip.currency)}</strong> against an allocated budget of{" "}
-                <strong>{formatCurrency(trip.allocatedBudget, trip.currency)}</strong> ({trip.budgetUsedPct}% budget utilized).
-              </p>
-              <p>
-                <strong>Financial Risk Assessment:</strong> Currently evaluated as <strong>{trip.riskLevel}</strong> with an aggregate financial health score of <strong>{trip.financialHealthScore}/100</strong>.
-              </p>
-              <p>
-                <strong>Settlement Reconciliation:</strong> {trip.members.filter((m) => m.pending > 0).length} collaborator accounts have pending reimbursements totaling{" "}
-                <strong>{formatCurrency(trip.members.reduce((a, b) => a + b.pending, 0), trip.currency)}</strong>.
-              </p>
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 font-mono">
+                <div>
+                  <span className="text-slate-400 text-[10px]">TOTAL BUDGET</span>
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{formatCurrency(trip.budgetAmount, trip.currency)}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px]">TOTAL SPENT</span>
+                  <p className="text-sm font-bold text-rose-600">{formatCurrency(trip.actualTotal, trip.currency)}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px]">REMAINING CUSHION</span>
+                  <p className="text-sm font-bold text-emerald-600">{formatCurrency(trip.remainingBudget, trip.currency)}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px]">FINANCIAL GRADE</span>
+                  <p className="text-sm font-bold text-indigo-600">{trip.financialHealthScore}/100 ({trip.healthReport?.grade || "A"})</p>
+                </div>
+              </div>
+
+              <div className="pt-2 space-y-2">
+                <h4 className="font-bold text-slate-900 dark:text-slate-100">AI Financial Diagnostic Summary</h4>
+                <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
+                  {trip.healthReport?.summary ||
+                    `The trip ledger is operating at ${trip.budgetUsedPct}% budget utilization with a projected final cost of ${formatCurrency(
+                      trip.projectedTotalSpend,
+                      trip.currency
+                    )}.`}
+                </p>
+              </div>
             </div>
           </Card>
         </TabsContent>
+
+        {/* 12. AUDIT TRAIL TAB */}
+        <TabsContent value="audit" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">Immutable Activity & Audit Trail</h3>
+              <p className="text-xs text-slate-500">Every change to budgets, expenses, member access, and status is logged here.</p>
+            </div>
+          </div>
+
+          <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card overflow-hidden">
+            {(trip.auditLogs || []).map((log) => (
+              <div key={log.id} className="p-3.5 flex items-start justify-between text-xs hover:bg-slate-50/50 dark:hover:bg-slate-900/30 gap-4">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[9px] uppercase font-bold tracking-wider">
+                      {log.category}
+                    </Badge>
+                    <span className="font-bold text-slate-900 dark:text-slate-100">{log.action}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">{log.details}</p>
+                </div>
+                <div className="text-right text-[10px] text-slate-400 font-mono shrink-0">
+                  <p>{log.actorName}</p>
+                  <p>{new Date(log.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                </div>
+              </div>
+            ))}
+            {(!trip.auditLogs || trip.auditLogs.length === 0) && (
+              <p className="text-xs text-slate-400 p-8 text-center">No audit trail entries recorded yet.</p>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
 
-      {/* DIALOG 1: Add Expense */}
-      <Dialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+      {/* ========================================================================= */}
+      {/* DIALOG 1: Edit Full Trip Details Modal */}
+      {/* ========================================================================= */}
+      <Dialog open={isEditTripOpen} onOpenChange={setIsEditTripOpen}>
+        <DialogContent className="sm:max-w-xl rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold">Log Trip Expense</DialogTitle>
+            <DialogTitle className="text-base font-bold">Edit Trip Parameters & Budget</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Record purchase and auto-reconcile category budgets and member shares.
+              All modifications immediately trigger real-time ledger and analytics recalculations.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 text-xs py-2">
+            <div>
+              <label className="font-bold">Trip Name *</label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Destination *</label>
+                <Input
+                  value={editDestination}
+                  onChange={(e) => setEditDestination(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+              <div>
+                <label className="font-bold">Country</label>
+                <Input
+                  value={editCountry}
+                  onChange={(e) => setEditCountry(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="font-bold">State / Province</label>
+                <Input
+                  value={editState}
+                  onChange={(e) => setEditState(e.target.value)}
+                  placeholder="e.g. Goa"
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+              <div>
+                <label className="font-bold">City</label>
+                <Input
+                  value={editCity}
+                  onChange={(e) => setEditCity(e.target.value)}
+                  placeholder="e.g. Panaji"
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+              <div>
+                <label className="font-bold">Meeting Point</label>
+                <Input
+                  value={editMeetingPoint}
+                  onChange={(e) => setEditMeetingPoint(e.target.value)}
+                  placeholder="e.g. Terminal 2"
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Start Date</label>
+                <Input
+                  type="date"
+                  value={editStartDate}
+                  onChange={(e) => setEditStartDate(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+              <div>
+                <label className="font-bold">End Date</label>
+                <Input
+                  type="date"
+                  value={editEndDate}
+                  onChange={(e) => setEditEndDate(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Total Trip Budget (₹) *</label>
+                <Input
+                  type="number"
+                  value={editTotalBudget}
+                  onChange={(e) => setEditTotalBudget(e.target.value)}
+                  className="rounded-xl h-10 mt-1 font-mono font-bold"
+                />
+              </div>
+              <div>
+                <label className="font-bold">Emergency Buffer (₹)</label>
+                <Input
+                  type="number"
+                  value={editEmergencyBuffer}
+                  onChange={(e) => setEditEmergencyBuffer(e.target.value)}
+                  className="rounded-xl h-10 mt-1 font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold">Cover Image URL</label>
+              <Input
+                value={editCoverImage}
+                onChange={(e) => setEditCoverImage(e.target.value)}
+                placeholder="https://..."
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div>
+              <label className="font-bold">Description & Notes</label>
+              <Textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Trip vision, ground rules, packing requirements..."
+                className="rounded-xl text-xs mt-1 min-h-[70px]"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setIsEditTripOpen(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveTripDetails} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                Save & Recalculate
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 2: Health Score Breakdown Modal */}
+      {/* ========================================================================= */}
+      <Dialog open={isHealthBreakdownOpen} onOpenChange={setIsHealthBreakdownOpen}>
+        <DialogContent className="sm:max-w-lg rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800 max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-indigo-600" />
+              <span>Multi-Dimensional Health Score Audit</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Evaluated mathematically using weighted financial algorithms.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Top Grade Box */}
+            <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-between">
+              <div>
+                <p className="font-bold text-sm text-indigo-900 dark:text-indigo-200">
+                  Overall Grade: {trip.healthReport?.grade || "A"} ({trip.financialHealthScore}/100)
+                </p>
+                <p className="text-[11px] text-indigo-700 dark:text-indigo-300 mt-0.5">{trip.healthReport?.summary}</p>
+              </div>
+              <Badge className="text-sm font-black bg-indigo-600 text-white px-3 py-1">
+                {trip.healthReport?.grade || "A"}
+              </Badge>
+            </div>
+
+            {/* Dimension Breakdown */}
+            <div className="space-y-3">
+              {(trip.healthReport?.dimensions || []).map((dim) => (
+                <div key={dim.name} className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800/80 space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                      {dim.name} <span className="text-[10px] text-slate-400 font-normal">({Math.round(dim.weight * 100)}% Weight)</span>
+                    </span>
+                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{dim.score}/100</span>
+                  </div>
+                  <Progress value={dim.score} className="h-1.5 rounded-full" />
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">{dim.remarks}</p>
+                  <p className="text-[11px] text-primary font-semibold">💡 Recommendation: {dim.recommendation}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button size="sm" onClick={() => setIsHealthBreakdownOpen(false)} className="rounded-xl text-xs font-bold">
+                Close Audit
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 3: Add Expense Modal */}
+      {/* ========================================================================= */}
+      <Dialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen}>
+        <DialogContent className="sm:max-w-lg rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Record Trip Expense</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Categorized outflow automatically updates category allocations and member shares.
             </DialogDescription>
           </DialogHeader>
 
@@ -1138,7 +2228,7 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
             <div>
               <label className="font-bold">Expense Title *</label>
               <Input
-                placeholder="e.g. Scuba Diving Tickets / Dinner at Fisherman's Wharf"
+                placeholder="e.g. Scuba Diving Tickets / Beachfront Dinner"
                 value={expenseTitle}
                 onChange={(e) => setExpenseTitle(e.target.value)}
                 className="rounded-xl h-10 mt-1"
@@ -1151,6 +2241,131 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                 <Input
                   type="number"
                   placeholder="e.g. 3500"
+                  value={expenseAmount}
+                  onChange={(e) => setExpenseAmount(e.target.value)}
+                  className="rounded-xl h-10 mt-1 font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Category</label>
+                <select
+                  value={expenseCategory}
+                  onChange={(e) => setExpenseCategory(e.target.value as BudgetCategoryKey)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  {trip.categoryBudgets.map((c) => (
+                    <option key={c.category} value={c.category}>
+                      {c.category} {c.isLocked ? "(Locked)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Paid By</label>
+                <select
+                  value={expensePaidById}
+                  onChange={(e) => setExpensePaidById(e.target.value)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  {trip.members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.isFrozen ? "(Frozen)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold">Payment Method</label>
+                <select
+                  value={expensePaymentMethod}
+                  onChange={(e) => setExpensePaymentMethod(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="UPI">UPI</option>
+                  <option value="Credit Card">Credit Card</option>
+                  <option value="Debit Card">Debit Card</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Net Banking">Net Banking</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Location</label>
+                <Input
+                  placeholder="e.g. Baga Beach"
+                  value={expenseLocation}
+                  onChange={(e) => setExpenseLocation(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Date</label>
+                <Input
+                  type="date"
+                  value={expenseDate}
+                  onChange={(e) => setExpenseDate(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                type="checkbox"
+                id="isPersonal"
+                checked={expenseIsPersonal}
+                onChange={(e) => setExpenseIsPersonal(e.target.checked)}
+                className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
+              />
+              <label htmlFor="isPersonal" className="cursor-pointer font-medium">
+                Personal Purchase (Exclude from shared group split)
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setIsAddExpenseOpen(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleCreateExpense} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                Save Expense
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 4: Edit Expense Modal */}
+      {/* ========================================================================= */}
+      <Dialog open={isEditExpenseOpen} onOpenChange={setIsEditExpenseOpen}>
+        <DialogContent className="sm:max-w-lg rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Edit Expense Record</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 text-xs py-2">
+            <div>
+              <label className="font-bold">Expense Title *</label>
+              <Input
+                value={expenseTitle}
+                onChange={(e) => setExpenseTitle(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Amount (₹) *</label>
+                <Input
+                  type="number"
                   value={expenseAmount}
                   onChange={(e) => setExpenseAmount(e.target.value)}
                   className="rounded-xl h-10 mt-1 font-mono font-bold"
@@ -1196,6 +2411,7 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                   <option value="Credit Card">Credit Card</option>
                   <option value="Debit Card">Debit Card</option>
                   <option value="Cash">Cash</option>
+                  <option value="Net Banking">Net Banking</option>
                 </select>
               </div>
             </div>
@@ -1203,35 +2419,85 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
             <div className="flex items-center gap-2 pt-2">
               <input
                 type="checkbox"
-                id="isPersonal"
+                id="isPersonalEdit"
                 checked={expenseIsPersonal}
                 onChange={(e) => setExpenseIsPersonal(e.target.checked)}
                 className="h-4 w-4 rounded text-primary focus:ring-primary cursor-pointer"
               />
-              <label htmlFor="isPersonal" className="cursor-pointer font-medium">
+              <label htmlFor="isPersonalEdit" className="cursor-pointer font-medium">
                 Personal Purchase (Exclude from shared group split)
               </label>
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button variant="outline" size="sm" onClick={() => setIsAddExpenseOpen(false)} className="rounded-xl text-xs">
+              <Button variant="outline" size="sm" onClick={() => setIsEditExpenseOpen(false)} className="rounded-xl text-xs">
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleCreateExpense} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
-                Save Expense
+              <Button size="sm" onClick={handleSaveEditExpense} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                Save & Recalculate
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG 2: Record Settlement */}
+      {/* ========================================================================= */}
+      {/* DIALOG 5: Adjust Category Allocation */}
+      {/* ========================================================================= */}
+      <Dialog open={isEditCategoryOpen} onOpenChange={setIsEditCategoryOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Adjust Category Allocation</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Modifying allocations automatically recalculates total allocated budget and variances.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3.5 text-xs py-2">
+            <div>
+              <label className="font-bold">Category</label>
+              <select
+                value={editingCategoryKey}
+                onChange={(e) => setEditingCategoryKey(e.target.value as BudgetCategoryKey)}
+                className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+              >
+                {trip.categoryBudgets.map((c) => (
+                  <option key={c.category} value={c.category}>{c.category}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="font-bold">Allocated Amount (₹)</label>
+              <Input
+                type="number"
+                value={editingCategoryAllocated}
+                onChange={(e) => setEditingCategoryAllocated(e.target.value)}
+                className="rounded-xl h-10 mt-1 font-mono font-bold"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setIsEditCategoryOpen(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveCategoryAllocation} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                Update Allocation
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 6: Record Debt Settlement */}
+      {/* ========================================================================= */}
       <Dialog open={isRecordSettlementOpen} onOpenChange={setIsRecordSettlementOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
           <DialogHeader>
             <DialogTitle className="text-base font-bold">Record Debt Settlement</DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Mark debts settled between traveling collaborators.
+              Confirm payments made between travel group members.
             </DialogDescription>
           </DialogHeader>
 
@@ -1285,7 +2551,511 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG 3: Add Itinerary Stop */}
+      {/* ========================================================================= */}
+      {/* DIALOG 7: Invite / Add Member */}
+      {/* ========================================================================= */}
+      <Dialog open={isInviteMemberOpen} onOpenChange={setIsInviteMemberOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Invite Collaborator</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 text-xs py-2">
+            <div>
+              <label className="font-bold">Name *</label>
+              <Input
+                placeholder="e.g. Priya Sharma"
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div>
+              <label className="font-bold">Email Address</label>
+              <Input
+                placeholder="priya@example.com"
+                value={newMemberEmail}
+                onChange={(e) => setNewMemberEmail(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Role</label>
+                <select
+                  value={newMemberRole}
+                  onChange={(e) => setNewMemberRole(e.target.value as MemberRole)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="Admin">Admin</option>
+                  <option value="Member">Member</option>
+                  <option value="Guest">Guest</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold">Target Contribution (₹)</label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={newMemberContribution}
+                  onChange={(e) => setNewMemberContribution(e.target.value)}
+                  className="rounded-xl h-10 mt-1 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setIsInviteMemberOpen(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleAddMember} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                Add to Trip
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 8: Add Event Modal */}
+      {/* ========================================================================= */}
+      <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Schedule Group Event</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 text-xs py-2">
+            <div>
+              <label className="font-bold">Event Title *</label>
+              <Input
+                placeholder="e.g. Sunset Cruise & Dinner"
+                value={eventTitle}
+                onChange={(e) => setEventTitle(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Event Type</label>
+                <select
+                  value={eventType}
+                  onChange={(e) => setEventType(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="activity">Activity</option>
+                  <option value="hotel_checkin">Hotel Check-in</option>
+                  <option value="flight">Flight</option>
+                  <option value="bus">Bus</option>
+                  <option value="train">Train</option>
+                  <option value="dinner">Dinner</option>
+                  <option value="trekking">Trekking</option>
+                  <option value="camping">Camping</option>
+                  <option value="meeting">Meeting</option>
+                  <option value="reminder">Reminder</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold">Date & Time</label>
+                <Input
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Location</label>
+                <Input
+                  placeholder="e.g. Mandovi River Jetty"
+                  value={eventLocation}
+                  onChange={(e) => setEventLocation(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Budget Pool (₹)</label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 5000"
+                  value={eventBudget}
+                  onChange={(e) => setEventBudget(e.target.value)}
+                  className="rounded-xl h-10 mt-1 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setIsAddEventOpen(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleAddEvent} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                Save Event
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 9: Edit Event Modal */}
+      {/* ========================================================================= */}
+      <Dialog open={isEditEventOpen} onOpenChange={setIsEditEventOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Edit Group Event</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 text-xs py-2">
+            <div>
+              <label className="font-bold">Event Title *</label>
+              <Input
+                value={eventTitle}
+                onChange={(e) => setEventTitle(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Event Type</label>
+                <select
+                  value={eventType}
+                  onChange={(e) => setEventType(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="activity">Activity</option>
+                  <option value="hotel_checkin">Hotel Check-in</option>
+                  <option value="flight">Flight</option>
+                  <option value="bus">Bus</option>
+                  <option value="train">Train</option>
+                  <option value="dinner">Dinner</option>
+                  <option value="trekking">Trekking</option>
+                  <option value="camping">Camping</option>
+                  <option value="meeting">Meeting</option>
+                  <option value="reminder">Reminder</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold">Status</label>
+                <select
+                  value={eventStatus}
+                  onChange={(e) => setEventStatus(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="upcoming">Upcoming</option>
+                  <option value="ongoing">Ongoing</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="missed">Missed</option>
+                  <option value="rescheduled">Rescheduled</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Budget Pool (₹)</label>
+                <Input
+                  type="number"
+                  value={eventBudget}
+                  onChange={(e) => setEventBudget(e.target.value)}
+                  className="rounded-xl h-10 mt-1 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Actual Cost (₹)</label>
+                <Input
+                  type="number"
+                  value={eventActualCost}
+                  onChange={(e) => setEventActualCost(e.target.value)}
+                  className="rounded-xl h-10 mt-1 font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold">Maps Location Link</label>
+              <Input
+                placeholder="https://maps.google.com/..."
+                value={eventMapsLink}
+                onChange={(e) => setEventMapsLink(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setIsEditEventOpen(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveEditEvent} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 10: Add / Edit Checklist Item */}
+      {/* ========================================================================= */}
+      <Dialog open={isAddChecklistOpen} onOpenChange={setIsAddChecklistOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Add Packing Item</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 text-xs py-2">
+            <div>
+              <label className="font-bold">Item Title *</label>
+              <Input
+                placeholder="e.g. Rain Jacket / DSLR Battery Charger"
+                value={chkTitle}
+                onChange={(e) => setChkTitle(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Category</label>
+                <select
+                  value={chkCategory}
+                  onChange={(e) => setChkCategory(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="Documents">Documents</option>
+                  <option value="Electronics">Electronics</option>
+                  <option value="Clothes">Clothes</option>
+                  <option value="Medical">Medical</option>
+                  <option value="Food">Food</option>
+                  <option value="Camping">Camping</option>
+                  <option value="Photography">Photography</option>
+                  <option value="Personal">Personal</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold">Priority</label>
+                <select
+                  value={chkPriority}
+                  onChange={(e) => setChkPriority(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold">Assigned Member</label>
+              <select
+                value={chkMember}
+                onChange={(e) => setChkMember(e.target.value)}
+                className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+              >
+                {trip.members.map((m) => (
+                  <option key={m.id} value={m.name}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setIsAddChecklistOpen(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  if (!chkTitle.trim()) return;
+                  const updated = await addTripChecklistItem(trip.id, {
+                    title: chkTitle,
+                    category: chkCategory,
+                    priority: chkPriority,
+                    assignedMemberName: chkMember,
+                  });
+                  updateTripState(updated);
+                  setIsAddChecklistOpen(false);
+                  setChkTitle("");
+                  toast.success("Checklist item created!");
+                }}
+                className="rounded-xl text-xs font-bold bg-primary text-primary-foreground"
+              >
+                Save Item
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Checklist Item Dialog */}
+      <Dialog open={isEditChecklistOpen} onOpenChange={setIsEditChecklistOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Edit Packing Item</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 text-xs py-2">
+            <div>
+              <label className="font-bold">Item Title *</label>
+              <Input
+                value={chkTitle}
+                onChange={(e) => setChkTitle(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Category</label>
+                <select
+                  value={chkCategory}
+                  onChange={(e) => setChkCategory(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="Documents">Documents</option>
+                  <option value="Electronics">Electronics</option>
+                  <option value="Clothes">Clothes</option>
+                  <option value="Medical">Medical</option>
+                  <option value="Food">Food</option>
+                  <option value="Camping">Camping</option>
+                  <option value="Photography">Photography</option>
+                  <option value="Personal">Personal</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold">Priority</label>
+                <select
+                  value={chkPriority}
+                  onChange={(e) => setChkPriority(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold">Assigned Member</label>
+              <select
+                value={chkMember}
+                onChange={(e) => setChkMember(e.target.value)}
+                className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+              >
+                {trip.members.map((m) => (
+                  <option key={m.id} value={m.name}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setIsEditChecklistOpen(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSaveEditChecklist} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+                Save Item
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 11: Add Travel Document Modal */}
+      {/* ========================================================================= */}
+      <Dialog open={isAddDocOpen} onOpenChange={setIsAddDocOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Upload Travel Document</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 text-xs py-2">
+            <div>
+              <label className="font-bold">Document Title *</label>
+              <Input
+                placeholder="e.g. Return Flight Booking Voucher"
+                value={docTitle}
+                onChange={(e) => setDocTitle(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div>
+              <label className="font-bold">Document Category</label>
+              <select
+                value={docCategory}
+                onChange={(e) => setDocCategory(e.target.value as any)}
+                className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+              >
+                <option value="Hotel Booking">Hotel Booking</option>
+                <option value="Flight Ticket">Flight Ticket</option>
+                <option value="Train / Bus Ticket">Train / Bus Ticket</option>
+                <option value="Passport & Visa">Passport & Visa</option>
+                <option value="Driving License / ID">Driving License / ID</option>
+                <option value="Travel Insurance">Travel Insurance</option>
+                <option value="Receipt / Invoice">Receipt / Invoice</option>
+                <option value="Medical & Vaccination">Medical & Vaccination</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="font-bold">File Name *</label>
+              <Input
+                placeholder="e.g. Indigo_Ticket_PNR9284.pdf"
+                value={docFileName}
+                onChange={(e) => setDocFileName(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setIsAddDocOpen(false)} className="rounded-xl text-xs">
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  if (!docTitle.trim() || !docFileName.trim()) return;
+                  const updated = await addTripDocument(trip.id, {
+                    title: docTitle,
+                    category: docCategory,
+                    fileName: docFileName,
+                    fileType: docFileName.endsWith(".pdf") ? "pdf" : "image",
+                  });
+                  updateTripState(updated);
+                  setIsAddDocOpen(false);
+                  setDocTitle("");
+                  setDocFileName("");
+                  toast.success("Document uploaded!");
+                }}
+                className="rounded-xl text-xs font-bold bg-primary text-primary-foreground"
+              >
+                Save Document
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 12: Add Itinerary Stop Modal */}
+      {/* ========================================================================= */}
       <Dialog open={isAddItineraryOpen} onOpenChange={setIsAddItineraryOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
           <DialogHeader>
@@ -1343,244 +3113,27 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
               <Button variant="outline" size="sm" onClick={() => setIsAddItineraryOpen(false)} className="rounded-xl text-xs">
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleAddItinerary} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
+              <Button
+                size="sm"
+                onClick={async () => {
+                  if (!itActivity.trim()) return;
+                  const updated = await addItineraryStop(trip.id, {
+                    dayNumber: Number(itDayNumber),
+                    slot: itSlot,
+                    time: itTime,
+                    activity: itActivity,
+                    location: itLocation,
+                    estimatedCost: Number(itCost) || 0,
+                  });
+                  updateTripState(updated);
+                  setIsAddItineraryOpen(false);
+                  setItActivity("");
+                  setItCost("");
+                  toast.success("Itinerary stop scheduled!");
+                }}
+                className="rounded-xl text-xs font-bold bg-primary text-primary-foreground"
+              >
                 Schedule Stop
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG 4: Add Event */}
-      <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">Create Group Travel Event</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 text-xs py-2">
-            <div>
-              <label className="font-bold">Event Title</label>
-              <Input
-                placeholder="e.g. Sunset Beach Barbeque / Team Dinner"
-                value={eventTitle}
-                onChange={(e) => setEventTitle(e.target.value)}
-                className="rounded-xl h-10 mt-1"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="font-bold">Event Type</label>
-                <select
-                  value={eventType}
-                  onChange={(e) => setEventType(e.target.value as any)}
-                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
-                >
-                  <option value="dinner">Dinner</option>
-                  <option value="flight">Flight</option>
-                  <option value="trekking">Trekking</option>
-                  <option value="camping">Camping</option>
-                  <option value="activity">Activity</option>
-                </select>
-              </div>
-              <div>
-                <label className="font-bold">Budget Pool (₹)</label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 5000"
-                  value={eventBudget}
-                  onChange={(e) => setEventBudget(e.target.value)}
-                  className="rounded-xl h-10 mt-1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="font-bold">Location</label>
-              <Input
-                placeholder="e.g. Anjuna Beach / Sky Lounge"
-                value={eventLocation}
-                onChange={(e) => setEventLocation(e.target.value)}
-                className="rounded-xl h-10 mt-1"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button variant="outline" size="sm" onClick={() => setIsAddEventOpen(false)} className="rounded-xl text-xs">
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleAddEvent} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
-                Save Event
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG 5: Upload Document */}
-      <Dialog open={isAddDocOpen} onOpenChange={setIsAddDocOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">Register Travel Document</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 text-xs py-2">
-            <div>
-              <label className="font-bold">Document Title</label>
-              <Input
-                placeholder="e.g. Villa Booking Voucher / IndiGo Ticket"
-                value={docTitle}
-                onChange={(e) => setDocTitle(e.target.value)}
-                className="rounded-xl h-10 mt-1"
-              />
-            </div>
-
-            <div>
-              <label className="font-bold">Category</label>
-              <select
-                value={docCategory}
-                onChange={(e) => setDocCategory(e.target.value as any)}
-                className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
-              >
-                <option value="Hotel Booking">Hotel Booking</option>
-                <option value="Flight Ticket">Flight Ticket</option>
-                <option value="Passport & Visa">Passport & Visa</option>
-                <option value="Travel Insurance">Travel Insurance</option>
-                <option value="Receipt / Invoice">Receipt / Invoice</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="font-bold">Filename / Reference</label>
-              <Input
-                placeholder="e.g. Goa_Villa_Agreement.pdf"
-                value={docFileName}
-                onChange={(e) => setDocFileName(e.target.value)}
-                className="rounded-xl h-10 mt-1"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button variant="outline" size="sm" onClick={() => setIsAddDocOpen(false)} className="rounded-xl text-xs">
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleAddDocument} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
-                Register Document
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG 6: Add Checklist */}
-      <Dialog open={isAddChecklistOpen} onOpenChange={setIsAddChecklistOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">Add Luggage & Packing Item</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 text-xs py-2">
-            <div>
-              <label className="font-bold">Item Title</label>
-              <Input
-                placeholder="e.g. Scuba Mask / Sunscreen / First-Aid Kit"
-                value={chkTitle}
-                onChange={(e) => setChkTitle(e.target.value)}
-                className="rounded-xl h-10 mt-1"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="font-bold">Category</label>
-                <select
-                  value={chkCategory}
-                  onChange={(e) => setChkCategory(e.target.value as any)}
-                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
-                >
-                  <option value="Clothes">Clothes</option>
-                  <option value="Electronics">Electronics</option>
-                  <option value="Documents">Documents</option>
-                  <option value="Medical">Medical</option>
-                  <option value="Food">Food</option>
-                  <option value="Camping">Camping</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold">Priority</label>
-                <select
-                  value={chkPriority}
-                  onChange={(e) => setChkPriority(e.target.value as any)}
-                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
-                >
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="font-bold">Assigned Member</label>
-              <select
-                value={chkMember}
-                onChange={(e) => setChkMember(e.target.value)}
-                className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
-              >
-                {trip.members.map((m) => (
-                  <option key={m.id} value={m.name}>{m.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button variant="outline" size="sm" onClick={() => setIsAddChecklistOpen(false)} className="rounded-xl text-xs">
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleAddChecklist} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
-                Add to Checklist
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG 7: Invite Member */}
-      <Dialog open={isInviteMemberOpen} onOpenChange={setIsInviteMemberOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold">Invite Traveling Collaborator</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-3 text-xs py-2">
-            <div>
-              <label className="font-bold">Collaborator Name *</label>
-              <Input
-                placeholder="e.g. Rohan Verma"
-                value={newMemberName}
-                onChange={(e) => setNewMemberName(e.target.value)}
-                className="rounded-xl h-10 mt-1"
-              />
-            </div>
-
-            <div>
-              <label className="font-bold">Email Address</label>
-              <Input
-                placeholder="e.g. rohan@example.com"
-                value={newMemberEmail}
-                onChange={(e) => setNewMemberEmail(e.target.value)}
-                className="rounded-xl h-10 mt-1"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button variant="outline" size="sm" onClick={() => setIsInviteMemberOpen(false)} className="rounded-xl text-xs">
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleInviteMember} className="rounded-xl text-xs font-bold bg-primary text-primary-foreground">
-                Send Invitation
               </Button>
             </div>
           </div>

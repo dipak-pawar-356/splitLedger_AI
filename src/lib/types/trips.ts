@@ -15,7 +15,16 @@ export type TripCategory =
   | "backpacking"
   | "custom";
 
-export type TripStatus = "planning" | "upcoming" | "ongoing" | "completed" | "cancelled" | "archived";
+export type TripStatus =
+  | "draft"
+  | "planning"
+  | "upcoming"
+  | "active"
+  | "ongoing"
+  | "paused"
+  | "completed"
+  | "cancelled"
+  | "archived";
 
 export type MemberRole = "Owner" | "Admin" | "Member" | "Guest";
 
@@ -26,12 +35,17 @@ export interface TripMember {
   role: MemberRole;
   avatar?: string;
   contribution: number; // in rupees
+  contributionPct?: number; // optional target % of budget
   ownShare: number; // in rupees
   paid: number; // in rupees
   pending: number; // in rupees
   receivable: number; // in rupees
   settlementStatus: "settled" | "pending" | "overpaid";
   expenseCount: number;
+  canAddExpenses?: boolean;
+  canSettle?: boolean;
+  isFrozen?: boolean;
+  isExcludedFromPastExpenses?: boolean;
 }
 
 export type BudgetCategoryKey =
@@ -57,6 +71,8 @@ export interface CategoryBudget {
   projectedSpend: number;
   aiForecast: string;
   color: string;
+  isLocked?: boolean;
+  isArchived?: boolean;
 }
 
 export interface TripExpense {
@@ -69,6 +85,9 @@ export interface TripExpense {
   paidByName: string;
   isPersonal: boolean; // if true, personal only; if false, shared with group
   splitBetweenMemberIds: string[];
+  splitMethod?: "equal" | "exact" | "shares";
+  tax?: number;
+  discount?: number;
   paymentMethod: "UPI" | "Credit Card" | "Debit Card" | "Cash" | "Net Banking";
   receiptUrl?: string;
   location?: string;
@@ -76,6 +95,7 @@ export interface TripExpense {
   notes?: string;
   status: "settled" | "pending";
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface TripSettlement {
@@ -104,6 +124,14 @@ export interface ItineraryItem {
   status: "scheduled" | "in_progress" | "completed";
 }
 
+export type TripEventStatus =
+  | "upcoming"
+  | "ongoing"
+  | "completed"
+  | "cancelled"
+  | "missed"
+  | "rescheduled";
+
 export interface TripEvent {
   id: string;
   title: string;
@@ -118,14 +146,24 @@ export interface TripEvent {
     | "meeting"
     | "activity"
     | "reminder";
+  category?: string;
   startDateTime: string;
   endDateTime?: string;
   location: string;
   venue?: string;
+  mapsLink?: string;
   description?: string;
+  organizerName?: string;
   participants: string[];
+  guestLimit?: number;
   budget: number;
-  status: "upcoming" | "ongoing" | "completed" | "cancelled";
+  estimatedBudget?: number;
+  actualCost?: number;
+  priority?: "High" | "Medium" | "Low";
+  status: TripEventStatus;
+  completionPct?: number;
+  reminderDate?: string;
+  notes?: string;
   attachments?: string[];
 }
 
@@ -166,6 +204,8 @@ export interface TripChecklistItem {
   isCompleted?: boolean;
   assignedMemberName: string;
   reminderDate?: string;
+  dueDate?: string;
+  notes?: string;
 }
 
 export interface TripPreferences {
@@ -175,6 +215,33 @@ export interface TripPreferences {
   settlementReminderFrequency: "daily" | "weekly" | "end_of_trip";
 }
 
+export interface TripAuditLog {
+  id: string;
+  timestamp: string;
+  actorName: string;
+  category: "trip" | "budget" | "expense" | "member" | "settlement" | "event" | "checklist" | "document";
+  action: string;
+  details: string;
+}
+
+export type HealthGrade = "A+" | "A" | "B+" | "B" | "C" | "D" | "Critical";
+
+export interface TripHealthDimension {
+  name: string;
+  score: number; // 0 - 100
+  weight: number; // e.g. 0.25 for 25%
+  weightedScore: number;
+  remarks: string;
+  recommendation: string;
+}
+
+export interface TripHealthReport {
+  overallScore: number;
+  grade: HealthGrade;
+  dimensions: TripHealthDimension[];
+  summary: string;
+}
+
 export interface TripRecord {
   id: string;
   userId: number;
@@ -182,10 +249,15 @@ export interface TripRecord {
   name: string;
   destination: string;
   country: string;
+  state?: string;
   city?: string;
+  meetingPoint?: string;
+  travelType?: string;
+  visibility?: "private" | "shared" | "public";
   category: TripCategory;
   coverImage?: string;
   description?: string;
+  notes?: string;
   startDate: string;
   endDate: string;
   durationDays: number;
@@ -210,6 +282,7 @@ export interface TripRecord {
   // Health, Risk & AI Engine
   financialHealthScore: number; // 0-100
   riskLevel: "Low Risk" | "Moderate Risk" | "High Risk";
+  healthReport?: TripHealthReport;
   burnRatePerDay: number;
   recommendedDailySpend: number;
   projectedTotalSpend: number;
@@ -226,6 +299,7 @@ export interface TripRecord {
   documents: TripDocument[];
   checklists: TripChecklistItem[];
   preferences: TripPreferences;
+  auditLogs?: TripAuditLog[];
 
   // Backward compatibility aliases
   plannedExpenses?: any[];
