@@ -1649,4 +1649,115 @@ export type NewGroupSettlementVersion = typeof groupSettlementVersions.$inferIns
 export type ExpenseParticipationHistory = typeof expenseParticipationHistory.$inferSelect;
 export type NewExpenseParticipationHistory = typeof expenseParticipationHistory.$inferInsert;
 
+// ============================================================================
+// FINANCIAL SECURITY & AUTHENTICATION TABLES (Milestone 2)
+// ============================================================================
+
+// Financial Session Management Table
+export const sessions = pgTable("sessions", {
+  id: serial("id").primaryKey(),
+  publicId: text("public_id").unique().notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  deviceId: text("device_id"),
+  refreshTokenHash: text("refresh_token_hash").notNull(),
+  tokenVersion: integer("token_version").default(1).notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  browser: text("browser"),
+  os: text("os"),
+  deviceType: text("device_type").default("desktop").notNull(),
+  country: text("country"),
+  city: text("city"),
+  region: text("region"),
+  status: text("status").default("active").notNull(),
+  revocationReason: text("revocation_reason"),
+  lastActiveAt: timestamp("last_active_at").defaultNow().notNull(),
+  idleExpiresAt: timestamp("idle_expires_at").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index("session_user_idx").on(table.userId, table.status),
+  publicIdIdx: index("session_public_id_idx").on(table.publicId),
+  refreshTokenHashIdx: index("session_token_hash_idx").on(table.refreshTokenHash),
+  statusIdx: index("session_status_idx").on(table.status),
+  expiresIdx: index("session_expires_idx").on(table.expiresAt, table.status),
+}));
+
+// Trusted and Tracked Devices Table
+export const devices = pgTable("devices", {
+  id: serial("id").primaryKey(),
+  publicId: text("public_id").unique().notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  name: text("name").notNull(),
+  browser: text("browser"),
+  os: text("os"),
+  deviceType: text("device_type").default("desktop").notNull(),
+  lastIp: text("last_ip"),
+  lastLocation: text("last_location"),
+  isTrusted: boolean("is_trusted").default(false).notNull(),
+  firstSeenAt: timestamp("first_seen_at").defaultNow().notNull(),
+  lastActiveAt: timestamp("last_active_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  userFingerprintIdx: index("device_user_fingerprint_idx").on(table.userId, table.fingerprint),
+  userTrustedIdx: index("device_user_trusted_idx").on(table.userId, table.isTrusted),
+  publicIdIdx: index("device_public_id_idx").on(table.publicId),
+  userIdx: index("device_user_idx").on(table.userId),
+}));
+
+// Security Audit Events & Threat Anomaly Log
+export const securityAuditEvents = pgTable("security_audit_events", {
+  id: serial("id").primaryKey(),
+  publicId: text("public_id").unique().notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  status: text("status").default("success").notNull(),
+  riskLevel: text("risk_level").default("low").notNull(),
+  riskScore: integer("risk_score").default(0),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  browser: text("browser"),
+  os: text("os"),
+  location: text("location"),
+  details: jsonb("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index("sec_audit_user_idx").on(table.userId),
+  actionIdx: index("sec_audit_action_idx").on(table.action),
+  riskLevelIdx: index("sec_audit_risk_idx").on(table.riskLevel),
+  publicIdIdx: index("sec_audit_public_id_idx").on(table.publicId),
+  createdAtIdx: index("sec_audit_created_idx").on(table.createdAt),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, {
+    fields: [sessions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const devicesRelations = relations(devices, ({ one }) => ({
+  user: one(users, {
+    fields: [devices.userId],
+    references: [users.id],
+  }),
+}));
+
+export const securityAuditEventsRelations = relations(securityAuditEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [securityAuditEvents.userId],
+    references: [users.id],
+  }),
+}));
+
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert;
+export type Device = typeof devices.$inferSelect;
+export type NewDevice = typeof devices.$inferInsert;
+export type SecurityAuditEvent = typeof securityAuditEvents.$inferSelect;
+export type NewSecurityAuditEvent = typeof securityAuditEvents.$inferInsert;
+
 

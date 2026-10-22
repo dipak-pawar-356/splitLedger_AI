@@ -719,6 +719,88 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`CREATE INDEX IF NOT EXISTS daily_journal_public_id_idx ON daily_journals(public_id)`;
 
       // ==========================================
+      // FINANCIAL SECURITY & SESSIONS (Milestone 2)
+      // ==========================================
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+          device_id TEXT,
+          refresh_token_hash TEXT NOT NULL,
+          token_version INTEGER DEFAULT 1 NOT NULL,
+          ip_address TEXT,
+          user_agent TEXT,
+          browser TEXT,
+          os TEXT,
+          device_type TEXT DEFAULT 'desktop' NOT NULL,
+          country TEXT,
+          city TEXT,
+          region TEXT,
+          status TEXT DEFAULT 'active' NOT NULL,
+          revocation_reason TEXT,
+          last_active_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          idle_expires_at TIMESTAMP NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS session_user_idx ON sessions(user_id, status)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS session_public_id_idx ON sessions(public_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS session_token_hash_idx ON sessions(refresh_token_hash)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS session_status_idx ON sessions(status)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS session_expires_idx ON sessions(expires_at, status)`;
+
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS devices (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+          fingerprint TEXT NOT NULL,
+          name TEXT NOT NULL,
+          browser TEXT,
+          os TEXT,
+          device_type TEXT DEFAULT 'desktop' NOT NULL,
+          last_ip TEXT,
+          last_location TEXT,
+          is_trusted BOOLEAN DEFAULT false NOT NULL,
+          first_seen_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          last_active_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS device_user_fingerprint_idx ON devices(user_id, fingerprint)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS device_user_trusted_idx ON devices(user_id, is_trusted)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS device_public_id_idx ON devices(public_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS device_user_idx ON devices(user_id)`;
+
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS security_audit_events (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          action TEXT NOT NULL,
+          status TEXT DEFAULT 'success' NOT NULL,
+          risk_level TEXT DEFAULT 'low' NOT NULL,
+          risk_score INTEGER DEFAULT 0,
+          ip_address TEXT,
+          user_agent TEXT,
+          browser TEXT,
+          os TEXT,
+          location TEXT,
+          details JSONB,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS sec_audit_user_idx ON security_audit_events(user_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS sec_audit_action_idx ON security_audit_events(action)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS sec_audit_risk_idx ON security_audit_events(risk_level)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS sec_audit_public_id_idx ON security_audit_events(public_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS sec_audit_created_idx ON security_audit_events(created_at)`;
+
+      // ==========================================
       // HIGH-PERFORMANCE COMPOSITE INDEXES
       // ==========================================
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_tx_group_del_created ON transactions(group_id, is_deleted, created_at DESC)`;
