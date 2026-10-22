@@ -64,6 +64,37 @@ function extractUserIdFromClerkJwt(token: string | undefined | null): string | n
 
 export const getCurrentUser = reactCache(async () => {
   try {
+    // 0. Highest priority: Native SplitLedger Enterprise Session & Access Token
+    try {
+      const cookieStore = await cookies();
+      const reqHeaders = await headers();
+      const nativeCookieToken = cookieStore.get("sl_access_token")?.value;
+      const headerAuth = reqHeaders.get("authorization");
+      const bearerToken = headerAuth?.startsWith("Bearer ") ? headerAuth.slice(7) : null;
+      const forwardedToken = reqHeaders.get("x-sl-access-token");
+
+      const tokenToVerify = nativeCookieToken || bearerToken || forwardedToken;
+      if (tokenToVerify) {
+        const { verifyAccessToken } = await import("@/lib/security/token-service");
+        const verification = verifyAccessToken(tokenToVerify);
+
+        if (verification.valid && verification.payload) {
+          const { validateSession } = await import("@/actions/auth-session");
+          const sessionCheck = await validateSession(verification.payload.sid, verification.payload.ver);
+
+          if (sessionCheck.valid && verification.payload.uid) {
+            const [userRow] = await db
+              .select(USER_COLUMNS)
+              .from(users)
+              .where(eq(users.id, verification.payload.uid))
+              .limit(1);
+
+            if (userRow) return userRow;
+          }
+        }
+      }
+    } catch (_) {}
+
     let userId: string | null = null;
     try {
       // 1. First priority: Clerk official server auth()
@@ -95,7 +126,6 @@ export const getCurrentUser = reactCache(async () => {
         userId = extractUserIdFromClerkJwt(sessionToken) || extractUserIdFromClerkJwt(dbJwtToken);
 
         if (!userId) {
-          // Scan remaining cookies for Clerk session JWT
           for (const c of cookieStore.getAll()) {
             if (c.name.includes("session") || c.name.includes("clerk") || c.name.includes("jwt")) {
               const candidate = extractUserIdFromClerkJwt(c.value);

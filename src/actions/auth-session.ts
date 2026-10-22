@@ -230,12 +230,24 @@ export async function createSession(userId: number, clientContext?: ClientContex
     cookieStore.set(AUTH_COOKIE_OPTIONS.refreshToken.name, rawRefreshToken, AUTH_COOKIE_OPTIONS.refreshToken);
   } catch {}
 
+  // Continuous Anomaly Risk Evaluation
+  let riskScore = 0;
+  let riskTier: any = "low";
+  try {
+    const { evaluateAuthenticationRisk, dispatchAnomalyMitigation } = await import("@/lib/security/anomaly-detector");
+    const riskEval = await evaluateAuthenticationRisk(userId, ctx);
+    riskScore = riskEval.riskScore;
+    riskTier = riskEval.riskTier;
+    await dispatchAnomalyMitigation(userId, riskEval, ctx);
+  } catch (_) {}
+
   await recordSecurityAuditEvent({
     userId,
     action: "login_success",
     status: "success",
-    riskLevel: "low",
-    details: { sessionId: sessionPublicId, deviceId: devicePublicId },
+    riskLevel: riskTier,
+    riskScore,
+    details: { sessionId: sessionPublicId, deviceId: devicePublicId, riskScore },
     clientContext: ctx,
   });
 

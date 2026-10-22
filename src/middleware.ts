@@ -44,11 +44,25 @@ export default clerkMiddleware(async (auth, request) => {
     requestHeaders.set("x-clerk-user-id", authObj.userId);
   }
 
-  return NextResponse.next({
+  // Forward native SplitLedger access token if present
+  const nativeToken = request.cookies.get("sl_access_token")?.value;
+  if (nativeToken) {
+    requestHeaders.set("x-sl-access-token", nativeToken);
+  }
+
+  const response = NextResponse.next({
     request: {
       headers: requestHeaders,
     },
   });
+
+  // Inject security headers on responses
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+
+  return response;
 });
 
 export const config = {
