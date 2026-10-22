@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, X, FileText, Users, CreditCard, Tag, MessageSquare, Calendar, Activity } from "lucide-react";
+import { Search, X, FileText, Users, CreditCard, Tag, MessageSquare, Calendar, Activity, Contact } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -63,7 +63,7 @@ export default function GlobalSearch() {
   const getIcon = (type: string) => {
     switch (type) {
       case "contact":
-        return <Users className="h-4 w-4 text-blue-500" />;
+        return <Contact className="h-4 w-4 text-blue-500" />;
       case "group":
         return <Users className="h-4 w-4 text-emerald-500" />;
       case "transaction":

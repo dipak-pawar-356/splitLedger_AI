@@ -20,12 +20,14 @@ import {
   StickyNote,
   PanelLeftClose,
   PanelLeftOpen,
+  Contact,
+  CircleUser,
 } from "lucide-react";
 import { useSidebar } from "@/components/layout/sidebar-context";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Contacts", href: "/dashboard/contacts", icon: Users },
+  { name: "Contacts", href: "/dashboard/contacts", icon: Contact },
   { name: "Transactions", href: "/dashboard/transactions", icon: Receipt },
   { name: "Groups", href: "/dashboard/groups", icon: Users },
   { name: "Trips & Events", href: "/dashboard/trips", icon: Compass },
@@ -35,7 +37,7 @@ const navigation = [
   { name: "Notes & Journal", href: "/dashboard/notes", icon: StickyNote },
   { name: "AI Assistant", href: "/dashboard/ai", icon: Sparkles },
   { name: "Notifications", href: "/dashboard/notifications", icon: Bell },
-  { name: "Profile", href: "/dashboard/profile", icon: Users },
+  { name: "Profile", href: "/dashboard/profile", icon: CircleUser },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 

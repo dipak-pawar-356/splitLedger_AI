@@ -56,6 +56,7 @@ export async function updateContact(
     currency?: string;
     openingBalance?: number;
     notes?: string;
+    isArchived?: boolean;
   }
 ) {
   try {
@@ -91,6 +92,7 @@ export async function updateContact(
         ...(data.currency !== undefined && { currency: data.currency }),
         ...(data.openingBalance !== undefined && { openingBalance: data.openingBalance * 100 }),
         ...(data.notes !== undefined && { notes: data.notes || null }),
+        ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
         updatedAt: new Date(),
       })
       .where(eq(contacts.id, existingContact.id))
@@ -108,6 +110,47 @@ export async function updateContact(
       throw error;
     }
     throw new DatabaseError("Failed to update contact", { originalError: error });
+  }
+}
+
+export async function archiveContact(publicIdOrId: string | number, isArchived: boolean = true) {
+  try {
+    const user = await requireAuth();
+
+    const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
+    const [existingContact] = await db
+      .select()
+      .from(contacts)
+      .where(
+        and(
+          isNumeric ? eq(contacts.id, Number(publicIdOrId)) : eq(contacts.publicId, String(publicIdOrId)),
+          eq(contacts.userId, user.id),
+          eq(contacts.isDeleted, false)
+        )
+      )
+      .limit(1);
+
+    if (!existingContact) {
+      throw new NotFoundError("Contact");
+    }
+
+    const [contact] = await db
+      .update(contacts)
+      .set({
+        isArchived,
+        updatedAt: new Date(),
+      })
+      .where(eq(contacts.id, existingContact.id))
+      .returning();
+
+    revalidatePath("/dashboard/contacts");
+    revalidatePath(`/dashboard/contacts/${existingContact.publicId}`);
+    return contact;
+  } catch (error) {
+    if (error instanceof ValidationError || error instanceof NotFoundError) {
+      throw error;
+    }
+    throw new DatabaseError("Failed to update contact archive status", { originalError: error });
   }
 }
 

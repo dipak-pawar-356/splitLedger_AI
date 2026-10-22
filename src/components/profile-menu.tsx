@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { User, Users, Settings, Activity, HelpCircle, LogOut, ChevronDown, ShieldCheck } from "lucide-react";
+import { CircleUser, Users, Settings, Activity, HelpCircle, LogOut, ChevronDown, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -143,7 +143,7 @@ export function ProfileMenu({ initialUser }: ProfileMenuProps = {}) {
         <DropdownMenuSeparator />
         
         <DropdownMenuItem onClick={() => handleNavigation("/dashboard/profile")}>
-          <User className="h-4 w-4 mr-2" />
+          <CircleUser className="h-4 w-4 mr-2" />
           Profile Center
         </DropdownMenuItem>
 

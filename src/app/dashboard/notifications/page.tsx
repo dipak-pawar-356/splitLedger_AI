@@ -115,6 +115,40 @@ export default function NotificationsPage() {
     return () => window.removeEventListener("notifications:updated", handleUpdated);
   }, []);
 
+  const handleArchiveToggle = (id: number | string, newArchived: boolean) => {
+    if (activeTab === "archived" && !newArchived) {
+      // Restored from archive
+      setNotifications((prev) => prev.filter((item) => (item.publicId || item.id) !== id && item.id !== id));
+      setArchivedCount((prev) => Math.max(0, prev - 1));
+    } else if (activeTab !== "archived" && newArchived) {
+      // Moved to archive
+      setNotifications((prev) => prev.filter((item) => (item.publicId || item.id) !== id && item.id !== id));
+      setArchivedCount((prev) => prev + 1);
+      const target = notifications.find((item) => (item.publicId || item.id) === id || item.id === id);
+      if (target && !target.isRead) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+      if (target && target.isPinned) {
+        setPinnedCount((prev) => Math.max(0, prev - 1));
+      }
+    }
+  };
+
+  const handleDeleteItem = (id: number | string) => {
+    setNotifications((prev) => prev.filter((item) => (item.publicId || item.id) !== id && item.id !== id));
+    setTotalCount((prev) => Math.max(0, prev - 1));
+    const target = notifications.find((item) => (item.publicId || item.id) === id || item.id === id);
+    if (target && !target.isRead) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    }
+    if (target && target.isPinned) {
+      setPinnedCount((prev) => Math.max(0, prev - 1));
+    }
+    if (target && target.isArchived) {
+      setArchivedCount((prev) => Math.max(0, prev - 1));
+    }
+  };
+
   const handleMarkAllRead = async () => {
     try {
       await markAllAsRead();
@@ -417,10 +451,13 @@ export default function NotificationsPage() {
         {notifications.length > 0 ? (
           notifications.map((n) => (
             <NotificationCard
-              key={n.id}
+              key={n.publicId || n.id}
               notification={n}
               searchQuery={debouncedSearch}
               onRefresh={loadData}
+              onArchiveToggle={handleArchiveToggle}
+              onDelete={handleDeleteItem}
+              currentTab={activeTab}
             />
           ))
         ) : debouncedSearch.trim().length > 0 ? (
@@ -445,6 +482,16 @@ export default function NotificationsPage() {
                 <span>Clear search filter</span>
               </Button>
             </div>
+          </Card>
+        ) : activeTab === "archived" ? (
+          <Card className="rounded-3xl border-2 border-dashed p-16 text-center space-y-2">
+            <Archive className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-700 mb-2" />
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+              No Archived Notifications
+            </h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              Notifications you archive will appear here for safe keeping.
+            </p>
           </Card>
         ) : (
           <Card className="rounded-3xl border-2 border-dashed p-16 text-center space-y-2">

@@ -48,6 +48,7 @@ import {
   Trash2,
   Copy,
   Archive,
+  RotateCcw,
   FolderPlus,
   CalendarPlus,
   FileSpreadsheet,
@@ -193,17 +194,19 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
     }
   };
 
-  const handleArchiveTrip = async (tripId: string) => {
+  const handleArchiveTrip = async (tripId: string, archive: boolean = true) => {
     try {
-      const updated = await archiveTrip(tripId, true);
-      toast.success("Trip archived.");
+      const updated = await archiveTrip(tripId, archive);
+      toast.success(archive ? "Trip archived." : "Trip restored to upcoming.");
       setMetrics((prev) => ({
         ...prev,
         trips: prev.trips.map((t) => (t.id === updated.id ? updated : t)),
-        activeTripsCount: Math.max(0, prev.activeTripsCount - 1),
+        activeTripsCount: archive
+          ? Math.max(0, prev.activeTripsCount - 1)
+          : prev.activeTripsCount + 1,
       }));
     } catch (err: any) {
-      toast.error("Failed to archive trip.");
+      toast.error(archive ? "Failed to archive trip." : "Failed to restore trip.");
     }
   };
 
@@ -375,62 +378,78 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
         </div>
       </div>
 
-      {/* Top KPI Cards */}
+      {/* Top KPI Cards with Interactive Theme-Adapted Hover Effects */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card">
-          <CardHeader className="pb-2">
-            <p className="text-xs font-semibold text-slate-500 flex items-center justify-between">
-              <span>Total Trip Budget</span>
-              <Compass className="h-4 w-4 text-primary" />
-            </p>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-black text-slate-900 dark:text-slate-100">
-              {formatCurrency(metrics.totalTripBudget, metrics.currency)}
-            </p>
-          </CardContent>
+        {/* Total Trip Budget */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-primary/40 dark:hover:border-primary/50 hover:bg-primary/5 hover:shadow-primary/10 cursor-pointer">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-primary">
+              Total Trip Budget
+            </span>
+            <div className="p-2 rounded-xl bg-primary/10 text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
+              <Compass className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight group-hover:text-primary transition-colors">
+            {formatCurrency(metrics.totalTripBudget, metrics.currency)}
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
+            Aggregate planned itinerary budget
+          </p>
         </Card>
 
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card">
-          <CardHeader className="pb-2">
-            <p className="text-xs font-semibold text-slate-500 flex items-center justify-between">
-              <span>Total Trip Outflow</span>
-              <ArrowUpRight className="h-4 w-4 text-rose-500" />
-            </p>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-black text-rose-600 dark:text-rose-400">
-              {formatCurrency(metrics.totalTripSpent, metrics.currency)}
-            </p>
-          </CardContent>
+        {/* Total Trip Outflow */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-rose-400 dark:hover:border-rose-500/60 hover:bg-rose-50/30 dark:hover:bg-rose-950/20 hover:shadow-rose-500/10 cursor-pointer">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-rose-600 dark:text-rose-400">
+              Total Trip Outflow
+            </span>
+            <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 group-hover:scale-110 group-hover:bg-rose-600 group-hover:text-white transition-all duration-300">
+              <ArrowUpRight className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 mt-2 tracking-tight">
+            {formatCurrency(metrics.totalTripSpent, metrics.currency)}
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
+            Cumulative settled expenditures
+          </p>
         </Card>
 
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card">
-          <CardHeader className="pb-2">
-            <p className="text-xs font-semibold text-slate-500 flex items-center justify-between">
-              <span>Active Trips & Treks</span>
-              <MapPin className="h-4 w-4 text-emerald-500" />
-            </p>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-              {metrics.activeTripsCount} Active
-            </p>
-          </CardContent>
+        {/* Active Trips & Treks */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-emerald-400 dark:hover:border-emerald-500/60 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 hover:shadow-emerald-500/10 cursor-pointer">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-600 dark:text-emerald-400">
+              Active Trips & Treks
+            </span>
+            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+              <MapPin className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-2 tracking-tight">
+            {metrics.activeTripsCount} Active
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
+            Ongoing & upcoming journeys
+          </p>
         </Card>
 
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card">
-          <CardHeader className="pb-2">
-            <p className="text-xs font-semibold text-slate-500 flex items-center justify-between">
-              <span>Upcoming Shared Events</span>
-              <Calendar className="h-4 w-4 text-amber-500" />
-            </p>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-black text-amber-600">
-              {metrics.upcomingEventsCount} Events
-            </p>
-          </CardContent>
+        {/* Upcoming Shared Events */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-amber-400 dark:hover:border-amber-500/60 hover:bg-amber-50/30 dark:hover:bg-amber-950/20 hover:shadow-amber-500/10 cursor-pointer">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400">
+              Upcoming Shared Events
+            </span>
+            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition-all duration-300">
+              <Calendar className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 mt-2 tracking-tight">
+            {metrics.upcomingEventsCount} Events
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
+            Scheduled group gatherings
+          </p>
         </Card>
       </div>
 
@@ -459,107 +478,123 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
         <TabsContent value="trips" className="space-y-4">
           {metrics.trips.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {metrics.trips.map((trip) => (
-                <Card key={trip.id} className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="font-bold text-sm text-slate-900 dark:text-slate-100">{trip.name}</h2>
-                      <p className="text-[11px] text-slate-500">
-                        Destination: <strong>{trip.destination}</strong> • Organizer: {trip.organizerName}
-                      </p>
+              {metrics.trips.map((trip) => {
+                const isArchived = trip.status === "archived";
+                return (
+                  <Card
+                    key={trip.id}
+                    className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-3.5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-primary/40 dark:hover:border-primary/50 hover:bg-slate-50/40 dark:hover:bg-slate-900/30"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors">
+                          {trip.name}
+                        </h2>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Destination: <strong className="text-slate-700 dark:text-slate-300">{trip.destination}</strong> • Organizer: {trip.organizerName}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] uppercase font-bold tracking-wider ${
+                          trip.status === "ongoing"
+                            ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                            : trip.status === "upcoming"
+                            ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                        }`}
+                      >
+                        {trip.status}
+                      </Badge>
                     </div>
-                    <Badge
-                      variant="secondary"
-                      className={`text-[10px] uppercase font-bold ${
-                        trip.status === "ongoing"
-                          ? "bg-emerald-500/10 text-emerald-600"
-                          : trip.status === "upcoming"
-                          ? "bg-amber-500/10 text-amber-600"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {trip.status}
-                    </Badge>
-                  </div>
 
-                  <div className="flex justify-between items-center text-xs p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                    <div>
-                      <p className="text-[10px] text-slate-400">Total Spent</p>
-                      <p className="font-black text-rose-600 dark:text-rose-400">{formatCurrency(trip.actualTotal, trip.currency)}</p>
+                    <div className="flex justify-between items-center text-xs p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800/90 group-hover:border-slate-200 dark:group-hover:border-slate-700/60 transition-colors">
+                      <div>
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Total Spent</p>
+                        <p className="font-black text-rose-600 dark:text-rose-400 text-sm mt-0.5">
+                          {formatCurrency(trip.actualTotal, trip.currency)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Allocated Budget</p>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5">
+                          {formatCurrency(trip.budgetAmount, trip.currency)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-slate-400">Allocated Budget</p>
-                      <p className="font-bold text-slate-700 dark:text-slate-300">{formatCurrency(trip.budgetAmount, trip.currency)}</p>
+
+                    <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/90 text-xs">
+                      <span className="text-slate-400 text-[11px] font-medium">
+                        Dates: {trip.startDate} to {trip.endDate}
+                      </span>
+
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl text-xs h-8 gap-1.5 font-semibold hover:border-primary/50 hover:text-primary transition-all"
+                          onClick={() => setSelectedTripForExpense(trip)}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Expense</span>
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl text-xs h-8 gap-1.5 font-semibold hover:border-primary/50 hover:text-primary transition-all"
+                          onClick={() => setSelectedTripForChecklist(trip)}
+                        >
+                          <CheckSquare className="h-3 w-3" />
+                          <span>Checklist</span>
+                        </Button>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-all"
+                          onClick={() => handleDuplicateTrip(trip.id)}
+                          title="Duplicate Trip"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className={`h-8 w-8 rounded-xl transition-all ${
+                            isArchived
+                              ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                              : "text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                          }`}
+                          onClick={() => handleArchiveTrip(trip.id, !isArchived)}
+                          title={isArchived ? "Restore Trip" : "Archive Trip"}
+                        >
+                          {isArchived ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                        </Button>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-all"
+                          onClick={() => handleDeleteTrip(trip.id)}
+                          title="Delete Trip"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 text-xs">
-                    <span className="text-slate-400 text-[11px]">
-                      Dates: {trip.startDate} to {trip.endDate}
-                    </span>
-
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-xl text-xs h-8 gap-1"
-                        onClick={() => setSelectedTripForExpense(trip)}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>Expense</span>
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-xl text-xs h-8 gap-1"
-                        onClick={() => setSelectedTripForChecklist(trip)}
-                      >
-                        <CheckSquare className="h-3 w-3" />
-                        <span>Checklist</span>
-                      </Button>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-slate-400 hover:text-indigo-600"
-                        onClick={() => handleDuplicateTrip(trip.id)}
-                        title="Duplicate Trip"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-slate-400 hover:text-amber-600"
-                        onClick={() => handleArchiveTrip(trip.id)}
-                        title="Archive Trip"
-                      >
-                        <Archive className="h-3.5 w-3.5" />
-                      </Button>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-slate-400 hover:text-rose-600"
-                        onClick={() => handleDeleteTrip(trip.id)}
-                        title="Delete Trip"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           ) : (
-            <div className="py-16 px-4 text-center space-y-3 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card">
+            <div className="py-16 px-4 text-center space-y-3 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card/60 transition-all duration-300 hover:border-primary/40 hover:shadow-md">
               <div className="p-3 bg-primary/10 rounded-full w-12 h-12 mx-auto flex items-center justify-center text-primary">
                 <Compass className="h-6 w-6" />
               </div>
               <div className="space-y-1">
-                <h3 className="font-bold text-base">No Trips Created Yet</h3>
+                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">No Trips Created Yet</h3>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
                   Create your first trip or vacation pool to plan budgets, manage group expenses, and track checklists.
                 </p>
@@ -567,7 +602,7 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
               <Button
                 size="sm"
                 onClick={() => setIsCreateTripOpen(true)}
-                className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground"
+                className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
               >
                 <Plus className="h-4 w-4" />
                 <span>Create Your First Trip</span>
@@ -581,33 +616,40 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
           {metrics.events.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {metrics.events.map((evt) => (
-                <Card key={evt.id} className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-3">
+                <Card
+                  key={evt.id}
+                  className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-3.5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg hover:border-amber-400 dark:hover:border-amber-500/60 hover:bg-slate-50/40 dark:hover:bg-slate-900/30"
+                >
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="font-bold text-sm text-slate-900 dark:text-slate-100">{evt.name}</h2>
-                      <p className="text-[11px] text-slate-500">Location: {evt.location} • Venue: {evt.venue || "N/A"}</p>
+                      <h2 className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-amber-600 transition-colors">
+                        {evt.name}
+                      </h2>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Location: <strong className="text-slate-700 dark:text-slate-300">{evt.location}</strong> • Venue: {evt.venue || "Flexible"}
+                      </p>
                     </div>
-                    <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 text-[10px] uppercase font-bold">
+                    <Badge variant="secondary" className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] uppercase font-bold tracking-wider">
                       {evt.status}
                     </Badge>
                   </div>
 
-                  <div className="flex justify-between items-center text-xs">
+                  <div className="flex justify-between items-center text-xs p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800/90 group-hover:border-slate-200 dark:group-hover:border-slate-700/60 transition-colors">
                     <div>
-                      <p className="text-[10px] text-slate-400">Event Date</p>
-                      <p className="font-mono font-bold text-slate-900 dark:text-slate-100">{evt.eventDate}</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Event Date</p>
+                      <p className="font-mono font-bold text-slate-900 dark:text-slate-100 text-sm mt-0.5">{evt.eventDate}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-slate-400">Budget Pool</p>
-                      <p className="font-bold text-emerald-600">{formatCurrency(evt.budgetAmount, "INR")}</p>
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Budget Pool</p>
+                      <p className="font-bold text-emerald-600 text-sm mt-0.5">{formatCurrency(evt.budgetAmount, "INR")}</p>
                     </div>
                   </div>
 
-                  <div className="pt-2 flex justify-end border-t border-slate-100 dark:border-slate-800">
+                  <div className="pt-2 flex justify-end border-t border-slate-100 dark:border-slate-800/90">
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="rounded-xl text-xs h-8 text-rose-600 hover:bg-rose-50 gap-1"
+                      className="rounded-xl text-xs h-8 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1.5 font-semibold transition-all"
                       onClick={() => handleDeleteEvent(evt.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -618,12 +660,12 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
               ))}
             </div>
           ) : (
-            <div className="py-16 px-4 text-center space-y-3 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card">
+            <div className="py-16 px-4 text-center space-y-3 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card/60 transition-all duration-300 hover:border-amber-400 hover:shadow-md">
               <div className="p-3 bg-amber-500/10 rounded-full w-12 h-12 mx-auto flex items-center justify-center text-amber-600">
                 <Calendar className="h-6 w-6" />
               </div>
               <div className="space-y-1">
-                <h3 className="font-bold text-base">No Upcoming Events</h3>
+                <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">No Upcoming Events</h3>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
                   Organize rooftop parties, office picnics, or group celebrations with dedicated event budget pools.
                 </p>
@@ -632,7 +674,7 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                 size="sm"
                 variant="outline"
                 onClick={() => setIsCreateEventOpen(true)}
-                className="rounded-xl text-xs font-bold gap-1.5"
+                className="rounded-xl text-xs font-bold gap-1.5 hover:shadow-md hover:-translate-y-0.5 transition-all"
               >
                 <CalendarPlus className="h-4 w-4 text-amber-500" />
                 <span>Create Shared Event</span>

@@ -328,18 +328,29 @@ export async function getNotifications(
   }
 }
 
+function getNotificationWhereCond(userId: number, idOrPublicId: number | string) {
+  let numericId: number | null = null;
+  if (typeof idOrPublicId === "number") {
+    numericId = idOrPublicId;
+  } else if (/^\d+$/.test(String(idOrPublicId))) {
+    numericId = Number(idOrPublicId);
+  } else if (/^ntf_(\d+)$/.test(String(idOrPublicId))) {
+    numericId = Number(String(idOrPublicId).replace(/^ntf_/, ""));
+  }
+
+  const idCond = numericId ? eq(notifications.id, numericId) : null;
+  const pubCond = eq(notifications.publicId, String(idOrPublicId));
+  const matchCond = idCond ? or(pubCond, idCond) : pubCond;
+  return and(eq(notifications.userId, userId), matchCond)!;
+}
+
 /**
  * SECTION 6: Mark single notification as read
  */
 export async function markAsRead(idOrPublicId: number | string) {
   try {
     const user = await requireAuth();
-
-    const isNumeric = typeof idOrPublicId === "number" || /^\d+$/.test(String(idOrPublicId));
-    const whereCond = and(
-      eq(notifications.userId, user.id),
-      isNumeric ? eq(notifications.id, Number(idOrPublicId)) : eq(notifications.publicId, String(idOrPublicId))
-    );
+    const whereCond = getNotificationWhereCond(user.id, idOrPublicId);
 
     const [notification] = await db
       .update(notifications)
@@ -353,6 +364,7 @@ export async function markAsRead(idOrPublicId: number | string) {
       .returning();
 
     revalidatePath("/dashboard/notifications");
+    revalidatePath("/dashboard");
     return { success: true, notification };
   } catch (error) {
     throw new DatabaseError("Failed to mark notification as read", { originalError: error });
@@ -382,6 +394,7 @@ export async function markAllAsRead() {
       );
 
     revalidatePath("/dashboard/notifications");
+    revalidatePath("/dashboard");
     return { success: true };
   } catch (error) {
     throw new DatabaseError("Failed to mark all notifications as read", { originalError: error });
@@ -394,12 +407,7 @@ export async function markAllAsRead() {
 export async function togglePinNotification(idOrPublicId: number | string) {
   try {
     const user = await requireAuth();
-
-    const isNumeric = typeof idOrPublicId === "number" || /^\d+$/.test(String(idOrPublicId));
-    const whereCond = and(
-      eq(notifications.userId, user.id),
-      isNumeric ? eq(notifications.id, Number(idOrPublicId)) : eq(notifications.publicId, String(idOrPublicId))
-    );
+    const whereCond = getNotificationWhereCond(user.id, idOrPublicId);
 
     const [existing] = await db
       .select({ id: notifications.id, isPinned: notifications.isPinned })
@@ -417,6 +425,7 @@ export async function togglePinNotification(idOrPublicId: number | string) {
       .where(eq(notifications.id, existing.id));
 
     revalidatePath("/dashboard/notifications");
+    revalidatePath("/dashboard");
     return { success: true, isPinned: newPinned };
   } catch (error) {
     throw new DatabaseError("Failed to toggle pin on notification", { originalError: error });
@@ -429,15 +438,10 @@ export async function togglePinNotification(idOrPublicId: number | string) {
 export async function archiveNotification(idOrPublicId: number | string) {
   try {
     const user = await requireAuth();
-
-    const isNumeric = typeof idOrPublicId === "number" || /^\d+$/.test(String(idOrPublicId));
-    const whereCond = and(
-      eq(notifications.userId, user.id),
-      isNumeric ? eq(notifications.id, Number(idOrPublicId)) : eq(notifications.publicId, String(idOrPublicId))
-    );
+    const whereCond = getNotificationWhereCond(user.id, idOrPublicId);
 
     const [existing] = await db
-      .select({ id: notifications.id, isArchived: notifications.isArchived })
+      .select({ id: notifications.id, isArchived: notifications.isArchived, isRead: notifications.isRead })
       .from(notifications)
       .where(whereCond)
       .limit(1);
@@ -448,11 +452,16 @@ export async function archiveNotification(idOrPublicId: number | string) {
 
     await db
       .update(notifications)
-      .set({ isArchived: newArchived, updatedAt: new Date() } as any)
+      .set({ 
+        isArchived: newArchived, 
+        status: newArchived ? "archived" : (existing.isRead ? "read" : "unread"),
+        updatedAt: new Date() 
+      } as any)
       .where(eq(notifications.id, existing.id));
 
     revalidatePath("/dashboard/notifications");
-    return { success: true, isArchived: newArchived };
+    revalidatePath("/dashboard");
+    return { success: true, isArchived: newArchived, id: existing.id };
   } catch (error) {
     throw new DatabaseError("Failed to archive notification", { originalError: error });
   }
@@ -464,19 +473,15 @@ export async function archiveNotification(idOrPublicId: number | string) {
 export async function deleteNotification(idOrPublicId: number | string) {
   try {
     const user = await requireAuth();
-
-    const isNumeric = typeof idOrPublicId === "number" || /^\d+$/.test(String(idOrPublicId));
-    const whereCond = and(
-      eq(notifications.userId, user.id),
-      isNumeric ? eq(notifications.id, Number(idOrPublicId)) : eq(notifications.publicId, String(idOrPublicId))
-    );
+    const whereCond = getNotificationWhereCond(user.id, idOrPublicId);
 
     await db
       .update(notifications)
-      .set({ isDeleted: true, deletedAt: new Date() } as any)
+      .set({ isDeleted: true, deletedAt: new Date(), updatedAt: new Date() } as any)
       .where(whereCond);
 
     revalidatePath("/dashboard/notifications");
+    revalidatePath("/dashboard");
     return { success: true };
   } catch (error) {
     throw new DatabaseError("Failed to delete notification", { originalError: error });

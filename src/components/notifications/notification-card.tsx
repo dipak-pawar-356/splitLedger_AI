@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -30,12 +30,28 @@ interface NotificationCardProps {
   notification: NotificationItem;
   searchQuery?: string;
   onRefresh?: () => void;
+  onArchiveToggle?: (id: number | string, newArchived: boolean) => void;
+  onDelete?: (id: number | string) => void;
+  currentTab?: "all" | "unread" | "pinned" | "archived";
 }
 
-export function NotificationCard({ notification, searchQuery, onRefresh }: NotificationCardProps) {
+export function NotificationCard({ 
+  notification, 
+  searchQuery, 
+  onRefresh,
+  onArchiveToggle,
+  onDelete,
+  currentTab,
+}: NotificationCardProps) {
   const [isRead, setIsRead] = useState(notification.isRead);
   const [isPinned, setIsPinned] = useState(notification.isPinned);
   const [isArchived, setIsArchived] = useState(notification.isArchived);
+
+  useEffect(() => {
+    setIsRead(notification.isRead);
+    setIsPinned(notification.isPinned);
+    setIsArchived(notification.isArchived);
+  }, [notification.isRead, notification.isPinned, notification.isArchived]);
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -118,22 +134,42 @@ export function NotificationCard({ notification, searchQuery, onRefresh }: Notif
   const handleArchive = async () => {
     const newArchived = !isArchived;
     setIsArchived(newArchived);
+
+    // Optimistically update parent list immediately (removes from active list when archived, or removes from archive list when unarchived)
+    if (onArchiveToggle) {
+      onArchiveToggle(notification.publicId || notification.id, newArchived);
+    }
+
     try {
       await archiveNotification(notification.publicId || notification.id);
-      toast.success(newArchived ? "Notification archived" : "Notification unarchived");
+      toast.success(
+        newArchived ? "Notification moved to Archive" : "Notification restored to active list",
+        {
+          action: {
+            label: "Undo",
+            onClick: () => handleArchive(),
+          },
+        }
+      );
       if (onRefresh) onRefresh();
-    } catch (e) {
+    } catch (e: any) {
       setIsArchived(!newArchived);
+      if (onRefresh) onRefresh();
+      toast.error(e?.message || "Failed to update archive status");
     }
   };
 
   const handleDelete = async () => {
+    if (onDelete) {
+      onDelete(notification.publicId || notification.id);
+    }
     try {
       await deleteNotification(notification.publicId || notification.id);
       toast.success("Notification deleted");
       if (onRefresh) onRefresh();
-    } catch (e) {
-      toast.error("Failed to delete notification");
+    } catch (e: any) {
+      if (onRefresh) onRefresh();
+      toast.error(e?.message || "Failed to delete notification");
     }
   };
 
@@ -295,11 +331,16 @@ export function NotificationCard({ notification, searchQuery, onRefresh }: Notif
             type="button"
             variant="ghost"
             size="sm"
-            className={`h-6 px-2 text-[11px] rounded-lg transition-colors ${isArchived ? "text-blue-600 dark:text-blue-400 font-bold bg-blue-500/10" : "text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10"}`}
+            className={`h-6 px-2 text-[11px] rounded-lg transition-colors ${
+              isArchived 
+                ? "text-blue-600 dark:text-blue-400 font-bold bg-blue-500/10 hover:bg-blue-500/20" 
+                : "text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10"
+            }`}
             onClick={(e) => {
               e.stopPropagation();
               handleArchive();
             }}
+            title={isArchived ? "Unarchive (restore to active alerts)" : "Move to Archive"}
           >
             <Archive className="h-3 w-3 mr-1" />
             {isArchived ? "Unarchive" : "Archive"}

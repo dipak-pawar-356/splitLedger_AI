@@ -116,6 +116,41 @@ export function NotificationCenterDrawer({
     }
   }, [open, loadData]);
 
+  const handleArchiveToggle = (id: number | string, newArchived: boolean) => {
+    if (activeTab === "archived" && !newArchived) {
+      // Unarchived from Archive tab -> remove from Archive tab view
+      setNotifications((prev) => prev.filter((item) => (item.publicId || item.id) !== id && item.id !== id));
+      setArchivedCount((prev) => Math.max(0, prev - 1));
+    } else if (activeTab !== "archived" && newArchived) {
+      // Archived from active view ("all", "unread", "pinned") -> remove from current view immediately!
+      setNotifications((prev) => prev.filter((item) => (item.publicId || item.id) !== id && item.id !== id));
+      setArchivedCount((prev) => prev + 1);
+      const target = notifications.find((item) => (item.publicId || item.id) === id || item.id === id);
+      if (target && !target.isRead) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+        if (onUnreadCountChange) onUnreadCountChange(Math.max(0, unreadCount - 1));
+      }
+      if (target && target.isPinned) {
+        setPinnedCount((prev) => Math.max(0, prev - 1));
+      }
+    }
+  };
+
+  const handleDeleteItem = (id: number | string) => {
+    setNotifications((prev) => prev.filter((item) => (item.publicId || item.id) !== id && item.id !== id));
+    const target = notifications.find((item) => (item.publicId || item.id) === id || item.id === id);
+    if (target && !target.isRead) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      if (onUnreadCountChange) onUnreadCountChange(Math.max(0, unreadCount - 1));
+    }
+    if (target && target.isPinned) {
+      setPinnedCount((prev) => Math.max(0, prev - 1));
+    }
+    if (target && target.isArchived) {
+      setArchivedCount((prev) => Math.max(0, prev - 1));
+    }
+  };
+
   const handleMarkAllRead = async () => {
     try {
       await markAllAsRead();
@@ -234,7 +269,7 @@ export function NotificationCenterDrawer({
                   Pinned {pinnedCount > 0 && `(${pinnedCount})`}
                 </TabsTrigger>
                 <TabsTrigger value="archived" className="rounded-lg text-[11px] font-semibold py-1">
-                  Archived
+                  Archived {archivedCount > 0 && `(${archivedCount})`}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -285,10 +320,13 @@ export function NotificationCenterDrawer({
             {notifications.length > 0 ? (
               notifications.map((n) => (
                 <NotificationCard
-                  key={n.id}
+                  key={n.publicId || n.id}
                   notification={n}
                   searchQuery={debouncedSearch}
                   onRefresh={loadData}
+                  onArchiveToggle={handleArchiveToggle}
+                  onDelete={handleDeleteItem}
+                  currentTab={activeTab}
                 />
               ))
             ) : debouncedSearch.trim().length > 0 ? (
@@ -313,6 +351,14 @@ export function NotificationCenterDrawer({
                     <span>Clear search</span>
                   </Button>
                 </div>
+              </div>
+            ) : activeTab === "archived" ? (
+              <div className="py-16 text-center text-slate-400 space-y-2 text-xs">
+                <Archive className="h-10 w-10 mx-auto text-slate-300 dark:text-slate-700 mb-2" />
+                <p className="font-bold text-slate-700 dark:text-slate-300">No Archived Notifications</p>
+                <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                  Notifications you archive will appear here for safe keeping.
+                </p>
               </div>
             ) : (
               <div className="py-16 text-center text-slate-400 space-y-2 text-xs">
