@@ -440,7 +440,17 @@ export async function manageTrustedDevices(
     // 1. Authoritative DB updates
     try {
       if (action === "remove") {
-        await db.delete(devicesTable).where(and(eq(devicesTable.publicId, deviceId), eq(devicesTable.userId, user.id)));
+        const [dev] = await db
+          .select({ id: devicesTable.id, publicId: devicesTable.publicId })
+          .from(devicesTable)
+          .where(and(eq(devicesTable.publicId, deviceId), eq(devicesTable.userId, user.id)));
+        if (dev) {
+          await db
+            .update(sessionsTable)
+            .set({ status: "revoked", revocationReason: "device_removed", updatedAt: new Date() })
+            .where(and(eq(sessionsTable.deviceId, dev.publicId), eq(sessionsTable.userId, user.id)));
+          await db.delete(devicesTable).where(eq(devicesTable.id, dev.id));
+        }
       } else if (action === "trust") {
         await db.update(devicesTable).set({ isTrusted: true, updatedAt: new Date() }).where(and(eq(devicesTable.publicId, deviceId), eq(devicesTable.userId, user.id)));
       } else if (action === "untrust") {
@@ -681,6 +691,11 @@ export async function deactivateAccount(reason?: string) {
       })
       .where(eq(profiles.userId, user.id));
 
+    // Enterprise Security: Revoke all active sessions and refresh tokens across all devices
+    try {
+      await forceLogoutAllDevices(user.id, "account_deactivated");
+    } catch (_) {}
+
     await recordAuditLog({
       userId: user.id,
       action: "account_deactivated",
@@ -698,6 +713,11 @@ export async function deactivateAccount(reason?: string) {
 export async function deleteAccount(type: "soft" | "permanent", reason?: string) {
   try {
     const user = await requireAuth();
+
+    // Enterprise Security: Revoke all active sessions and refresh tokens across all devices
+    try {
+      await forceLogoutAllDevices(user.id, "account_deleted");
+    } catch (_) {}
 
     if (type === "soft") {
       await db

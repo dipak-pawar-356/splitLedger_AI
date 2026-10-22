@@ -102,11 +102,11 @@ Transform SplitLedger AI's authentication and access management into a banking- 
 ---
 
 ## Success Criteria
-- [ ] Relational `sessions`, `devices`, and `security_audit_events` tables deployed and auto-migrated.
-- [ ] Short-lived signed JWT access tokens (15m) and SHA-256 hashed refresh tokens.
-- [ ] Atomic refresh token rotation with reuse attack detection and session lineage revocation.
-- [ ] Centralized token revocation on logout, password change, and "Logout All Devices".
-- [ ] Real-time anomaly detection with Haversine impossible travel calculation and risk scoring.
-- [ ] Enterprise security headers and secure cookie configuration applied.
-- [ ] User Security Center UI displaying live database sessions and trusted device management.
-- [ ] 100% test pass rate across vitest suite with zero regressions.
+- [x] Relational `sessions`, `devices`, and `security_audit_events` tables deployed and auto-migrated.
+- [x] Short-lived signed JWT access tokens (15m) and SHA-256 hashed refresh tokens.
+- [x] Atomic refresh token rotation with reuse attack detection and session lineage revocation.
+- [x] Centralized token revocation on logout, password change, device removal, and "Logout All Devices".
+- [x] Real-time anomaly detection with Haversine impossible travel calculation and risk scoring.
+- [x] Enterprise security headers and secure cookie configuration applied.
+- [x] User Security Center UI displaying live database sessions and trusted device management.
+- [x] 100% test pass rate across vitest suite with zero regressions.

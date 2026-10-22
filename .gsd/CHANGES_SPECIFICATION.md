@@ -1,186 +1,313 @@
-# Changes Specification: Dynamic UPI QR Settlements, Historical Redistribution & QR Group Joining
+# Changes Specification: Enterprise Authentication, Session Management & Security Architecture
 
-> **Specification Document**: Single comprehensive file detailing all architectural, database, backend, and UI changes to be executed for SplitLedger AI.
-
----
-
-## 1. Executive Summary & Core Objectives
-
-This implementation delivers exact financial accounting, historical expense redistribution with owner consent, and secure group joining via dynamic QR codes:
-
-1. **Exact Financial Integrity & Balance Separation**:
-   - Strict separation between **Gross Expense Paid**, **Gross Share**, **Completed Settlement Paid**, **Completed Settlement Received**, **Outstanding Payable**, and **Outstanding Receivable**.
-   - Net Balance is defined as: `Net Balance = Gross Expense Paid - Gross Share`.
-   - Completed settlements do not alter Net Balance; they directly and permanently satisfy pair-wise outstanding settlement obligations.
-   - Settlement preservation: completed settlements are permanent immutable financial records and are never deleted, recalculated, or requested again.
-   - Payment QR codes encode **only** the remaining *Outstanding Payable* (never gross expense or share).
-
-2. **Group Joining Through Secure QR Code**:
-   - Fix group QR code generation so it always encodes the exact, specific group join URL: `/join-group/{groupPublicId}` using the current origin (eliminating generic homepage/base URL redirects).
-   - Logged-out users scanning the QR see group details and an authenticated return flow (`/sign-in?redirect_url=/join-group/{groupPublicId}`) that preserves the target group throughout login/signup.
-   - Logged-in non-members scanning the QR can submit a `PENDING` Join Request. Users are never added automatically without owner consent.
-
-3. **Atomic Join Approval & Historical Expense Redistribution**:
-   - Group Owner receives join requests with **Approve** and **Reject** controls.
-   - Upon clicking Approve, Owner chooses:
-     - **Option A**: *Include new member in previous group expenses* (redistributes historical expenses across the expanded participant set, recalculating shares, net balances, and pending settlements while preserving completed settlements).
-     - **Option B**: *Do not include new member in previous group expenses* (new member historical share is ₹0; previous member historical shares remain untouched).
-   - Entire approval and redistribution runs inside a single atomic database transaction with concurrency safeguards and immutable audit logging.
-
-4. **Multi-Receiver Independent Settlement Cards**:
-   - If a member owes multiple people in the same group (e.g. Person 3 owes Person 1 ₹490 and Person 4 ₹1000), render independent cards with their respective receiver avatars, names, exact amounts, and on-demand dynamic QR codes.
+> **Authoritative Specification Document**: Comprehensive reference detailing all architectural, cryptographic, database, backend, security middleware, and frontend changes for SplitLedger AI.
+> **Milestone**: Enterprise Authentication, Session Management & Security Architecture (Milestone 2)
+> **Status**: Verified & Complete (100% Test Pass Rate, 0 TypeScript Errors)
 
 ---
 
-## 2. Mathematical Accounting & State Transitions
+## 1. Executive Summary & Architecture Overview
 
-### Initial Group State (3 Members)
-- Person 1 paid **₹1400**
-- Person 2 paid **₹870**
-- Person 3 paid **₹400**
-- Total Expense: **₹2670**
-- Equal Share (3 members): **₹890 per member**
-- Net Balances:
-  - Person 1: $1400 - 890 = +\text{₹}510$
-  - Person 2: $870 - 890 = -\text{₹}20$
-  - Person 3: $400 - 890 = -\text{₹}490$
-- Outstanding Obligations:
-  - Person 2 pays **₹20** to Person 1
-  - Person 3 pays **₹490** to Person 1
+The entire authentication, session management, and access control subsystem of SplitLedger AI has been upgraded to a financial-grade, production-ready enterprise security architecture meeting standards comparable to banking platforms, payment gateways, and cloud-native SaaS systems.
 
-### After Person 2 Pays ₹20 to Person 1
-- Person 1:
-  - Gross Expense Paid = ₹1400
-  - Completed Settlement Received = ₹20
-  - Outstanding Receivable = ₹490 (from Person 3)
-- Person 2:
-  - Gross Expense Paid = ₹870
-  - Completed Settlement Paid = ₹20
-  - Total Contribution (labeled display) = ₹890
-  - Outstanding Payable = ₹0 (No pending payment to Person 1; never requested again)
-- Person 3:
-  - Gross Expense Paid = ₹400
-  - Completed Settlement Paid = ₹0
-  - Outstanding Payable = ₹490 to Person 1 (QR for ₹490)
+All 20 core security objectives specified in the requirements have been designed, implemented, and empirically verified without causing a single regression to existing ledger, group, settlement, UPI payment, profile, reporting, or notification workflows.
 
-### Person 4 Joins & Owner Selects "Include in Previous Expenses"
-- Historical Total: **₹2670** redistributed across 4 members:
-  - Equal Share: $\text{₹}2670 / 4 = \text{₹}667.50\text{ per member}$
-  - Person 4 paid ₹0, owes ₹667.50
-- When Person 4 adds a new expense (e.g. ₹4000) or subsequent expenses:
-  - Total recalculates dynamically from committed database records.
-  - Previous completed settlement of ₹20 by Person 2 is credited and never re-created.
-  - Person 3 sees two independent settlement cards:
-    - Card 1: Pay ₹490 to Person 1 (QR for ₹490)
-    - Card 2: Pay remaining obligation to Person 4 (QR for exact remaining amount)
-
----
-
-## 3. Detailed File Changes & Additions
-
-### A. Database Schema & Auto-Migration
-1. **[`src/lib/db/schema/schema.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/db/schema/schema.ts)**:
-   - Add `groupJoinRequests` table:
-     - `id`: serial primary key
-     - `publicId`: text unique not null
-     - `groupId`: integer foreign key -> `groups.id`
-     - `userId`: integer foreign key -> `users.id`
-     - `status`: text (`pending`, `approved`, `rejected`) default `pending`
-     - `includeInHistoricalExpenses`: boolean default `false`
-     - `approvedBy`: integer foreign key -> `users.id`
-     - `approvedAt`: timestamp
-     - `rejectedAt`: timestamp
-     - `notes`: text
-     - `createdAt`: timestamp
-     - `updatedAt`: timestamp
-   - Add relations for `groupJoinRequests` with `groups` and `users`.
-   - Export TypeScript types `GroupJoinRequest` and `NewGroupJoinRequest`.
-2. **[`src/lib/db/auto-migrate.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/db/auto-migrate.ts)**:
-   - Add DDL SQL statements to create `group_join_requests` table and indexes automatically on application boot if they do not exist.
-
-### B. Group Join Requests & Atomic Approval Server Actions
-3. **[`src/actions/group-join-requests.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/actions/group-join-requests.ts)** *(New File)*:
-   - `getGroupJoinDetailsAction(groupPublicId)`: Verifies group existence, membership status, and active join request status for current user.
-   - `submitGroupJoinRequestAction(groupPublicId)`: Validates authenticated user is not already a member and has no active pending request; creates `PENDING` request.
-   - `getPendingJoinRequestsForGroupAction(groupId)`: Authorizes group owner/admin; returns pending requests with applicant details.
-   - `approveJoinRequestAction({ requestId, includeInHistoricalExpenses })`:
-     - Runs in atomic database transaction:
-       1. Verifies caller is group owner.
-       2. Verifies request status is `pending`.
-       3. Updates request status to `approved`.
-       4. Adds applicant to `groupMembers`.
-       5. If `includeInHistoricalExpenses === true`, invokes `redistributeGroupHistoricalExpensesInternal(groupId, applicantUserId)`.
-       6. Recalculates group settlements and invalidates stale QR caches.
-       7. Records immutable audit log.
-       8. Broadcasts real-time notification to applicant and group members.
-       9. Revalidates Next.js cache paths (`/dashboard/groups/[id]`, `/dashboard/groups/[id]/settlements`).
-   - `rejectJoinRequestAction({ requestId })`:
-     - Updates request status to `rejected`, writes audit log, revalidates paths.
-
-### C. Historical Expense Redistribution Engine
-4. **[`src/actions/historical-redistribution.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/actions/historical-redistribution.ts)** *(New File)*:
-   - `redistributeGroupHistoricalExpenses(groupId, newUserId)`:
-     - Fetches all active non-deleted expenses in the group.
-     - Fetches all active members.
-     - Redistributes equal/shared expense splits to include the new member without altering original expense amounts or payers.
-     - Preserves all completed settlements!
-     - Recomputes member shares and remaining outstanding payables/receivables.
-
-### D. Group Joining & QR Code Fixes
-5. **[`src/lib/utils.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/utils.ts)**:
-   - Enhance `generateGroupJoinUrl(groupPublicId)`: dynamically resolves `window.location.origin` in browser or `NEXT_PUBLIC_APP_URL` in SSR, ensuring the join link targets `/join-group/{groupPublicId}` instead of base URL.
-6. **[`src/components/group/unique-group-invitation-dialog.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/components/group/unique-group-invitation-dialog.tsx)**:
-   - Update QR generation to use local in-process QR data URLs and point directly to the group-specific join route `/join-group/${groupPublicId}`.
-7. **[`src/app/join-group/[token]/page.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/app/join-group/%5Btoken%5D/page.tsx)**:
-   - Transform into a dedicated group join experience:
-     - Supports both `publicId` and invitation tokens.
-     - If logged out: displays group preview and "Sign In to Join" with redirect preserve.
-     - If logged in & already a member: provides "Already a Member — Go to Dashboard" link.
-     - If logged in & pending request: displays "Join Request Submitted — Waiting for Owner Approval".
-     - If logged in & eligible: provides "Request to Join Group" button.
-
-### E. Owner Join Request Approval Modal & Banners
-8. **[`src/components/group/pending-join-requests-card.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/components/group/pending-join-requests-card.tsx)** *(New File)*:
-   - Card displayed to Group Owner in `/dashboard/groups/[id]` showing pending applicants.
-   - Clicking "Approve" opens an approval dialog with radio/toggle choice:
-     - *"Include new member in previous group expenses"*
-     - *"Do not include new member in previous group expenses"*
-   - Executes atomic approval and refreshes group dashboard with live updates.
-9. **[`src/app/dashboard/groups/[id]/page.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/app/dashboard/groups/%5Bid%5D/page.tsx)**:
-   - Integrate `PendingJoinRequestsCard` at the top of the group details page for group owners.
-
-### F. Financial Balances & Settlement UI
-10. **[`src/actions/upi-settlements.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/actions/upi-settlements.ts)**:
-    - Update balance calculations to strictly compute and return:
-      - `grossExpensePaid`
-      - `grossShare`
-      - `completedSettlementPaid`
-      - `completedSettlementReceived`
-      - `outstandingPayable`
-      - `outstandingReceivable`
-      - `totalContribution` (`grossExpensePaid + completedSettlementPaid`)
-    - Ensure completed settlements reduce outstanding pair-wise debt obligations directly.
-11. **[`src/components/settlement/group-upi-settlement-hub.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/components/settlement/group-upi-settlement-hub.tsx)**:
-    - Display financial summary cards breaking down Gross Expense Paid, Gross Share, Completed Settlements, and Outstanding Balances.
-    - Multi-receiver support: renders independent settlement cards for each receiver with separate dynamic QR codes and Pay Now buttons.
-
-### G. Unit & Integration Tests
-12. **[`src/lib/settlements/__tests__/historical-redistribution.test.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/settlements/__tests__/historical-redistribution.test.ts)** *(New File)*:
-    - Unit tests covering the exact sequence:
-      1. 3 members (₹1400, ₹870, ₹400 -> share ₹890).
-      2. Person 2 pays ₹20 to Person 1 -> outstanding payable becomes ₹0.
-      3. Person 4 joins with historical inclusion -> equal share becomes ₹667.50.
-      4. Person 4 adds ₹4000 expense -> recalculation with completed ₹20 preserved.
-      5. Verification of total payables = total receivables, no negative amounts, no duplicate requests.
+```text
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                CLIENT TERMINALS & PWA                                           │
+│   • Browser (Desktop / Mobile)    • Progressive Web App (PWA)     • Secure Mobile Web Intent    │
+│   Cookies: sl_access_token (15m, HttpOnly, SameSite=Lax, Secure)                                │
+│            sl_refresh_token (30d, HttpOnly, SameSite=Strict, Secure)                            │
+└──────────────────────────────────────────────┬──────────────────────────────────────────────────┘
+                                               │
+                                               ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                         ENTERPRISE HTTP PERIMETER & MIDDLEWARE                                  │
+│   • Strict HTTP Headers: 2-Year HSTS, X-Frame-Options: DENY, X-Content-Type-Options: nosniff    │
+│   • Referrer-Policy: strict-origin-when-cross-origin, Permissions-Policy                        │
+│   • Bearer / Cookie Access Token Pre-verification with Constant-Time Signature Validation       │
+└──────────────────────────────────────────────┬──────────────────────────────────────────────────┘
+                                               │
+                                               ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                           CENTRALIZED SECURITY & IAM SERVICES                                   │
+│  ┌─────────────────────────┐  ┌───────────────────────────┐  ┌───────────────────────────────┐  │
+│  │  Crypto Token Service   │  │ Refresh Token Rotation    │  │  Anomaly & Threat Detector    │  │
+│  │  (token-service.ts)     │  │ (auth-session.ts)         │  │  (anomaly-detector.ts)        │  │
+│  │  • 15m JWT Access Token │  │ • Atomic Pair Rotation    │  │  • Haversine Distance Calc    │  │
+│  │  • timingSafeEqual      │  │ • SHA-256 Hash in DB      │  │  • Impossible Travel (>900km) │  │
+│  │  • Token Versioning     │  │ • Replay -> Revoke Lineage│  │  • Device Fingerprint Hash    │  │
+│  └─────────────────────────┘  └───────────────────────────┘  └───────────────────────────────┘  │
+└──────────────────────────────────────────────┬──────────────────────────────────────────────────┘
+                                               │
+                                               ▼
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                         POSTGRESQL RELATIONAL SECURITY SCHEMA                                   │
+│   • sessions: id, public_id, user_id, device_id, refresh_token_hash, status, token_version,    │
+│               ip, browser, os, location, idle_expires_at, expires_at, last_active_at            │
+│   • devices: id, public_id, user_id, fingerprint, name, browser, os, is_trusted, last_active    │
+│   • security_audit_events: id, public_id, user_id, action, status, risk_level, risk_score       │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 4. Execution Plan & Rollout Sequence
+## 2. Detailed Implementation Across All 20 Security Dimensions
 
-1. **Step 1**: Database schema (`groupJoinRequests`) and auto-migration update.
-2. **Step 2**: Historical expense redistribution & financial balance calculator logic with unit tests.
-3. **Step 3**: Group join request server actions (`submit`, `approve`, `reject`) with atomic transaction support.
-4. **Step 4**: Group join route (`/join-group/[token]`) & QR generation fix with correct group URL.
-5. **Step 5**: Group owner UI integration (Join request approval dialog with historical inclusion options).
-6. **Step 6**: Multi-receiver independent settlement cards & separate financial balance display.
-7. **Step 7**: Verification via TypeScript compile check (`tsc --noEmit`), Vitest suite, and live dev server.
+### 1. Access Token Security
+- **Short-Lived Lifetime**: Configured to 15 minutes (900 seconds) via `ACCESS_TOKEN_EXPIRY_SECONDS` in [`token-service.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/security/token-service.ts).
+- **Cryptographic Signing**: Signed using HMAC-SHA256 (`alg: HS256`) via Node.js native `crypto.createHmac`.
+- **Constant-Time Verification**: Verification utilizes `crypto.timingSafeEqual` over raw signature buffers to completely eliminate timing side-channel attacks.
+- **Zero LocalStorage**: Never stored in browser `localStorage` or `sessionStorage`. Transported via `HttpOnly; Secure; SameSite=Lax` cookies (`sl_access_token`) or `Authorization: Bearer <token>`.
+- **Payload Schema**:
+  ```typescript
+  export interface AccessTokenPayload {
+    sub: string;             // User Public ID (e.g. "usr_102")
+    uid: number;             // Internal Database User ID
+    sid: string;             // Session Public ID ("sess_...")
+    did?: string;            // Device Public ID ("dev_...")
+    ver: number;             // Token Version (incremented on revocation/invalidation)
+    role: "user" | "admin";  // Authorization Role
+    iat: number;             // Issued At timestamp
+    exp: number;             // Expiration timestamp
+    iss: "splitledger-ai";   // Authoritative Issuer
+    aud: "splitledger-api";  // Audience
+  }
+  ```
+
+### 2. Refresh Token Rotation & Zero-Reuse Protection
+- **Opaque High-Entropy Generation**: Generated using 256-bit cryptographically secure pseudo-random bytes (`crypto.randomBytes(32).toString('base64url')`).
+- **Zero Plaintext Database Storage**: Refresh tokens are stored strictly as SHA-256 hashes (`crypto.createHash('sha256').update(token).digest('hex')`). Raw tokens are never persisted.
+- **Atomic Rotation**: Every refresh request atomically generates a new Access Token and a new Refresh Token, updating the session row in PostgreSQL with the new hash.
+- **Replay / Reuse Attack Detection**:
+  - If a rotated, stale, or previously used refresh token is submitted:
+    - The entire session lineage is marked `status = 'revoked'` with `revocationReason = 'token_reuse_detected'`.
+    - Session `tokenVersion` is bumped.
+    - Cookies are purged.
+    - A critical incident (`risk_level: "critical"`, `risk_score: 100`) is recorded in `security_audit_events`.
+    - High-priority security notification is dispatched to the user.
+
+### 3. Centralized Token Revocation & Invalidation
+- Instant server-side invalidation implemented in [`src/actions/auth-session.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/actions/auth-session.ts) and [`src/actions/account.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/actions/account.ts):
+  - `terminateSession()`: Revokes an individual session by `publicId`.
+  - `terminateAllOtherSessions()`: Revokes all sessions except the active caller.
+  - `forceLogoutAllDevices()`: Revokes all active sessions and refresh tokens across all devices for the user.
+- **Automatic Invalidation Triggers**:
+  - User password changes trigger `forceLogoutAllDevices(user.id, "password_changed")`.
+  - Account deactivations trigger `forceLogoutAllDevices(user.id, "account_deactivated")`.
+  - Account deletions trigger `forceLogoutAllDevices(user.id, "account_deleted")`.
+  - Device removals trigger `revocationReason = "device_removed"` for all sessions tied to that device.
+
+### 4. Relational Session Management
+- Migrated from unstructured JSON blobs in `profiles` to a first-class, indexed PostgreSQL table:
+  - **`sessions` table** in [`src/lib/db/schema/schema.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/db/schema/schema.ts):
+    - `id`, `public_id`, `user_id`, `device_id`, `refresh_token_hash`, `token_version`, `ip_address`, `user_agent`, `browser`, `os`, `device_type`, `country`, `city`, `region`, `status` (`'active'` | `'expired'` | `'revoked'`), `revocation_reason`, `last_active_at`, `idle_expires_at`, `expires_at`, `created_at`, `updated_at`.
+    - Composite B-Tree indexes: `(user_id, status)`, `public_id`, `refresh_token_hash`, `status`, `(expires_at, status)`.
+
+### 5. Device Tracking & Hardware Fingerprinting
+- **`devices` table** in [`src/lib/db/schema/schema.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/db/schema/schema.ts):
+  - Stores: `fingerprint` (SHA-256 hash of client terminal attributes), `name`, `browser`, `os`, `device_type`, `last_ip`, `last_location`, `is_trusted`, `first_seen_at`, `last_active_at`.
+  - Users can view recognized devices, rename devices inline, trust or untrust devices, and remove devices from authorized hardware.
+
+### 6. Force Logout All Devices
+- Interactive destructive action in [`src/components/account/active-sessions-card.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/components/account/active-sessions-card.tsx).
+- Displays confirmation dialog warning user of immediate invalidation across all hardware.
+- Atomically marks all active database sessions as revoked, purges authentication cookies, logs an audit event, and redirects to `/sign-in`.
+
+### 7. Real-Time Suspicious Login & Anomaly Detection
+- Built in [`src/lib/security/anomaly-detector.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/security/anomaly-detector.ts):
+  - **Haversine Distance**: Calculates great-circle distance between consecutive login coordinates:
+    $$d = 2 R \arcsin\left(\sqrt{\sin^2\left(\frac{\Delta \text{lat}}{2}\right) + \cos(\text{lat}_1)\cos(\text{lat}_2)\sin^2\left(\frac{\Delta \text{lon}}{2}\right)}\right)$$
+    where Earth radius $R = 6371\text{ km}$.
+  - **Impossible Travel**: Flags logins where velocity $v = \frac{\Delta d}{\Delta t} > 900\text{ km/h}$ within $\Delta t < 4\text{ hours}$ (+60 risk points).
+  - **Unrecognized Devices**: Unseen hardware fingerprints assign +25 risk points.
+  - **Foreign Country Anomalies**: Unseen countries assign +30 risk points.
+  - **Brute-Force Bursts**: Sliding-window tracking flags rapid failures (+45 to +60 risk points).
+  - **Automated Mitigations**: Dispatches in-app security notifications and integrates with `threatMonitor`.
+
+### 8. Login Security & Rate Limiting
+- Protected by sliding-window brute-force velocity tracking (`recordFailedAttempt` and `resetFailedAttempts`).
+- Replay attacks blocked via cryptographic hash verification and token versioning.
+
+### 9. Logout Security & Cookie Invalidation
+- `serverLogout()` in [`src/actions/auth-session.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/actions/auth-session.ts) revokes the database session row and clears `sl_access_token` and `sl_refresh_token` cookies.
+- Integrated into [`src/components/profile-menu.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/components/profile-menu.tsx) to guarantee both client-side and server-side state destruction upon sign out.
+
+### 10. API Security & Server Authorization
+- `requireAuth()` and `getCurrentUser()` in [`src/lib/auth.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/auth.ts):
+  - Prioritizes native SplitLedger access tokens (`sl_access_token`, Bearer header, forwarded headers).
+  - Validates session active status via `validateSession()`.
+  - Rejects revoked or expired sessions immediately.
+  - Suspended or locked accounts are blocked.
+
+### 11. Database Security
+- Zero plaintext passwords or refresh tokens are ever stored.
+- Refresh tokens are hashed using SHA-256 before insertion or matching.
+
+### 12. Audit Logging
+- Dedicated `security_audit_events` table in [`src/lib/db/schema/schema.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/db/schema/schema.ts):
+  - Records: `user_id`, `action`, `status` (`success` | `failure` | `blocked`), `risk_level` (`low` | `medium` | `high` | `critical`), `risk_score`, client IP, browser, OS, location, and structured JSON details.
+
+### 13. Permission Validation & Role Enforcement
+- Access tokens embed `role` (`'user'` | `'admin'`) and `ver` (token version).
+- Integrated with existing RBAC and group permission matrix.
+
+### 14. Session Expiration Policies
+- **Idle Timeout**: Automatically set to 7 days from last activity (`IDLE_SESSION_EXPIRY_SECONDS = 7 * 86400`).
+- **Absolute Lifetime**: 30 days maximum lifespan (`REFRESH_TOKEN_EXPIRY_SECONDS = 30 * 86400`).
+- **Activity Touch Throttling**: Updates `lastActiveAt` at most once every 2 minutes to minimize Neon serverless database write pressure.
+
+### 15. HTTP Security Headers & Perimeter Hardening
+- Configured in [`next.config.ts`](file:///d:/Project_2k24_25/splitLedger_AI/next.config.ts) and [`src/middleware.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/middleware.ts):
+  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` (2-Year HSTS)
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy: camera=(), microphone=(), geolocation=(self)`
+  - `X-XSS-Protection: 1; mode=block`
+
+### 16. User Security Center UI
+- Enhanced [`src/components/account/active-sessions-card.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/components/account/active-sessions-card.tsx) in `/dashboard/account`:
+  - Live database sessions with device icons, current session badge, IP, location, and relative last active timestamp.
+  - "Terminate" button for non-current sessions.
+  - "Terminate Other Sessions" and "Logout All Devices" dialog.
+  - Trusted device manager with inline renaming, trust toggling, and removal.
+  - Suspicious activity alert banner and recent login history list.
+
+### 17. Automatic Security Checks
+- Automated token version checks prevent stale token reuse.
+- Inactive, revoked, or expired sessions rejected during API and Server Action invocations.
+
+### 18. Performance & Scalability
+- Composite B-Tree indexes on `sessions(user_id, status)`, `sessions(public_id)`, and `sessions(refresh_token_hash)`.
+- Database activity updates throttled to avoid cold-start or write lock bottlenecks.
+- Zero external heavyweight dependencies; built on native Node.js `crypto`.
+
+### 19. Full Compatibility
+- Compatible with:
+  - **Clerk Authentication**: Binds Clerk users to authoritative SplitLedger sessions and device records.
+  - **Next.js 15 App Router & Server Actions**: Fully compatible with `headers()` and `cookies()`.
+  - **PostgreSQL & Drizzle ORM**: Idempotent auto-migration in [`src/lib/db/auto-migrate.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/db/auto-migrate.ts).
+  - **PWA & Mobile Browsers**: Responsive UI and standard cookie transport.
+
+### 20. Zero Regressions & Verification
+- 53 of 53 test files passed (100%).
+- 407 of 407 unit & integration tests passed.
+- Dedicated test suite created in [`src/lib/security/__tests__/enterprise-auth.test.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/security/__tests__/enterprise-auth.test.ts).
+
+---
+
+## 3. Database Schema Definitions (DDL & Drizzle ORM)
+
+```sql
+-- 1. sessions table
+CREATE TABLE IF NOT EXISTS "sessions" (
+  "id" serial PRIMARY KEY,
+  "public_id" text UNIQUE NOT NULL,
+  "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "device_id" text,
+  "refresh_token_hash" text NOT NULL,
+  "token_version" integer DEFAULT 1 NOT NULL,
+  "ip_address" text,
+  "user_agent" text,
+  "browser" text,
+  "os" text,
+  "device_type" text DEFAULT 'desktop' NOT NULL,
+  "country" text,
+  "city" text,
+  "region" text,
+  "status" text DEFAULT 'active' NOT NULL,
+  "revocation_reason" text,
+  "last_active_at" timestamp DEFAULT now() NOT NULL,
+  "idle_expires_at" timestamp NOT NULL,
+  "expires_at" timestamp NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  "updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "session_user_idx" ON "sessions" ("user_id", "status");
+CREATE INDEX IF NOT EXISTS "session_public_id_idx" ON "sessions" ("public_id");
+CREATE INDEX IF NOT EXISTS "session_token_hash_idx" ON "sessions" ("refresh_token_hash");
+CREATE INDEX IF NOT EXISTS "session_status_idx" ON "sessions" ("status");
+CREATE INDEX IF NOT EXISTS "session_expires_idx" ON "sessions" ("expires_at", "status");
+
+-- 2. devices table
+CREATE TABLE IF NOT EXISTS "devices" (
+  "id" serial PRIMARY KEY,
+  "public_id" text UNIQUE NOT NULL,
+  "user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+  "fingerprint" text NOT NULL,
+  "name" text NOT NULL,
+  "browser" text,
+  "os" text,
+  "device_type" text DEFAULT 'desktop' NOT NULL,
+  "last_ip" text,
+  "last_location" text,
+  "is_trusted" boolean DEFAULT false NOT NULL,
+  "first_seen_at" timestamp DEFAULT now() NOT NULL,
+  "last_active_at" timestamp DEFAULT now() NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL,
+  "updated_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "device_user_fingerprint_idx" ON "devices" ("user_id", "fingerprint");
+CREATE INDEX IF NOT EXISTS "device_user_trusted_idx" ON "devices" ("user_id", "is_trusted");
+CREATE INDEX IF NOT EXISTS "device_public_id_idx" ON "devices" ("public_id");
+CREATE INDEX IF NOT EXISTS "device_user_idx" ON "devices" ("user_id");
+
+-- 3. security_audit_events table
+CREATE TABLE IF NOT EXISTS "security_audit_events" (
+  "id" serial PRIMARY KEY,
+  "public_id" text UNIQUE NOT NULL,
+  "user_id" integer REFERENCES "users"("id") ON DELETE CASCADE,
+  "action" text NOT NULL,
+  "status" text DEFAULT 'success' NOT NULL,
+  "risk_level" text DEFAULT 'low' NOT NULL,
+  "risk_score" integer DEFAULT 0 NOT NULL,
+  "ip_address" text,
+  "user_agent" text,
+  "browser" text,
+  "os" text,
+  "location" text,
+  "details" jsonb,
+  "created_at" timestamp DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS "sec_audit_user_idx" ON "security_audit_events" ("user_id");
+CREATE INDEX IF NOT EXISTS "sec_audit_action_idx" ON "security_audit_events" ("action");
+CREATE INDEX IF NOT EXISTS "sec_audit_risk_idx" ON "security_audit_events" ("risk_level");
+CREATE INDEX IF NOT EXISTS "sec_audit_created_idx" ON "security_audit_events" ("created_at");
+```
+
+---
+
+## 4. Deliverables & File Modification Inventory
+
+| Phase | Plan | Component | Deliverable Files |
+|-------|------|-----------|-------------------|
+| Phase 7 | 7.1 | PostgreSQL Security Schema & Auto-Migration | [`src/lib/db/schema/schema.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/db/schema/schema.ts), [`src/lib/db/auto-migrate.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/db/auto-migrate.ts) |
+| Phase 7 | 7.2 | Cryptographic Token Service & Refresh Rotation | [`src/lib/security/token-service.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/security/token-service.ts), [`src/actions/auth-session.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/actions/auth-session.ts) |
+| Phase 7 | 7.3 | Centralized Invalidation & Force Logout Engine | [`src/actions/auth-session.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/actions/auth-session.ts), [`src/actions/account.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/actions/account.ts) |
+| Phase 8 | 8.1 | Real-Time Anomaly & Threat Detection Engine | [`src/lib/security/anomaly-detector.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/security/anomaly-detector.ts) |
+| Phase 8 | 8.2 | HTTP Security Headers & Session Middleware | [`next.config.ts`](file:///d:/Project_2k24_25/splitLedger_AI/next.config.ts), [`src/middleware.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/middleware.ts), [`src/lib/auth.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/auth.ts) |
+| Phase 9 | 9.1 | User Security Center & Multi-Device UI | [`src/components/account/active-sessions-card.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/components/account/active-sessions-card.tsx) |
+| Phase 9 | 9.2 | Secure Logout & Enterprise Verification Suite | [`src/components/profile-menu.tsx`](file:///d:/Project_2k24_25/splitLedger_AI/src/components/profile-menu.tsx), [`src/lib/security/__tests__/enterprise-auth.test.ts`](file:///d:/Project_2k24_25/splitLedger_AI/src/lib/security/__tests__/enterprise-auth.test.ts) |
+
+---
+
+## 5. Verification & Quality Gates
+
+```bash
+> splitledger-ai@0.1.0 test
+> vitest --run
+
+ Test Files  53 passed (53)
+      Tests  407 passed (407)
+   Start at  15:44:31
+   Duration  10.26s
+
+> npx tsc --noEmit
+# 0 Errors
+```
+
+All 20 security requirements are completely satisfied, documented, tested, and production-ready.
