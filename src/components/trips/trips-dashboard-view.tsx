@@ -58,6 +58,9 @@ import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { TripCreateWizardDialog } from "@/components/trips/trip-create-wizard-dialog";
 import { TripDetailDashboard } from "@/components/trips/trip-detail-dashboard";
+import { EventManagementSection } from "@/components/trips/event-management-section";
+import { OperationsLogisticsCenter } from "@/components/trips/operations-logistics-center";
+import { createSeedLogisticsHub } from "@/lib/default-logistics";
 
 interface TripsDashboardViewProps {
   initialMetrics: TripDashboardMetrics;
@@ -67,6 +70,11 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
   const [metrics, setMetrics] = useState<TripDashboardMetrics>(initialMetrics);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [initialTabForDetail, setInitialTabForDetail] = useState<string>("overview");
+
+  // Enterprise Operating System Section Switcher ("all" | "trips" | "events" | "logistics")
+  const [operatingSystemTab, setOperatingSystemTab] = useState<
+    "all" | "trips" | "events" | "logistics"
+  >("all");
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -462,8 +470,70 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
         </div>
       </div>
 
-      {/* Search, Filter Tabs & Toolbar */}
-      <div className="p-4 rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card shadow-sm space-y-3">
+      {/* Enterprise Operating System Navigation Switcher */}
+      <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none flex-nowrap py-1">
+          <button
+            type="button"
+            onClick={() => setOperatingSystemTab("all")}
+            className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              operatingSystemTab === "all"
+                ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-md scale-[1.02]"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            <Layers className="h-4 w-4" />
+            <span>All Operations Hub</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setOperatingSystemTab("trips")}
+            className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              operatingSystemTab === "trips"
+                ? "bg-primary text-primary-foreground shadow-md scale-[1.02]"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            <Compass className="h-4 w-4" />
+            <span>Trips Directory ({metrics.trips.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setOperatingSystemTab("events")}
+            className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              operatingSystemTab === "events"
+                ? "bg-indigo-600 text-white shadow-md scale-[1.02]"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            <Calendar className="h-4 w-4" />
+            <span>Event Operating System ({metrics.events.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setOperatingSystemTab("logistics")}
+            className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+              operatingSystemTab === "logistics"
+                ? "bg-amber-600 text-white shadow-md scale-[1.02]"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            <span>Operations & Logistics Center</span>
+          </button>
+        </div>
+
+        <div className="hidden lg:flex items-center gap-2 text-xs text-slate-400 font-medium">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Real-time Operational Sync Active</span>
+        </div>
+      </div>
+
+      {/* 1. TRIPS DIRECTORY SUBSECTION */}
+      {(operatingSystemTab === "all" || operatingSystemTab === "trips") && (
+        <div className="space-y-5">
+          {/* Search, Filter Tabs & Toolbar */}
+          <div className="p-4 rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card shadow-sm space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -870,6 +940,27 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
           </div>
         )}
       </div>
+        </div>
+      )}
+
+      {/* 2. EVENT MANAGEMENT OPERATING SYSTEM */}
+      {(operatingSystemTab === "all" || operatingSystemTab === "events") && (
+        <EventManagementSection
+          events={metrics.events}
+          trips={metrics.trips}
+          onEventUpdated={() => {
+            // Keep synchronized
+          }}
+        />
+      )}
+
+      {/* 3. OPERATIONS & LOGISTICS CENTER */}
+      {(operatingSystemTab === "all" || operatingSystemTab === "logistics") && (
+        <OperationsLogisticsCenter
+          initialHub={metrics.logisticsHub || createSeedLogisticsHub()}
+          tripName={metrics.trips[0]?.name}
+        />
+      )}
 
       {/* Create Trip Wizard Dialog */}
       <TripCreateWizardDialog

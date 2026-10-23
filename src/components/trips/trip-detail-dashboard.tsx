@@ -243,8 +243,8 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated, 
   const [eventLocation, setEventLocation] = useState("");
   const [eventBudget, setEventBudget] = useState("");
   const [eventActualCost, setEventActualCost] = useState("");
-  const [eventPriority, setEventPriority] = useState<"High" | "Medium" | "Low">("Medium");
-  const [eventStatus, setEventStatus] = useState<TripEventStatus>("upcoming");
+  const [eventPriority, setEventPriority] = useState<"High" | "Medium" | "Low" | "Critical">("Medium");
+  const [eventStatus, setEventStatus] = useState<TripEvent["status"]>("upcoming");
   const [eventMapsLink, setEventMapsLink] = useState("");
   const [eventNotes, setEventNotes] = useState("");
   const [eventVenue, setEventVenue] = useState("");

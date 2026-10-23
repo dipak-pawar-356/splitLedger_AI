@@ -171,6 +171,68 @@ export type TripEventType =
   | "activity"
   | "custom";
 
+export type EnterpriseEventStatus =
+  | "Upcoming"
+  | "Live"
+  | "Planning"
+  | "Completed"
+  | "Cancelled"
+  | "Delayed"
+  | "Rescheduled"
+  | "Full"
+  | "Draft"
+  | "Archived";
+
+export type EventPriority = "Low" | "Medium" | "High" | "Critical";
+
+export interface EventTimelineItem {
+  id: string;
+  time: string; // e.g. "09:00 AM"
+  activity: string;
+  location?: string;
+  status: "upcoming" | "in_progress" | "completed" | "missed";
+  notes?: string;
+  durationMinutes?: number;
+  order?: number;
+}
+
+export interface EventAttendee {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  rsvpStatus: "invited" | "accepted" | "maybe" | "declined" | "pending";
+  isGuest?: boolean;
+  emergencyContact?: string;
+  arrivalStatus: "On Time" | "Delayed" | "Arrived" | "Departed" | "No Show";
+  checkInStatus: "Checked In" | "Pending Check-In" | "Late Arrival" | "No Show";
+  checkedInAt?: string;
+  notes?: string;
+}
+
+export interface EventRsvpSummary {
+  invited: number;
+  accepted: number;
+  maybe: number;
+  declined: number;
+  pending: number;
+  guests: number;
+  attendees: EventAttendee[];
+}
+
+export interface EventExpenseSummary {
+  allocatedBudget: number;
+  actualExpense: number;
+  remainingBudget: number;
+  personalContribution: number;
+  sharedContribution: number;
+  vendorPayments: number;
+  pendingPayments: number;
+  refunds: number;
+  settlementStatus: "settled" | "pending";
+}
+
 export interface TripEvent {
   id: string;
   publicId?: string; // EVT-H4P9X7K2Q8ZM
@@ -179,9 +241,18 @@ export interface TripEvent {
   category?: string;
   startDateTime: string;
   endDateTime?: string;
+  startDate?: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  timezone?: string;
   durationMinutes?: number;
+  durationText?: string;
+  timeRemaining?: string;
+  countdownText?: string;
   location: string;
   venue?: string;
+  meetingPoint?: string;
   address?: string;
   coordinates?: {
     latitude: number;
@@ -189,19 +260,35 @@ export interface TripEvent {
   };
   mapsLink?: string;
   description?: string;
+  bannerUrl?: string;
   organizerName?: string;
+  eventOwner?: string;
+  linkedTripId?: string;
+  linkedTripName?: string;
+  isStandalone?: boolean;
   participants: string[];
   guestLimit?: number;
   capacity?: number;
   expectedAttendance?: number;
+  confirmedMembers?: number;
+  pendingInvitations?: number;
+  declinedMembers?: number;
+  guestMembers?: number;
+  availableSeats?: number;
   currentAttendance?: number;
   budget: number;
   estimatedBudget?: number;
   actualCost?: number;
-  priority?: "High" | "Medium" | "Low";
-  status: TripEventStatus;
+  priority?: "High" | "Medium" | "Low" | "Critical";
+  status: TripEventStatus | EnterpriseEventStatus;
   completionPct?: number;
+  attendancePct?: number;
+  progressPct?: number;
+  expensePct?: number;
   weatherForecast?: string;
+  weatherStatus?: string;
+  travelAdvisory?: string;
+  budgetStatus?: string;
   dressCode?: string;
   transportPlan?: string;
   parkingInfo?: string;
@@ -214,6 +301,144 @@ export interface TripEvent {
   reminderDate?: string;
   notes?: string;
   attachments?: string[];
+  timeline?: EventTimelineItem[];
+  rsvp?: EventRsvpSummary;
+  expenseSummary?: EventExpenseSummary;
+  documentsList?: { id: string; title: string; type: string; url?: string }[];
+  photos?: string[];
+  activityLog?: { timestamp: string; actor: string; action: string }[];
+  reminders?: string[];
+}
+
+export interface LogisticsVehicle {
+  id: string;
+  vehicleNumber: string;
+  type: string;
+  driverName: string;
+  driverContact: string;
+  busCapacity: number;
+  currentStatus: "En Route" | "Parked" | "Maintenance" | "Scheduled" | "Completed";
+  fuelStatus: "Full" | "75%" | "Half" | "25%" | "Low";
+  pickupPoints: string[];
+  dropPoints: string[];
+  estimatedArrival: string;
+  liveStatus: string;
+}
+
+export interface LogisticsRoomSharing {
+  roomNumber: string;
+  roomType: string;
+  occupants: string[];
+  status: "Occupied" | "Vacant" | "Reserved";
+  capacity: number;
+}
+
+export interface LogisticsAccommodation {
+  id: string;
+  hotelName: string;
+  checkInDate: string;
+  checkOutDate: string;
+  checkInTime: string;
+  checkOutTime: string;
+  totalRooms: number;
+  bookingStatus: "Confirmed" | "Tentative" | "Paid" | "Pending";
+  hotelContact: string;
+  address: string;
+  rooms: LogisticsRoomSharing[];
+}
+
+export interface LogisticsBloodGroupItem {
+  memberName: string;
+  bloodGroup: string;
+  allergies?: string;
+  emergencyContact: string;
+}
+
+export interface LogisticsEmergency {
+  hospitalName: string;
+  hospitalContact: string;
+  hospitalDistanceKm: number;
+  policeContact: string;
+  tripLeader: string;
+  tripLeaderContact: string;
+  coLeader: string;
+  coLeaderContact: string;
+  rescueContact: string;
+  bloodGroupList: LogisticsBloodGroupItem[];
+  medicalNotes: string[];
+}
+
+export interface LogisticsPermitItem {
+  id: string;
+  title: string;
+  category: "Driving License" | "Vehicle Permit" | "Forest Permit" | "Tickets" | "Hotel Voucher" | "Insurance" | "Identity Verification";
+  status: "Verified" | "Pending" | "Expiring Soon" | "Action Required";
+  holderName?: string;
+  expiryDate?: string;
+  documentNumber?: string;
+}
+
+export interface LogisticsPackingInventory {
+  sharedPackingPct: number;
+  completedPct: number;
+  missingItems: string[];
+  criticalItems: string[];
+  inventory: {
+    id: string;
+    item: string;
+    category: string;
+    quantity: number;
+    packed: boolean;
+    owner: string;
+    isCritical: boolean;
+  }[];
+}
+
+export interface LogisticsMealItem {
+  meal: "Breakfast" | "Lunch" | "Dinner" | "Snacks" | "Water Supply" | "Special Diet";
+  timing: string;
+  menu: string;
+  vendorName: string;
+  dietaryNotes: string;
+  vendorStatus: "Confirmed" | "In Preparation" | "Delivered" | "Pending";
+}
+
+export interface LogisticsVendorItem {
+  id: string;
+  name: string;
+  category: "Transport Vendor" | "Hotel Vendor" | "Guide" | "Equipment Vendor" | "Catering";
+  contact: string;
+  paymentStatus: "Paid" | "Partial Advance" | "Pending" | "Settled";
+  rating: number;
+  amount: number;
+}
+
+export interface LogisticsTaskItem {
+  id: string;
+  task: string;
+  owner: string;
+  deadline: string;
+  status: "Upcoming" | "Pending" | "In Progress" | "Completed" | "Delayed";
+  completionPct: number;
+}
+
+export interface TripLogisticsHub {
+  id: string;
+  tripId?: string;
+  transportation: LogisticsVehicle[];
+  accommodation: LogisticsAccommodation[];
+  emergency: LogisticsEmergency;
+  permissions: LogisticsPermitItem[];
+  packing: LogisticsPackingInventory;
+  foodLogistics: LogisticsMealItem[];
+  vendors: LogisticsVendorItem[];
+  operationalTimeline: {
+    upcomingTasks: LogisticsTaskItem[];
+    pendingTasks: LogisticsTaskItem[];
+    completedTasks: LogisticsTaskItem[];
+    delayedTasks: LogisticsTaskItem[];
+  };
+  assignments: LogisticsTaskItem[];
 }
 
 export interface TripDocument {
@@ -462,6 +687,7 @@ export interface TripRecord {
   checklists: TripChecklistItem[];
   preferences: TripPreferences;
   auditLogs?: TripAuditLog[];
+  logisticsHub?: TripLogisticsHub;
 
   // Backward compatibility aliases
   plannedExpenses?: any[];
@@ -499,4 +725,6 @@ export interface TripDashboardMetrics {
   currency: string;
   trips: TripRecord[];
   events: TripEvent[];
+  standaloneEvents?: TripEvent[];
+  logisticsHub?: TripLogisticsHub;
 }
