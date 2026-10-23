@@ -142,7 +142,7 @@ export function OverviewWorkspace({
                   <div
                     key={trip.id}
                     onClick={() => onInspectTrip(trip)}
-                    className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:shadow-md transition-all duration-200 cursor-pointer bg-slate-50/40 dark:bg-slate-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                    className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800/90 hover:border-primary/50 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer bg-slate-50/50 dark:bg-slate-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {trip.coverImage ? (
@@ -241,7 +241,7 @@ export function OverviewWorkspace({
                 <div
                   key={evt.id}
                   onClick={() => onInspectEvent(evt)}
-                  className="p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-indigo-500/50 hover:shadow-xs transition-all duration-200 cursor-pointer bg-slate-50/50 dark:bg-slate-900/40 space-y-2 group"
+                  className="p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/90 hover:border-indigo-500/50 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer bg-slate-50/50 dark:bg-slate-900/40 space-y-2 group"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-mono text-[10px] text-slate-400 font-bold">{evt.publicId}</span>
@@ -344,7 +344,7 @@ export function OverviewWorkspace({
               <button
                 type="button"
                 onClick={() => onNavigateTab("accommodation")}
-                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 flex items-center justify-between text-left transition-all group"
+                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 hover:shadow-xs hover:-translate-y-0.5 flex items-center justify-between text-left transition-all duration-200 group"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
@@ -363,7 +363,7 @@ export function OverviewWorkspace({
               <button
                 type="button"
                 onClick={() => onNavigateTab("transportation")}
-                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 flex items-center justify-between text-left transition-all group"
+                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 hover:shadow-xs hover:-translate-y-0.5 flex items-center justify-between text-left transition-all duration-200 group"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
@@ -382,7 +382,7 @@ export function OverviewWorkspace({
               <button
                 type="button"
                 onClick={() => onNavigateTab("resources")}
-                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 flex items-center justify-between text-left transition-all group"
+                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 hover:shadow-xs hover:-translate-y-0.5 flex items-center justify-between text-left transition-all duration-200 group"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -401,7 +401,7 @@ export function OverviewWorkspace({
               <button
                 type="button"
                 onClick={() => onNavigateTab("documents")}
-                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 flex items-center justify-between text-left transition-all group"
+                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 hover:shadow-xs hover:-translate-y-0.5 flex items-center justify-between text-left transition-all duration-200 group"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">

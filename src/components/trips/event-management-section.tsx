@@ -62,7 +62,16 @@ import {
   Loader2,
   Bookmark,
   Layers,
+  MoreVertical,
+  Eye,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -489,7 +498,11 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
           return (
             <Card
               key={evt.id || evt.publicId}
-              className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card overflow-hidden shadow-xs transition-all duration-250 group hover:-translate-y-1.5 hover:scale-[1.01] hover:shadow-2xl hover:border-indigo-500/50 dark:hover:border-indigo-500/50 hover:shadow-indigo-500/10 flex flex-col justify-between h-full"
+              onClick={() => {
+                setDetailEvent(evt);
+                setDetailActiveTab("overview");
+              }}
+              className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card overflow-hidden shadow-xs transition-all duration-300 group hover:-translate-y-1.5 hover:shadow-2xl hover:border-indigo-500/50 dark:hover:border-indigo-500/50 flex flex-col justify-between h-full cursor-pointer relative"
             >
               <div className="flex-1 flex flex-col">
                 {/* Event Cover Banner with Gradient Overlay & Public ID */}
@@ -544,7 +557,7 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="bg-emerald-600/80 text-white border-white/20 text-[9px] backdrop-blur-md shrink-0">
-                          Standalone Event
+                          Standalone
                         </Badge>
                       )}
                     </div>
@@ -557,11 +570,17 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
                       <Badge variant="outline" className={`text-[9px] uppercase backdrop-blur-md border ${getPriorityBadgeClass(evt.priority)}`}>
                         {evt.priority || "Medium"}
                       </Badge>
+
+                      {/* Interactive Hover Open Cue */}
+                      <div className="hidden sm:flex opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-1 group-hover:translate-x-0 items-center gap-1 px-2.5 py-1 rounded-xl bg-black/80 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold shadow-md">
+                        <span>Open</span>
+                        <ArrowRight className="h-3 w-3 text-indigo-400" />
+                      </div>
                     </div>
                   </div>
 
                   {/* Bottom Header Overlay */}
-                  <div className="absolute bottom-2.5 left-3 right-3 text-white">
+                  <div className="absolute bottom-2.5 left-3 right-3 text-white pointer-events-none">
                     <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-600/90 text-white backdrop-blur-md text-[10px] font-bold shadow-xs">
                         <Clock className="h-3 w-3" />
@@ -573,13 +592,7 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
                       </span>
                     </div>
 
-                    <h3
-                      onClick={() => {
-                        setDetailEvent(evt);
-                        setDetailActiveTab("overview");
-                      }}
-                      className="text-base sm:text-lg font-black truncate cursor-pointer hover:underline text-white drop-shadow-sm"
-                    >
+                    <h3 className="text-base sm:text-lg font-black truncate text-white drop-shadow-sm group-hover:text-indigo-200 transition-colors">
                       {evt.title}
                     </h3>
 
@@ -593,35 +606,35 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
 
                 {/* Event Body Content */}
                 <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
-                  {/* Status Badges Matrix (Section 1 & 4) */}
+                  {/* Status Badges Matrix - Unified Calm Enterprise Palette */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-400 text-[10px] uppercase font-bold block truncate">Weather</span>
-                      <p className="font-bold text-slate-800 dark:text-slate-200 truncate mt-0.5 flex items-center gap-1">
-                        <Sun className="h-3 w-3 text-amber-500 shrink-0" />
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold tracking-wider block truncate">Weather</span>
+                      <p className="font-bold text-slate-800 dark:text-slate-200 truncate mt-1 flex items-center gap-1 text-xs">
+                        <Sun className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                         <span>{evt.weatherStatus || "26°C Clear"}</span>
                       </p>
                     </div>
 
-                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-400 text-[10px] uppercase font-bold block truncate">Advisory</span>
-                      <p className="font-bold text-emerald-600 truncate mt-0.5 flex items-center gap-1">
-                        <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold tracking-wider block truncate">Advisory</span>
+                      <p className="font-bold text-slate-800 dark:text-slate-200 truncate mt-1 flex items-center gap-1 text-xs">
+                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
                         <span className="truncate">{evt.travelAdvisory || "Green Normal"}</span>
                       </p>
                     </div>
 
-                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-400 text-[10px] uppercase font-bold block truncate">RSVP Confirmed</span>
-                      <p className="font-bold text-indigo-600 dark:text-indigo-400 truncate mt-0.5 flex items-center gap-1">
-                        <Users className="h-3 w-3 shrink-0" />
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold tracking-wider block truncate">RSVP</span>
+                      <p className="font-bold text-slate-800 dark:text-slate-200 truncate mt-1 flex items-center gap-1 text-xs">
+                        <Users className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                         <span>{evt.confirmedMembers || 0} / {evt.capacity || 20}</span>
                       </p>
                     </div>
 
-                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-400 text-[10px] uppercase font-bold block truncate">Remaining Budget</span>
-                      <p className="font-mono font-bold text-emerald-600 truncate mt-0.5">
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                      <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold tracking-wider block truncate">Remaining</span>
+                      <p className="font-mono font-bold text-slate-900 dark:text-slate-100 truncate mt-1 text-xs">
                         {formatCurrency(remainingBudget, "INR")}
                       </p>
                     </div>
@@ -707,28 +720,36 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
                 </div>
               </div>
 
-              {/* Event Quick Actions Bar (Section 5) */}
-              <div className="p-3 sm:p-4 bg-slate-50/60 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800/90 flex flex-wrap items-center justify-between gap-2 shrink-0">
-                <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+              {/* Event Quick Actions Bar: Designed for zero overlap & enterprise ergonomics */}
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="p-3.5 sm:p-4 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800/90 flex items-center justify-between gap-2 shrink-0"
+              >
+                <div className="flex items-center gap-2 min-w-0">
                   <Button
                     size="sm"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setDetailEvent(evt);
                       setDetailActiveTab("overview");
                     }}
-                    className="rounded-xl text-xs font-bold gap-1.5 flex-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs hover:shadow-md"
+                    className="rounded-xl text-xs font-bold gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs hover:shadow-md transition-all h-9 px-3.5 shrink-0"
                   >
+                    <Eye className="h-3.5 w-3.5" />
                     <span>View Details</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
 
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setExpenseModalEvent(evt)}
-                    className="rounded-xl text-xs font-semibold h-8 border-slate-200/80 dark:border-slate-800 hover:border-indigo-500 shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpenseModalEvent(evt);
+                    }}
+                    className="rounded-xl text-xs font-semibold h-9 px-3 border-slate-200/80 dark:border-slate-800 hover:border-indigo-500 text-slate-700 dark:text-slate-200 shrink-0"
                   >
-                    <Plus className="h-3 w-3 mr-1" /> Expense
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    <span>Expense</span>
                   </Button>
                 </div>
 
@@ -736,22 +757,12 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => {
-                      setDetailEvent(evt);
-                      setDetailActiveTab("timeline");
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShareModalEvent(evt);
                     }}
-                    title="Open Timeline"
-                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                  >
-                    <Clock className="h-3.5 w-3.5" />
-                  </Button>
-
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setShareModalEvent(evt)}
                     title="Share Event"
-                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
                   >
                     <Share2 className="h-3.5 w-3.5" />
                   </Button>
@@ -759,32 +770,93 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => handleOpenQrModal(evt)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenQrModal(evt);
+                    }}
                     title="Generate QR Pass"
-                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
                   >
                     <QrCode className="h-3.5 w-3.5" />
                   </Button>
 
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => handleDuplicate(evt.id)}
-                    title="Duplicate Event"
-                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => e.stopPropagation()}
+                        title="More Options"
+                        className="h-8 w-8 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <MoreVertical className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5 shadow-xl border border-slate-200 dark:border-slate-800 bg-popover">
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDetailEvent(evt);
+                          setDetailActiveTab("timeline");
+                        }}
+                        className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2"
+                      >
+                        <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                        <span>Open Timeline Checkpoints</span>
+                      </DropdownMenuItem>
 
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => handleDelete(evt.id)}
-                    title="Delete Event"
-                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                      {evt.mapsLink && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(evt.mapsLink, "_blank");
+                          }}
+                          className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2"
+                        >
+                          <Navigation className="h-3.5 w-3.5 text-slate-400" />
+                          <span>View on Maps</span>
+                        </DropdownMenuItem>
+                      )}
+
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (evt.publicId) {
+                            navigator.clipboard.writeText(evt.publicId);
+                            toast.success(`Copied Event ID: ${evt.publicId}`);
+                          }
+                        }}
+                        className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2"
+                      >
+                        <Copy className="h-3.5 w-3.5 text-slate-400" />
+                        <span>Copy Public ID</span>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicate(evt.id);
+                        }}
+                        className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2"
+                      >
+                        <Copy className="h-3.5 w-3.5 text-slate-400" />
+                        <span>Duplicate Event</span>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator className="my-1 border-slate-100 dark:border-slate-800" />
+
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(evt.id);
+                        }}
+                        className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2 text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Delete Event</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </Card>

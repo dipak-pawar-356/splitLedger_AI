@@ -61,7 +61,15 @@ import {
   Settings,
   Eye,
   SlidersHorizontal,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { TripCreateWizardDialog } from "@/components/trips/trip-create-wizard-dialog";
@@ -424,42 +432,42 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
         {/* Card 1: Total Trip Budget */}
         <Card
           onClick={() => setActiveWorkspace("reports")}
-          className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg hover:border-primary/40 dark:hover:border-primary/50 hover:bg-primary/5 cursor-pointer"
+          className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/50 dark:hover:border-primary/50 cursor-pointer"
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-primary">
+            <span className="font-semibold uppercase tracking-wider text-[11px] text-slate-500 dark:text-slate-400">
               Total Operating Budget
             </span>
-            <div className="p-2 rounded-xl bg-primary/10 text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-250">
+            <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 group-hover:bg-primary group-hover:text-primary-foreground group-hover:scale-110 transition-all duration-200">
               <IndianRupee className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight group-hover:text-primary transition-colors">
             {formatCurrency(metrics.totalTripBudget, "INR")}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
             <span>Allocated: {formatCurrency(metrics.allocatedBudget, "INR")}</span>
-            <span className="text-emerald-600 font-bold">100% Reconciled</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">100% Reconciled</span>
           </div>
         </Card>
 
         {/* Card 2: Actual Expenses */}
         <Card
           onClick={() => setActiveWorkspace("reports")}
-          className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg hover:border-rose-400 dark:hover:border-rose-500/60 hover:bg-rose-50/30 cursor-pointer"
+          className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/50 dark:hover:border-primary/50 cursor-pointer"
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-rose-600 dark:text-rose-400">
+            <span className="font-semibold uppercase tracking-wider text-[11px] text-slate-500 dark:text-slate-400">
               Actual Outflow (INR)
             </span>
-            <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 group-hover:scale-110 group-hover:bg-rose-600 group-hover:text-white transition-all duration-250">
+            <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 group-hover:bg-primary group-hover:text-primary-foreground group-hover:scale-110 transition-all duration-200">
               <ArrowUpRight className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 mt-2 tracking-tight">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight group-hover:text-primary transition-colors">
             {formatCurrency(metrics.actualExpenses, "INR")}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
             <span>Personal: {formatCurrency(metrics.personalExpenses, "INR")}</span>
             <span>Shared: {formatCurrency(metrics.sharedExpenses, "INR")}</span>
           </div>
@@ -468,50 +476,50 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
         {/* Card 3: Remaining Capital */}
         <Card
           onClick={() => setActiveWorkspace("reports")}
-          className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg hover:border-emerald-400 dark:hover:border-emerald-500/60 hover:bg-emerald-50/30 cursor-pointer"
+          className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/50 dark:hover:border-primary/50 cursor-pointer"
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-600 dark:text-emerald-400">
+            <span className="font-semibold uppercase tracking-wider text-[11px] text-slate-500 dark:text-slate-400">
               Remaining Budget
             </span>
-            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-250">
+            <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 group-hover:bg-primary group-hover:text-primary-foreground group-hover:scale-110 transition-all duration-200">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-2 tracking-tight">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight group-hover:text-primary transition-colors">
             {formatCurrency(metrics.remainingBudget, "INR")}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
             <span>Utilization Rate: {metrics.budgetUtilizationPct}%</span>
-            <span className="text-emerald-600 font-bold">Unencumbered</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Unencumbered</span>
           </div>
         </Card>
 
         {/* Card 4: Pending Settlements */}
         <Card
           onClick={() => setActiveWorkspace("members")}
-          className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-250 group hover:-translate-y-1 hover:shadow-lg hover:border-amber-400 dark:hover:border-amber-500/60 hover:bg-amber-50/30 cursor-pointer"
+          className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 shadow-xs bg-card p-4 sm:p-5 relative overflow-hidden transition-all duration-300 group hover:-translate-y-1.5 hover:shadow-xl hover:border-primary/50 dark:hover:border-primary/50 cursor-pointer"
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-amber-600 dark:text-amber-400">
+            <span className="font-semibold uppercase tracking-wider text-[11px] text-slate-500 dark:text-slate-400">
               Pending Settlements
             </span>
-            <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:bg-amber-600 group-hover:text-white transition-all duration-250">
+            <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 group-hover:bg-primary group-hover:text-primary-foreground group-hover:scale-110 transition-all duration-200">
               <IndianRupee className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 mt-2 tracking-tight">
+          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight group-hover:text-primary transition-colors">
             {formatCurrency(metrics.pendingSettlementsAmount, "INR")}
           </div>
-          <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+          <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
             <span>{metrics.pendingSettlementsCount} Unsettled balances</span>
-            <span className="text-slate-600 dark:text-slate-300 font-bold">Audit ready</span>
+            <span className="text-slate-600 dark:text-slate-400 font-semibold">Audit ready</span>
           </div>
         </Card>
       </div>
 
       {/* 3. STICKY OPERATING SYSTEM NAVIGATION BAR (11 WORKSPACES) */}
-      <div className="sticky top-2 z-30 p-1.5 rounded-2xl bg-card/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-md flex items-center justify-between gap-1 overflow-x-auto scrollbar-none">
+      <div className="sticky top-2 z-30 p-1.5 rounded-2xl bg-card/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/80 dark:border-slate-800 shadow-md flex items-center justify-between gap-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         <div className="flex items-center gap-1 min-w-max">
           {navigationWorkspaces.map((ws) => {
             const Icon = ws.icon;
@@ -638,7 +646,11 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                 return (
                   <Card
                     key={trip.id}
-                    className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card overflow-hidden shadow-xs transition-all duration-250 group hover:-translate-y-1.5 hover:shadow-2xl hover:border-primary/50 dark:hover:border-primary/50 flex flex-col justify-between h-full"
+                    onClick={() => {
+                      setInspectingTrip(trip);
+                      setInspectingEvent(null);
+                    }}
+                    className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card overflow-hidden shadow-xs transition-all duration-300 group hover:-translate-y-1.5 hover:shadow-2xl hover:border-primary/50 dark:hover:border-primary/50 flex flex-col justify-between h-full cursor-pointer relative"
                   >
                     <div className="flex-1 flex flex-col">
                       {/* Destination Cover Image */}
@@ -695,12 +707,18 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                                 trip.status === "ongoing" || trip.status === "active"
                                   ? "bg-emerald-500/90 text-white border-none shadow-xs animate-pulse"
                                   : trip.status === "completed"
-                                  ? "bg-blue-600/90 text-white border-none"
+                                  ? "bg-slate-700/90 text-white border-none"
                                   : "bg-black/60 text-white border-white/20"
                               }`}
                             >
                               {trip.status}
                             </Badge>
+
+                            {/* Interactive Hover Open Cue */}
+                            <div className="hidden sm:flex opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-1 group-hover:translate-x-0 items-center gap-1 px-2.5 py-1 rounded-xl bg-black/80 backdrop-blur-md border border-white/20 text-white text-[10px] font-bold shadow-md">
+                              <span>Open</span>
+                              <ArrowRight className="h-3 w-3 text-primary" />
+                            </div>
                           </div>
                         </div>
 
@@ -712,7 +730,7 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                             <span className="text-white/60">•</span>
                             <span className="text-emerald-400 font-semibold">{countdownText}</span>
                           </div>
-                          <h3 className="text-lg sm:text-xl font-black text-white tracking-tight truncate drop-shadow-sm">
+                          <h3 className="text-lg sm:text-xl font-black text-white tracking-tight truncate drop-shadow-sm group-hover:text-primary-foreground/90 transition-colors">
                             {trip.name}
                           </h3>
                         </div>
@@ -721,23 +739,24 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                       {/* Card Content & Financial Intelligence */}
                       <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
                         <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Operating Budget (INR)</span>
-                            <p className="font-mono font-black text-base text-slate-900 dark:text-slate-100 mt-0.5">
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Operating Budget (INR)</span>
+                            <p className="font-mono font-black text-base text-slate-900 dark:text-slate-100 mt-1">
                               {formatCurrency(trip.budgetAmount, "INR")}
                             </p>
-                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5 truncate">
                               Spent: {formatCurrency(trip.actualTotal, "INR")}
                             </span>
                           </div>
 
-                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Settlement Status</span>
-                            <p className={`font-mono font-black text-base mt-0.5 ${totalPendingSettlement > 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                              {totalPendingSettlement > 0 ? formatCurrency(totalPendingSettlement, "INR") : "Settled"}
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Settlement Status</span>
+                            <p className="font-mono font-black text-base text-slate-900 dark:text-slate-100 mt-1">
+                              {totalPendingSettlement > 0 ? formatCurrency(totalPendingSettlement, "INR") : "₹0.00"}
                             </p>
-                            <span className="text-[10px] text-slate-400 block mt-0.5">
-                              {totalPendingSettlement > 0 ? "Pending collection" : "100% Cleared"}
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                              <span className={`inline-block h-1.5 w-1.5 rounded-full shrink-0 ${totalPendingSettlement > 0 ? "bg-amber-500" : "bg-emerald-500"}`} />
+                              <span>{totalPendingSettlement > 0 ? "Pending collection" : "100% Cleared"}</span>
                             </span>
                           </div>
                         </div>
@@ -770,16 +789,20 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                       </div>
                     </div>
 
-                    {/* Bottom Action Bar */}
-                    <div className="p-3 sm:p-4 bg-slate-50/60 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 shrink-0">
-                      <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                    {/* Bottom Action Bar: Designed for zero overlap & enterprise ergonomics */}
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-3.5 sm:p-4 bg-slate-50/70 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
                         <Button
                           size="sm"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setInspectingTrip(trip);
                             setInspectingEvent(null);
                           }}
-                          className="rounded-xl text-xs font-bold gap-1.5 flex-1 bg-primary text-primary-foreground shadow-xs hover:shadow-md"
+                          className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-xs hover:shadow-md transition-all h-9 px-3.5 shrink-0"
                         >
                           <Eye className="h-3.5 w-3.5" />
                           <span>Inspect Record</span>
@@ -788,20 +811,14 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => openTripDetail(trip.id, "overview")}
-                          className="rounded-xl text-xs font-semibold h-8 border-slate-200/80 dark:border-slate-800"
-                          title="Open Full Workspace"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQuickExpenseTrip(trip);
+                          }}
+                          className="rounded-xl text-xs font-semibold h-9 px-3 border-slate-200/80 dark:border-slate-800 hover:border-primary/50 text-slate-700 dark:text-slate-200 shrink-0"
                         >
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setQuickExpenseTrip(trip)}
-                          className="rounded-xl text-xs font-semibold h-8 border-slate-200/80 dark:border-slate-800 hover:border-primary/50 shrink-0"
-                        >
-                          <Plus className="h-3 w-3 mr-1" /> Expense
+                          <Plus className="h-3.5 w-3.5 mr-1" />
+                          <span>Expense</span>
                         </Button>
                       </div>
 
@@ -809,9 +826,12 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => setShareModalTrip(trip)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShareModalTrip(trip);
+                          }}
                           title="Share Trip"
-                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
                           <Share2 className="h-3.5 w-3.5" />
                         </Button>
@@ -819,46 +839,97 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => setQrModalTrip(trip)}
-                          title="Generate QR Pass"
-                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQrModalTrip(trip);
+                          }}
+                          title="View QR Code Pass"
+                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         >
                           <QrCode className="h-3.5 w-3.5" />
                         </Button>
 
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleDuplicateTrip(trip.id)}
-                          title="Duplicate Trip"
-                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={(e) => e.stopPropagation()}
+                              title="More Options"
+                              className="h-8 w-8 rounded-xl text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5 shadow-xl border border-slate-200 dark:border-slate-800 bg-popover">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openTripDetail(trip.id, "overview");
+                              }}
+                              className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5 text-primary" />
+                              <span>Open Full Workspace</span>
+                            </DropdownMenuItem>
 
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleArchiveTrip(trip.id, !isArchived)}
-                          title={isArchived ? "Restore Trip" : "Archive Trip"}
-                          className={`h-8 w-8 rounded-xl ${
-                            isArchived
-                              ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                              : "text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                          }`}
-                        >
-                          {isArchived ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-                        </Button>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigator.clipboard.writeText(trip.publicId);
+                                toast.success(`Copied Trip ID: ${trip.publicId}`);
+                              }}
+                              className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2"
+                            >
+                              <Copy className="h-3.5 w-3.5 text-slate-400" />
+                              <span>Copy Public ID</span>
+                            </DropdownMenuItem>
 
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleDeleteTrip(trip.id)}
-                          title="Delete Trip"
-                          className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDuplicateTrip(trip.id);
+                              }}
+                              className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2"
+                            >
+                              <Copy className="h-3.5 w-3.5 text-slate-400" />
+                              <span>Duplicate Trip</span>
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator className="my-1 border-slate-100 dark:border-slate-800" />
+
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleArchiveTrip(trip.id, !isArchived);
+                              }}
+                              className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2"
+                            >
+                              {isArchived ? (
+                                <>
+                                  <RotateCcw className="h-3.5 w-3.5 text-emerald-500" />
+                                  <span>Restore Trip</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Archive className="h-3.5 w-3.5 text-amber-500" />
+                                  <span>Archive Trip</span>
+                                </>
+                              )}
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTrip(trip.id);
+                              }}
+                              className="rounded-xl text-xs font-semibold cursor-pointer gap-2.5 py-2 text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/40"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Delete Trip</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </Card>
