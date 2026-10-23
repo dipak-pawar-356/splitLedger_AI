@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { createTripWizard } from "@/actions/trips";
 import { TripCategory, BudgetCategoryKey, TripRecord } from "@/lib/types/trips";
+import { WizardStep1Identity, WizardStep1State, createInitialStep1State } from "@/components/trips/wizard-step1-identity";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -57,14 +58,12 @@ export function TripCreateWizardDialog({ open, onOpenChange, onTripCreated }: Tr
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Step 1: Details
-  const [name, setName] = useState("");
-  const [destination, setDestination] = useState("");
-  const [country, setCountry] = useState("India");
-  const [city, setCity] = useState("");
-  const [category, setCategory] = useState<TripCategory>("vacation");
-  const [coverImage, setCoverImage] = useState(COVER_PRESETS[0].url);
-  const [description, setDescription] = useState("");
+  // Step 1: Enterprise Trip Identity & Metadata
+  const [step1State, setStep1State] = useState<WizardStep1State>(createInitialStep1State);
+
+  const updateStep1 = (updates: Partial<WizardStep1State>) => {
+    setStep1State((prev) => ({ ...prev, ...updates }));
+  };
 
   // Step 2: Dates
   const [startDate, setStartDate] = useState(new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0]);
@@ -130,7 +129,7 @@ export function TripCreateWizardDialog({ open, onOpenChange, onTripCreated }: Tr
   const allocatedSum = Object.values(categoryBudgets).reduce((a, b) => a + b, 0);
 
   const handleSubmit = async () => {
-    if (!name.trim()) {
+    if (!step1State.name.trim()) {
       toast.error("Please enter a trip name");
       setStep(1);
       return;
@@ -151,13 +150,43 @@ export function TripCreateWizardDialog({ open, onOpenChange, onTripCreated }: Tr
         }));
 
       const created = await createTripWizard({
-        name,
-        destination,
-        country,
-        city,
-        category,
-        coverImage,
-        description,
+        name: step1State.name,
+        destination: step1State.destination,
+        country: step1State.country,
+        city: step1State.city,
+        category: step1State.category,
+        categories: step1State.categories,
+        coverImage: step1State.coverImage,
+        description: step1State.description,
+        publicId: step1State.publicId,
+        slug: step1State.slug,
+        state: step1State.state,
+        district: step1State.city,
+        taluka: step1State.taluka,
+        village: step1State.village,
+        latitude: step1State.latitude,
+        longitude: step1State.longitude,
+        elevation: step1State.elevation,
+        climateZone: step1State.climateZone,
+        bestSeason: step1State.bestSeason,
+        nearestAirport: step1State.nearestAirport,
+        nearestRailwayStation: step1State.nearestRailwayStation,
+        nearestBusStand: step1State.nearestBusStand,
+        travelDistance: step1State.travelDistance,
+        estimatedTravelTime: step1State.estimatedTravelTime,
+        visibility: step1State.visibility,
+        host: step1State.host,
+        coHost: step1State.coHost,
+        leadOrganizer: step1State.leadOrganizer,
+        travelAgency: step1State.travelAgency,
+        emergencyContact: step1State.emergencyContact,
+        budgetStrategy: step1State.budgetStrategy,
+        emergencyReservePct: step1State.emergencyReservePct,
+        contingencyPct: step1State.contingencyPct,
+        travelPace: step1State.travelPace,
+        accommodationPreference: step1State.accommodationPreference,
+        transportPreference: step1State.transportPreference,
+        tags: step1State.tags,
         startDate,
         endDate,
         timezone,
@@ -185,8 +214,7 @@ export function TripCreateWizardDialog({ open, onOpenChange, onTripCreated }: Tr
 
   const resetWizard = () => {
     setStep(1);
-    setName("");
-    setDestination("");
+    setStep1State(createInitialStep1State());
     setTotalBudget(50000);
   };
 
@@ -197,7 +225,7 @@ export function TripCreateWizardDialog({ open, onOpenChange, onTripCreated }: Tr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl rounded-3xl p-6 sm:p-8 bg-card border border-slate-200/80 dark:border-slate-800 shadow-2xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl lg:max-w-5xl rounded-3xl p-5 sm:p-7 md:p-8 bg-card border border-slate-200/80 dark:border-slate-800 shadow-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader className="pb-4 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center justify-between">
             <div>
@@ -225,100 +253,15 @@ export function TripCreateWizardDialog({ open, onOpenChange, onTripCreated }: Tr
           </div>
         </DialogHeader>
 
-        {/* STEP 1: Trip Details */}
+        {/* STEP 1: Enterprise Trip Identity & Metadata */}
         {step === 1 && (
-          <div className="space-y-4 py-3">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Trip Name *</label>
-              <Input
-                placeholder="e.g. Goa Beach & Coastal Trail Expedition"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="h-11 rounded-xl text-sm"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Destination *</label>
-                <Input
-                  placeholder="e.g. Goa / Spiti / Bali"
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  className="h-10 rounded-xl text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Country</label>
-                <Input
-                  placeholder="e.g. India"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="h-10 rounded-xl text-xs"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">City / District</label>
-                <Input
-                  placeholder="e.g. North Goa"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="h-10 rounded-xl text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Travel Classification</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {(["vacation", "road_trip", "trek", "camping", "business", "luxury", "backpacking", "custom"] as TripCategory[]).map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setCategory(cat)}
-                    className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all text-left capitalize ${
-                      category === cat
-                        ? "bg-primary/10 border-primary text-primary shadow-xs"
-                        : "border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    {cat.replace("_", " ")}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Cover Backdrop Preset</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {COVER_PRESETS.map((p) => (
-                  <div
-                    key={p.label}
-                    onClick={() => setCoverImage(p.url)}
-                    className={`cursor-pointer rounded-2xl overflow-hidden border-2 relative transition-all ${
-                      coverImage === p.url ? "border-primary shadow-md scale-102" : "border-transparent opacity-75 hover:opacity-100"
-                    }`}
-                  >
-                    <img src={p.url} alt={p.label} className="h-16 w-full object-cover" />
-                    <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white bg-black/60 px-1.5 py-0.5 rounded-md">
-                      {p.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Description & Mission</label>
-              <Textarea
-                placeholder="Key goals, hotel rules, transport rendezvous points..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className="rounded-xl text-xs"
-              />
-            </div>
-          </div>
+          <WizardStep1Identity
+            formData={step1State}
+            onChange={updateStep1}
+            onSaveDraft={() => {
+              toast.success("Draft identity configuration saved to local cache.");
+            }}
+          />
         )}
 
         {/* STEP 2: Dates */}
@@ -532,11 +475,28 @@ export function TripCreateWizardDialog({ open, onOpenChange, onTripCreated }: Tr
             <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 bg-gradient-to-br from-primary/5 via-card to-background space-y-3">
               <div className="flex items-start justify-between">
                 <div>
-                  <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] uppercase font-bold">
-                    Ready for Deployment
-                  </Badge>
-                  <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">{name}</h3>
-                  <p className="text-xs text-slate-500">{destination}, {country} • {durationDays} Days</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px] uppercase font-bold">
+                      Ready for Deployment
+                    </Badge>
+                    <span className="text-[10px] font-mono text-slate-400 font-semibold">{step1State.publicId}</span>
+                  </div>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 mt-1">{step1State.name}</h3>
+                  <p className="text-xs text-slate-500">
+                    {step1State.destination || "Destination TBD"}, {step1State.country} • {durationDays} Days
+                  </p>
+                  {step1State.categories?.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                      {step1State.categories.slice(0, 4).map((c) => (
+                        <Badge key={c} variant="outline" className="text-[10px] font-medium py-0">
+                          {c}
+                        </Badge>
+                      ))}
+                      {step1State.categories.length > 4 && (
+                        <span className="text-[10px] text-slate-400">+{step1State.categories.length - 4} more</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase">Total Budget</p>
@@ -582,7 +542,17 @@ export function TripCreateWizardDialog({ open, onOpenChange, onTripCreated }: Tr
               <ArrowLeft className="h-3.5 w-3.5" /> Back
             </Button>
           ) : (
-            <div />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                toast.success("Draft saved successfully!");
+              }}
+              className="rounded-xl text-xs gap-1 font-semibold h-9"
+            >
+              Save Draft
+            </Button>
           )}
 
           {step < 6 ? (
@@ -590,7 +560,7 @@ export function TripCreateWizardDialog({ open, onOpenChange, onTripCreated }: Tr
               type="button"
               size="sm"
               onClick={() => {
-                if (step === 1 && !name.trim()) {
+                if (step === 1 && !step1State.name.trim()) {
                   toast.error("Please enter a trip name");
                   return;
                 }

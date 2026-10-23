@@ -1681,9 +1681,39 @@ export async function createTripWizard(data: {
   destination: string;
   country: string;
   city?: string;
+  state?: string;
+  district?: string;
+  taluka?: string;
+  village?: string;
+  latitude?: number;
+  longitude?: number;
+  elevation?: string;
+  climateZone?: string;
+  bestSeason?: string;
+  nearestAirport?: string;
+  nearestRailwayStation?: string;
+  nearestBusStand?: string;
+  travelDistance?: string;
+  estimatedTravelTime?: string;
+  slug?: string;
   category: TripCategory;
+  categories?: string[];
   coverImage?: string;
   description?: string;
+  visibility?: "private" | "shared" | "public" | "invite_only" | "hidden";
+  host?: string;
+  coHost?: string;
+  leadOrganizer?: string;
+  travelAgency?: string;
+  emergencyContact?: string;
+  budgetStrategy?: "shared" | "personal" | "mixed";
+  emergencyReservePct?: number;
+  contingencyPct?: number;
+  travelPace?: "relaxed" | "balanced" | "fast";
+  accommodationPreference?: "budget" | "standard" | "premium" | "luxury";
+  transportPreference?: string;
+  tags?: string[];
+  publicId?: string;
   startDate: string;
   endDate: string;
   timezone?: string;
@@ -1754,7 +1784,7 @@ export async function createTripWizard(data: {
     })),
   ];
 
-  const publicId = generateTripPublicId();
+  const publicId = data.publicId || generateTripPublicId();
   const newTrip: TripRecord = {
     id: generatePublicId("trip"),
     publicId,
@@ -1763,7 +1793,36 @@ export async function createTripWizard(data: {
     destination: data.destination.trim() || "Destination",
     country: data.country?.trim() || "India",
     city: data.city?.trim(),
+    state: data.state?.trim(),
+    district: data.district?.trim() || data.city?.trim(),
+    taluka: data.taluka?.trim(),
+    village: data.village?.trim(),
+    latitude: data.latitude,
+    longitude: data.longitude,
+    elevation: data.elevation,
+    climateZone: data.climateZone,
+    bestSeason: data.bestSeason,
+    nearestAirport: data.nearestAirport,
+    nearestRailwayStation: data.nearestRailwayStation,
+    nearestBusStand: data.nearestBusStand,
+    travelDistance: data.travelDistance,
+    estimatedTravelTime: data.estimatedTravelTime,
+    slug: data.slug,
     category: data.category || "vacation",
+    categories: data.categories && data.categories.length > 0 ? data.categories : [data.category],
+    visibility: data.visibility || "public",
+    host: data.host,
+    coHost: data.coHost,
+    leadOrganizer: data.leadOrganizer,
+    travelAgency: data.travelAgency,
+    emergencyContact: data.emergencyContact,
+    budgetStrategy: data.budgetStrategy || "shared",
+    emergencyReservePct: data.emergencyReservePct || 10,
+    contingencyPct: data.contingencyPct || 5,
+    travelPace: data.travelPace || "balanced",
+    accommodationPreference: data.accommodationPreference || "standard",
+    transportPreference: data.transportPreference,
+    tags: data.tags || [],
     coverImage:
       data.coverImage ||
       "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200&auto=format&fit=crop&q=80",
