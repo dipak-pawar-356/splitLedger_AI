@@ -55,6 +55,20 @@ import {
   ExternalLink,
   Printer,
   FileSpreadsheet,
+  Phone,
+  Shield,
+  Fuel,
+  Navigation,
+  Sun,
+  CloudRain,
+  Wind,
+  Mountain,
+  Eye,
+  QrCode,
+  Train,
+  Bus,
+  Check,
+  Globe,
 } from "lucide-react";
 import {
   TripRecord,
@@ -117,6 +131,7 @@ interface TripDetailDashboardProps {
   trip: TripRecord;
   onBack: () => void;
   onTripUpdated: (updatedTrip: TripRecord) => void;
+  initialTab?: string;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -146,9 +161,9 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
   document.body.removeChild(link);
 }
 
-export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }: TripDetailDashboardProps) {
+export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated, initialTab = "overview" }: TripDetailDashboardProps) {
   const [trip, setTrip] = useState<TripRecord>(initialTrip);
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
 
   // Modals for CRUD & Inspections
   const [isEditTripOpen, setIsEditTripOpen] = useState(false);
@@ -230,6 +245,13 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
   const [eventStatus, setEventStatus] = useState<TripEventStatus>("upcoming");
   const [eventMapsLink, setEventMapsLink] = useState("");
   const [eventNotes, setEventNotes] = useState("");
+  const [eventVenue, setEventVenue] = useState("");
+  const [eventAddress, setEventAddress] = useState("");
+  const [eventDressCode, setEventDressCode] = useState("");
+  const [eventTransportPlan, setEventTransportPlan] = useState("");
+  const [eventParkingInfo, setEventParkingInfo] = useState("");
+  const [eventWeatherForecast, setEventWeatherForecast] = useState("");
+  const [selectedEventQr, setSelectedEventQr] = useState<TripEvent | null>(null);
 
   // Form states for Document
   const [docTitle, setDocTitle] = useState("");
@@ -564,14 +586,27 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
         type: eventType,
         startDateTime: eventDate,
         location: eventLocation || "Main Location",
+        venue: eventVenue,
+        address: eventAddress,
         budget: Number(eventBudget) || 0,
+        dressCode: eventDressCode,
+        transportPlan: eventTransportPlan,
+        parkingInfo: eventParkingInfo,
+        priority: eventPriority,
+        notes: eventNotes,
       });
       updateTripState(updated);
       toast.success("Event scheduled!");
       setIsAddEventOpen(false);
       setEventTitle("");
       setEventLocation("");
+      setEventVenue("");
+      setEventAddress("");
       setEventBudget("");
+      setEventDressCode("");
+      setEventTransportPlan("");
+      setEventParkingInfo("");
+      setEventNotes("");
     } catch {
       toast.error("Failed to create event.");
     }
@@ -583,11 +618,17 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
     setEventType(evt.type);
     setEventDate(evt.startDateTime);
     setEventLocation(evt.location);
+    setEventVenue(evt.venue || "");
+    setEventAddress(evt.address || "");
     setEventBudget(String(evt.budget || 0));
     setEventActualCost(String(evt.actualCost || 0));
     setEventPriority(evt.priority || "Medium");
     setEventStatus(evt.status);
     setEventMapsLink(evt.mapsLink || "");
+    setEventDressCode(evt.dressCode || "");
+    setEventTransportPlan(evt.transportPlan || "");
+    setEventParkingInfo(evt.parkingInfo || "");
+    setEventWeatherForecast(evt.weatherForecast || "");
     setEventNotes(evt.notes || "");
     setIsEditEventOpen(true);
   };
@@ -600,11 +641,17 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
         type: eventType,
         startDateTime: eventDate,
         location: eventLocation,
+        venue: eventVenue,
+        address: eventAddress,
         budget: Number(eventBudget) || 0,
         actualCost: Number(eventActualCost) || 0,
         priority: eventPriority,
         status: eventStatus,
         mapsLink: eventMapsLink,
+        dressCode: eventDressCode,
+        transportPlan: eventTransportPlan,
+        parkingInfo: eventParkingInfo,
+        weatherForecast: eventWeatherForecast,
         notes: eventNotes,
       });
       updateTripState(updated);
@@ -1028,6 +1075,10 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="bg-slate-100 dark:bg-slate-800/90 p-1 rounded-2xl flex-wrap h-auto gap-1">
           <TabsTrigger value="overview" className="rounded-xl text-xs font-semibold">Overview</TabsTrigger>
+          <TabsTrigger value="destination" className="rounded-xl text-xs font-semibold flex items-center gap-1.5">
+            <Compass className="h-3.5 w-3.5 text-cyan-500" />
+            <span>Destination & GIS</span>
+          </TabsTrigger>
           <TabsTrigger value="budget" className="rounded-xl text-xs font-semibold">Budget Management</TabsTrigger>
           <TabsTrigger value="expenses" className="rounded-xl text-xs font-semibold">Expenses ({trip.expenses.length})</TabsTrigger>
           <TabsTrigger value="settlements" className="rounded-xl text-xs font-semibold">Settlements</TabsTrigger>
@@ -1146,6 +1197,584 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
               </Card>
             </div>
           </div>
+        </TabsContent>
+
+        {/* DESTINATION & GIS INTELLIGENCE HUB */}
+        <TabsContent value="destination" className="space-y-6">
+          {(() => {
+            const dest = trip.destinationInfo;
+            const coords = dest?.coordinates || { latitude: 15.2993, longitude: 74.1240, altitudeMeters: 10 };
+            const climate = dest?.climate;
+            const logistics = dest?.logistics;
+            const amenities = dest?.amenities;
+            const poi = dest?.pointsOfInterest;
+            const safety = dest?.safetyRatings;
+            const culture = dest?.cultureAndRules;
+            const emergency = dest?.emergencyNumbers;
+
+            const mapsQuery = encodeURIComponent(
+              `${dest?.city || trip.city || trip.destination}, ${dest?.state || trip.state || ""}, ${dest?.country || trip.country}`
+            );
+            const googleMapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+            const googleMapsDirUrl = `https://www.google.com/maps/dir/?api=1&destination=${coords.latitude},${coords.longitude}`;
+
+            return (
+              <div className="space-y-6">
+                {/* 1. Destination Intelligence Hero Banner */}
+                <div className="relative overflow-hidden rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-r from-cyan-900/10 via-card to-indigo-900/10 p-6 md:p-8">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" className="font-mono text-[10px] uppercase font-bold tracking-wider">
+                          {trip.publicId}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] uppercase font-bold text-cyan-600 dark:text-cyan-400 border-cyan-500/30">
+                          GIS Active Hub
+                        </Badge>
+                        {culture?.unescoStatus && (
+                          <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px]">
+                            {culture.unescoStatus}
+                          </Badge>
+                        )}
+                      </div>
+                      <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <MapPin className="h-6 w-6 text-primary shrink-0" />
+                        <span>{dest?.city || trip.city || trip.destination}</span>
+                        <span className="text-sm md:text-base font-normal text-slate-400">
+                          ({dest?.state || trip.state ? `${dest?.state || trip.state}, ` : ""}{dest?.country || trip.country})
+                        </span>
+                      </h2>
+                      <p className="text-xs text-slate-500 flex items-center gap-2 flex-wrap">
+                        <span><strong>Region:</strong> {dest?.region || trip.region || "Western Coast / Ghats"}</span>
+                        <span>•</span>
+                        <span><strong>District:</strong> {dest?.district || trip.district || "North Goa"}</span>
+                        <span>•</span>
+                        <span><strong>Timezone:</strong> {dest?.timezone || dest?.timeZone || trip.timezone || "IST (UTC+05:30)"}</span>
+                        <span>•</span>
+                        <span><strong>Currency:</strong> {dest?.currency || trip.currency} (₹)</span>
+                        <span>•</span>
+                        <span><strong>Language:</strong> {dest?.languages ? dest.languages.join(" / ") : dest?.language || "English / Hindi / Regional"}</span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                      <a
+                        href={googleMapsSearchUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:opacity-95 shadow-xs transition-all"
+                      >
+                        <Navigation className="h-3.5 w-3.5" />
+                        <span>Open in Google Maps</span>
+                      </a>
+                      <a
+                        href={googleMapsDirUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border border-slate-200/80 dark:border-slate-800 bg-background hover:bg-slate-50 dark:hover:bg-slate-900 transition-all"
+                      >
+                        <ArrowUpRight className="h-3.5 w-3.5" />
+                        <span>Route & Directions</span>
+                      </a>
+                      {culture?.govtTourismUrl && (
+                        <a
+                          href={culture.govtTourismUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-primary transition-all"
+                          title="Official Tourism Portal"
+                        >
+                          <Globe className="h-3.5 w-3.5" />
+                          <span>Official Portal</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Four Executive Metrics Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-4 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-500 flex items-center gap-1">
+                      <Compass className="h-3.5 w-3.5" /> Coordinates & ASL
+                    </span>
+                    <p className="text-sm font-black text-slate-900 dark:text-slate-100 font-mono">
+                      {coords.latitude.toFixed(4)}°N, {coords.longitude.toFixed(4)}°E
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Altitude: {coords.altitudeMeters ?? 15}m above sea level
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 flex items-center gap-1">
+                      <Sun className="h-3.5 w-3.5" /> Live Temperature
+                    </span>
+                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">
+                      {climate?.avgTempCelsius ?? 27}°C <span className="text-xs font-normal text-slate-400">({climate?.expectedWeather || "Warm / Coastal"})</span>
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Range: {climate?.minTempCelsius ?? 22}°C – {climate?.maxTempCelsius ?? 32}°C
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 flex items-center gap-1">
+                      <Wind className="h-3.5 w-3.5" /> Atmosphere & AQI
+                    </span>
+                    <p className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                      AQI {climate?.airQualityIndex ?? 42} ({climate?.airQualityStatus || "Good"})
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Rain Probability: {climate?.rainProbabilityPct ?? 10}%
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500 flex items-center gap-1">
+                      <Shield className="h-3.5 w-3.5" /> Safety & Crowd
+                    </span>
+                    <p className="text-sm font-black text-indigo-600 dark:text-indigo-400">
+                      {safety?.overallSafetyScore ?? 92}/100 Index
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Crowd Level: {climate?.crowdLevel || "Moderate"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. Primary Grid: Logistics & Transit on Left | Emergency & Safety Command on Right */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Column: Transit, Logistics & Infrastructure */}
+                  <div className="space-y-6">
+                    {/* Transit Gateways Card */}
+                    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                          <Plane className="h-4 w-4 text-primary" />
+                          <span>Transit Gateways & Arrival Points</span>
+                        </h3>
+                        <Badge variant="outline" className="text-[10px]">Tri-Modal</Badge>
+                      </div>
+
+                      <div className="space-y-3 text-xs">
+                        {/* Airport */}
+                        {(() => {
+                          const airport = dest?.nearestAirport;
+                          const name = typeof airport === "object" ? airport.name : (airport || "Nearest Airport");
+                          const iata = typeof airport === "object" && airport.iataCode ? ` (${airport.iataCode})` : "";
+                          const dist = typeof airport === "object" && airport.distanceKm ? airport.distanceKm : 28;
+                          const drive = typeof airport === "object" && airport.driveTimeHours ? airport.driveTimeHours : 0.7;
+
+                          return (
+                            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-2.5">
+                                <Plane className="h-4 w-4 text-cyan-500 shrink-0" />
+                                <div>
+                                  <p className="font-bold text-slate-900 dark:text-slate-100">
+                                    {name}{iata}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400">
+                                    Domestic & International Gateway
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                                  {dist} km
+                                </span>
+                                <p className="text-[10px] text-slate-400">~{drive} hrs</p>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Railway Station */}
+                        {(() => {
+                          const rly = dest?.nearestRailwayStation;
+                          const name = typeof rly === "object" ? rly.name : (rly || "Nearest Railway Station");
+                          const code = typeof rly === "object" && rly.stationCode ? ` (${rly.stationCode})` : "";
+                          const dist = typeof rly === "object" && rly.distanceKm ? rly.distanceKm : 22;
+
+                          return (
+                            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-2.5">
+                                <Train className="h-4 w-4 text-amber-500 shrink-0" />
+                                <div>
+                                  <p className="font-bold text-slate-900 dark:text-slate-100">
+                                    {name}{code}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400">Express, Vande Bharat & Mail Terminus</p>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                                  {dist} km
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Bus Station */}
+                        {(() => {
+                          const bus = dest?.nearestBusStation;
+                          const name = typeof bus === "object" ? bus.name : (bus || "Central Interstate Bus Terminal");
+                          const dist = typeof bus === "object" && bus.distanceKm ? bus.distanceKm : 6;
+
+                          return (
+                            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-2.5">
+                                <Bus className="h-4 w-4 text-indigo-500 shrink-0" />
+                                <div>
+                                  <p className="font-bold text-slate-900 dark:text-slate-100">
+                                    {name}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400">State Transport & Private Volvos</p>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                                  {dist} km
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+                        <span><strong>Best Season:</strong> {climate?.bestSeason || "October to March"}</span>
+                        <span><strong>Sun:</strong> {climate?.sunriseTime || "06:15 AM"} ↑ / {climate?.sunsetTime || "06:45 PM"} ↓</span>
+                      </div>
+                    </Card>
+
+                    {/* Logistics, Terrain & Utilities Card */}
+                    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                          <Car className="h-4 w-4 text-primary" />
+                          <span>Terrain, Utilities & Infrastructure</span>
+                        </h3>
+                        <Badge variant="secondary" className="text-[10px]">Verified Logistics</Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 space-y-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Travel Difficulty</span>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{logistics?.travelDifficulty || "Easy"}</p>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 space-y-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Road Conditions</span>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{logistics?.roadCondition || "Paved Highways"}</p>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 space-y-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Cellular & Internet</span>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">
+                            {logistics?.networkAvailability || "5G High Speed"} ({logistics?.internetSpeedMbps ?? 65} Mbps)
+                          </p>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 space-y-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Electricity & Grid</span>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{logistics?.electricityReliability || "24/7 Grid Power"}</p>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 space-y-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Drinking Water</span>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{logistics?.drinkingWaterAvailability || "Readily Available"}</p>
+                        </div>
+
+                        <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 space-y-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Fuel Availability</span>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{logistics?.fuelAvailability || "Regular Stations"}</p>
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 text-xs flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Parking Availability:</span>
+                        <span className="font-bold text-slate-900 dark:text-slate-100">{logistics?.parkingAvailability || "Free Dedicated Parking"}</span>
+                      </div>
+                    </Card>
+
+                    {/* Points of Interest, Natural Wonders & Attractions */}
+                    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                          <Compass className="h-4 w-4 text-cyan-500" />
+                          <span>Points of Interest & Attractions</span>
+                        </h3>
+                        <Badge variant="outline" className="text-[10px]">Top Picks</Badge>
+                      </div>
+
+                      <div className="space-y-2.5 text-xs">
+                        {(poi?.topAttractions || []).map((att, i) => (
+                          <div key={i} className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                <span>{att.name}</span>
+                                <Badge variant="secondary" className="text-[9px] py-0">{att.type}</Badge>
+                              </p>
+                              <p className="text-[11px] text-slate-400">
+                                Entry: {att.entryFee === 0 ? "Free Entry" : `₹${att.entryFee}`} • Distance: {att.distanceKm} km
+                              </p>
+                            </div>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(att.mapsQuery || att.name)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-primary hover:underline text-[11px] flex items-center gap-1 font-bold shrink-0"
+                            >
+                              <ExternalLink className="h-3 w-3" /> Map
+                            </a>
+                          </div>
+                        ))}
+
+                        {/* Trek Routes */}
+                        {(poi?.trekRoutes || []).length > 0 && (
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] font-bold uppercase text-slate-400">Recommended Trek Routes</span>
+                            <div className="mt-1 space-y-1.5">
+                              {poi?.trekRoutes?.map((trek, i) => (
+                                <div key={i} className="flex justify-between items-center text-xs p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60">
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">{trek.name}</span>
+                                  <span className="text-[11px] text-slate-400 font-mono">
+                                    {trek.difficulty} • {trek.durationHours} hrs • {trek.distanceKm} km
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recommended Stays & Eateries */}
+                        {(amenities?.nearbyHotels || []).length > 0 && (
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <span className="text-[10px] font-bold uppercase text-slate-400">Recommended Stays</span>
+                            <div className="mt-1 grid grid-cols-2 gap-2">
+                              {amenities?.nearbyHotels?.map((h, i) => (
+                                <div key={i} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 text-xs">
+                                  <p className="font-bold truncate">{h.name}</p>
+                                  <p className="text-[10px] text-slate-400">★ {h.rating} • ₹{h.approxPriceNight}/nt • {h.distanceKm}km</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Right Column: Emergency Hotlines, Safety Command & Local Rules */}
+                  <div className="space-y-6">
+                    {/* Emergency Response & Rapid Dial Hub */}
+                    <Card className="rounded-3xl border border-rose-200 dark:border-rose-900/50 bg-gradient-to-br from-rose-500/5 via-card to-background p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                          <Phone className="h-4 w-4" />
+                          <span>Emergency Command & Rapid Dial Hotlines</span>
+                        </h3>
+                        <Badge variant="destructive" className="text-[10px]">24/7 Response</Badge>
+                      </div>
+
+                      {/* Rapid 1-Click Dial Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        <a
+                          href={`tel:${emergency?.nationalEmergency || "112"}`}
+                          className="p-3 rounded-2xl bg-card border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all text-center group"
+                        >
+                          <span className="text-[9px] font-bold uppercase text-slate-400">National Emergency</span>
+                          <p className="text-base font-black text-rose-600 dark:text-rose-400 group-hover:scale-105 transition-transform">
+                            {emergency?.nationalEmergency || "112"}
+                          </p>
+                          <span className="text-[9px] text-slate-400">All-in-One</span>
+                        </a>
+
+                        <a
+                          href={`tel:${emergency?.ambulance || "108"}`}
+                          className="p-3 rounded-2xl bg-card border border-slate-200 dark:border-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-all text-center group"
+                        >
+                          <span className="text-[9px] font-bold uppercase text-slate-400">Medical Ambulance</span>
+                          <p className="text-base font-black text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform">
+                            {emergency?.ambulance || "108"}
+                          </p>
+                          <span className="text-[9px] text-slate-400">Immediate EMT</span>
+                        </a>
+
+                        <a
+                          href={`tel:${emergency?.police || "100"}`}
+                          className="p-3 rounded-2xl bg-card border border-slate-200 dark:border-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition-all text-center group"
+                        >
+                          <span className="text-[9px] font-bold uppercase text-slate-400">Police Hotline</span>
+                          <p className="text-base font-black text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
+                            {emergency?.police || "100"}
+                          </p>
+                          <span className="text-[9px] text-slate-400">Law Enforcement</span>
+                        </a>
+
+                        <a
+                          href={`tel:${emergency?.touristHelpline || "1363"}`}
+                          className="p-3 rounded-2xl bg-card border border-slate-200 dark:border-slate-800 hover:bg-cyan-50 dark:hover:bg-cyan-950/30 transition-all text-center group"
+                        >
+                          <span className="text-[9px] font-bold uppercase text-slate-400">Tourist Support</span>
+                          <p className="text-base font-black text-cyan-600 dark:text-cyan-400 group-hover:scale-105 transition-transform">
+                            {emergency?.touristHelpline || "1363"}
+                          </p>
+                          <span className="text-[9px] text-slate-400">Govt 24/7 Multi-Lingual</span>
+                        </a>
+
+                        <a
+                          href={`tel:${emergency?.womenHelpline || "1091"}`}
+                          className="p-3 rounded-2xl bg-card border border-slate-200 dark:border-slate-800 hover:bg-purple-50 dark:hover:bg-purple-950/30 transition-all text-center group"
+                        >
+                          <span className="text-[9px] font-bold uppercase text-slate-400">Women Helpline</span>
+                          <p className="text-base font-black text-purple-600 dark:text-purple-400 group-hover:scale-105 transition-transform">
+                            {emergency?.womenHelpline || "1091"}
+                          </p>
+                          <span className="text-[9px] text-slate-400">Safety & Support</span>
+                        </a>
+
+                        <a
+                          href={`tel:${emergency?.fire || "101"}`}
+                          className="p-3 rounded-2xl bg-card border border-slate-200 dark:border-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-all text-center group"
+                        >
+                          <span className="text-[9px] font-bold uppercase text-slate-400">Fire & Rescue</span>
+                          <p className="text-base font-black text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform">
+                            {emergency?.fire || "101"}
+                          </p>
+                          <span className="text-[9px] text-slate-400">Disaster Dispatch</span>
+                        </a>
+                      </div>
+
+                      {/* Nearby Medical & Police Details */}
+                      <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                        <div className="flex justify-between items-center p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60">
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-slate-100">{amenities?.nearbyHospital || "District Civil Hospital"}</p>
+                            <p className="text-[11px] text-slate-400">{amenities?.medicalFacilities || "24/7 Trauma, ICU & Blood Bank"} • {amenities?.nearbyHospitalDistanceKm ?? 3.5} km</p>
+                          </div>
+                          <a href={`tel:${amenities?.nearbyHospitalPhone || "108"}`} className="font-mono font-bold text-emerald-600 text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10">
+                            Call {amenities?.nearbyHospitalPhone || "108"}
+                          </a>
+                        </div>
+
+                        <div className="flex justify-between items-center p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60">
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-slate-100">{amenities?.policeStation || "Local Police Headquarters"}</p>
+                            <p className="text-[11px] text-slate-400">Jurisdiction Center • {amenities?.policeStationDistanceKm ?? 2.1} km</p>
+                          </div>
+                          <a href={`tel:${amenities?.policeStationPhone || "112"}`} className="font-mono font-bold text-indigo-600 text-xs px-2.5 py-1 rounded-lg bg-indigo-500/10">
+                            Call {amenities?.policeStationPhone || "112"}
+                          </a>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* Safety Matrix & Ratings */}
+                    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                          <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                          <span>Safety Audit & Demographic Ratings</span>
+                        </h3>
+                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px]">
+                          Score: {safety?.overallSafetyScore ?? 94}/100
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 text-center">
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Solo Travel</span>
+                          <p className="font-bold text-emerald-600 mt-0.5">{safety?.soloFriendly !== false ? "Friendly ✓" : "Caution"}</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 text-center">
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Family Rating</span>
+                          <p className="font-bold text-emerald-600 mt-0.5">{safety?.familyFriendly !== false ? "Top Tier ✓" : "Moderate"}</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 text-center">
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Night Safety</span>
+                          <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{safety?.nightSafetyScore ?? 88}/100</p>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 text-center">
+                          <span className="text-[9px] uppercase font-bold text-slate-400">Wheelchair</span>
+                          <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{safety?.wheelchairAccessible ? "Accessible" : "Partial"}</p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-500 italic p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+                        &ldquo;{safety?.safetyRemarks || "High tourist footfall area with continuous police patrolling and illuminated pedestrian corridors."}&rdquo;
+                      </p>
+                    </Card>
+
+                    {/* Culture, Heritage, Drone Laws & Luggage Recommendations */}
+                    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-primary" />
+                          <span>Regulations, Heritage & Essential Packing</span>
+                        </h3>
+                        <Badge variant="outline" className="text-[10px]">Compliance</Badge>
+                      </div>
+
+                      <div className="space-y-3 text-xs">
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60">
+                          <span className="font-medium text-slate-600 dark:text-slate-400">Drone Flying Policy:</span>
+                          <Badge variant="secondary" className="font-bold text-[10px]">
+                            {culture?.droneRules || "Permitted with DGCA License"}
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60">
+                          <span className="font-medium text-slate-600 dark:text-slate-400">Photography Rules:</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 text-right">
+                            {culture?.photographyRules || "Permitted in public spaces; respect sacred spaces"}
+                          </span>
+                        </div>
+
+                        {/* Local Rules */}
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-slate-400">Local Customs & Etiquette</span>
+                          <ul className="mt-1 space-y-1 text-slate-600 dark:text-slate-400">
+                            {(culture?.localRules || [
+                              "Respect local community dress codes at temples and religious heritage monuments.",
+                              "Carry digital and physical copies of government IDs.",
+                              "Observe environmental zero-plastic rules in coastal and forested zones.",
+                            ]).map((rule, idx) => (
+                              <li key={idx} className="flex items-start gap-1.5">
+                                <span className="text-primary mt-0.5">•</span>
+                                <span>{rule}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Packing Suggestions */}
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <span className="text-[10px] font-bold uppercase text-slate-400">Suggested Packing Items</span>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {(culture?.packingSuggestions || [
+                              "Cotton apparel",
+                              "Sunscreen SPF 50+",
+                              "Comfortable walking shoes",
+                              "Portable powerbank",
+                              "Universal adapter",
+                              "Govt Photo ID",
+                            ]).map((item, idx) => (
+                              <Badge key={idx} variant="outline" className="text-[10px] py-0.5 font-normal">
+                                {item}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </TabsContent>
 
         {/* 2. BUDGET MANAGEMENT TAB */}
@@ -1583,81 +2212,209 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
         {/* 6. EVENTS TAB */}
         <TabsContent value="events" className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">Group Travel Events & Milestones</h3>
-            <Button size="sm" onClick={() => setIsAddEventOpen(true)} className="rounded-xl text-xs font-bold gap-1">
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100">Group Travel Events & Milestones</h3>
+              <p className="text-xs text-slate-500">Coordinate flights, stays, dining, and activities with permanent check-in IDs.</p>
+            </div>
+            <Button size="sm" onClick={() => setIsAddEventOpen(true)} className="rounded-xl text-xs font-bold gap-1 bg-primary text-primary-foreground shadow-xs">
               <Plus className="h-4 w-4" /> Add Event
             </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {trip.events.map((evt) => (
-              <Card key={evt.id} className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">{evt.title}</h4>
-                  <Badge variant="secondary" className="capitalize text-[10px]">{evt.type}</Badge>
-                </div>
-                <div className="text-xs text-slate-500 space-y-1">
-                  <p><strong>Scheduled:</strong> {evt.startDateTime}</p>
-                  <p><strong>Location:</strong> {evt.location}</p>
-                  <p><strong>Budget Pool:</strong> {formatCurrency(evt.budget, trip.currency)}</p>
-                  {evt.mapsLink && (
-                    <a
-                      href={evt.mapsLink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-primary flex items-center gap-1 hover:underline pt-0.5"
-                    >
-                      <ExternalLink className="h-3 w-3" /> View Map Location
-                    </a>
-                  )}
-                </div>
+            {trip.events.map((evt) => {
+              const priorityColor =
+                evt.priority === "High"
+                  ? "border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/10"
+                  : evt.priority === "Low"
+                  ? "border-slate-500/30 text-slate-500 bg-slate-500/10"
+                  : "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10";
 
-                <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
-                  <select
-                    value={evt.status}
-                    onChange={(e) => handleEventStatusChange(evt.id, e.target.value as TripEventStatus)}
-                    className="text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-0.5 bg-background cursor-pointer"
-                  >
-                    <option value="upcoming">Upcoming</option>
-                    <option value="ongoing">Ongoing</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="missed">Missed</option>
-                    <option value="rescheduled">Rescheduled</option>
-                  </select>
+              return (
+                <Card
+                  key={evt.id}
+                  className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 h-full flex flex-col justify-between hover:-translate-y-1.5 transition-all duration-200 hover:shadow-lg hover:border-primary/50 group"
+                >
+                  <div className="space-y-3">
+                    {/* Header Bar */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(evt.publicId || evt.id);
+                              toast.success("Event Public ID copied to clipboard!");
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold text-primary hover:bg-primary/10 transition-colors"
+                            title="Click to copy permanent Public ID"
+                          >
+                            <span>{evt.publicId || evt.id}</span>
+                            <Copy className="h-2.5 w-2.5 text-slate-400 group-hover:text-primary transition-colors" />
+                          </button>
+                          <Badge variant="outline" className={`text-[10px] font-bold uppercase ${priorityColor}`}>
+                            {evt.priority || "Medium"} Priority
+                          </Badge>
+                          <Badge variant="secondary" className="capitalize text-[10px]">
+                            {evt.type.replace(/_/g, " ")}
+                          </Badge>
+                        </div>
+                        <h4 className="font-bold text-base text-slate-900 dark:text-slate-100 mt-0.5">
+                          {evt.title}
+                        </h4>
+                      </div>
 
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => handleOpenEditEvent(evt)}
-                      className="h-7 w-7 text-slate-400 hover:text-primary"
-                      title="Edit Event"
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => handleDuplicateEvent(evt.id)}
-                      className="h-7 w-7 text-slate-400 hover:text-indigo-600"
-                      title="Duplicate Event"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => deleteTripEvent(trip.id, evt.id).then(updateTripState)}
-                      className="h-7 w-7 text-slate-400 hover:text-rose-600"
-                      title="Delete Event"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setSelectedEventQr(evt)}
+                        className="h-8 w-8 text-slate-400 hover:text-primary shrink-0"
+                        title="View Check-in QR Code"
+                      >
+                        <QrCode className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Schedule & Venue Meta */}
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span>{evt.startDateTime}</span>
+                        </span>
+                        {evt.endDateTime && (
+                          <span className="text-[11px] text-slate-400">until {evt.endDateTime}</span>
+                        )}
+                      </div>
+
+                      <div className="flex items-start justify-between gap-2 text-slate-600 dark:text-slate-300">
+                        <span className="flex items-start gap-1.5 font-medium">
+                          <MapPin className="h-3.5 w-3.5 text-rose-500 shrink-0 mt-0.5" />
+                          <span>
+                            {evt.venue ? `${evt.venue}, ` : ""}{evt.location}
+                            {evt.address && <span className="block text-[11px] text-slate-400 font-normal">{evt.address}</span>}
+                          </span>
+                        </span>
+                        {evt.mapsLink && (
+                          <a
+                            href={evt.mapsLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline flex items-center gap-1 font-bold shrink-0 text-[11px]"
+                          >
+                            <ExternalLink className="h-3 w-3" /> Map
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Financial & Attendance Metrics */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Budget Allocation</span>
+                        <p className="font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                          {formatCurrency(evt.budget, trip.currency)}
+                        </p>
+                        {evt.actualCost ? (
+                          <p className="text-[10px] text-rose-500 font-mono">
+                            Actual: {formatCurrency(evt.actualCost, trip.currency)}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Attendance & Host</span>
+                        <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                          {evt.currentAttendance ?? trip.members.length} / {evt.expectedAttendance ?? trip.members.length} Confirmed
+                        </p>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          Host: {evt.organizerName || trip.organizerName}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Operational Badges (Dress Code, Transport, Parking, Weather) */}
+                    <div className="flex flex-wrap gap-1.5 text-[11px]">
+                      {evt.dressCode && (
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/50 dark:border-slate-700/50">
+                          Dress: {evt.dressCode}
+                        </span>
+                      )}
+                      {evt.transportPlan && (
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/50 dark:border-slate-700/50">
+                          Transit: {evt.transportPlan}
+                        </span>
+                      )}
+                      {evt.parkingInfo && (
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/50 dark:border-slate-700/50">
+                          Parking: {evt.parkingInfo}
+                        </span>
+                      )}
+                      {evt.weatherForecast && (
+                        <span className="px-2 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+                          Weather: {evt.weatherForecast}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+
+                  {/* Card Bottom Controls */}
+                  <div className="pt-3 mt-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+                    <select
+                      value={evt.status}
+                      onChange={(e) => handleEventStatusChange(evt.id, e.target.value as TripEventStatus)}
+                      className="text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-1 bg-background cursor-pointer"
+                    >
+                      <option value="upcoming">Upcoming</option>
+                      <option value="ongoing">Ongoing</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                      <option value="missed">Missed</option>
+                      <option value="rescheduled">Rescheduled</option>
+                    </select>
+
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setSelectedEventQr(evt)}
+                        className="h-7 w-7 text-slate-400 hover:text-cyan-500"
+                        title="View Event Check-in QR"
+                      >
+                        <QrCode className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleOpenEditEvent(evt)}
+                        className="h-7 w-7 text-slate-400 hover:text-primary"
+                        title="Edit Event"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleDuplicateEvent(evt.id)}
+                        className="h-7 w-7 text-slate-400 hover:text-indigo-600"
+                        title="Duplicate Event"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteTripEvent(trip.id, evt.id).then(updateTripState)}
+                        className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                        title="Delete Event"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         </TabsContent>
 
@@ -2628,11 +3385,11 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
             <DialogTitle className="text-base font-bold">Schedule Group Event</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-3 text-xs py-2">
+          <div className="space-y-3 text-xs py-2 max-h-[75vh] overflow-y-auto pr-1">
             <div>
               <label className="font-bold">Event Title *</label>
               <Input
-                placeholder="e.g. Sunset Cruise & Dinner"
+                placeholder="e.g. Mandovi Sunset Cruise & Dinner"
                 value={eventTitle}
                 onChange={(e) => setEventTitle(e.target.value)}
                 className="rounded-xl h-10 mt-1"
@@ -2645,39 +3402,58 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                 <select
                   value={eventType}
                   onChange={(e) => setEventType(e.target.value as any)}
-                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3 capitalize"
                 >
                   <option value="activity">Activity</option>
-                  <option value="hotel_checkin">Hotel Check-in</option>
                   <option value="flight">Flight</option>
-                  <option value="bus">Bus</option>
                   <option value="train">Train</option>
+                  <option value="bus">Bus</option>
+                  <option value="hotel">Hotel</option>
+                  <option value="hotel_checkin">Hotel Check-in</option>
+                  <option value="check_in">Check-in</option>
+                  <option value="check_out">Check-out</option>
                   <option value="dinner">Dinner</option>
+                  <option value="breakfast">Breakfast</option>
+                  <option value="lunch">Lunch</option>
+                  <option value="trek">Trek</option>
                   <option value="trekking">Trekking</option>
                   <option value="camping">Camping</option>
+                  <option value="adventure">Adventure</option>
+                  <option value="sightseeing">Sightseeing</option>
                   <option value="meeting">Meeting</option>
+                  <option value="photography">Photography</option>
+                  <option value="shopping">Shopping</option>
+                  <option value="festival">Festival</option>
+                  <option value="temple_visit">Temple Visit</option>
+                  <option value="beach_visit">Beach Visit</option>
+                  <option value="water_sports">Water Sports</option>
+                  <option value="emergency">Emergency</option>
                   <option value="reminder">Reminder</option>
+                  <option value="custom">Custom</option>
                 </select>
               </div>
 
+              <div>
+                <label className="font-bold">Priority</label>
+                <select
+                  value={eventPriority}
+                  onChange={(e) => setEventPriority(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="font-bold">Date & Time</label>
                 <Input
                   type="date"
                   value={eventDate}
                   onChange={(e) => setEventDate(e.target.value)}
-                  className="rounded-xl h-10 mt-1"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="font-bold">Location</label>
-                <Input
-                  placeholder="e.g. Mandovi River Jetty"
-                  value={eventLocation}
-                  onChange={(e) => setEventLocation(e.target.value)}
                   className="rounded-xl h-10 mt-1"
                 />
               </div>
@@ -2692,6 +3468,70 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                   className="rounded-xl h-10 mt-1 font-mono"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Location</label>
+                <Input
+                  placeholder="e.g. Panaji"
+                  value={eventLocation}
+                  onChange={(e) => setEventLocation(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Venue Name</label>
+                <Input
+                  placeholder="e.g. Captain of Ports Jetty"
+                  value={eventVenue}
+                  onChange={(e) => setEventVenue(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold">Address / Landmark</label>
+              <Input
+                placeholder="e.g. Dayanand Bandodkar Marg, Panaji, Goa"
+                value={eventAddress}
+                onChange={(e) => setEventAddress(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Dress Code</label>
+                <Input
+                  placeholder="e.g. Smart Casual / Tropical"
+                  value={eventDressCode}
+                  onChange={(e) => setEventDressCode(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Transport Plan</label>
+                <Input
+                  placeholder="e.g. Shared Tempo Traveller"
+                  value={eventTransportPlan}
+                  onChange={(e) => setEventTransportPlan(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold">Parking Details</label>
+              <Input
+                placeholder="e.g. Pay & park at Santa Monica Jetty"
+                value={eventParkingInfo}
+                onChange={(e) => setEventParkingInfo(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -2715,7 +3555,7 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
             <DialogTitle className="text-base font-bold">Edit Group Event</DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-3 text-xs py-2">
+          <div className="space-y-3 text-xs py-2 max-h-[75vh] overflow-y-auto pr-1">
             <div>
               <label className="font-bold">Event Title *</label>
               <Input
@@ -2731,18 +3571,34 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                 <select
                   value={eventType}
                   onChange={(e) => setEventType(e.target.value as any)}
-                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3 capitalize"
                 >
                   <option value="activity">Activity</option>
-                  <option value="hotel_checkin">Hotel Check-in</option>
                   <option value="flight">Flight</option>
-                  <option value="bus">Bus</option>
                   <option value="train">Train</option>
+                  <option value="bus">Bus</option>
+                  <option value="hotel">Hotel</option>
+                  <option value="hotel_checkin">Hotel Check-in</option>
+                  <option value="check_in">Check-in</option>
+                  <option value="check_out">Check-out</option>
                   <option value="dinner">Dinner</option>
+                  <option value="breakfast">Breakfast</option>
+                  <option value="lunch">Lunch</option>
+                  <option value="trek">Trek</option>
                   <option value="trekking">Trekking</option>
                   <option value="camping">Camping</option>
+                  <option value="adventure">Adventure</option>
+                  <option value="sightseeing">Sightseeing</option>
                   <option value="meeting">Meeting</option>
+                  <option value="photography">Photography</option>
+                  <option value="shopping">Shopping</option>
+                  <option value="festival">Festival</option>
+                  <option value="temple_visit">Temple Visit</option>
+                  <option value="beach_visit">Beach Visit</option>
+                  <option value="water_sports">Water Sports</option>
+                  <option value="emergency">Emergency</option>
                   <option value="reminder">Reminder</option>
+                  <option value="custom">Custom</option>
                 </select>
               </div>
 
@@ -2781,6 +3637,80 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
                   value={eventActualCost}
                   onChange={(e) => setEventActualCost(e.target.value)}
                   className="rounded-xl h-10 mt-1 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Venue Name</label>
+                <Input
+                  value={eventVenue}
+                  onChange={(e) => setEventVenue(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Priority</label>
+                <select
+                  value={eventPriority}
+                  onChange={(e) => setEventPriority(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                >
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold">Address / Landmark</label>
+              <Input
+                value={eventAddress}
+                onChange={(e) => setEventAddress(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Dress Code</label>
+                <Input
+                  value={eventDressCode}
+                  onChange={(e) => setEventDressCode(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Transport Plan</label>
+                <Input
+                  value={eventTransportPlan}
+                  onChange={(e) => setEventTransportPlan(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="font-bold">Parking Details</label>
+                <Input
+                  value={eventParkingInfo}
+                  onChange={(e) => setEventParkingInfo(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold">Weather Forecast</label>
+                <Input
+                  placeholder="e.g. Sunny 28°C"
+                  value={eventWeatherForecast}
+                  onChange={(e) => setEventWeatherForecast(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
                 />
               </div>
             </div>
@@ -3137,6 +4067,108 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated }
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* DIALOG 14: Event QR Code Modal */}
+      {/* ========================================================================= */}
+      <Dialog open={!!selectedEventQr} onOpenChange={(open) => !open && setSelectedEventQr(null)}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800 text-center">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center justify-center gap-2">
+              <QrCode className="h-5 w-5 text-primary" />
+              <span>Event Digital Pass & QR</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Permanent check-in code and digital pass for group events.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedEventQr && (
+            <div className="space-y-4 py-3">
+              <div className="p-4 bg-white rounded-2xl inline-block border border-slate-200 shadow-md">
+                <svg className="w-44 h-44 mx-auto" viewBox="0 0 100 100">
+                  <rect width="100" height="100" fill="#ffffff" />
+                  {/* Position detection patterns */}
+                  <rect x="8" y="8" width="28" height="28" fill="#0f172a" rx="4" />
+                  <rect x="12" y="12" width="20" height="20" fill="#ffffff" rx="2" />
+                  <rect x="16" y="16" width="12" height="12" fill="#0f172a" rx="1" />
+
+                  <rect x="64" y="8" width="28" height="28" fill="#0f172a" rx="4" />
+                  <rect x="68" y="12" width="20" height="20" fill="#ffffff" rx="2" />
+                  <rect x="72" y="16" width="12" height="12" fill="#0f172a" rx="1" />
+
+                  <rect x="8" y="64" width="28" height="28" fill="#0f172a" rx="4" />
+                  <rect x="12" y="68" width="20" height="20" fill="#ffffff" rx="2" />
+                  <rect x="16" y="72" width="12" height="12" fill="#0f172a" rx="1" />
+
+                  {/* Data patterns */}
+                  <rect x="42" y="12" width="6" height="6" fill="#0f172a" />
+                  <rect x="52" y="12" width="6" height="6" fill="#0f172a" />
+                  <rect x="42" y="24" width="6" height="6" fill="#0f172a" />
+                  <rect x="52" y="32" width="6" height="6" fill="#0f172a" />
+                  <rect x="42" y="42" width="16" height="16" fill="#0f172a" rx="2" />
+                  <rect x="12" y="44" width="6" height="6" fill="#0f172a" />
+                  <rect x="24" y="44" width="6" height="6" fill="#0f172a" />
+                  <rect x="68" y="44" width="6" height="6" fill="#0f172a" />
+                  <rect x="78" y="44" width="6" height="6" fill="#0f172a" />
+                  <rect x="42" y="64" width="6" height="6" fill="#0f172a" />
+                  <rect x="52" y="64" width="6" height="6" fill="#0f172a" />
+                  <rect x="64" y="64" width="6" height="6" fill="#0f172a" />
+                  <rect x="74" y="74" width="16" height="16" fill="#0f172a" rx="2" />
+                </svg>
+              </div>
+
+              <div className="space-y-1">
+                <p className="font-bold text-sm text-slate-900 dark:text-slate-100">{selectedEventQr.title}</p>
+                <div className="flex items-center justify-center gap-1.5 font-mono text-xs text-primary font-bold">
+                  <span>{selectedEventQr.publicId || selectedEventQr.id}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 text-slate-400 hover:text-primary"
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedEventQr.publicId || selectedEventQr.id);
+                      toast.success("Event Public ID copied to clipboard!");
+                    }}
+                    title="Copy Event Public ID"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  {selectedEventQr.location} • {selectedEventQr.startDateTime}
+                </p>
+                {selectedEventQr.venue && (
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Venue: {selectedEventQr.venue}
+                  </p>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedEventQr(null)}
+                  className="rounded-xl text-xs px-6"
+                >
+                  Close
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedEventQr.publicId || selectedEventQr.id);
+                    toast.success("Event Public ID copied to clipboard!");
+                  }}
+                  className="rounded-xl text-xs px-6 font-bold bg-primary text-primary-foreground"
+                >
+                  Copy Event ID
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

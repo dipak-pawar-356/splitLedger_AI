@@ -136,6 +136,22 @@ export function generateExpenseId(): string {
   return generatePublicId("txn");
 }
 
+export function generateTripPublicId(): string {
+  const chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+  const array = new Uint8Array(12);
+  crypto.getRandomValues(array);
+  const randomStr = Array.from(array, (byte) => chars[byte % chars.length]).join("");
+  return `TRP-${randomStr}`;
+}
+
+export function generateEventPublicId(): string {
+  const chars = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+  const array = new Uint8Array(12);
+  crypto.getRandomValues(array);
+  const randomStr = Array.from(array, (byte) => chars[byte % chars.length]).join("");
+  return `EVT-${randomStr}`;
+}
+
 export function generateInvitationToken(excludeIds: string[] = []): string {
   return generateRandomNumericId(16, excludeIds);
 }

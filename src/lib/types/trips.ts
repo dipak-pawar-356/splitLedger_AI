@@ -51,12 +51,18 @@ export interface TripMember {
 export type BudgetCategoryKey =
   | "Transportation"
   | "Hotel"
+  | "Accommodation"
   | "Food"
   | "Fuel"
   | "Shopping"
   | "Adventure"
-  | "Entry Tickets"
+  | "Camping"
   | "Medical"
+  | "Insurance"
+  | "Tickets"
+  | "Entry Tickets"
+  | "Guide Charges"
+  | "Parking"
   | "Emergency"
   | "Miscellaneous"
   | "Custom";
@@ -67,6 +73,11 @@ export interface CategoryBudget {
   spent: number; // in rupees
   remaining: number; // allocated - spent
   usagePct: number; // (spent / allocated) * 100
+  variance?: number; // allocated - spent
+  variancePct?: number; // ((allocated - spent) / allocated) * 100
+  priority?: "High" | "Medium" | "Low";
+  risk?: "Low" | "Medium" | "High";
+  aiRecommendation?: string;
   isOverBudget: boolean;
   projectedSpend: number;
   aiForecast: string;
@@ -132,36 +143,74 @@ export type TripEventStatus =
   | "missed"
   | "rescheduled";
 
+export type TripEventType =
+  | "flight"
+  | "train"
+  | "bus"
+  | "hotel"
+  | "hotel_checkin"
+  | "check_in"
+  | "check_out"
+  | "dinner"
+  | "breakfast"
+  | "lunch"
+  | "trek"
+  | "trekking"
+  | "camping"
+  | "adventure"
+  | "sightseeing"
+  | "meeting"
+  | "photography"
+  | "shopping"
+  | "festival"
+  | "temple_visit"
+  | "beach_visit"
+  | "water_sports"
+  | "emergency"
+  | "reminder"
+  | "activity"
+  | "custom";
+
 export interface TripEvent {
   id: string;
+  publicId?: string; // EVT-H4P9X7K2Q8ZM
   title: string;
-  type:
-    | "flight"
-    | "hotel_checkin"
-    | "bus"
-    | "train"
-    | "dinner"
-    | "trekking"
-    | "camping"
-    | "meeting"
-    | "activity"
-    | "reminder";
+  type: TripEventType;
   category?: string;
   startDateTime: string;
   endDateTime?: string;
+  durationMinutes?: number;
   location: string;
   venue?: string;
+  address?: string;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
   mapsLink?: string;
   description?: string;
   organizerName?: string;
   participants: string[];
   guestLimit?: number;
+  capacity?: number;
+  expectedAttendance?: number;
+  currentAttendance?: number;
   budget: number;
   estimatedBudget?: number;
   actualCost?: number;
   priority?: "High" | "Medium" | "Low";
   status: TripEventStatus;
   completionPct?: number;
+  weatherForecast?: string;
+  dressCode?: string;
+  transportPlan?: string;
+  parkingInfo?: string;
+  qrCodeData?: string;
+  publicLink?: string;
+  visibility?: "public" | "private" | "members_only";
+  requiredDocuments?: string[];
+  checklist?: string[];
+  emergencyContact?: string;
   reminderDate?: string;
   notes?: string;
   attachments?: string[];
@@ -242,8 +291,108 @@ export interface TripHealthReport {
   summary: string;
 }
 
+export interface DestinationIntelligence {
+  country: string;
+  state: string;
+  district?: string;
+  city: string;
+  area?: string;
+  region?: string;
+  nearestAirport: string | { name: string; iataCode?: string; distanceKm?: number; driveTimeHours?: number };
+  nearestRailwayStation: string | { name: string; stationCode?: string; distanceKm?: number };
+  nearestBusStation: string | { name: string; distanceKm?: number };
+  timezone: string;
+  timeZone?: string;
+  currency: string;
+  languages: string[];
+  language?: string;
+  emergencyNumbers: {
+    police: string;
+    ambulance: string;
+    fire: string;
+    womenHelpline: string;
+    touristHelpline: string;
+    nationalEmergency?: string;
+  };
+  coordinates: {
+    latitude: number;
+    longitude: number;
+    altitudeMeters?: number;
+  };
+  climate: {
+    type: string;
+    avgTempCelsius: number;
+    minTempCelsius: number;
+    maxTempCelsius: number;
+    sunriseTime: string;
+    sunsetTime: string;
+    bestSeason: string;
+    expectedWeather: string;
+    rainProbabilityPct: number;
+    airQualityIndex: number;
+    airQualityStatus: "Good" | "Moderate" | "Poor" | "Unhealthy";
+    crowdLevel: "Low" | "Moderate" | "High" | "Peak Season";
+  };
+  logistics: {
+    travelDifficulty: "Easy" | "Moderate" | "Challenging" | "Expert";
+    roadCondition: "Paved Highways" | "Good Asphalt" | "Mixed Terrain" | "Offroad / 4x4 Recommended";
+    networkAvailability: "5G High Speed" | "4G LTE Solid" | "Spotty Cellular" | "No Cell Signal";
+    internetSpeedMbps: number;
+    electricityReliability: "24/7 Grid Power" | "Occasional Power Cuts" | "Generator Backup Only";
+    drinkingWaterAvailability: "Readily Available" | "Bottled Water Recommended" | "Purification Required";
+    fuelAvailability: "Stations Every 5km" | "Regular Stations" | "Sparse Stations (Carry Extra Fuel)";
+    parkingAvailability: "Free Dedicated Parking" | "Paid Public Parking" | "Limited Street Parking";
+  };
+  amenities: {
+    medicalFacilities: string;
+    nearbyHospital: string;
+    nearbyHospitalDistanceKm: number;
+    nearbyHospitalPhone: string;
+    policeStation: string;
+    policeStationDistanceKm: number;
+    policeStationPhone: string;
+    touristHelpCenter: string;
+    nearbyAtm: string;
+    nearbyMedicalStores: string[];
+    nearbyHotels: Array<{ name: string; rating: number; approxPriceNight: number; distanceKm: number }>;
+    nearbyRestaurants: Array<{ name: string; cuisine: string; rating: number; distanceKm: number }>;
+    nearbyFuelStations: Array<{ name: string; distanceKm: number; hasAirWater: boolean }>;
+    nearbyParking: Array<{ name: string; type: string; distanceKm: number }>;
+  };
+  pointsOfInterest: {
+    topAttractions: Array<{ name: string; type: string; distanceKm: number; entryFee: number; mapsQuery: string }>;
+    trekRoutes?: Array<{ name: string; difficulty: string; durationHours: number; distanceKm: number }>;
+    waterfalls?: Array<{ name: string; bestTime: string; distanceKm: number }>;
+    forts?: Array<{ name: string; era: string; distanceKm: number }>;
+    temples?: Array<{ name: string; deity: string; timings: string }>;
+    beaches?: Array<{ name: string; waterSports: boolean; cleanRating: number }>;
+    markets?: Array<{ name: string; speciality: string; distanceKm: number }>;
+  };
+  safetyRatings: {
+    overallSafetyScore: number;
+    familyFriendly: boolean;
+    petFriendly: boolean;
+    soloFriendly: boolean;
+    wheelchairAccessible: boolean;
+    nightSafetyScore: number;
+    safetyRemarks: string;
+  };
+  cultureAndRules: {
+    unescoStatus?: string;
+    govtTourismUrl?: string;
+    officialWebsite?: string;
+    wikipediaUrl?: string;
+    localRules: string[];
+    photographyRules: string;
+    droneRules: "Permitted with License" | "Permitted Without Permit" | "Strictly Prohibited" | "National Park Ban";
+    requiredPermits: string[];
+    packingSuggestions: string[];
+  };
+}
+
 export interface TripRecord {
   id: string;
+  publicId: string; // TRP-9X7M4K2P8Q5R
   userId: number;
   groupId?: number;
   name: string;
@@ -251,6 +400,9 @@ export interface TripRecord {
   country: string;
   state?: string;
   city?: string;
+  district?: string;
+  area?: string;
+  region?: string;
   meetingPoint?: string;
   travelType?: string;
   visibility?: "private" | "shared" | "public";
@@ -268,8 +420,13 @@ export interface TripRecord {
   status: TripStatus;
 
   // Financial Core (guaranteed mathematical reconciliation)
-  budgetAmount: number; // Total budget set
-  emergencyBuffer: number; // Emergency reserve buffer
+  budgetAmount: number; // legacy alias
+  overallBudget: number; // Total budget set
+  personalBudget: number;
+  sharedBudget: number;
+  emergencyBudget: number; // Emergency reserve buffer
+  reserveBudget: number; // Contingency reserve
+  emergencyBuffer: number; // legacy alias
   allocatedBudget: number; // Sum of category budgets
   estimatedTotal?: number; // legacy alias for allocated budget / estimated total
   actualTotal: number; // Total spent = Personal + Shared
@@ -277,7 +434,12 @@ export interface TripRecord {
   sharedExpensesTotal: number;
   remainingBudget: number; // Allocated - Actual
   variance: number; // Allocated - Actual
+  variancePct?: number;
   budgetUsedPct: number; // (Actual / Allocated) * 100
+
+  // Destination Intelligence
+  destinationInfo?: DestinationIntelligence;
+  weatherSummary?: string;
 
   // Health, Risk & AI Engine
   financialHealthScore: number; // 0-100
