@@ -185,15 +185,15 @@ export function createSeedLogisticsHub(tripId: string = "trip_goa_premium_01"): 
   ];
 
   const assignments: LogisticsTaskItem[] = [
-    { id: "tsk_01", task: "Buy food & trail energy rations", owner: "Sneha Patel", deadline: "Today, 18:00", status: "In Progress", completionPct: 75 },
-    { id: "tsk_02", task: "Book hotel & reconfirm late check-in voucher", owner: "Dipak Pawar", deadline: "Yesterday", status: "Completed", completionPct: 100 },
-    { id: "tsk_03", task: "Fuel vehicle & verify highway tire pressures", owner: "Rajesh (Driver)", deadline: "Today, 14:00", status: "Completed", completionPct: 100 },
-    { id: "tsk_04", task: "Collect payments & reconcile UPI advances", owner: "Aarav Sharma", deadline: "Tomorrow, 12:00", status: "In Progress", completionPct: 80 },
-    { id: "tsk_05", task: "Carry medicines, bandages & blister kits", owner: "Sneha Patel", deadline: "Today, 20:00", status: "Completed", completionPct: 100 },
-    { id: "tsk_06", task: "Carry climbing rope, harnesses & carabiners", owner: "Rohan Verma", deadline: "Tomorrow, 08:00", status: "In Progress", completionPct: 60 },
-    { id: "tsk_07", task: "Carry 4-season tents & thermal ground pads", owner: "Dipak Pawar", deadline: "Tomorrow, 09:00", status: "In Progress", completionPct: 70 },
-    { id: "tsk_08", task: "Carry cinema camera, drone & spare batteries", owner: "Aarav Sharma", deadline: "Today, 19:00", status: "Completed", completionPct: 100 },
-    { id: "tsk_09", task: "Carry certified trauma first aid kit & oximeter", owner: "Sneha Patel", deadline: "Today, 20:00", status: "Completed", completionPct: 100 },
+    { id: "tsk_01", task: "Buy food & trail energy rations", owner: "Sneha Patel", deadline: "Today, 18:00", status: "In Progress", completionPct: 75, category: "Food", priority: "High", budget: 3500 },
+    { id: "tsk_02", task: "Book hotel & reconfirm late check-in voucher", owner: "Dipak Pawar", deadline: "Yesterday", status: "Completed", completionPct: 100, category: "Accommodation", priority: "Critical", budget: 15000 },
+    { id: "tsk_03", task: "Fuel vehicle & verify highway tire pressures", owner: "Rajesh (Driver)", deadline: "Today, 14:00", status: "Completed", completionPct: 100, category: "Vehicle Fuel", priority: "High", budget: 4500 },
+    { id: "tsk_04", task: "Collect payments & reconcile UPI advances", owner: "Aarav Sharma", deadline: "Tomorrow, 12:00", status: "In Progress", completionPct: 80, category: "Finance", priority: "Medium", budget: 0 },
+    { id: "tsk_05", task: "Carry medicines, bandages & blister kits", owner: "Sneha Patel", deadline: "Today, 20:00", status: "Completed", completionPct: 100, category: "Medicine", priority: "Critical", budget: 1200 },
+    { id: "tsk_06", task: "Carry climbing rope, harnesses & carabiners", owner: "Rohan Verma", deadline: "Tomorrow, 08:00", status: "In Progress", completionPct: 60, category: "Ropes", priority: "High", budget: 2500 },
+    { id: "tsk_07", task: "Carry 4-season tents & thermal ground pads", owner: "Dipak Pawar", deadline: "Tomorrow, 09:00", status: "In Progress", completionPct: 70, category: "Tents", priority: "High", budget: 5000 },
+    { id: "tsk_08", task: "Carry cinema camera, drone & spare batteries", owner: "Aarav Sharma", deadline: "Today, 19:00", status: "Completed", completionPct: 100, category: "Camera", priority: "Medium", budget: 2000 },
+    { id: "tsk_09", task: "Carry certified trauma first aid kit & oximeter", owner: "Sneha Patel", deadline: "Today, 20:00", status: "Completed", completionPct: 100, category: "First Aid", priority: "Critical", budget: 1800 },
   ];
 
   const operationalTimeline = {

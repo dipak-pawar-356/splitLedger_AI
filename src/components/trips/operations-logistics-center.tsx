@@ -60,11 +60,42 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
   const [hub, setHub] = useState<TripLogisticsHub>(initialHub);
   const [activeTab, setActiveTab] = useState<string>("all");
 
-  // New Assignment Modal
+  // New Assignment Modal State & Operations Delegation
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskOwner, setNewTaskOwner] = useState("");
+  const [newTaskOwner, setNewTaskOwner] = useState("Sneha Patel");
   const [newTaskDeadline, setNewTaskDeadline] = useState("Tomorrow, 12:00");
+  const [newTaskCategory, setNewTaskCategory] = useState("Food");
+  const [newTaskPriority, setNewTaskPriority] = useState<"Critical" | "High" | "Medium" | "Low">("High");
+  const [newTaskBudget, setNewTaskBudget] = useState("3500");
+  const [newTaskNotes, setNewTaskNotes] = useState("");
+  const [taskCategoryFilter, setTaskCategoryFilter] = useState("all");
+
+  const handleCreateAssignment = async () => {
+    if (!newTaskTitle.trim()) {
+      toast.error("Please enter a task description");
+      return;
+    }
+
+    try {
+      const updated = await addLogisticsAssignment({
+        task: newTaskTitle.trim(),
+        owner: newTaskOwner.trim() || "Member",
+        deadline: newTaskDeadline.trim() || "Tomorrow, 12:00",
+        category: newTaskCategory,
+        priority: newTaskPriority,
+        budget: Number(newTaskBudget) || 0,
+        notes: newTaskNotes.trim(),
+      });
+      setHub({ ...updated });
+      setIsNewTaskOpen(false);
+      setNewTaskTitle("");
+      setNewTaskNotes("");
+      toast.success(`Assigned "${newTaskTitle.trim()}" to ${newTaskOwner.trim()}`);
+    } catch {
+      toast.error("Failed to assign operational work");
+    }
+  };
 
   // Interactive Task Completion Toggle
   const handleToggleTaskStatus = async (task: LogisticsTaskItem) => {
@@ -137,28 +168,6 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
       toast.success(`Vehicle ${vehicle.vehicleNumber} fuel gauge set to ${nextFuel}`);
     } catch {
       toast.error("Failed to update fuel gauge");
-    }
-  };
-
-  // Add work assignment
-  const handleCreateAssignment = async () => {
-    if (!newTaskTitle.trim()) {
-      toast.error("Please enter a task description");
-      return;
-    }
-    try {
-      const updated = await addLogisticsAssignment({
-        task: newTaskTitle.trim(),
-        owner: newTaskOwner.trim() || "Trip Member",
-        deadline: newTaskDeadline.trim() || "Tomorrow",
-      });
-      setHub({ ...updated });
-      setIsNewTaskOpen(false);
-      setNewTaskTitle("");
-      setNewTaskOwner("");
-      toast.success("Work assignment added successfully!");
-    } catch {
-      toast.error("Failed to add task assignment");
     }
   };
 
@@ -704,7 +713,7 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
         </Card>
 
         {/* CARD 9: MEMBER WORK ASSIGNMENTS */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 shadow-xs transition-all duration-250 group hover:-translate-y-1.5 hover:scale-[1.01] hover:shadow-xl hover:border-amber-500/50 hover:shadow-amber-500/10 flex flex-col justify-between">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card p-5 shadow-xs transition-all duration-300 group hover:-translate-y-1.5 hover:shadow-2xl hover:border-amber-500/50 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -718,7 +727,7 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
               </Badge>
             </div>
 
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2.5 text-xs">
               <div className="space-y-1">
                 <div className="flex justify-between items-center text-[11px]">
                   <span className="text-slate-500 font-medium">Delegation Execution:</span>
@@ -727,29 +736,96 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
                 <Progress value={assignmentsPct} className="h-2 rounded-full" />
               </div>
 
-              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                {hub.assignments.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => handleToggleTaskStatus(item)}
-                    className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-[11px] cursor-pointer hover:border-amber-400 transition-colors"
-                    title="Click to toggle completion status"
+              {/* Category Filter Chips */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+                {["all", "Food", "Medicine", "Vehicle Fuel", "Camera", "Tents", "Ropes", "First Aid"].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setTaskCategoryFilter(cat)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold whitespace-nowrap transition-all border ${
+                      taskCategoryFilter === cat
+                        ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                        : "bg-slate-50 dark:bg-slate-900 border-slate-200/70 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-amber-400"
+                    }`}
                   >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <div className={`h-3.5 w-3.5 rounded-full border flex items-center justify-center shrink-0 ${item.status === "Completed" ? "bg-emerald-600 border-emerald-600 text-white" : "border-slate-300"}`}>
-                          {item.status === "Completed" && <Check className="h-2.5 w-2.5" />}
-                        </div>
-                        <span className={`font-bold truncate ${item.status === "Completed" ? "line-through text-slate-400" : "text-slate-800 dark:text-slate-200"}`}>
-                          {item.task}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-slate-400 ml-5 block truncate">Owner: {item.owner} • {item.deadline}</span>
-                    </div>
-
-                    <span className="font-mono text-[10px] font-bold text-amber-600 shrink-0">{item.completionPct}%</span>
-                  </div>
+                    {cat === "all" ? "All Tasks" : cat}
+                  </button>
                 ))}
+              </div>
+
+              {/* Task Items List */}
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                {hub.assignments
+                  .filter((item) => {
+                    if (taskCategoryFilter === "all") return true;
+                    return (item.category || "").toLowerCase() === taskCategoryFilter.toLowerCase();
+                  })
+                  .map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleToggleTaskStatus(item)}
+                      className={`p-2.5 rounded-2xl border flex items-center justify-between gap-2.5 text-[11px] cursor-pointer transition-all duration-200 ${
+                        item.status === "Completed"
+                          ? "bg-emerald-500/5 border-emerald-500/30 text-emerald-950 dark:text-emerald-200 hover:border-emerald-500/50"
+                          : "bg-slate-50/70 dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 hover:border-amber-400 hover:shadow-xs"
+                      }`}
+                      title="Click to toggle status: Pending -> In Progress -> Completed"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 transition-transform ${
+                            item.status === "Completed"
+                              ? "bg-emerald-600 border-emerald-600 text-white scale-105"
+                              : "border-slate-300 dark:border-slate-600 hover:border-amber-500"
+                          }`}
+                        >
+                          {item.status === "Completed" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className={`font-bold truncate ${item.status === "Completed" ? "text-slate-800 dark:text-slate-200" : "text-slate-900 dark:text-slate-100"}`}>
+                            {item.task}
+                          </p>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mt-0.5 flex-wrap">
+                            {item.category && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 font-semibold border-amber-300/60 text-amber-700 dark:text-amber-400">
+                                {item.category}
+                              </Badge>
+                            )}
+                            <span>Owner: <strong className="text-slate-600 dark:text-slate-300">{item.owner}</strong></span>
+                            <span>•</span>
+                            <span>{item.deadline}</span>
+                            {item.budget ? (
+                              <>
+                                <span>•</span>
+                                <span className="font-mono text-emerald-600 font-bold">₹{item.budget.toLocaleString("en-IN")}</span>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      <Badge
+                        variant="secondary"
+                        className={`text-[9px] uppercase font-bold shrink-0 px-1.5 py-0 ${
+                          item.status === "Completed"
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                            : item.status === "In Progress"
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 animate-pulse"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {item.status}
+                      </Badge>
+                    </div>
+                  ))}
+
+                {hub.assignments.filter((item) => taskCategoryFilter === "all" || (item.category || "").toLowerCase() === taskCategoryFilter.toLowerCase()).length === 0 && (
+                  <div className="py-6 text-center text-slate-400 text-xs italic">
+                    No tasks found matching category &ldquo;{taskCategoryFilter}&rdquo;.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -760,9 +836,9 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
               size="sm"
               variant="ghost"
               onClick={() => setIsNewTaskOpen(true)}
-              className="h-6 text-[10px] font-bold text-amber-600 hover:bg-amber-50 p-0"
+              className="h-7 text-xs font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 px-2 rounded-xl"
             >
-              + Add Work Item
+              + Delegate Work
             </Button>
           </div>
         </Card>
@@ -770,22 +846,65 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
 
       {/* ASSIGN WORK MODAL */}
       <Dialog open={isNewTaskOpen} onOpenChange={setIsNewTaskOpen}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+        <DialogContent className="sm:max-w-xl rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-1.5">
-              <Plus className="h-4 w-4 text-amber-600" />
-              <span>Assign Operational Work</span>
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant="outline" className="text-[10px] uppercase font-bold text-amber-600 border-amber-300">
+                Operational Delegation
+              </Badge>
+              <span className="text-xs text-slate-400 font-mono">Trip Logistics Center</span>
+            </div>
+            <DialogTitle className="text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 text-left">
+              <Plus className="h-5 w-5 text-amber-600" />
+              <span>Assign Operational Work & Delegation</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Delegate responsibilities like food, medicine, vehicle fuel, camera, tents, ropes, and first aid
+            <DialogDescription className="text-xs text-slate-500 text-left">
+              Delegate mission-critical team responsibilities with category presets, assigned member, deadline, and allocated operational budget.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 text-xs py-2">
+          {/* Quick-Pick Delegation Presets */}
+          <div className="space-y-1.5 pt-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quick Category Presets</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {[
+                { label: "🥘 Food", desc: "Buy food rations, trail energy snacks & 20L water jars", cat: "Food", prio: "High", bgt: "3500", owner: "Sneha Patel" },
+                { label: "💊 Medicine", desc: "Carry altitude sickness tablets, Diamox & blister kits", cat: "Medicine", prio: "Critical", bgt: "1200", owner: "Sneha Patel" },
+                { label: "⛽ Fuel", desc: "Fuel vehicle to 100%, verify tyre pressure & FASTag", cat: "Vehicle Fuel", prio: "High", bgt: "4500", owner: "Rajesh (Driver)" },
+                { label: "📷 Camera", desc: "Carry cinema camera, drone & spare flight batteries", cat: "Camera", prio: "Medium", bgt: "2000", owner: "Aarav Sharma" },
+                { label: "⛺ Tents", desc: "Carry 4-season windproof tents & thermal groundsheets", cat: "Tents", prio: "High", bgt: "5000", owner: "Dipak Pawar" },
+                { label: "🪢 Ropes", desc: "Carry 60m dynamic climbing ropes, harnesses & carabiners", cat: "Ropes", prio: "Critical", bgt: "2500", owner: "Rohan Verma" },
+                { label: "🩹 First Aid", desc: "Carry Level-3 wilderness trauma first aid kit & oximeter", cat: "First Aid", prio: "Critical", bgt: "1800", owner: "Sneha Patel" },
+                { label: "📋 Permits", desc: "Verify forest passes, permits & member Aadhaar cards", cat: "Permits", prio: "High", bgt: "1500", owner: "Dipak Pawar" },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    setNewTaskTitle(preset.desc);
+                    setNewTaskCategory(preset.cat);
+                    setNewTaskPriority(preset.prio as any);
+                    setNewTaskBudget(preset.bgt);
+                    setNewTaskOwner(preset.owner);
+                  }}
+                  className={`p-2 rounded-xl text-left border transition-all text-xs ${
+                    newTaskCategory === preset.cat
+                      ? "bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200 font-bold"
+                      : "bg-slate-50 dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-400"
+                  }`}
+                >
+                  <span className="font-bold block truncate">{preset.label}</span>
+                  <span className="text-[10px] text-slate-400 block font-mono">₹{preset.bgt}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3.5 text-xs py-2">
             <div>
-              <label className="font-bold">Task Description *</label>
+              <label className="font-bold text-slate-700 dark:text-slate-300">Task Description *</label>
               <Input
-                placeholder="e.g. Carry first aid kit / Buy food / Fuel vehicle"
+                placeholder="e.g. Carry first aid kit / Buy food / Fuel vehicle / Carry tents & ropes"
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 className="rounded-xl h-10 mt-1"
@@ -794,7 +913,43 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="font-bold">Assigned Member</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Category</label>
+                <select
+                  value={newTaskCategory}
+                  onChange={(e) => setNewTaskCategory(e.target.value)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3 text-xs"
+                >
+                  <option value="Food">Food & Catering</option>
+                  <option value="Medicine">Medicine & Pharmacy</option>
+                  <option value="Vehicle Fuel">Vehicle Fuel & Transit</option>
+                  <option value="Camera">Camera & AV Gear</option>
+                  <option value="Tents">Tents & Campsite Shelter</option>
+                  <option value="Ropes">Ropes & Climbing Gear</option>
+                  <option value="First Aid">First Aid & Trauma Kit</option>
+                  <option value="Accommodation">Accommodation & Hotel</option>
+                  <option value="Finance">Finance & Cash Reserve</option>
+                  <option value="General Operations">General Operations</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Priority Level</label>
+                <select
+                  value={newTaskPriority}
+                  onChange={(e) => setNewTaskPriority(e.target.value as any)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3 text-xs"
+                >
+                  <option value="Critical">Critical (Mission Blocker)</option>
+                  <option value="High">High (Required)</option>
+                  <option value="Medium">Medium (Recommended)</option>
+                  <option value="Low">Low (Optional)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Assigned Member</label>
                 <Input
                   placeholder="e.g. Sneha Patel"
                   value={newTaskOwner}
@@ -804,22 +959,52 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
               </div>
 
               <div>
-                <label className="font-bold">Deadline</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Deadline</label>
                 <Input
-                  placeholder="e.g. Tomorrow, 18:00"
+                  placeholder="Tomorrow, 12:00"
                   value={newTaskDeadline}
                   onChange={(e) => setNewTaskDeadline(e.target.value)}
                   className="rounded-xl h-10 mt-1"
                 />
               </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Budget (₹ INR)</label>
+                <Input
+                  type="number"
+                  placeholder="3500"
+                  value={newTaskBudget}
+                  onChange={(e) => setNewTaskBudget(e.target.value)}
+                  className="rounded-xl h-10 mt-1 font-mono font-bold"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="font-bold text-slate-700 dark:text-slate-300">Operational Notes / Execution Instructions</label>
+              <Input
+                placeholder="e.g. Store in waterproof drybag; purchase from registered pharmacy"
+                value={newTaskNotes}
+                onChange={(e) => setNewTaskNotes(e.target.value)}
+                className="rounded-xl h-10 mt-1"
+              />
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button variant="outline" size="sm" onClick={() => setIsNewTaskOpen(false)} className="rounded-xl text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsNewTaskOpen(false)}
+                className="rounded-xl text-xs h-9"
+              >
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleCreateAssignment} className="rounded-xl text-xs font-bold bg-amber-600 text-white">
-                Assign Work
+              <Button
+                size="sm"
+                onClick={handleCreateAssignment}
+                className="rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white h-9 px-4 shadow-xs"
+              >
+                Assign Work Item
               </Button>
             </div>
           </div>

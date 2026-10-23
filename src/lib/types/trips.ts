@@ -420,6 +420,10 @@ export interface LogisticsTaskItem {
   deadline: string;
   status: "Upcoming" | "Pending" | "In Progress" | "Completed" | "Delayed";
   completionPct: number;
+  category?: string;
+  priority?: "Critical" | "High" | "Medium" | "Low";
+  budget?: number;
+  notes?: string;
 }
 
 export interface TripLogisticsHub {

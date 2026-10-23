@@ -101,18 +101,28 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
   const [expenseAmount, setExpenseAmount] = useState("");
   const [expenseTitle, setExpenseTitle] = useState("");
 
-  // Create Form State
+  // Create Form State - Enterprise Event Studio
   const [newTitle, setNewTitle] = useState("");
-  const [newCategory, setNewCategory] = useState("Activity");
+  const [newTagline, setNewTagline] = useState("");
+  const [newCategory, setNewCategory] = useState("Birthday");
   const [newPriority, setNewPriority] = useState<EventPriority>("Medium");
   const [newLocation, setNewLocation] = useState("");
   const [newVenue, setNewVenue] = useState("");
+  const [newAssemblyPoint, setNewAssemblyPoint] = useState("");
   const [newStartDate, setNewStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [newStartTime, setNewStartTime] = useState("10:00 AM");
   const [newEndTime, setNewEndTime] = useState("01:00 PM");
+  const [newReportingBuffer, setNewReportingBuffer] = useState("30 Mins Before Start");
   const [newCapacity, setNewCapacity] = useState("20");
+  const [newConfirmedAttendees, setNewConfirmedAttendees] = useState("5");
   const [newBudget, setNewBudget] = useState("5000");
+  const [newAdvancePaid, setNewAdvancePaid] = useState("1500");
+  const [newDressCode, setNewDressCode] = useState("Smart Casual");
   const [newLinkedTripId, setNewLinkedTripId] = useState<string>("standalone");
+  const [newCheckpoint1, setNewCheckpoint1] = useState("Guest Assembly & Welcome Drink");
+  const [newCheckpoint2, setNewCheckpoint2] = useState("Main Keynote / Core Activity");
+  const [newCheckpoint3, setNewCheckpoint3] = useState("Group Dinner & Financial Settlement");
+  const [createActiveTab, setCreateActiveTab] = useState<"identity" | "location" | "schedule" | "attendance" | "agenda">("identity");
 
   // Sync state if props change
   useMemo(() => {
@@ -288,27 +298,64 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
     }
     try {
       const linkedTrip = trips.find((t) => t.id === newLinkedTripId);
+      const cap = Number(newCapacity) || 20;
+      const conf = Math.min(cap, Number(newConfirmedAttendees) || 5);
+      const bud = Number(newBudget) || 5000;
+      const adv = Number(newAdvancePaid) || 0;
+
+      const initialTimeline = [
+        {
+          id: `tl_${Date.now()}_1`,
+          time: newStartTime || "10:00 AM",
+          activity: newCheckpoint1.trim() || "Assembly & Welcome Refreshments",
+          location: newAssemblyPoint.trim() || newVenue.trim() || "Arrival Gate Bay",
+          status: "upcoming" as const,
+        },
+        {
+          id: `tl_${Date.now()}_2`,
+          time: "11:30 AM",
+          activity: newCheckpoint2.trim() || "Main Keynote / Core Activity",
+          location: newVenue.trim() || "Main Hall",
+          status: "upcoming" as const,
+        },
+        {
+          id: `tl_${Date.now()}_3`,
+          time: newEndTime || "01:00 PM",
+          activity: newCheckpoint3.trim() || "Group Dinner & Financial Reconciliation",
+          location: newVenue.trim() || "Main Hall",
+          status: "upcoming" as const,
+        },
+      ];
+
       const created = await createEnterpriseEvent({
         title: newTitle.trim(),
+        description: newTagline.trim() || "Enterprise Travel Operating System Scheduled Event",
         category: newCategory,
         priority: newPriority,
-        location: newLocation.trim() || "Venue TBA",
-        venue: newVenue.trim() || "Main Hall",
+        location: newLocation.trim() || "Pune, Maharashtra",
+        venue: newVenue.trim() || "Executive Deck Lounge",
+        meetingPoint: newAssemblyPoint.trim() || "Main Entrance Gate",
         startDate: newStartDate,
         endDate: newStartDate,
         startTime: newStartTime,
         endTime: newEndTime,
-        capacity: Number(newCapacity) || 20,
-        budget: Number(newBudget) || 5000,
+        capacity: cap,
+        confirmedMembers: conf,
+        budget: bud,
+        actualCost: adv,
         linkedTripId: newLinkedTripId === "standalone" ? undefined : newLinkedTripId,
         linkedTripName: linkedTrip ? linkedTrip.name : undefined,
+        travelAdvisory: `Buffer: ${newReportingBuffer} • Verified Corridor`,
+        timeline: initialTimeline,
       });
 
       setEvents((prev) => [created, ...prev]);
       setIsCreateEventOpen(false);
       setNewTitle("");
+      setNewTagline("");
       setNewLocation("");
       setNewVenue("");
+      setNewAssemblyPoint("");
       toast.success(`Event created: ${created.title} [${created.publicId}]`);
       onEventUpdated?.();
     } catch {
@@ -491,7 +538,10 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
         {displayedEvents.map((evt) => {
           const isLinked = Boolean(evt.linkedTripId);
           const completionPct = evt.completionPct ?? (evt.timeline && evt.timeline.length > 0 ? Math.round((evt.timeline.filter((t) => t.status === "completed").length / evt.timeline.length) * 100) : 0);
-          const attendancePct = evt.attendancePct ?? (evt.capacity ? Math.round(((evt.confirmedMembers || 1) / evt.capacity) * 100) : 100);
+          const attendancePct = evt.capacity && evt.capacity > 0
+            ? Math.min(100, Math.round(((evt.confirmedMembers || 0) / evt.capacity) * 100))
+            : (evt.attendancePct ?? 100);
+          const openSeats = Math.max(0, (evt.capacity || 20) - (evt.confirmedMembers || 0));
           const expensePct = evt.budget > 0 ? Math.round(((evt.actualCost || 0) / evt.budget) * 100) : 0;
           const remainingBudget = Math.max(0, evt.budget - (evt.actualCost || 0));
 
@@ -608,19 +658,19 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
                 <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
                   {/* Status Badges Matrix - Unified Calm Enterprise Palette */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800" title={evt.weatherStatus || "26°C Clear"}>
                       <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold tracking-wider block truncate">Weather</span>
                       <p className="font-bold text-slate-800 dark:text-slate-200 truncate mt-1 flex items-center gap-1 text-xs">
                         <Sun className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                        <span>{evt.weatherStatus || "26°C Clear"}</span>
+                        <span className="truncate">{evt.weatherStatus?.split("•")[0]?.trim() || "26°C Clear"}</span>
                       </p>
                     </div>
 
-                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                    <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800" title={evt.travelAdvisory || "Green Normal"}>
                       <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-bold tracking-wider block truncate">Advisory</span>
                       <p className="font-bold text-slate-800 dark:text-slate-200 truncate mt-1 flex items-center gap-1 text-xs">
                         <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                        <span className="truncate">{evt.travelAdvisory || "Green Normal"}</span>
+                        <span className="truncate">{evt.travelAdvisory?.split("•")[0]?.trim() || "Green Normal"}</span>
                       </p>
                     </div>
 
@@ -650,7 +700,7 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
 
                     <div className="flex justify-between items-center text-[11px] pt-0.5">
                       <span className="text-slate-500 font-medium">Capacity Reserved:</span>
-                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{attendancePct}% Filled ({evt.availableSeats ?? ((evt.capacity || 20) - (evt.confirmedMembers || 0))} seats open)</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{attendancePct}% Filled ({openSeats} seats open)</span>
                     </div>
                     <Progress value={attendancePct} className="h-1.5 rounded-full" />
                   </div>
@@ -677,7 +727,7 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
                               <span className="font-mono text-[10px] font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
                                 {step.time}
                               </span>
-                              <span className={`text-[11px] truncate ${step.status === "completed" ? "line-through text-slate-400" : "font-medium text-slate-800 dark:text-slate-200"}`}>
+                              <span className={`text-[11px] truncate ${step.status === "completed" ? "text-slate-900 dark:text-slate-100 font-semibold" : "font-medium text-slate-800 dark:text-slate-200"}`}>
                                 {step.activity}
                               </span>
                             </div>
@@ -1211,147 +1261,374 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
         </DialogContent>
       </Dialog>
 
-      {/* CREATE EVENT DIALOG */}
+      {/* CREATE EVENT DIALOG - ENTERPRISE EVENT STUDIO */}
       <Dialog open={isCreateEventOpen} onOpenChange={setIsCreateEventOpen}>
-        <DialogContent className="sm:max-w-lg rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800">
+        <DialogContent className="sm:max-w-2xl rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-1.5">
-              <Plus className="h-4 w-4 text-indigo-600" />
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant="outline" className="text-[10px] uppercase font-bold text-indigo-600 border-indigo-300 dark:border-indigo-800">
+                Event OS Studio
+              </Badge>
+              <span className="text-xs text-slate-400 font-mono">Real-Time Travel Architecture</span>
+            </div>
+            <DialogTitle className="text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 text-left">
+              <Plus className="h-5 w-5 text-indigo-600" />
               <span>Create New Enterprise Event</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Create a standalone event or link it directly into an active trip
+            <DialogDescription className="text-xs text-slate-500 text-left">
+              Design a standalone event or bind it directly into an active multi-day convoy expedition.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 text-xs py-2">
-            <div>
-              <label className="font-bold">Event Name *</label>
-              <Input
-                placeholder="e.g. Birthday Gala / Office Strategy Meeting / Trek Briefing"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                className="rounded-xl h-10 mt-1"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="font-bold">Category</label>
-                <select
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+          {/* Quick-Pick Event Category Presets */}
+          <div className="space-y-1.5 pt-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Quick Event Archetypes</span>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {[
+                { label: "Birthday Gala", cat: "Birthday", budget: "15000", def1: "Guest Arrival & Welcome Drinks", def2: "Cake Cutting & Dinner", def3: "Gift Exchange & Photos" },
+                { label: "Office Meeting", cat: "Office Meeting", budget: "8000", def1: "Setup & Tech Connectivity Check", def2: "Executive Strategy Presentation", def3: "Action Items & Wrap-Up" },
+                { label: "Trek Briefing", cat: "Trek Briefing", budget: "3500", def1: "Pulse Oximetry & Gear Inspection", def2: "Trail Route & Weather Advisory Brief", def3: "Radio Comms Frequency Sync" },
+                { label: "Hotel Check-in", cat: "Hotel Check-in", budget: "25000", def1: "Coach Arrival at Hotel Porch", def2: "Aadhaar / Passport Verification", def3: "Room Key Card Distribution" },
+                { label: "Airport Pickup", cat: "Airport Pickup", budget: "4500", def1: "Coach Arrival at Coach Bay", def2: "Flight Touchdown & Baggage Collection", def3: "Departure for Basecamp" },
+                { label: "Campfire & BBQ", cat: "Campfire", budget: "6500", def1: "Beachside Campfire Setup", def2: "Fresh Grill & Skewers Dinner", def3: "Acoustic Singalong & Stories" },
+                { label: "Group Dinner", cat: "Group Dinner", budget: "12000", def1: "Table Reservation & Seating", def2: "Multi-Cuisine Banquet Course", def3: "Bill Reconciliation & UPI Split" },
+              ].map((archetype) => (
+                <button
+                  key={archetype.label}
+                  type="button"
+                  onClick={() => {
+                    setNewCategory(archetype.cat);
+                    setNewTitle(newTitle ? newTitle : `${archetype.label}`);
+                    setNewBudget(archetype.budget);
+                    setNewCheckpoint1(archetype.def1);
+                    setNewCheckpoint2(archetype.def2);
+                    setNewCheckpoint3(archetype.def3);
+                  }}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
+                    newCategory === archetype.cat
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                      : "bg-slate-50 dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-indigo-400"
+                  }`}
                 >
-                  <option value="Birthday">Birthday</option>
-                  <option value="Office Meeting">Office Meeting</option>
-                  <option value="Trek Briefing">Trek Briefing</option>
-                  <option value="Hotel Check-in">Hotel Check-in</option>
-                  <option value="Bus Departure">Bus Departure</option>
-                  <option value="Airport Pickup">Airport Pickup</option>
-                  <option value="Campfire">Campfire</option>
-                  <option value="Group Dinner">Group Dinner</option>
-                  <option value="Adventure Activity">Adventure Activity</option>
-                  <option value="Local Sightseeing">Local Sightseeing</option>
-                  <option value="Payment Deadline">Payment Deadline</option>
-                  <option value="Settlement Meeting">Settlement Meeting</option>
-                  <option value="Return Journey">Return Journey</option>
-                  <option value="Farewell Dinner">Farewell Dinner</option>
-                </select>
+                  {archetype.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Enterprise Creation Tabs */}
+          <Tabs value={createActiveTab} onValueChange={(val: any) => setCreateActiveTab(val)} className="w-full pt-2">
+            <TabsList className="grid grid-cols-5 w-full h-9 p-0.5 rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px]">
+              <TabsTrigger value="identity" className="rounded-xl font-bold py-1">Identity</TabsTrigger>
+              <TabsTrigger value="location" className="rounded-xl font-bold py-1">Location</TabsTrigger>
+              <TabsTrigger value="schedule" className="rounded-xl font-bold py-1">Schedule</TabsTrigger>
+              <TabsTrigger value="attendance" className="rounded-xl font-bold py-1">Budget</TabsTrigger>
+              <TabsTrigger value="agenda" className="rounded-xl font-bold py-1">Agenda</TabsTrigger>
+            </TabsList>
+
+            {/* TAB 1: IDENTITY & CATEGORY */}
+            <TabsContent value="identity" className="space-y-3.5 text-xs pt-3">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Event Name *</label>
+                <Input
+                  placeholder="e.g. Birthday Gala / Office Strategy Meeting / Trek Briefing"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
               </div>
 
               <div>
-                <label className="font-bold">Priority</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Tagline / Mission Purpose</label>
+                <Input
+                  placeholder="e.g. Q4 Executive Leadership Alignment & Logistics Synchronization"
+                  value={newTagline}
+                  onChange={(e) => setNewTagline(e.target.value)}
+                  className="rounded-xl h-10 mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Category</label>
+                  <select
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3 text-xs"
+                  >
+                    <option value="Birthday">Birthday</option>
+                    <option value="Office Meeting">Office Meeting</option>
+                    <option value="Trek Briefing">Trek Briefing</option>
+                    <option value="Hotel Check-in">Hotel Check-in</option>
+                    <option value="Bus Departure">Bus Departure</option>
+                    <option value="Airport Pickup">Airport Pickup</option>
+                    <option value="Campfire">Campfire</option>
+                    <option value="Group Dinner">Group Dinner</option>
+                    <option value="Adventure Activity">Adventure Activity</option>
+                    <option value="Local Sightseeing">Local Sightseeing</option>
+                    <option value="Payment Deadline">Payment Deadline</option>
+                    <option value="Settlement Meeting">Settlement Meeting</option>
+                    <option value="Return Journey">Return Journey</option>
+                    <option value="Farewell Dinner">Farewell Dinner</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Priority Level</label>
+                  <select
+                    value={newPriority}
+                    onChange={(e) => setNewPriority(e.target.value as EventPriority)}
+                    className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3 text-xs"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300">Trip Association Link</label>
                 <select
-                  value={newPriority}
-                  onChange={(e) => setNewPriority(e.target.value as EventPriority)}
-                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+                  value={newLinkedTripId}
+                  onChange={(e) => setNewLinkedTripId(e.target.value)}
+                  className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3 text-xs"
                 >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
+                  <option value="standalone">Standalone Event (Independent)</option>
+                  {trips.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      Linked Trip: {t.name} ({t.destination})
+                    </option>
+                  ))}
                 </select>
               </div>
-            </div>
+            </TabsContent>
 
-            <div>
-              <label className="font-bold">Trip Link</label>
-              <select
-                value={newLinkedTripId}
-                onChange={(e) => setNewLinkedTripId(e.target.value)}
-                className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3"
+            {/* TAB 2: LOCATION & GATES */}
+            <TabsContent value="location" className="space-y-3.5 text-xs pt-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">City / Destination *</label>
+                  <Input
+                    placeholder="e.g. Koregaon Park, Pune"
+                    value={newLocation}
+                    onChange={(e) => setNewLocation(e.target.value)}
+                    className="rounded-xl h-10 mt-1"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Venue / Property *</label>
+                  <Input
+                    placeholder="e.g. Rooftop Lounge Deck"
+                    value={newVenue}
+                    onChange={(e) => setNewVenue(e.target.value)}
+                    className="rounded-xl h-10 mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Assembly / Meeting Gate</label>
+                  <Input
+                    placeholder="e.g. Arrival Gate 4 Coach Bay / Lobby Desk"
+                    value={newAssemblyPoint}
+                    onChange={(e) => setNewAssemblyPoint(e.target.value)}
+                    className="rounded-xl h-10 mt-1"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Google Maps Landmark</label>
+                  <Input
+                    placeholder="e.g. https://maps.google.com/?q=..."
+                    value={newLocation ? `https://maps.google.com/?q=${encodeURIComponent(newVenue || newLocation)}` : ""}
+                    readOnly
+                    className="rounded-xl h-10 mt-1 bg-slate-50 dark:bg-slate-900 text-slate-500 font-mono text-[11px]"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* TAB 3: SCHEDULE & TIMING */}
+            <TabsContent value="schedule" className="space-y-3.5 text-xs pt-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Event Date *</label>
+                  <Input
+                    type="date"
+                    value={newStartDate}
+                    onChange={(e) => setNewStartDate(e.target.value)}
+                    className="rounded-xl h-10 mt-1"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Start Time</label>
+                  <Input
+                    placeholder="10:00 AM"
+                    value={newStartTime}
+                    onChange={(e) => setNewStartTime(e.target.value)}
+                    className="rounded-xl h-10 mt-1"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">End Time</label>
+                  <Input
+                    placeholder="01:00 PM"
+                    value={newEndTime}
+                    onChange={(e) => setNewEndTime(e.target.value)}
+                    className="rounded-xl h-10 mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Reporting Buffer / Lead Time</label>
+                  <select
+                    value={newReportingBuffer}
+                    onChange={(e) => setNewReportingBuffer(e.target.value)}
+                    className="w-full rounded-xl h-10 mt-1 border border-slate-200/80 dark:border-slate-800 bg-background px-3 text-xs"
+                  >
+                    <option value="15 Mins Before Start">15 Mins Before Start</option>
+                    <option value="30 Mins Before Start">30 Mins Before Start</option>
+                    <option value="45 Mins Before Start">45 Mins Before Start</option>
+                    <option value="60 Mins Before Start">60 Mins (1 Hour) Before Start</option>
+                    <option value="No Buffer">Direct Start (No Buffer)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Dress Code / Gear</label>
+                  <Input
+                    placeholder="e.g. Smart Casual / Trek Boots & Raincoat"
+                    value={newDressCode}
+                    onChange={(e) => setNewDressCode(e.target.value)}
+                    className="rounded-xl h-10 mt-1"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* TAB 4: CAPACITY & BUDGET */}
+            <TabsContent value="attendance" className="space-y-3.5 text-xs pt-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Total Capacity (Seats)</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="20"
+                    value={newCapacity}
+                    onChange={(e) => setNewCapacity(e.target.value)}
+                    className="rounded-xl h-10 mt-1"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Confirmed Attendees</label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="5"
+                    value={newConfirmedAttendees}
+                    onChange={(e) => setNewConfirmedAttendees(e.target.value)}
+                    className="rounded-xl h-10 mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                    <IndianRupee className="h-3.5 w-3.5 text-emerald-600" />
+                    Allocated Budget (₹ INR) *
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="5000"
+                    value={newBudget}
+                    onChange={(e) => setNewBudget(e.target.value)}
+                    className="rounded-xl h-10 mt-1 font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                    <IndianRupee className="h-3.5 w-3.5 text-indigo-600" />
+                    Advance Deposit Paid (₹ INR)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="1500"
+                    value={newAdvancePaid}
+                    onChange={(e) => setNewAdvancePaid(e.target.value)}
+                    className="rounded-xl h-10 mt-1 font-mono font-bold"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* TAB 5: AGENDA & MILESTONE CHECKPOINTS */}
+            <TabsContent value="agenda" className="space-y-3.5 text-xs pt-3">
+              <span className="text-slate-500 block leading-tight">
+                Initial operational timeline checkpoints automatically generated and monitored across convoy members:
+              </span>
+
+              <div className="space-y-2.5">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Checkpoint 1 (Arrival / Assembly)</label>
+                  <Input
+                    value={newCheckpoint1}
+                    onChange={(e) => setNewCheckpoint1(e.target.value)}
+                    className="rounded-xl h-9 mt-1 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Checkpoint 2 (Core Event / Activity)</label>
+                  <Input
+                    value={newCheckpoint2}
+                    onChange={(e) => setNewCheckpoint2(e.target.value)}
+                    className="rounded-xl h-9 mt-1 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300">Checkpoint 3 (Conclusion / Settlement)</label>
+                  <Input
+                    value={newCheckpoint3}
+                    onChange={(e) => setNewCheckpoint3(e.target.value)}
+                    className="rounded-xl h-9 mt-1 text-xs"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 mt-2">
+            <span className="text-[11px] text-slate-400 font-mono">
+              Auto-generates Public ID & QR Pass
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsCreateEventOpen(false)}
+                className="rounded-xl text-xs h-9"
               >
-                <option value="standalone">Standalone Event (Independent)</option>
-                {trips.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    Linked Trip: {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="font-bold">Location</label>
-                <Input
-                  placeholder="e.g. Koregaon Park, Pune"
-                  value={newLocation}
-                  onChange={(e) => setNewLocation(e.target.value)}
-                  className="rounded-xl h-10 mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold">Venue / Point</label>
-                <Input
-                  placeholder="e.g. Rooftop Lounge Deck"
-                  value={newVenue}
-                  onChange={(e) => setNewVenue(e.target.value)}
-                  className="rounded-xl h-10 mt-1"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="font-bold">Date</label>
-                <Input
-                  type="date"
-                  value={newStartDate}
-                  onChange={(e) => setNewStartDate(e.target.value)}
-                  className="rounded-xl h-10 mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold">Start Time</label>
-                <Input
-                  placeholder="10:00 AM"
-                  value={newStartTime}
-                  onChange={(e) => setNewStartTime(e.target.value)}
-                  className="rounded-xl h-10 mt-1"
-                />
-              </div>
-
-              <div>
-                <label className="font-bold">Budget (₹)</label>
-                <Input
-                  type="number"
-                  placeholder="5000"
-                  value={newBudget}
-                  onChange={(e) => setNewBudget(e.target.value)}
-                  className="rounded-xl h-10 mt-1"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button variant="outline" size="sm" onClick={() => setIsCreateEventOpen(false)} className="rounded-xl text-xs">
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleCreateNewEvent} className="rounded-xl text-xs font-bold bg-indigo-600 text-white">
-                Create Event
+              <Button
+                size="sm"
+                onClick={handleCreateNewEvent}
+                className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white h-9 px-4 shadow-xs"
+              >
+                Create Enterprise Event
               </Button>
             </div>
           </div>

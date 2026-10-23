@@ -183,10 +183,10 @@ export function ResourcesWorkspace({ hub, tripName, onUpdateHub }: ResourcesWork
           <div
             key={item.id}
             onClick={() => handleTogglePacked(item.id)}
-            className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between text-xs group ${
+            className={`p-4 rounded-2xl border cursor-pointer transition-all duration-300 flex items-center justify-between text-xs group ${
               item.isPacked
-                ? "bg-emerald-500/5 border-emerald-500/30 text-emerald-900 dark:text-emerald-300 shadow-xs"
-                : "bg-card border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:shadow-xs"
+                ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-950 dark:text-emerald-200 shadow-xs hover:border-emerald-500 hover:shadow-md hover:-translate-y-1"
+                : "bg-card border-slate-200/80 dark:border-slate-800 hover:border-emerald-500/60 hover:shadow-lg hover:-translate-y-1"
             }`}
           >
             <div className="flex items-center gap-3 min-w-0">
@@ -194,13 +194,13 @@ export function ResourcesWorkspace({ hub, tripName, onUpdateHub }: ResourcesWork
                 className={`h-5 w-5 rounded-lg border flex items-center justify-center shrink-0 transition-colors ${
                   item.isPacked
                     ? "bg-emerald-500 border-emerald-500 text-white"
-                    : "border-slate-300 dark:border-slate-700 group-hover:border-primary"
+                    : "border-slate-300 dark:border-slate-700 group-hover:border-emerald-500"
                 }`}
               >
                 {item.isPacked && <Check className="h-3.5 w-3.5 stroke-[3]" />}
               </div>
               <div className="min-w-0">
-                <p className={`font-bold truncate ${item.isPacked ? "line-through opacity-75" : "text-slate-900 dark:text-slate-100"}`}>
+                <p className={`font-bold truncate ${item.isPacked ? "text-emerald-700 dark:text-emerald-300" : "text-slate-900 dark:text-slate-100 group-hover:text-emerald-600"}`}>
                   {item.itemName}
                 </p>
                 <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
@@ -217,7 +217,7 @@ export function ResourcesWorkspace({ hub, tripName, onUpdateHub }: ResourcesWork
             <Badge
               className={`text-[9px] uppercase font-bold py-0.5 shrink-0 ${
                 item.isPacked
-                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                  ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30"
                   : "bg-slate-100 dark:bg-slate-800 text-slate-500"
               }`}
             >

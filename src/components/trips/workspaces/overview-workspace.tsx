@@ -113,7 +113,7 @@ export function OverviewWorkspace({
         {/* Left Column (8 cols): Departures & Mission Control */}
         <div className="md:col-span-8 space-y-5">
           {/* Upcoming Departures Card */}
-          <div className="p-5 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs space-y-4">
+          <div className="p-5 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Compass className="h-4 w-4 text-primary" />
@@ -217,7 +217,7 @@ export function OverviewWorkspace({
           </div>
 
           {/* Real-Time Event Checkpoint Schedule */}
-          <div className="p-5 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs space-y-4">
+          <div className="p-5 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs hover:border-indigo-500/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-indigo-500" />
@@ -294,7 +294,7 @@ export function OverviewWorkspace({
         {/* Right Column (4 cols): Financial Health & Readiness */}
         <div className="md:col-span-4 space-y-5">
           {/* Capital Allocation & Burn Meter */}
-          <div className="p-5 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs space-y-4">
+          <div className="p-5 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs hover:border-emerald-500/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 space-y-4">
             <div className="flex items-center justify-between">
               <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">
                 Operating Capital Burn (INR)
@@ -335,7 +335,7 @@ export function OverviewWorkspace({
           </div>
 
           {/* Quick Hub Navigation Cards */}
-          <div className="p-5 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs space-y-3">
+          <div className="p-5 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800/90 shadow-xs hover:border-primary/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 space-y-3">
             <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-500">
               Operations Subsystems
             </h4>
@@ -344,77 +344,77 @@ export function OverviewWorkspace({
               <button
                 type="button"
                 onClick={() => onNavigateTab("accommodation")}
-                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 hover:shadow-xs hover:-translate-y-0.5 flex items-center justify-between text-left transition-all duration-200 group"
+                className="w-full p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/90 hover:border-purple-500/60 hover:bg-purple-50/50 dark:hover:bg-purple-950/20 hover:shadow-md hover:-translate-y-1 active:translate-y-0 flex items-center justify-between text-left transition-all duration-200 group cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
                     <Hotel className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
                       Accommodation Command
                     </p>
                     <span className="text-[10px] text-slate-400">Hotels, Rooms & Sharing Matrix</span>
                   </div>
                 </div>
-                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all" />
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigateTab("transportation")}
-                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 hover:shadow-xs hover:-translate-y-0.5 flex items-center justify-between text-left transition-all duration-200 group"
+                className="w-full p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/90 hover:border-blue-500/60 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 hover:shadow-md hover:-translate-y-1 active:translate-y-0 flex items-center justify-between text-left transition-all duration-200 group cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
                     <Truck className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       Fleet & Transit Convoys
                     </p>
                     <span className="text-[10px] text-slate-400">Vehicles, Drivers & Flight PNRs</span>
                   </div>
                 </div>
-                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigateTab("resources")}
-                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 hover:shadow-xs hover:-translate-y-0.5 flex items-center justify-between text-left transition-all duration-200 group"
+                className="w-full p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/90 hover:border-emerald-500/60 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 hover:shadow-md hover:-translate-y-1 active:translate-y-0 flex items-center justify-between text-left transition-all duration-200 group cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                     <Luggage className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                       Packing & Gear Inventories
                     </p>
                     <span className="text-[10px] text-slate-400">Categorized Resource Lists</span>
                   </div>
                 </div>
-                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigateTab("documents")}
-                className="w-full p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 hover:shadow-xs hover:-translate-y-0.5 flex items-center justify-between text-left transition-all duration-200 group"
+                className="w-full p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800/90 hover:border-amber-500/60 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 hover:shadow-md hover:-translate-y-1 active:translate-y-0 flex items-center justify-between text-left transition-all duration-200 group cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                     <FileText className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary transition-colors">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                       Credentials & Documents Vault
                     </p>
                     <span className="text-[10px] text-slate-400">Passports, Permits & Insurance</span>
                   </div>
                 </div>
-                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all" />
               </button>
             </div>
           </div>

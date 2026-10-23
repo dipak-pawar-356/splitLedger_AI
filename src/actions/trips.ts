@@ -1092,7 +1092,7 @@ function ensureUserStores(userId: number, userName: string = "Dipak Pawar") {
           travelAdvisory: "Green Zone • Airport expressway running smoothly",
           budgetStatus: "Under Budget",
           completionPct: 25,
-          attendancePct: 100,
+          attendancePct: 30,
           progressPct: 30,
           expensePct: 43,
           timeline: [
@@ -1173,7 +1173,7 @@ function ensureUserStores(userId: number, userName: string = "Dipak Pawar") {
           travelAdvisory: "Green Zone • High tide warnings observed",
           budgetStatus: "Optimal Pacing",
           completionPct: 10,
-          attendancePct: 83,
+          attendancePct: 42,
           progressPct: 20,
           expensePct: 43,
           timeline: [

@@ -763,6 +763,10 @@ export async function addLogisticsAssignment(data: {
   task: string;
   owner: string;
   deadline: string;
+  category?: string;
+  priority?: "Critical" | "High" | "Medium" | "Low";
+  budget?: number;
+  notes?: string;
 }): Promise<TripLogisticsHub> {
   const user = await requireAuth();
   const userKey = `user_${user.id}`;
@@ -776,6 +780,10 @@ export async function addLogisticsAssignment(data: {
     deadline: data.deadline.trim() || "Tomorrow",
     status: "In Progress",
     completionPct: 0,
+    category: data.category?.trim() || "General Operations",
+    priority: data.priority || "High",
+    budget: typeof data.budget === "number" ? data.budget : 0,
+    notes: data.notes?.trim() || "",
   };
 
   hub.assignments.unshift(newTask);
