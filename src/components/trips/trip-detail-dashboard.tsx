@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import QRCode from "qrcode";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ import {
   Bus,
   Check,
   Globe,
+  Loader2,
 } from "lucide-react";
 import {
   TripRecord,
@@ -252,6 +254,37 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated, 
   const [eventParkingInfo, setEventParkingInfo] = useState("");
   const [eventWeatherForecast, setEventWeatherForecast] = useState("");
   const [selectedEventQr, setSelectedEventQr] = useState<TripEvent | null>(null);
+  const [eventQrCodeUrl, setEventQrCodeUrl] = useState<string>("");
+  const [isGeneratingEventQr, setIsGeneratingEventQr] = useState<boolean>(false);
+
+  // Generate real camera-scannable QR code for the selected event pass
+  useEffect(() => {
+    if (selectedEventQr) {
+      setIsGeneratingEventQr(true);
+      const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://splitledger.ai";
+      const payload = `${origin}/events/${selectedEventQr.publicId || selectedEventQr.id}`;
+      QRCode.toDataURL(payload, {
+        width: 350,
+        margin: 2,
+        color: {
+          dark: "#0f172a",
+          light: "#ffffff",
+        },
+        errorCorrectionLevel: "H",
+      })
+        .then((url) => {
+          setEventQrCodeUrl(url);
+          setIsGeneratingEventQr(false);
+        })
+        .catch((err) => {
+          console.error("Event QR generation failed", err);
+          setIsGeneratingEventQr(false);
+        });
+    } else {
+      setEventQrCodeUrl("");
+      setIsGeneratingEventQr(false);
+    }
+  }, [selectedEventQr]);
 
   // Form states for Document
   const [docTitle, setDocTitle] = useState("");
@@ -4086,38 +4119,24 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated, 
           </DialogHeader>
 
           {selectedEventQr && (
-            <div className="space-y-4 py-3">
-              <div className="p-4 bg-white rounded-2xl inline-block border border-slate-200 shadow-md">
-                <svg className="w-44 h-44 mx-auto" viewBox="0 0 100 100">
-                  <rect width="100" height="100" fill="#ffffff" />
-                  {/* Position detection patterns */}
-                  <rect x="8" y="8" width="28" height="28" fill="#0f172a" rx="4" />
-                  <rect x="12" y="12" width="20" height="20" fill="#ffffff" rx="2" />
-                  <rect x="16" y="16" width="12" height="12" fill="#0f172a" rx="1" />
-
-                  <rect x="64" y="8" width="28" height="28" fill="#0f172a" rx="4" />
-                  <rect x="68" y="12" width="20" height="20" fill="#ffffff" rx="2" />
-                  <rect x="72" y="16" width="12" height="12" fill="#0f172a" rx="1" />
-
-                  <rect x="8" y="64" width="28" height="28" fill="#0f172a" rx="4" />
-                  <rect x="12" y="68" width="20" height="20" fill="#ffffff" rx="2" />
-                  <rect x="16" y="72" width="12" height="12" fill="#0f172a" rx="1" />
-
-                  {/* Data patterns */}
-                  <rect x="42" y="12" width="6" height="6" fill="#0f172a" />
-                  <rect x="52" y="12" width="6" height="6" fill="#0f172a" />
-                  <rect x="42" y="24" width="6" height="6" fill="#0f172a" />
-                  <rect x="52" y="32" width="6" height="6" fill="#0f172a" />
-                  <rect x="42" y="42" width="16" height="16" fill="#0f172a" rx="2" />
-                  <rect x="12" y="44" width="6" height="6" fill="#0f172a" />
-                  <rect x="24" y="44" width="6" height="6" fill="#0f172a" />
-                  <rect x="68" y="44" width="6" height="6" fill="#0f172a" />
-                  <rect x="78" y="44" width="6" height="6" fill="#0f172a" />
-                  <rect x="42" y="64" width="6" height="6" fill="#0f172a" />
-                  <rect x="52" y="64" width="6" height="6" fill="#0f172a" />
-                  <rect x="64" y="64" width="6" height="6" fill="#0f172a" />
-                  <rect x="74" y="74" width="16" height="16" fill="#0f172a" rx="2" />
-                </svg>
+            <div className="space-y-4 py-3 flex flex-col items-center">
+              <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-md min-h-[190px] min-w-[190px] flex items-center justify-center">
+                {isGeneratingEventQr ? (
+                  <div className="h-44 w-44 flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                    <span className="text-xs text-slate-500 font-medium">Encoding Event Pass...</span>
+                  </div>
+                ) : eventQrCodeUrl ? (
+                  <img
+                    src={eventQrCodeUrl}
+                    alt={`Real QR code for ${selectedEventQr.title}`}
+                    className="w-44 h-44 object-contain rounded-xl"
+                  />
+                ) : (
+                  <div className="h-44 w-44 flex items-center justify-center text-slate-400 text-xs">
+                    Generating QR...
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -4147,12 +4166,12 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated, 
                 )}
               </div>
 
-              <div className="pt-2 flex justify-center gap-2">
+              <div className="pt-2 flex items-center justify-center gap-2 w-full">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={() => setSelectedEventQr(null)}
-                  className="rounded-xl text-xs px-6"
+                  className="rounded-xl text-xs px-4"
                 >
                   Close
                 </Button>
@@ -4162,10 +4181,28 @@ export function TripDetailDashboard({ trip: initialTrip, onBack, onTripUpdated, 
                     navigator.clipboard.writeText(selectedEventQr.publicId || selectedEventQr.id);
                     toast.success("Event Public ID copied to clipboard!");
                   }}
-                  className="rounded-xl text-xs px-6 font-bold bg-primary text-primary-foreground"
+                  className="rounded-xl text-xs px-4 font-bold bg-primary text-primary-foreground"
                 >
                   Copy Event ID
                 </Button>
+                {eventQrCodeUrl && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const a = document.createElement("a");
+                      a.href = eventQrCodeUrl;
+                      a.download = `${selectedEventQr.publicId || selectedEventQr.id}-event-qr.png`;
+                      a.click();
+                      toast.success("Downloaded Event QR Pass");
+                    }}
+                    className="rounded-xl text-xs gap-1.5"
+                    title="Download Event QR Pass"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    <span>Download</span>
+                  </Button>
+                )}
               </div>
             </div>
           )}

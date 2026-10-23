@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import QRCode from "qrcode";
 import {
   TripDashboardMetrics,
   TripRecord,
@@ -50,6 +51,8 @@ import {
   Clock,
   CheckCircle2,
   ExternalLink,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
@@ -74,11 +77,42 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
   // Modals
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [qrModalTrip, setQrModalTrip] = useState<TripRecord | null>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
+  const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
   const [shareModalTrip, setShareModalTrip] = useState<TripRecord | null>(null);
   const [quickExpenseTrip, setQuickExpenseTrip] = useState<TripRecord | null>(null);
   const [quickTitle, setQuickTitle] = useState("");
   const [quickAmount, setQuickAmount] = useState("");
   const [quickCategory, setQuickCategory] = useState<BudgetCategoryKey>("Food");
+
+  // Real scannable QR Code generation for selected trip
+  useEffect(() => {
+    if (qrModalTrip?.publicId) {
+      setIsGeneratingQr(true);
+      const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://splitledger.ai";
+      const accessUrl = `${origin}/trips/${qrModalTrip.publicId}`;
+      QRCode.toDataURL(accessUrl, {
+        width: 400,
+        margin: 2,
+        color: {
+          dark: "#0f172a",
+          light: "#ffffff",
+        },
+        errorCorrectionLevel: "H",
+      })
+        .then((url) => {
+          setQrCodeDataUrl(url);
+          setIsGeneratingQr(false);
+        })
+        .catch((err) => {
+          console.error("QR Code Generation Error:", err);
+          setIsGeneratingQr(false);
+        });
+    } else {
+      setQrCodeDataUrl("");
+      setIsGeneratingQr(false);
+    }
+  }, [qrModalTrip]);
 
   // Re-calculate local metrics whenever trips update
   const recalculateGlobalMetrics = (trips: TripRecord[]) => {
@@ -409,29 +443,29 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
       </div>
 
       {/* Secondary Metric Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex items-center justify-between">
-          <span className="text-slate-400 font-medium">Active Journeys:</span>
-          <span className="font-bold text-slate-900 dark:text-slate-100">{metrics.activeTripsCount} Ongoing</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 shadow-xs">
+          <span className="text-slate-400 font-medium truncate">Active Journeys:</span>
+          <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">{metrics.activeTripsCount} Ongoing</span>
         </div>
-        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex items-center justify-between">
-          <span className="text-slate-400 font-medium">Upcoming Expeditions:</span>
-          <span className="font-bold text-slate-900 dark:text-slate-100">{metrics.upcomingTripsCount} Scheduled</span>
+        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 shadow-xs">
+          <span className="text-slate-400 font-medium truncate">Upcoming Expeditions:</span>
+          <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">{metrics.upcomingTripsCount} Scheduled</span>
         </div>
-        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex items-center justify-between">
-          <span className="text-slate-400 font-medium">Collaborator Network:</span>
-          <span className="font-bold text-slate-900 dark:text-slate-100">{metrics.totalMembersCount} Members</span>
+        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 shadow-xs">
+          <span className="text-slate-400 font-medium truncate">Collaborator Network:</span>
+          <span className="font-bold text-slate-900 dark:text-slate-100 shrink-0">{metrics.totalMembersCount} Members</span>
         </div>
-        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex items-center justify-between">
-          <span className="text-slate-400 font-medium">Average Daily Spend:</span>
-          <span className="font-bold font-mono text-slate-900 dark:text-slate-100">{formatCurrency(metrics.avgDailySpend, metrics.currency)}/day</span>
+        <div className="p-3 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1 shadow-xs">
+          <span className="text-slate-400 font-medium truncate">Average Daily Spend:</span>
+          <span className="font-bold font-mono text-slate-900 dark:text-slate-100 shrink-0">{formatCurrency(metrics.avgDailySpend, metrics.currency)}/day</span>
         </div>
       </div>
 
       {/* Search, Filter Tabs & Toolbar */}
       <div className="p-4 rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input
               placeholder="Search trips by destination, country, city, organizer..."
@@ -441,13 +475,13 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
             />
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none flex-nowrap sm:flex-wrap">
             {(["all", "ongoing", "upcoming", "planning", "paused", "completed", "draft", "archived"] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setStatusFilter(tab)}
-                className={`py-1.5 px-3 rounded-xl text-xs font-semibold capitalize transition-all ${
+                className={`py-1.5 px-3 rounded-xl text-xs font-semibold capitalize whitespace-nowrap shrink-0 transition-all ${
                   statusFilter === tab
                     ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -502,79 +536,87 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/25" />
 
-                  {/* Top-Left: Public ID Pill & Category Badges */}
-                  <div className="absolute top-3 left-3 flex items-center gap-1.5 flex-wrap">
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-white font-mono text-[11px] font-bold shadow-sm">
-                      <span className="tracking-wide">{trip.publicId}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(trip.publicId);
-                          toast.success(`Copied Trip ID: ${trip.publicId}`);
-                        }}
-                        title="Copy Public ID"
-                        className="hover:text-primary transition-colors ml-1 p-0.5"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setQrModalTrip(trip);
-                        }}
-                        title="View QR Code"
-                        className="hover:text-primary transition-colors p-0.5"
-                      >
-                        <QrCode className="h-3 w-3" />
-                      </button>
+                  {/* Top Header Bar: Responsive Space-Between Container (Eliminates Badge Collisions) */}
+                  <div className="absolute top-2.5 inset-x-2.5 sm:top-3 sm:inset-x-3 flex items-start justify-between gap-1.5 z-10 pointer-events-none">
+                    {/* Top-Left: Public ID Pill & Category Badge */}
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0 pointer-events-auto">
+                      <div className="flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl bg-black/80 backdrop-blur-md border border-white/20 text-white font-mono text-[10px] sm:text-[11px] font-bold shadow-sm shrink-0">
+                        <span className="tracking-wide">{trip.publicId}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(trip.publicId);
+                            toast.success(`Copied Trip ID: ${trip.publicId}`);
+                          }}
+                          title="Copy Public ID"
+                          className="hover:text-primary transition-colors ml-1 p-0.5"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQrModalTrip(trip);
+                          }}
+                          title="View QR Code Pass"
+                          className="hover:text-primary transition-colors p-0.5"
+                        >
+                          <QrCode className="h-3 w-3" />
+                        </button>
+                      </div>
+
+                      <Badge className="bg-white/20 text-white backdrop-blur-md text-[9px] sm:text-[10px] uppercase font-bold border border-white/25 shrink-0">
+                        {trip.category}
+                      </Badge>
                     </div>
 
-                    <Badge className="bg-white/20 text-white backdrop-blur-md text-[10px] uppercase font-bold border border-white/25">
-                      {trip.category}
-                    </Badge>
-                    <Badge className="bg-emerald-500/90 text-white backdrop-blur-md text-[10px] font-bold">
-                      {trip.durationDays}d • {countdownText}
-                    </Badge>
-                  </div>
+                    {/* Top-Right: Status & Health Score Pill */}
+                    <div className="flex items-center gap-1.5 shrink-0 pointer-events-auto">
+                      <Badge
+                        variant="secondary"
+                        className={`text-[9px] sm:text-[10px] uppercase font-bold tracking-wider backdrop-blur-md shrink-0 ${
+                          trip.status === "ongoing" || trip.status === "active"
+                            ? "bg-emerald-500 text-white border-none"
+                            : trip.status === "upcoming" || trip.status === "planning"
+                            ? "bg-amber-500 text-white border-none"
+                            : trip.status === "completed"
+                            ? "bg-blue-500 text-white border-none"
+                            : "bg-slate-700 text-white border-none"
+                        }`}
+                      >
+                        {trip.status}
+                      </Badge>
 
-                  {/* Top-Right: Status & Health Score Pill */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                    <Badge
-                      variant="secondary"
-                      className={`text-[10px] uppercase font-bold tracking-wider backdrop-blur-md ${
-                        trip.status === "ongoing" || trip.status === "active"
-                          ? "bg-emerald-500 text-white border-none"
-                          : trip.status === "upcoming" || trip.status === "planning"
-                          ? "bg-amber-500 text-white border-none"
-                          : trip.status === "completed"
-                          ? "bg-blue-500 text-white border-none"
-                          : "bg-slate-700 text-white border-none"
-                      }`}
-                    >
-                      {trip.status}
-                    </Badge>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openTripDetail(trip.id, "analytics");
-                      }}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-600/90 text-white backdrop-blur-md text-[10px] font-bold hover:bg-indigo-600 transition-colors shadow-sm"
-                      title="Inspect Financial Health"
-                    >
-                      <ShieldCheck className="h-3 w-3" />
-                      <span>{trip.financialHealthScore}/100 ({trip.healthReport?.grade || "A"})</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openTripDetail(trip.id, "analytics");
+                        }}
+                        className="flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl bg-indigo-600/90 text-white backdrop-blur-md text-[9px] sm:text-[10px] font-bold hover:bg-indigo-600 transition-colors shadow-sm shrink-0"
+                        title="Inspect Financial Health"
+                      >
+                        <ShieldCheck className="h-3 w-3" />
+                        <span>{trip.financialHealthScore}/100</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Bottom Header Overlay */}
                   <div className="absolute bottom-3 left-3 right-3 text-white">
+                    <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/90 text-white backdrop-blur-md text-[10px] font-bold shadow-xs">
+                        <Clock className="h-3 w-3" />
+                        <span>{trip.durationDays} Days</span>
+                        <span>•</span>
+                        <span>{countdownText}</span>
+                      </span>
+                    </div>
                     <h2
                       onClick={() => openTripDetail(trip.id, "overview")}
-                      className="text-lg font-black truncate cursor-pointer hover:underline"
+                      className="text-base sm:text-lg font-black truncate cursor-pointer hover:underline"
                     >
                       {trip.name}
                     </h2>
@@ -609,47 +651,47 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
 
                   {/* 4-Stat Live Intelligence Matrix */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800 text-xs">
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold">Remaining</span>
+                    <div className="min-w-0">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold truncate block">Remaining</span>
                       <p className="font-mono font-bold text-emerald-600 truncate mt-0.5">
                         {formatCurrency(trip.remainingBudget, trip.currency)}
                       </p>
-                      <span className="text-[10px] text-slate-400">{trip.variancePct || 0}% runway</span>
+                      <span className="text-[10px] text-slate-400 truncate block">{trip.variancePct || 0}% runway</span>
                     </div>
 
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold">Weather</span>
+                    <div className="min-w-0">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold truncate block">Weather</span>
                       <p className="font-semibold text-slate-800 dark:text-slate-200 truncate mt-0.5 flex items-center gap-1">
                         <Sun className="h-3 w-3 text-amber-500 shrink-0" />
                         <span className="truncate">{trip.weatherSummary || trip.destinationInfo?.climate.expectedWeather || "28°C"}</span>
                       </p>
-                      <span className="text-[10px] text-slate-400">AQI: {trip.destinationInfo?.climate.airQualityIndex || 42}</span>
+                      <span className="text-[10px] text-slate-400 truncate block">AQI: {trip.destinationInfo?.climate.airQualityIndex || 42}</span>
                     </div>
 
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold">Next Event</span>
+                    <div className="min-w-0">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold truncate block">Next Event</span>
                       <p className="font-semibold text-slate-800 dark:text-slate-200 truncate mt-0.5 flex items-center gap-1">
                         <Calendar className="h-3 w-3 text-primary shrink-0" />
                         <span className="truncate">{nextEvent ? nextEvent.title : "No events"}</span>
                       </p>
-                      <span className="text-[10px] text-slate-400 font-mono">
+                      <span className="text-[10px] text-slate-400 font-mono truncate block">
                         {nextEvent?.startDateTime?.split("T")[1]?.slice(0, 5) || "09:00"}
                       </span>
                     </div>
 
-                    <div>
-                      <span className="text-slate-400 text-[10px] uppercase font-bold">Settlement</span>
+                    <div className="min-w-0">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold truncate block">Settlement</span>
                       <p className={`font-mono font-bold truncate mt-0.5 ${totalPendingSettlement > 0 ? "text-amber-600" : "text-emerald-600"}`}>
                         {totalPendingSettlement > 0 ? `₹${totalPendingSettlement.toLocaleString("en-IN")}` : "Settled"}
                       </p>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-[10px] text-slate-400 truncate block">
                         {totalPendingSettlement > 0 ? "Pending" : "100% Cleared"}
                       </span>
                     </div>
                   </div>
 
                   {/* Collaborators & Operational Counts */}
-                  <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 pt-1">
                     <div className="flex items-center gap-2">
                       <div className="flex -space-x-1.5 overflow-hidden">
                         {trip.members.slice(0, 3).map((m, idx) => (
@@ -667,9 +709,11 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-3 text-[11px]">
+                    <div className="flex items-center gap-2.5 text-[10px] sm:text-[11px] text-slate-500 flex-wrap">
                       <span>Checklist: <strong>{checklistProgress}%</strong></span>
+                      <span>•</span>
                       <span>Docs: <strong>{trip.documents.length}</strong></span>
+                      <span>•</span>
                       <span>Expenses: <strong>{trip.expenses.length}</strong></span>
                     </div>
                   </div>
@@ -723,78 +767,82 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
               </div>
 
               {/* Bottom Quick Action Bar */}
-              <div className="p-4 bg-slate-50/60 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800/90 flex items-center justify-between gap-1.5 shrink-0">
-                <Button
-                  size="sm"
-                  onClick={() => openTripDetail(trip.id, "overview")}
-                  className="rounded-xl text-xs font-bold gap-1.5 flex-1 bg-primary text-primary-foreground shadow-xs hover:shadow-md"
-                >
-                  <span>Open Dashboard</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Button>
+              <div className="p-3 sm:p-4 bg-slate-50/60 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-800/90 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 flex-1 min-w-[200px]">
+                  <Button
+                    size="sm"
+                    onClick={() => openTripDetail(trip.id, "overview")}
+                    className="rounded-xl text-xs font-bold gap-1.5 flex-1 bg-primary text-primary-foreground shadow-xs hover:shadow-md"
+                  >
+                    <span>Open Dashboard</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
 
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setQuickExpenseTrip(trip)}
-                  className="rounded-xl text-xs font-semibold h-8 border-slate-200/80 dark:border-slate-800 hover:border-primary/50"
-                >
-                  <Plus className="h-3 w-3 mr-1" /> Expense
-                </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setQuickExpenseTrip(trip)}
+                    className="rounded-xl text-xs font-semibold h-8 border-slate-200/80 dark:border-slate-800 hover:border-primary/50 shrink-0"
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Expense
+                  </Button>
+                </div>
 
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setShareModalTrip(trip)}
-                  title="Share Trip"
-                  className="h-8 w-8 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-                >
-                  <Share2 className="h-3.5 w-3.5" />
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setShareModalTrip(trip)}
+                    title="Share Trip"
+                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                  </Button>
 
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setQrModalTrip(trip)}
-                  title="Generate QR Code"
-                  className="h-8 w-8 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                >
-                  <QrCode className="h-3.5 w-3.5" />
-                </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setQrModalTrip(trip)}
+                    title="Generate QR Pass"
+                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  >
+                    <QrCode className="h-3.5 w-3.5" />
+                  </Button>
 
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => handleDuplicateTrip(trip.id)}
-                  title="Duplicate Trip"
-                  className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleDuplicateTrip(trip.id)}
+                    title="Duplicate Trip"
+                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
 
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => handleArchiveTrip(trip.id, !isArchived)}
-                  title={isArchived ? "Restore Trip" : "Archive Trip"}
-                  className={`h-8 w-8 rounded-xl ${
-                    isArchived
-                      ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-                      : "text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                  }`}
-                >
-                  {isArchived ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-                </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleArchiveTrip(trip.id, !isArchived)}
+                    title={isArchived ? "Restore Trip" : "Archive Trip"}
+                    className={`h-8 w-8 rounded-xl ${
+                      isArchived
+                        ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                        : "text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                    }`}
+                  >
+                    {isArchived ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                  </Button>
 
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => handleDeleteTrip(trip.id)}
-                  title="Delete Trip"
-                  className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleDeleteTrip(trip.id)}
+                    title="Delete Trip"
+                    className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
             </Card>
           );
@@ -844,46 +892,27 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
           </DialogHeader>
 
           <div className="py-4 flex flex-col items-center space-y-4">
-            <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-md flex items-center justify-center">
-              {/* Crisp SVG QR graphic */}
-              <svg className="h-44 w-44" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="100" height="100" fill="white" />
-                {/* QR corner 1 */}
-                <rect x="10" y="10" width="24" height="24" rx="4" fill="#0f172a" />
-                <rect x="14" y="14" width="16" height="16" rx="2" fill="white" />
-                <rect x="18" y="18" width="8" height="8" rx="1" fill="#0f172a" />
-                {/* QR corner 2 */}
-                <rect x="66" y="10" width="24" height="24" rx="4" fill="#0f172a" />
-                <rect x="70" y="14" width="16" height="16" rx="2" fill="white" />
-                <rect x="74" y="18" width="8" height="8" rx="1" fill="#0f172a" />
-                {/* QR corner 3 */}
-                <rect x="10" y="66" width="24" height="24" rx="4" fill="#0f172a" />
-                <rect x="14" y="70" width="16" height="16" rx="2" fill="white" />
-                <rect x="18" y="74" width="8" height="8" rx="1" fill="#0f172a" />
-                {/* Decorative data modules */}
-                <rect x="42" y="12" width="6" height="6" fill="#0f172a" />
-                <rect x="52" y="12" width="6" height="6" fill="#0f172a" />
-                <rect x="42" y="24" width="6" height="6" fill="#0f172a" />
-                <rect x="48" y="32" width="6" height="6" fill="#0f172a" />
-                <rect x="12" y="44" width="6" height="6" fill="#0f172a" />
-                <rect x="24" y="44" width="6" height="6" fill="#0f172a" />
-                <rect x="36" y="44" width="6" height="6" fill="#0f172a" />
-                <rect x="48" y="44" width="8" height="8" rx="2" fill="#3b82f6" />
-                <rect x="62" y="44" width="6" height="6" fill="#0f172a" />
-                <rect x="76" y="44" width="6" height="6" fill="#0f172a" />
-                <rect x="88" y="44" width="6" height="6" fill="#0f172a" />
-                <rect x="42" y="56" width="6" height="6" fill="#0f172a" />
-                <rect x="54" y="56" width="6" height="6" fill="#0f172a" />
-                <rect x="42" y="68" width="6" height="6" fill="#0f172a" />
-                <rect x="52" y="74" width="6" height="6" fill="#0f172a" />
-                <rect x="64" y="68" width="6" height="6" fill="#0f172a" />
-                <rect x="76" y="76" width="6" height="6" fill="#0f172a" />
-                <rect x="84" y="68" width="6" height="6" fill="#0f172a" />
-              </svg>
+            <div className="p-4 rounded-3xl bg-white border border-slate-200 shadow-md flex items-center justify-center min-h-[200px] min-w-[200px]">
+              {isGeneratingQr ? (
+                <div className="h-48 w-48 flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="text-xs text-slate-500 font-semibold">Generating Pass...</span>
+                </div>
+              ) : qrCodeDataUrl ? (
+                <img
+                  src={qrCodeDataUrl}
+                  alt={`Real QR code for ${qrModalTrip?.publicId}`}
+                  className="h-48 w-48 object-contain rounded-xl"
+                />
+              ) : (
+                <div className="h-48 w-48 flex items-center justify-center text-slate-400 text-xs">
+                  Generating QR...
+                </div>
+              )}
             </div>
 
             <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold text-slate-400">Permanent Public Identifier</span>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Permanent Public Identifier</span>
               <p className="font-mono text-base font-black text-slate-900 dark:text-slate-100 tracking-wider">
                 {qrModalTrip?.publicId}
               </p>
@@ -912,7 +941,8 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                 className="flex-1 rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground"
                 onClick={() => {
                   if (qrModalTrip) {
-                    navigator.clipboard.writeText(`https://splitledger.ai/trips/${qrModalTrip.publicId}`);
+                    const origin = typeof window !== "undefined" && window.location.origin ? window.location.origin : "https://splitledger.ai";
+                    navigator.clipboard.writeText(`${origin}/trips/${qrModalTrip.publicId}`);
                     toast.success("Trip link copied!");
                   }
                 }}
@@ -920,6 +950,23 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
                 <Share2 className="h-3.5 w-3.5" />
                 <span>Copy Link</span>
               </Button>
+              {qrCodeDataUrl && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl text-xs font-bold gap-1.5 shrink-0"
+                  onClick={() => {
+                    const a = document.createElement("a");
+                    a.href = qrCodeDataUrl;
+                    a.download = `${qrModalTrip?.publicId || "trip"}-qr.png`;
+                    a.click();
+                    toast.success("Downloaded QR Code image");
+                  }}
+                  title="Download QR Code PNG"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>
