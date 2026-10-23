@@ -11,7 +11,49 @@ import {
 } from "@/lib/types/trips";
 
 /**
- * Creates comprehensive seed logistics hub for 30-50 year caliber enterprise travel operations
+ * Creates an empty, clean real-time logistics hub for real user trips
+ */
+export function createEmptyLogisticsHub(tripId: string = ""): TripLogisticsHub {
+  return {
+    id: `hub_${Date.now()}`,
+    tripId,
+    transportation: [],
+    accommodation: [],
+    emergency: {
+      hospitalName: "",
+      hospitalContact: "",
+      hospitalDistanceKm: 0,
+      policeContact: "",
+      tripLeader: "",
+      tripLeaderContact: "",
+      coLeader: "",
+      coLeaderContact: "",
+      rescueContact: "",
+      bloodGroupList: [],
+      medicalNotes: [],
+    },
+    permissions: [],
+    packing: {
+      sharedPackingPct: 0,
+      completedPct: 0,
+      missingItems: [],
+      criticalItems: [],
+      inventory: [],
+    },
+    foodLogistics: [],
+    vendors: [],
+    operationalTimeline: {
+      upcomingTasks: [],
+      pendingTasks: [],
+      completedTasks: [],
+      delayedTasks: [],
+    },
+    assignments: [],
+  };
+}
+
+/**
+ * Creates comprehensive seed logistics hub for testing/benchmarking
  */
 export function createSeedLogisticsHub(tripId: string = "trip_goa_premium_01"): TripLogisticsHub {
   const vehicles: LogisticsVehicle[] = [

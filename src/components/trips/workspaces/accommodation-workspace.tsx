@@ -53,13 +53,13 @@ export function AccommodationWorkspace({ hub, tripName, onUpdateHub }: Accommoda
   // New Property Form State
   const [hotelName, setHotelName] = useState("");
   const [address, setAddress] = useState("");
-  const [checkInDate, setCheckInDate] = useState("2026-11-01");
-  const [checkOutDate, setCheckOutDate] = useState("2026-11-05");
+  const [checkInDate, setCheckInDate] = useState(new Date().toISOString().split("T")[0]);
+  const [checkOutDate, setCheckOutDate] = useState(new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0]);
   const [checkInTime, setCheckInTime] = useState("12:00 PM");
   const [checkOutTime, setCheckOutTime] = useState("11:00 AM");
-  const [totalRooms, setTotalRooms] = useState("4");
+  const [totalRooms, setTotalRooms] = useState("2");
   const [bookingStatus, setBookingStatus] = useState<LogisticsAccommodation["bookingStatus"]>("Confirmed");
-  const [hotelContact, setHotelContact] = useState("+91 832 227 8890");
+  const [hotelContact, setHotelContact] = useState("");
 
   // New Occupant in Manage Rooms modal
   const [newOccupantName, setNewOccupantName] = useState("");
@@ -361,7 +361,9 @@ export function AccommodationWorkspace({ hub, tripName, onUpdateHub }: Accommoda
 
         {filteredAccommodations.length === 0 && (
           <div className="col-span-full py-12 text-center text-slate-400 text-xs rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card/60">
-            No accommodation properties matching current filter.
+            {accommodations.length === 0
+              ? "No accommodation properties added yet. Click 'Add Property' to add hotels, resorts, or campsites for this trip."
+              : "No accommodation properties matching current filter."}
           </div>
         )}
       </div>

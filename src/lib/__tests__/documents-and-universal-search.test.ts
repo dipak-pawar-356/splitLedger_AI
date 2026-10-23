@@ -6,6 +6,7 @@ import {
   getDocumentDashboardSummary,
 } from "@/actions/documents";
 import { globalSearch } from "@/actions/search";
+import { createTrip } from "@/actions/trips";
 
 // Mock requireAuth
 vi.mock("@/lib/auth", () => ({
@@ -66,6 +67,15 @@ describe("Document Vault, Invoices & Universal Global Search (Part VI-N & VI-O)"
 
   describe("PART VI-O: Universal Global Search Engine", () => {
     it("should execute globalSearch and return multi-module results", async () => {
+      await createTrip({
+        name: "Goa Beach Retreat",
+        destination: "Goa",
+        category: "vacation",
+        startDate: "2026-10-01",
+        endDate: "2026-10-05",
+        budgetAmount: 25000,
+      });
+
       const results = await globalSearch("Goa");
       expect(results.length).toBeGreaterThan(0);
 

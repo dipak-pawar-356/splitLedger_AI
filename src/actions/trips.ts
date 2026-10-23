@@ -25,7 +25,7 @@ import {
 import { DatabaseError, ValidationError } from "@/lib/errors";
 import { generatePublicId, generateTripPublicId, generateEventPublicId } from "@/lib/utils";
 import { ensureEnterpriseSessionData } from "@/actions/enterprise-operations";
-import { createSeedLogisticsHub } from "@/lib/default-logistics";
+import { createEmptyLogisticsHub } from "@/lib/default-logistics";
 
 // In-memory persistent session stores per user
 const tripsStore = new Map<string, TripRecord[]>();
@@ -906,8 +906,13 @@ function recalculateTrip(trip: TripRecord): TripRecord {
 /**
  * Initialize seed trips for user session
  */
-function ensureUserStores(userId: number, userName: string = "Dipak Pawar") {
+function ensureUserStores(userId: number, _userName: string = "User") {
   const userKey = `user_${userId}`;
+  if (!tripsStore.has(userKey)) {
+    tripsStore.set(userKey, []);
+  }
+}
+/*
   if (!tripsStore.has(userKey)) {
     const goaTrip: TripRecord = {
       id: "trip_goa_premium_01",
@@ -1565,6 +1570,7 @@ function ensureUserStores(userId: number, userName: string = "Dipak Pawar") {
     tripsStore.set(userKey, [goaTrip, trekTrip]);
   }
 }
+*/
 
 /**
  * Get Comprehensive Executive Trip Dashboard Metrics
@@ -1632,7 +1638,7 @@ export async function getTripDashboardSummary(): Promise<TripDashboardMetrics> {
 
   const enterpriseData = await ensureEnterpriseSessionData(user.name || "User");
   const standaloneEvents = enterpriseData.standaloneEvents || [];
-  const logisticsHub = enterpriseData.logisticsHub || trips[0]?.logisticsHub || createSeedLogisticsHub();
+  const logisticsHub = enterpriseData.logisticsHub || trips[0]?.logisticsHub || createEmptyLogisticsHub();
 
   const allEvents = [...trips.flatMap((t) => t.events), ...standaloneEvents];
 
@@ -1661,7 +1667,9 @@ export async function getTripDashboardSummary(): Promise<TripDashboardMetrics> {
     overallHealthScore: overallHealth,
     overallRiskLevel: overallRisk,
     aiGlobalRecommendation:
-      budgetUtilizationPct > 80
+      trips.length === 0
+        ? "No active trips found. Launch a new trip using the Create Trip wizard to begin tracking budget, expenses, and logistics in real-time."
+        : budgetUtilizationPct > 80
         ? "Warning: Aggregate travel expenditure is running near threshold. Review lodging and fuel expenses."
         : "Portfolio health is optimal. Projected aggregate trip savings are tracking at 12.4%.",
 

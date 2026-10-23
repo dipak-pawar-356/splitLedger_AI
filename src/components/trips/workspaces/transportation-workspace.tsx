@@ -53,11 +53,11 @@ export function TransportationWorkspace({ hub, tripName, onUpdateHub }: Transpor
   const [vehicleNumber, setVehicleNumber] = useState("");
   const [vehicleType, setVehicleType] = useState("suv");
   const [driverName, setDriverName] = useState("");
-  const [driverContact, setDriverContact] = useState("+91 98221 44556");
+  const [driverContact, setDriverContact] = useState("");
   const [busCapacity, setBusCapacity] = useState("7");
   const [pickupPoint, setPickupPoint] = useState("");
   const [dropPoint, setDropPoint] = useState("");
-  const [estimatedArrival, setEstimatedArrival] = useState("16:30 IST");
+  const [estimatedArrival, setEstimatedArrival] = useState("");
   const [fuelStatus, setFuelStatus] = useState<LogisticsVehicle["fuelStatus"]>("Full");
 
   const filteredVehicles = vehicles.filter((v) => {
@@ -346,7 +346,9 @@ export function TransportationWorkspace({ hub, tripName, onUpdateHub }: Transpor
 
         {filteredVehicles.length === 0 && (
           <div className="col-span-full py-12 text-center text-slate-400 text-xs rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card/60">
-            No transit units matching current filter.
+            {vehicles.length === 0
+              ? "No vehicles or transit convoys registered yet. Click 'Add Vehicle' to register coaches, flights, SUVs, or rentals."
+              : "No transit units matching current filter."}
           </div>
         )}
       </div>

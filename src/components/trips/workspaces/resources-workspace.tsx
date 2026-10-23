@@ -48,14 +48,7 @@ export function ResourcesWorkspace({ hub, tripName, onUpdateHub }: ResourcesWork
       quantity: i.quantity,
       isPacked: i.packed,
       assignedTo: i.owner,
-    })) || [
-      { id: "inv_1", itemName: "High-Altitude Medical Trauma Kit", category: "Medical", quantity: 2, isPacked: true, assignedTo: "Dr. Ananya" },
-      { id: "inv_2", itemName: "Satellite GPS Communicator & SOS Beacon", category: "Electronics", quantity: 1, isPacked: true, assignedTo: "Vikram Lead" },
-      { id: "inv_3", itemName: "Thermal Base Layers & Waterproof Gore-Tex", category: "Clothing", quantity: 6, isPacked: false, assignedTo: "All Members" },
-      { id: "inv_4", itemName: "Multi-Fuel Camping Stove & Cookware", category: "Campsite", quantity: 2, isPacked: true, assignedTo: "Rohan Camp" },
-      { id: "inv_5", itemName: "Water Purification Tablets & Filter Pump", category: "Survival", quantity: 4, isPacked: true, assignedTo: "Sneha Ops" },
-      { id: "inv_6", itemName: "Heavy Duty Tow Straps & Vehicle Winch Kit", category: "Transit", quantity: 1, isPacked: false, assignedTo: "Driver Convoy" },
-    ]
+    })) || []
   );
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -225,6 +218,14 @@ export function ResourcesWorkspace({ hub, tripName, onUpdateHub }: ResourcesWork
             </Badge>
           </div>
         ))}
+
+        {filteredItems.length === 0 && (
+          <div className="col-span-full py-12 text-center text-slate-400 text-xs rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card/60">
+            {items.length === 0
+              ? "No packing or gear inventory items recorded yet. Use the quick add form above to record items."
+              : "No packing items found matching current search."}
+          </div>
+        )}
       </div>
     </div>
   );

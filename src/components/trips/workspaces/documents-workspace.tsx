@@ -48,68 +48,7 @@ export interface TravelDocument {
 }
 
 export function DocumentsWorkspace({ tripName }: DocumentsWorkspaceProps) {
-  const [docs, setDocs] = useState<TravelDocument[]>([
-    {
-      id: "doc_1",
-      title: "State Wildlife & Forest Expedition Entry Permit",
-      category: "Permit",
-      fileType: "PDF",
-      fileSize: "2.4 MB",
-      uploadedAt: "2027-10-14",
-      verified: true,
-      notes: "Valid for all 6 expedition convoy members with GPS tracking clearance.",
-      issuer: "State Forest & Wildlife Conservation Department",
-      referenceNumber: "WLF-EXP-2027-99182",
-    },
-    {
-      id: "doc_2",
-      title: "Comprehensive Group Travel & Evacuation Insurance",
-      category: "Insurance",
-      fileType: "PDF",
-      fileSize: "4.1 MB",
-      uploadedAt: "2027-10-18",
-      verified: true,
-      notes: "Policy #T-992011 covering emergency medical evacuation up to ₹10,00,000 per member.",
-      issuer: "HDFC ERGO General Insurance Co.",
-      referenceNumber: "POL-T992011-EXP",
-    },
-    {
-      id: "doc_3",
-      title: "Return Flight E-Tickets & Boarding Passes (Convoy Batch 1)",
-      category: "Ticket",
-      fileType: "PDF",
-      fileSize: "1.8 MB",
-      uploadedAt: "2027-10-20",
-      verified: true,
-      notes: "PNR: 6E-8820 / AI-492 departing 08:30 AM Terminal 2.",
-      issuer: "IndiGo & Air India Express",
-      referenceNumber: "PNR-6E8820-AI492",
-    },
-    {
-      id: "doc_4",
-      title: "Confirmed Heritage Villa Resort Booking Voucher",
-      category: "Voucher",
-      fileType: "PDF",
-      fileSize: "980 KB",
-      uploadedAt: "2027-10-21",
-      verified: true,
-      notes: "Confirmation Code: H-98231 with breakfast and dinner included.",
-      issuer: "Heritage Villa & Resorts Goa",
-      referenceNumber: "CONF-H-98231",
-    },
-    {
-      id: "doc_5",
-      title: "Medical Fitness & High Altitude Clearance Certificates",
-      category: "Medical",
-      fileType: "PDF",
-      fileSize: "3.2 MB",
-      uploadedAt: "2027-10-22",
-      verified: true,
-      notes: "Signed by licensed practitioner covering cardiac and pulmonary capacity.",
-      issuer: "Apollo Medical Center & Sports Health Board",
-      referenceNumber: "MED-FIT-8841-EXP",
-    },
-  ]);
+  const [docs, setDocs] = useState<TravelDocument[]>([]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -310,7 +249,9 @@ export function DocumentsWorkspace({ tripName }: DocumentsWorkspaceProps) {
 
         {filteredDocs.length === 0 && (
           <div className="col-span-full py-12 text-center text-slate-400 text-xs rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-card/60">
-            No travel documents found matching current search.
+            {docs.length === 0
+              ? "No travel documents uploaded yet. Click 'Upload Document' to store permits, tickets, and vouchers."
+              : "No travel documents found matching current search."}
           </div>
         )}
       </div>

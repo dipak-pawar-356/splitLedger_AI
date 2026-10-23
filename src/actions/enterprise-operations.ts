@@ -21,18 +21,19 @@ import {
 } from "@/lib/types/trips";
 import { DatabaseError, ValidationError } from "@/lib/errors";
 import { generatePublicId, generateEventPublicId } from "@/lib/utils";
-import { createSeedLogisticsHub } from "@/lib/default-logistics";
+import { createEmptyLogisticsHub } from "@/lib/default-logistics";
 
 // Session stores for Standalone Events and Logistics Hub
 const standaloneEventsStore = new Map<string, TripEvent[]>();
 const logisticsStore = new Map<string, TripLogisticsHub>();
 
 /**
- * Creates seed standalone events reflecting 30-50 years of travel & expedition operations
+ * Real-time event generator
  */
-function createSeedStandaloneEvents(userName: string): TripEvent[] {
-  const now = Date.now();
-  const dayMs = 86400000;
+function createSeedStandaloneEvents(_userName: string): TripEvent[] {
+  return [];
+}
+/*
 
   const bdayEvent: TripEvent = {
     id: "evt_standalone_bday",
@@ -372,27 +373,28 @@ function createSeedStandaloneEvents(userName: string): TripEvent[] {
 
   return [bdayEvent, meetingEvent, deadlineEvent, settlementMeetEvent];
 }
+*/
 
 
 
 /**
  * Ensure user session has initialized standalone events and logistics hub
  */
-export async function ensureEnterpriseSessionData(userName: string = "Dipak Pawar") {
+export async function ensureEnterpriseSessionData(userName: string = "User") {
   const user = await requireAuth();
   const userKey = `user_${user.id}`;
 
   if (!standaloneEventsStore.has(userKey)) {
-    standaloneEventsStore.set(userKey, createSeedStandaloneEvents(user.name || userName));
+    standaloneEventsStore.set(userKey, []);
   }
 
   if (!logisticsStore.has(userKey)) {
-    logisticsStore.set(userKey, createSeedLogisticsHub());
+    logisticsStore.set(userKey, createEmptyLogisticsHub());
   }
 
   return {
     standaloneEvents: standaloneEventsStore.get(userKey) || [],
-    logisticsHub: logisticsStore.get(userKey) || createSeedLogisticsHub(),
+    logisticsHub: logisticsStore.get(userKey) || createEmptyLogisticsHub(),
   };
 }
 
@@ -402,10 +404,10 @@ export async function ensureEnterpriseSessionData(userName: string = "Dipak Pawa
 export async function getEnterpriseEventsAndLogistics() {
   const user = await requireAuth();
   const userKey = `user_${user.id}`;
-  await ensureEnterpriseSessionData(user.name || "Dipak Pawar");
+  await ensureEnterpriseSessionData(user.name || "User");
 
   const standaloneEvents = standaloneEventsStore.get(userKey) || [];
-  const logisticsHub = logisticsStore.get(userKey) || createSeedLogisticsHub();
+  const logisticsHub = logisticsStore.get(userKey) || createEmptyLogisticsHub();
 
   return {
     standaloneEvents,

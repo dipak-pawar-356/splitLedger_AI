@@ -76,7 +76,7 @@ import { TripCreateWizardDialog } from "@/components/trips/trip-create-wizard-di
 import { TripDetailDashboard } from "@/components/trips/trip-detail-dashboard";
 import { EventManagementSection } from "@/components/trips/event-management-section";
 import { OperationsLogisticsCenter } from "@/components/trips/operations-logistics-center";
-import { createSeedLogisticsHub } from "@/lib/default-logistics";
+import { createEmptyLogisticsHub } from "@/lib/default-logistics";
 import { WorkspaceInspectorPanel } from "@/components/trips/workspace-inspector-panel";
 import { OverviewWorkspace } from "@/components/trips/workspaces/overview-workspace";
 import { AccommodationWorkspace } from "@/components/trips/workspaces/accommodation-workspace";
@@ -965,7 +965,7 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
         {/* WORKSPACE 4: LOGISTICS CENTER */}
         {activeWorkspace === "logistics" && (
           <OperationsLogisticsCenter
-            initialHub={metrics.logisticsHub || createSeedLogisticsHub()}
+            initialHub={metrics.logisticsHub || createEmptyLogisticsHub()}
             tripName={metrics.trips[0]?.name}
           />
         )}
@@ -973,7 +973,7 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
         {/* WORKSPACE 5: ACCOMMODATION */}
         {activeWorkspace === "accommodation" && (
           <AccommodationWorkspace
-            hub={metrics.logisticsHub || createSeedLogisticsHub()}
+            hub={metrics.logisticsHub || createEmptyLogisticsHub()}
             tripName={metrics.trips[0]?.name}
           />
         )}
@@ -981,7 +981,7 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
         {/* WORKSPACE 6: TRANSPORTATION */}
         {activeWorkspace === "transportation" && (
           <TransportationWorkspace
-            hub={metrics.logisticsHub || createSeedLogisticsHub()}
+            hub={metrics.logisticsHub || createEmptyLogisticsHub()}
             tripName={metrics.trips[0]?.name}
           />
         )}
@@ -989,7 +989,7 @@ export function TripsDashboardView({ initialMetrics }: TripsDashboardViewProps) 
         {/* WORKSPACE 7: RESOURCES */}
         {activeWorkspace === "resources" && (
           <ResourcesWorkspace
-            hub={metrics.logisticsHub || createSeedLogisticsHub()}
+            hub={metrics.logisticsHub || createEmptyLogisticsHub()}
             tripName={metrics.trips[0]?.name}
           />
         )}

@@ -114,14 +114,14 @@ export function EventManagementSection({ events: initialEvents, trips, onEventUp
   const [newEndTime, setNewEndTime] = useState("01:00 PM");
   const [newReportingBuffer, setNewReportingBuffer] = useState("30 Mins Before Start");
   const [newCapacity, setNewCapacity] = useState("20");
-  const [newConfirmedAttendees, setNewConfirmedAttendees] = useState("5");
-  const [newBudget, setNewBudget] = useState("5000");
-  const [newAdvancePaid, setNewAdvancePaid] = useState("1500");
-  const [newDressCode, setNewDressCode] = useState("Smart Casual");
+  const [newConfirmedAttendees, setNewConfirmedAttendees] = useState("0");
+  const [newBudget, setNewBudget] = useState("");
+  const [newAdvancePaid, setNewAdvancePaid] = useState("");
+  const [newDressCode, setNewDressCode] = useState("Casual");
   const [newLinkedTripId, setNewLinkedTripId] = useState<string>("standalone");
-  const [newCheckpoint1, setNewCheckpoint1] = useState("Guest Assembly & Welcome Drink");
-  const [newCheckpoint2, setNewCheckpoint2] = useState("Main Keynote / Core Activity");
-  const [newCheckpoint3, setNewCheckpoint3] = useState("Group Dinner & Financial Settlement");
+  const [newCheckpoint1, setNewCheckpoint1] = useState("");
+  const [newCheckpoint2, setNewCheckpoint2] = useState("");
+  const [newCheckpoint3, setNewCheckpoint3] = useState("");
   const [createActiveTab, setCreateActiveTab] = useState<"identity" | "location" | "schedule" | "attendance" | "agenda">("identity");
 
   // Sync state if props change

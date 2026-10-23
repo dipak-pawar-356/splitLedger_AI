@@ -63,11 +63,11 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
   // New Assignment Modal State & Operations Delegation
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskOwner, setNewTaskOwner] = useState("Sneha Patel");
-  const [newTaskDeadline, setNewTaskDeadline] = useState("Tomorrow, 12:00");
+  const [newTaskOwner, setNewTaskOwner] = useState("");
+  const [newTaskDeadline, setNewTaskDeadline] = useState("");
   const [newTaskCategory, setNewTaskCategory] = useState("Food");
   const [newTaskPriority, setNewTaskPriority] = useState<"Critical" | "High" | "Medium" | "Low">("High");
-  const [newTaskBudget, setNewTaskBudget] = useState("3500");
+  const [newTaskBudget, setNewTaskBudget] = useState("");
   const [newTaskNotes, setNewTaskNotes] = useState("");
   const [taskCategoryFilter, setTaskCategoryFilter] = useState("all");
 
@@ -285,6 +285,12 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
                   </div>
                 </div>
               ))}
+
+              {hub.transportation.length === 0 && (
+                <div className="py-6 text-center text-slate-400 text-xs rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                  No vehicles registered yet.
+                </div>
+              )}
             </div>
           </div>
 
@@ -357,6 +363,12 @@ export function OperationsLogisticsCenter({ initialHub, tripName }: OperationsLo
                   </div>
                 </div>
               ))}
+
+              {hub.accommodation.length === 0 && (
+                <div className="py-6 text-center text-slate-400 text-xs rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                  No accommodations registered yet.
+                </div>
+              )}
             </div>
           </div>
 
