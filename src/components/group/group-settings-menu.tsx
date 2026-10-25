@@ -141,6 +141,8 @@ export function GroupSettingsMenu({
         onOpenChange={setEditDialogOpen}
         groupId={groupId}
         publicId={groupIdentifier}
+        isOwner={isOwner}
+        isAdmin={isAdmin}
         initialData={initialData || {
           name: groupName,
           description: "",

@@ -65,6 +65,7 @@ export interface GroupFinancialSummary {
     description?: string | null;
     type: string;
     currency: string;
+    splitMethod: string;
     coverImage?: string | null;
     createdAt: Date | string;
     updatedAt: Date | string;
@@ -443,7 +444,7 @@ export async function getGroupFinancialDetails(
         id: e.id,
         amount: e.amount,
         currency: "INR",
-        splitType: (splitsForTx[0]?.splitMethod as any) || "equal",
+        splitType: (splitsForTx[0]?.splitMethod as any) || groupRecord.splitMethod || "equal",
         paidBy: e.paidBy || undefined,
         paidByContact: e.paidByContact || undefined,
         isDeleted: false,
@@ -929,6 +930,7 @@ export async function getGroupFinancialDetails(
         description: groupRecord.description,
         type: groupRecord.type,
         currency: groupRecord.currency || "INR",
+        splitMethod: groupRecord.splitMethod || "equal",
         coverImage: groupRecord.coverImage,
         createdAt: groupRecord.createdAt,
         updatedAt: groupRecord.updatedAt,
@@ -1007,6 +1009,17 @@ export async function getGroupFinancialDetails(
         paidBy: e.paidBy,
         paidByContact: e.paidByContact,
         createdBy: e.createdBy,
+        splitMethod: allSplits.find((s) => s.transactionId === e.id)?.splitMethod || groupRecord.splitMethod || "equal",
+        splits: allSplits
+          .filter((s) => s.transactionId === e.id)
+          .map((s) => ({
+            userId: s.userId || undefined,
+            contactId: s.contactId || undefined,
+            amount: s.amount,
+            percentage: s.percentage,
+            shares: s.shares,
+            splitMethod: s.splitMethod,
+          })),
       })),
     };
   } catch (error) {

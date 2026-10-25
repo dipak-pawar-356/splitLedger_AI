@@ -81,7 +81,7 @@ export function AboutSystemCard() {
 
           <span className="flex items-center gap-1">
             <Mail className="h-3 w-3" />
-            <span>support@splitledger.ai</span>
+            <span>[EMAIL_ADDRESS]</span>
           </span>
         </div>
       </CardContent>

@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Settings, Shield, Users, AlertTriangle, Trash2, LogOut, ArrowRight, UserCheck, Archive, RefreshCw } from "lucide-react";
+import { Settings, Shield, Users, AlertTriangle, Trash2, LogOut, ArrowRight, UserCheck, Archive, RefreshCw, Calculator, HelpCircle, CheckCircle2 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -59,10 +59,10 @@ const GROUP_TYPES = [
 ];
 
 const SPLIT_METHODS = [
-  { value: "equal", label: "Equal Split" },
-  { value: "exact", label: "Exact Amount" },
-  { value: "percentage", label: "Percentage" },
-  { value: "shares", label: "Shares" },
+  { value: "equal", label: "Equal Split (1/N)" },
+  { value: "exact", label: "Exact Amount (₹ INR)" },
+  { value: "percentage", label: "Percentage Split (%)" },
+  { value: "shares", label: "Shares Ratio" },
 ];
 
 export function GroupSettingsDialog({ 
@@ -95,12 +95,18 @@ export function GroupSettingsDialog({
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [transferTargetUserId, setTransferTargetUserId] = useState<string>("");
 
+  // Split Method Confirmation State (Option A: Future Only vs Option B: Recalculate All Existing)
+  const [showSplitConfirm, setShowSplitConfirm] = useState(false);
+  const [pendingGeneralData, setPendingGeneralData] = useState<GroupSettingsFormData | null>(null);
+  const [recalculateChoice, setRecalculateChoice] = useState<"future" | "all">("future");
+
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
     setValue,
+    watch,
   } = useForm<GroupSettingsFormData>({
     resolver: zodResolver(groupSettingsSchema),
     defaultValues: {
@@ -111,6 +117,8 @@ export function GroupSettingsDialog({
       coverImage: initialData.coverImage || "",
     },
   });
+
+  const selectedSplitMethod = watch("splitMethod");
 
   const loadMembers = useCallback(async () => {
     setLoadingMembers(true);
@@ -126,11 +134,18 @@ export function GroupSettingsDialog({
 
   useEffect(() => {
     if (open) {
+      reset({
+        name: initialData.name,
+        description: initialData.description || "",
+        type: (initialData.type as any) || "friends",
+        splitMethod: (initialData.splitMethod as any) || "equal",
+        coverImage: initialData.coverImage || "",
+      });
       loadMembers();
     }
-  }, [open, loadMembers]);
+  }, [open, initialData, reset, loadMembers]);
 
-  const onSubmitGeneral = async (data: GroupSettingsFormData) => {
+  const executeSave = async (data: GroupSettingsFormData, recalculateExisting: boolean) => {
     setIsLoading(true);
     setError(null);
 
@@ -141,10 +156,18 @@ export function GroupSettingsDialog({
         type: data.type as any,
         splitMethod: data.splitMethod as any,
         coverImage: data.coverImage,
+        recalculateExistingExpenses: recalculateExisting,
       });
 
-      toast.success("Group settings updated successfully!");
+      const methodLabel = SPLIT_METHODS.find((m) => m.value === data.splitMethod)?.label || data.splitMethod;
+      if (recalculateExisting) {
+        toast.success(`Group updated: calculation engine set to ${methodLabel} and all existing expenses recalculated!`);
+      } else {
+        toast.success(`Group settings saved! New expenses will default to ${methodLabel}.`);
+      }
+
       setOpen(false);
+      setShowSplitConfirm(false);
       onSuccess?.();
       router.refresh();
     } catch (err) {
@@ -154,6 +177,16 @@ export function GroupSettingsDialog({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const onSubmitGeneral = async (data: GroupSettingsFormData) => {
+    const isMethodChanged = data.splitMethod !== (initialData.splitMethod || "equal");
+    if (isMethodChanged) {
+      setPendingGeneralData(data);
+      setShowSplitConfirm(true);
+      return;
+    }
+    await executeSave(data, false);
   };
 
   const handleRoleChange = async (memberId: number, newIsAdmin: boolean) => {
@@ -341,10 +374,13 @@ export function GroupSettingsDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="editSplitMethod" className="text-sm font-medium">Default Split Method</Label>
+                <Label htmlFor="editSplitMethod" className="text-sm font-medium flex items-center justify-between">
+                  <span>Default Split Method (Calculation Engine)</span>
+                  <span className="text-[11px] text-primary font-normal">Authoritative Group Engine</span>
+                </Label>
                 <Select
-                  defaultValue={initialData.splitMethod || "equal"}
-                  onValueChange={(val: any) => setValue("splitMethod", val)}
+                  value={selectedSplitMethod || initialData.splitMethod || "equal"}
+                  onValueChange={(val: any) => setValue("splitMethod", val, { shouldDirty: true })}
                   disabled={isLoading || !isAdmin}
                 >
                   <SelectTrigger id="editSplitMethod">
@@ -356,6 +392,20 @@ export function GroupSettingsDialog({
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-[11px] text-slate-500">
+                  {selectedSplitMethod === "exact"
+                    ? "Exact Amount: Each member has a fixed allocated INR (₹) amount (Sum must equal total expense)."
+                    : selectedSplitMethod === "percentage"
+                    ? "Percentage Split: Distributed according to member percentages (Total must equal 100%)."
+                    : selectedSplitMethod === "shares"
+                    ? "Shares Ratio: Divided proportionally based on share units assigned to members."
+                    : "Equal Split: Expense divided evenly (1/N) among all included members."}
+                </p>
+                {!isAdmin && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 font-medium">
+                    Only group owners and admins can modify the default calculation engine.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -587,5 +637,104 @@ export function GroupSettingsDialog({
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    {/* Confirmation Dialog for Split Method Change (Option A vs Option B) */}
+    <Dialog open={showSplitConfirm} onOpenChange={setShowSplitConfirm}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-lg">
+            <Calculator className="h-5 w-5 text-primary" />
+            Update Group Calculation Engine
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-500">
+            You are changing the group's default split method from{" "}
+            <strong className="text-slate-800 dark:text-slate-200">
+              {SPLIT_METHODS.find((m) => m.value === initialData.splitMethod)?.label || initialData.splitMethod}
+            </strong>{" "}
+            to{" "}
+            <strong className="text-primary">
+              {SPLIT_METHODS.find((m) => m.value === pendingGeneralData?.splitMethod)?.label || pendingGeneralData?.splitMethod}
+            </strong>
+            .
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            How would you like to apply this new calculation method?
+          </p>
+
+          <RadioGroup
+            value={recalculateChoice}
+            onValueChange={(val: any) => setRecalculateChoice(val)}
+            className="gap-3"
+          >
+            {/* Option A: Future Only */}
+            <label
+              htmlFor="opt-future"
+              className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                recalculateChoice === "future"
+                  ? "border-primary bg-primary/5 dark:bg-primary/10 shadow-xs"
+                  : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
+              }`}
+            >
+              <RadioGroupItem value="future" id="opt-future" className="mt-0.5" />
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                  Option A: Future Expenses Only
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-semibold">Recommended</span>
+                </span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Existing expenses and historical balances remain unchanged. All new expenses created in this group will default to the newly selected calculation engine.
+                </p>
+              </div>
+            </label>
+
+            {/* Option B: Recalculate All Existing */}
+            <label
+              htmlFor="opt-all"
+              className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                recalculateChoice === "all"
+                  ? "border-primary bg-primary/5 dark:bg-primary/10 shadow-xs"
+                  : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
+              }`}
+            >
+              <RadioGroupItem value="all" id="opt-all" className="mt-0.5" />
+              <div className="space-y-1">
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                  Option B: Recalculate All Existing Expenses
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-semibold">Ledger Recompute</span>
+                </span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Immediately recalculates every existing expense in this group using the new split method. Member balances, own shares, and settlement suggestions will be synchronized.
+                </p>
+              </div>
+            </label>
+          </RadioGroup>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 pt-2 border-t">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSplitConfirm(false)}
+            disabled={isLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => pendingGeneralData && executeSave(pendingGeneralData, recalculateChoice === "all")}
+            disabled={isLoading}
+            className="gap-1.5"
+          >
+            {isLoading ? "Updating..." : "Confirm & Save"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

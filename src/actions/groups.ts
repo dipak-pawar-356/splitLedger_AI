@@ -6,7 +6,8 @@ import { eq, and, sql, desc, or, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } from "@/lib/errors";
-import { generateGroupId, formatCurrency, isDbIntegerId } from "@/lib/utils";
+import { generateGroupId, generateAuditId, formatCurrency, isDbIntegerId } from "@/lib/utils";
+import { executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
 
 function buildGroupIdentifierCondition(idOrPublicId: string | number) {
   const strId = String(idOrPublicId).trim();
@@ -118,6 +119,7 @@ export async function updateGroup(
     currency?: string;
     splitMethod?: GroupSplitMethod;
     coverImage?: string;
+    recalculateExistingExpenses?: boolean;
   }
 ) {
   try {
@@ -138,7 +140,7 @@ export async function updateGroup(
       throw new NotFoundError("Group");
     }
 
-    // Check if user is owner or admin
+    // Check if user is owner or admin (Requirement: Only Owner or Admin can change split method / settings)
     if (existingGroup.createdBy !== user.id) {
       const [adminMember] = await db
         .select()
@@ -154,6 +156,14 @@ export async function updateGroup(
 
       if (!adminMember) {
         throw new AuthorizationError("Only group admins or owners can update group settings");
+      }
+    }
+
+    // Validate splitMethod if provided
+    if (data.splitMethod !== undefined) {
+      const validMethods: GroupSplitMethod[] = ["equal", "exact", "percentage", "shares"];
+      if (!validMethods.includes(data.splitMethod)) {
+        throw new ValidationError(`Invalid split method "${data.splitMethod}". Valid options are: ${validMethods.join(", ")}`);
       }
     }
 
@@ -183,6 +193,10 @@ export async function updateGroup(
       }
     }
 
+    const isSplitMethodChanged = data.splitMethod !== undefined && data.splitMethod !== existingGroup.splitMethod;
+    const previousMethod = existingGroup.splitMethod;
+    const newMethod = data.splitMethod || previousMethod;
+
     const [updatedGroup] = await db
       .update(groups)
       .set({
@@ -197,22 +211,61 @@ export async function updateGroup(
       .where(eq(groups.id, existingGroup.id))
       .returning();
 
-    // Record audit log
+    // If owner opted to recalculate all existing expenses with the new split method:
+    if (isSplitMethodChanged && data.recalculateExistingExpenses) {
+      await executeAtomicGroupRecalculation({
+        groupId: existingGroup.id,
+        triggerOperation: "split_method_change",
+        targetSplitMethod: data.splitMethod,
+        initiatedByUserId: user.id,
+      });
+    }
+
+    // Record audit log for split method changes specifically
+    if (isSplitMethodChanged) {
+      await db.insert(auditLogs).values({
+        publicId: generateAuditId(),
+        userId: user.id,
+        action: "split_method_updated",
+        entityType: "group",
+        entityId: existingGroup.id,
+        entityPublicId: existingGroup.publicId,
+        changes: {
+          previousMethod,
+          newMethod,
+          recalculated: !!data.recalculateExistingExpenses,
+          user: user.name || user.email || `User #${user.id}`,
+          date: new Date().toISOString(),
+        },
+        beforeData: { splitMethod: previousMethod },
+        afterData: { splitMethod: newMethod },
+        status: "success",
+      });
+    }
+
+    // General group settings audit log
     await db.insert(auditLogs).values({
       userId: user.id,
       action: "update",
       entityType: "group",
       entityId: existingGroup.id,
+      entityPublicId: existingGroup.publicId,
       changes: {
         name: updatedGroup.name,
         description: updatedGroup.description,
         type: updatedGroup.type,
+        splitMethod: updatedGroup.splitMethod,
       },
     });
 
     revalidatePath("/dashboard/groups");
     revalidatePath(`/dashboard/groups/${existingGroup.publicId}`);
     revalidatePath(`/dashboard/groups/${existingGroup.id}`);
+    revalidatePath(`/dashboard/groups/${existingGroup.id}/settlements`);
+    revalidatePath(`/dashboard/groups/${existingGroup.id}/expenses`);
+    revalidatePath("/dashboard/settlements");
+    revalidatePath("/dashboard/reports");
+    revalidatePath("/dashboard");
     return updatedGroup;
   } catch (error) {
     if (error instanceof ValidationError || error instanceof NotFoundError || error instanceof AuthorizationError) {

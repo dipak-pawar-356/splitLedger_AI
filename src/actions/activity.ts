@@ -166,6 +166,14 @@ function buildActivityPresentation(
       description = `${actorName} removed a member from ${groupName || 'the group'}.`;
       break;
 
+    case "split_method_updated":
+    case "update_split_method":
+      title = "Split Method Changed";
+      description = `${actorName} changed default split method from "${before.splitMethod || (log.changes as any)?.previousMethod || 'Equal Split'}" to "${after.splitMethod || (log.changes as any)?.newMethod || 'Custom'}".`;
+      if (groupPublicId) deepLink = `/dashboard/groups/${groupPublicId}`;
+      actionLabel = "View Group";
+      break;
+
     case "receipt_uploaded":
       title = "Receipt Uploaded";
       description = `${actorName} uploaded an expense receipt for OCR analysis.`;

@@ -96,7 +96,7 @@ export interface TripExpense {
   paidByName: string;
   isPersonal: boolean; // if true, personal only; if false, shared with group
   splitBetweenMemberIds: string[];
-  splitMethod?: "equal" | "exact" | "shares";
+  splitMethod?: "equal" | "exact" | "percentage" | "shares";
   tax?: number;
   discount?: number;
   paymentMethod: "UPI" | "Credit Card" | "Debit Card" | "Cash" | "Net Banking";
@@ -489,7 +489,7 @@ export interface TripChecklistItem {
 export interface TripPreferences {
   budgetAlertThreshold: number; // e.g. 80 (%)
   expenseApprovalThreshold: number; // e.g. 5000 (INR)
-  defaultSplitMethod: "equal" | "exact" | "shares";
+  defaultSplitMethod: "equal" | "exact" | "percentage" | "shares";
   settlementReminderFrequency: "daily" | "weekly" | "end_of_trip";
 }
 

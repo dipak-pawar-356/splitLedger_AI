@@ -29,6 +29,7 @@ interface GroupExpenseDialogProps {
   onSuccess?: () => void;
   groupId: number | string;
   groupCurrency?: string;
+  defaultSplitMethod?: "equal" | "exact" | "percentage" | "shares";
   members: GroupMember[];
   currentUserId: number;
   isAdmin: boolean;
@@ -42,6 +43,7 @@ export function GroupExpenseDialog({
   onSuccess, 
   groupId, 
   groupCurrency = "INR", 
+  defaultSplitMethod = "equal",
   members, 
   currentUserId,
   isAdmin,
@@ -71,8 +73,8 @@ export function GroupExpenseDialog({
 
   const [selectedPayer, setSelectedPayer] = useState<string>(defaultPayer);
 
-  // Split Method & Participants State
-  const [splitMethod, setSplitMethod] = useState<SplitMethod>("equal");
+  // Split Method & Participants State (Defaults to authoritative group split method)
+  const [splitMethod, setSplitMethod] = useState<SplitMethod>(defaultSplitMethod || "equal");
   
   // Participant configuration map: key = member.id
   // Stores { included: boolean, exactAmount: number, percentage: number, shares: number }
@@ -83,15 +85,18 @@ export function GroupExpenseDialog({
     shares: string;
   }>>({});
 
-  // Initialize participant state whenever dialog opens or members change
+  // Initialize participant state whenever dialog opens, members change, or defaultSplitMethod changes
   useEffect(() => {
     if (open) {
+      if (defaultSplitMethod) {
+        setSplitMethod(defaultSplitMethod);
+      }
       const initial: Record<number, any> = {};
       members.forEach((m) => {
         initial[m.id] = {
           included: true,
           exactAmount: "",
-          percentage: members.length > 0 ? (100 / members.length).toFixed(1) : "0",
+          percentage: members.length > 0 ? (100 / members.length).toFixed(2) : "0",
           shares: "1",
         };
       });
@@ -100,22 +105,31 @@ export function GroupExpenseDialog({
         setSelectedPayer((prev) => prev || defaultPayer);
       }
     }
-  }, [open, members, defaultPayer]);
+  }, [open, members, defaultPayer, defaultSplitMethod]);
 
   const totalAmountNum = parseFloat(amount) || 0;
   const includedMembers = members.filter((m) => participantState[m.id]?.included);
 
-  // Calculate live split preview
+  // Calculate live split preview with paise-level precision and deterministic remainder allocation
   const calculatedSplits = useMemo(() => {
     if (totalAmountNum <= 0 || includedMembers.length === 0) return [];
+    const totalPaise = Math.round(totalAmountNum * 100);
 
     if (splitMethod === "equal") {
-      const perPerson = totalAmountNum / includedMembers.length;
-      return includedMembers.map((m) => ({
-        member: m,
-        amount: perPerson,
-        display: formatCurrency(perPerson),
-      }));
+      const count = includedMembers.length;
+      const basePaise = Math.floor(totalPaise / count);
+      const remainderPaise = totalPaise - basePaise * count;
+
+      return includedMembers.map((m, idx) => {
+        const amountPaise = basePaise + (idx < remainderPaise ? 1 : 0);
+        const amountRupees = amountPaise / 100;
+        return {
+          member: m,
+          amount: amountRupees,
+          amountPaise,
+          display: formatCurrency(amountRupees),
+        };
+      });
     }
 
     if (splitMethod === "exact") {
@@ -124,37 +138,76 @@ export function GroupExpenseDialog({
         return {
           member: m,
           amount: val,
+          amountPaise: Math.round(val * 100),
           display: formatCurrency(val),
         };
       });
     }
 
     if (splitMethod === "percentage") {
-      return includedMembers.map((m) => {
+      let allocatedPaise = 0;
+      const preliminary = includedMembers.map((m) => {
         const pct = parseFloat(participantState[m.id]?.percentage) || 0;
-        const val = (totalAmountNum * pct) / 100;
+        const amountPaise = Math.round((totalPaise * pct) / 100);
+        allocatedPaise += amountPaise;
         return {
           member: m,
-          amount: val,
+          amountPaise,
           percentage: pct,
-          display: `${formatCurrency(val)} (${pct}%)`,
+        };
+      });
+
+      // Deterministic penny rounding adjustment to the last participant
+      const diffPaise = totalPaise - allocatedPaise;
+      if (diffPaise !== 0 && preliminary.length > 0) {
+        preliminary[preliminary.length - 1].amountPaise += diffPaise;
+      }
+
+      return preliminary.map((p) => {
+        const amountRupees = p.amountPaise / 100;
+        return {
+          member: p.member,
+          amount: amountRupees,
+          amountPaise: p.amountPaise,
+          percentage: p.percentage,
+          display: `${formatCurrency(amountRupees)} (${p.percentage}%)`,
         };
       });
     }
 
     if (splitMethod === "shares") {
       const totalShares = includedMembers.reduce((sum, m) => {
-        return sum + (parseFloat(participantState[m.id]?.shares) || 1);
-      }, 0);
+        const s = parseFloat(participantState[m.id]?.shares);
+        return sum + (s > 0 ? s : 1);
+      }, 0) || includedMembers.length;
 
-      return includedMembers.map((m) => {
-        const share = parseFloat(participantState[m.id]?.shares) || 1;
-        const val = totalShares > 0 ? (totalAmountNum * share) / totalShares : 0;
+      let allocatedPaise = 0;
+      const preliminary = includedMembers.map((m) => {
+        const rawShare = parseFloat(participantState[m.id]?.shares);
+        const share = rawShare > 0 ? rawShare : 1;
+        const amountPaise = Math.floor((totalPaise * share) / totalShares);
+        allocatedPaise += amountPaise;
         return {
           member: m,
-          amount: val,
-          shares: share,
-          display: `${formatCurrency(val)} (${share} share${share > 1 ? 's' : ''})`,
+          share,
+          amountPaise,
+        };
+      });
+
+      // Deterministic penny rounding adjustment to the last participant
+      const diffPaise = totalPaise - allocatedPaise;
+      if (diffPaise !== 0 && preliminary.length > 0) {
+        preliminary[preliminary.length - 1].amountPaise += diffPaise;
+      }
+
+      return preliminary.map((p) => {
+        const amountRupees = p.amountPaise / 100;
+        return {
+          member: p.member,
+          amount: amountRupees,
+          amountPaise: p.amountPaise,
+          shares: p.share,
+          display: `${formatCurrency(amountRupees)} (${p.share} shr)`,
         };
       });
     }
@@ -162,23 +215,51 @@ export function GroupExpenseDialog({
     return [];
   }, [totalAmountNum, includedMembers, splitMethod, participantState]);
 
-  // Validation for custom splits
+  // Strict validation for custom splits preventing invalid configurations
   const splitValidationError = useMemo(() => {
     if (totalAmountNum <= 0) return null;
     if (includedMembers.length === 0) return "Please select at least one participant.";
 
     if (splitMethod === "exact") {
+      // Disallow negative amounts
+      for (const m of includedMembers) {
+        const val = parseFloat(participantState[m.id]?.exactAmount);
+        if (!isNaN(val) && val < 0) {
+          return "Assigned amounts cannot be negative.";
+        }
+      }
       const sum = calculatedSplits.reduce((s, c) => s + c.amount, 0);
       const diff = Math.abs(sum - totalAmountNum);
-      if (diff > 0.05) {
-        return `Exact split sum (${formatCurrency(sum)}) must equal total amount (${formatCurrency(totalAmountNum)}). Difference: ${formatCurrency(Math.abs(sum - totalAmountNum))}`;
+      if (diff > 0.01) {
+        return `Exact split sum (${formatCurrency(sum)}) must equal total amount (${formatCurrency(totalAmountNum)}). Difference: ${formatCurrency(diff)}`;
       }
     }
 
     if (splitMethod === "percentage") {
+      // Disallow negative percentages
+      for (const m of includedMembers) {
+        const pct = parseFloat(participantState[m.id]?.percentage);
+        if (!isNaN(pct) && pct < 0) {
+          return "Percentages cannot be negative.";
+        }
+      }
       const totalPct = includedMembers.reduce((s, m) => s + (parseFloat(participantState[m.id]?.percentage) || 0), 0);
-      if (Math.abs(totalPct - 100) > 0.1) {
-        return `Total percentages (${totalPct.toFixed(1)}%) must equal 100%.`;
+      if (Math.abs(totalPct - 100) > 0.01) {
+        return `Total percentages (${totalPct.toFixed(2)}%) must always equal 100%. Current difference: ${(100 - totalPct).toFixed(2)}%`;
+      }
+    }
+
+    if (splitMethod === "shares") {
+      // Disallow negative or zero shares
+      for (const m of includedMembers) {
+        const sh = parseFloat(participantState[m.id]?.shares);
+        if (!isNaN(sh) && sh <= 0) {
+          return "Shares must be greater than zero. Negative or zero shares are not allowed.";
+        }
+      }
+      const totalShares = includedMembers.reduce((s, m) => s + (parseFloat(participantState[m.id]?.shares) || 0), 0);
+      if (totalShares <= 0) {
+        return "Total shares must be greater than zero.";
       }
     }
 
@@ -264,7 +345,7 @@ export function GroupExpenseDialog({
     setAmount("");
     setNotes("");
     setReceiptUrl("");
-    setSplitMethod("equal");
+    setSplitMethod(defaultSplitMethod || "equal");
     setError(null);
   };
 
@@ -472,8 +553,8 @@ export function GroupExpenseDialog({
                         <div className="flex items-center gap-1">
                           <Input
                             type="number"
-                            step="1"
-                            min="1"
+                            step="any"
+                            min="0.01"
                             placeholder="1"
                             value={participantState[m.id]?.shares || "1"}
                             onChange={(e) => {

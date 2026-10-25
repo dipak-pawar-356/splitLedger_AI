@@ -274,23 +274,115 @@ export function determineExpenseEligibleParticipants(
   return eligible;
 }
 
+export interface ParticipantShareInput extends ParticipantKey {
+  amountPaise?: number;
+  percentage?: number;
+  shares?: number;
+}
+
 /**
- * Pure function: Calculates paise-accurate equal share distribution
- * Sum of shares EXACTLY equals expenseAmountPaise.
+ * Pure function: Calculates paise-accurate share distribution across all split methods.
+ * Supports: 'equal', 'exact', 'percentage', and 'shares'.
+ * Sum of shares EXACTLY equals expenseAmountPaise with zero drift.
  */
 export function calculateSharesForExpense(
   expenseAmountPaise: number,
-  participants: ParticipantKey[]
-): Array<ParticipantKey & { amountPaise: number }> {
+  participants: ParticipantShareInput[],
+  splitMethod: "equal" | "exact" | "percentage" | "shares" = "equal"
+): Array<ParticipantKey & { amountPaise: number; percentage?: number; shares?: number; splitMethod: "equal" | "exact" | "percentage" | "shares" }> {
   if (participants.length === 0 || expenseAmountPaise <= 0) return [];
-
   const count = participants.length;
+
+  if (splitMethod === "exact") {
+    const hasExactAmounts = participants.some((p) => p.amountPaise !== undefined && p.amountPaise > 0);
+    if (hasExactAmounts) {
+      const shares = participants.map((p) => ({
+        userId: p.userId,
+        contactId: p.contactId,
+        amountPaise: Math.max(0, p.amountPaise || 0),
+        splitMethod: "exact" as const,
+      }));
+      const allocatedSum = shares.reduce((sum, s) => sum + s.amountPaise, 0);
+      const diff = expenseAmountPaise - allocatedSum;
+      if (diff !== 0 && shares.length > 0) {
+        shares[shares.length - 1].amountPaise += diff;
+      }
+      return shares;
+    }
+    const basePaise = Math.floor(expenseAmountPaise / count);
+    const remainderPaise = expenseAmountPaise - basePaise * count;
+    return participants.map((p, idx) => ({
+      userId: p.userId,
+      contactId: p.contactId,
+      amountPaise: basePaise + (idx === count - 1 ? remainderPaise : 0),
+      splitMethod: "exact" as const,
+    }));
+  }
+
+  if (splitMethod === "percentage") {
+    const hasPercentages = participants.some((p) => p.percentage !== undefined && p.percentage > 0);
+    const percentages = hasPercentages
+      ? participants.map((p) => Math.max(0, p.percentage || 0))
+      : participants.map(() => 100 / count);
+    
+    const pctSum = percentages.reduce((sum, pct) => sum + pct, 0);
+    const normalizedPcts = pctSum > 0 ? percentages.map((pct) => (pct / pctSum) * 100) : percentages;
+
+    let allocatedSum = 0;
+    const shares = participants.map((p, idx) => {
+      const pct = normalizedPcts[idx];
+      const amountPaise = Math.round((expenseAmountPaise * pct) / 100);
+      allocatedSum += amountPaise;
+      return {
+        userId: p.userId,
+        contactId: p.contactId,
+        amountPaise,
+        percentage: Math.round(pct),
+        splitMethod: "percentage" as const,
+      };
+    });
+
+    const diff = expenseAmountPaise - allocatedSum;
+    if (diff !== 0 && shares.length > 0) {
+      shares[shares.length - 1].amountPaise += diff;
+    }
+    return shares;
+  }
+
+  if (splitMethod === "shares") {
+    const sharesList = participants.map((p) => Math.max(0, p.shares !== undefined && p.shares > 0 ? p.shares : 1));
+    const totalShares = sharesList.reduce((sum, s) => sum + s, 0) || count;
+
+    let allocatedSum = 0;
+    const result = participants.map((p, idx) => {
+      const shareVal = sharesList[idx];
+      const amountPaise = Math.floor((expenseAmountPaise * shareVal) / totalShares);
+      allocatedSum += amountPaise;
+      return {
+        userId: p.userId,
+        contactId: p.contactId,
+        amountPaise,
+        shares: Math.round(shareVal),
+        splitMethod: "shares" as const,
+      };
+    });
+
+    const diff = expenseAmountPaise - allocatedSum;
+    if (diff !== 0 && result.length > 0) {
+      result[result.length - 1].amountPaise += diff;
+    }
+    return result;
+  }
+
+  // Default: "equal" (Preserves existing calculation behavior exactly)
   const basePaise = Math.floor(expenseAmountPaise / count);
   const remainderPaise = expenseAmountPaise - (basePaise * count);
 
   return participants.map((p, idx) => ({
-    ...p,
+    userId: p.userId,
+    contactId: p.contactId,
     amountPaise: basePaise + (idx < remainderPaise ? 1 : 0),
+    splitMethod: "equal" as const,
   }));
 }
 
@@ -509,11 +601,13 @@ export async function executeAtomicGroupRecalculation(params: {
     | "edit_expense"
     | "delete_expense"
     | "restore_expense"
-    | "recalculate";
+    | "recalculate"
+    | "split_method_change";
+  targetSplitMethod?: "equal" | "exact" | "percentage" | "shares";
   initiatedByUserId?: number | null;
   operationFn?: () => Promise<void>;
 }): Promise<RecalculationResult> {
-  const { groupId, triggerOperation, initiatedByUserId, operationFn } = params;
+  const { groupId, triggerOperation, targetSplitMethod, initiatedByUserId, operationFn } = params;
 
   await ensureDatabaseSchema();
 
@@ -645,14 +739,22 @@ export async function executeAtomicGroupRecalculation(params: {
         "remove_member",
         "mode_change",
       ].includes(triggerOperation);
+      const isSplitMethodChangeEvent = triggerOperation === "split_method_change";
+
+      const activeMethod: "equal" | "exact" | "percentage" | "shares" =
+        (isSplitMethodChangeEvent ? targetSplitMethod : null) ||
+        (txExistingSplits[0]?.splitMethod as any) ||
+        (groupRecord.splitMethod as any) ||
+        "equal";
 
       const hasCustomOrNonEqualSplits = txExistingSplits.some(
         (s) => s.splitMethod !== "equal" || s.isExcluded
       );
       const existingSplitsSum = txExistingSplits.reduce((sum, s) => sum + s.amount, 0);
 
-      // Preserve existing user-defined splits when they exist and are valid
+      // Preserve existing user-defined splits when they exist and are valid (unless bulk split method change is requested)
       if (
+        !isSplitMethodChangeEvent &&
         txExistingSplits.length > 0 &&
         existingSplitsSum === tx.amount &&
         (!isMemberEvent || hasCustomOrNonEqualSplits)
@@ -674,9 +776,7 @@ export async function executeAtomicGroupRecalculation(params: {
         tx.createdAt || tx.date
       );
 
-      // If no timeline records existed yet (e.g. legacy expenses before timeline table),
-      // or if timeline evaluation resulted in 0 eligible participants for this expense,
-      // fallback to all currently active members (or tx payer) so expense is not orphaned
+      // If no timeline records existed yet, fallback to active members
       if (eligibleParticipants.length === 0) {
         if (activeMembers.length > 0) {
           eligibleParticipants = activeMembers.map((m) => ({
@@ -691,8 +791,21 @@ export async function executeAtomicGroupRecalculation(params: {
         }
       }
 
-      // Calculate paise-perfect shares
-      const calculatedShares = calculateSharesForExpense(tx.amount, eligibleParticipants);
+      // Build participant share inputs, preserving any existing percentages or shares if present
+      const participantInputs: ParticipantShareInput[] = eligibleParticipants.map((p) => {
+        const existing = txExistingSplits.find(
+          (s) => (p.userId && s.userId === p.userId) || (p.contactId && s.contactId === p.contactId)
+        );
+        return {
+          ...p,
+          amountPaise: existing?.amount,
+          percentage: existing?.percentage ? Number(existing.percentage) : undefined,
+          shares: existing?.shares ? Number(existing.shares) : undefined,
+        };
+      });
+
+      // Calculate paise-perfect shares according to active calculation engine
+      const calculatedShares = calculateSharesForExpense(tx.amount, participantInputs, activeMethod);
 
       for (const share of calculatedShares) {
         totalSharesPaise += share.amountPaise;
@@ -703,8 +816,9 @@ export async function executeAtomicGroupRecalculation(params: {
         });
       }
 
-      // Diff detection: only update splits and history if participants or shares changed
-      const isChanged = hasParticipantSetOrSharesChanged(txExistingSplits, calculatedShares);
+      // Diff detection: only update splits and history if participants, splitMethod or shares changed
+      const isMethodChanged = txExistingSplits[0]?.splitMethod !== activeMethod;
+      const isChanged = isSplitMethodChangeEvent || isMethodChanged || hasParticipantSetOrSharesChanged(txExistingSplits, calculatedShares);
 
       if (isChanged) {
         txIdsToClear.push(tx.id);
@@ -713,8 +827,10 @@ export async function executeAtomicGroupRecalculation(params: {
             transactionId: tx.id,
             userId: share.userId || null,
             contactId: share.contactId || null,
-            splitMethod: "equal" as const,
+            splitMethod: (share.splitMethod || activeMethod) as any,
             amount: share.amountPaise,
+            percentage: share.percentage || null,
+            shares: share.shares || null,
             isExcluded: false,
             createdAt: new Date(),
           });
@@ -727,7 +843,7 @@ export async function executeAtomicGroupRecalculation(params: {
           version: (tx.participationVersion || 1) + 1,
           participantUserIds: calculatedShares.map((s) => s.userId).filter(Boolean) as number[],
           participantContactIds: calculatedShares.map((s) => s.contactId).filter(Boolean) as number[],
-          splitMethod: "equal",
+          splitMethod: activeMethod,
           reason: `Recalculation via ${triggerOperation}`,
           createdAt: new Date(),
         });

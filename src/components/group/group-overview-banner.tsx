@@ -24,6 +24,7 @@ interface GroupOverviewBannerProps {
     description?: string | null;
     type: string;
     currency: string;
+    splitMethod?: string;
     createdAt: Date | string;
     isOwner: boolean;
     isAdmin: boolean;
@@ -71,6 +72,15 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
                     Owner
                   </Badge>
                 )}
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs font-medium">
+                  {group.splitMethod === "shares"
+                    ? "Shares Ratio"
+                    : group.splitMethod === "percentage"
+                    ? "Percentage Split (%)"
+                    : group.splitMethod === "exact"
+                    ? "Exact Amount (₹)"
+                    : "Equal Split (1/N)"}
+                </Badge>
               </div>
               {group.description && (
                 <p className="text-xs text-slate-300 mt-1 max-w-2xl font-normal">

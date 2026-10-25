@@ -277,6 +277,7 @@ export default async function GroupDetailPage({
             <GroupExpenseDialog
               groupId={group.id}
               groupCurrency={group.currency}
+              defaultSplitMethod={(group.splitMethod as any) || "equal"}
               members={mappedMembersForDialog}
               currentUserId={user.id}
               isAdmin={group.isAdmin}
@@ -354,7 +355,7 @@ export default async function GroupDetailPage({
               description: group.description || "",
               currency: group.currency,
               type: group.type,
-              splitMethod: "equal",
+              splitMethod: group.splitMethod || "equal",
               coverImage: group.coverImage || "",
             }}
           />

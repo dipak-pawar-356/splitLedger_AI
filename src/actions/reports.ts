@@ -605,6 +605,7 @@ function computeComprehensiveFinancialModel({
         totalAmount: amtRupees,
         paidByName: isUserPayer ? "You" : (tx.paidByName || "Member"),
         splitBetween: txSplits.length > 0 ? `${txSplits.length} members` : `${membersByGroup.get(tx.groupId!) || 2} members`,
+        splitMethod: txSplits[0]?.splitMethod || tx.splitMethod || "equal",
         myShare,
         otherMembersShare,
         pendingAmount: tx.status === "pending" ? amtRupees : 0,
@@ -1147,19 +1148,31 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
           .where(inArray(expenseSplits.transactionId, txIds))
       : [];
 
+    const splitsByTx = new Map<number, string>();
+    splitRecords.forEach((s) => {
+      if (!splitsByTx.has(s.transactionId) && s.splitMethod) {
+        splitsByTx.set(s.transactionId, s.splitMethod);
+      }
+    });
+
+    const enrichedRawTxList = rawTxList.map((tx) => ({
+      ...tx,
+      splitMethod: splitsByTx.get(tx.id) || "equal",
+    }));
+
     const model = computeComprehensiveFinancialModel({
       user,
       targetGroupIds,
-      transactionsList: rawTxList,
+      transactionsList: enrichedRawTxList,
       splitsList: splitRecords,
       settlementsList,
       groupMembersList,
     });
 
-    const totalCount = rawTxList.length;
+    const totalCount = enrichedRawTxList.length;
 
     return {
-      transactions: rawTxList.slice(offset, offset + limit),
+      transactions: enrichedRawTxList.slice(offset, offset + limit),
       myTransactions: model.myTxList.slice(offset, offset + limit),
       groupTransactions: model.groupTxList.slice(offset, offset + limit),
       totalCount,
@@ -2042,6 +2055,7 @@ export async function exportReportData(
           name: groups.name,
           type: groups.type,
           currency: groups.currency,
+          splitMethod: groups.splitMethod,
         })
         .from(groups)
         .where(eq(groups.isDeleted, false))
@@ -2127,6 +2141,7 @@ export async function exportReportData(
         name: g.name,
         type: g.type,
         currency: g.currency,
+        splitMethod: g.splitMethod || "equal",
         memberCount: mCount,
         totalSpent: gExpense * 100,
         settlementsCompleted: gSettlement.completed,

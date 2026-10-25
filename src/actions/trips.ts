@@ -1732,7 +1732,7 @@ export async function createTripWizard(data: {
   preferences?: {
     budgetAlertThreshold?: number;
     expenseApprovalThreshold?: number;
-    defaultSplitMethod?: "equal" | "exact" | "shares";
+    defaultSplitMethod?: "equal" | "exact" | "percentage" | "shares";
   };
 }): Promise<TripRecord> {
   const user = await requireAuth();

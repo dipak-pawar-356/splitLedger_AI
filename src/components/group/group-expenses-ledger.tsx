@@ -35,6 +35,7 @@ export interface GroupExpenseItemData {
   paidBy?: number | null;
   paidByContact?: number | null;
   createdBy?: number | null;
+  splitMethod?: string | null;
 }
 
 interface GroupExpensesLedgerProps {
@@ -124,6 +125,20 @@ export function GroupExpensesLedger({
                   </strong>
                   {" • "}
                   {formatDate(exp.date)}
+                  {exp.splitMethod && (
+                    <>
+                      {" • "}
+                      <span className="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold">
+                        {exp.splitMethod === "exact"
+                          ? "Exact (₹)"
+                          : exp.splitMethod === "percentage"
+                          ? "Percent (%)"
+                          : exp.splitMethod === "shares"
+                          ? "Shares"
+                          : "Equal (1/N)"}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
 
