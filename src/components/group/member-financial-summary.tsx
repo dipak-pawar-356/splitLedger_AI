@@ -102,6 +102,11 @@ export function MemberFinancialSummary({
   const isSettled = !isReceivable && !isPayable;
   const hasPendingSettlement = isReceivable || isPayable;
 
+  // Single source of truth for own share: for a debtor, own share equals totalPaid + what they need to pay
+  const effectiveOwnShare = isPayable 
+    ? Math.max(member.ownShare, member.totalPaid + effectiveNeedToPay) 
+    : member.ownShare;
+
   const handleRemove = async () => {
     if (!confirm(`Are you sure you want to remove ${member.name} from this group?`)) return;
     setIsDeleting(true);
@@ -230,9 +235,9 @@ export function MemberFinancialSummary({
             </div>
           </CardHeader>
 
-          <CardContent className="p-5 space-y-4">
+          <CardContent className="p-4 sm:p-5 space-y-3.5">
             {/* Net Position Status Banner (Hero Section) */}
-            <div className={`p-4 rounded-2xl border transition-all duration-300 space-y-3 ${
+            <div className={`p-3.5 sm:p-4 rounded-2xl border transition-all duration-300 space-y-2.5 ${
               isReceivable 
                 ? "bg-gradient-to-br from-emerald-500/10 via-emerald-950/20 to-transparent border-emerald-500/30 shadow-xs" 
                 : isPayable 
@@ -265,52 +270,21 @@ export function MemberFinancialSummary({
                 </div>
               </div>
 
-              {/* Banner Amount & Status Badge */}
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight block ${
-                    isReceivable 
-                      ? "text-emerald-500 dark:text-emerald-400" 
-                      : isPayable 
-                      ? "text-rose-500 dark:text-rose-400" 
-                      : member.isPaymentVerified ? "text-emerald-500 dark:text-emerald-400" : "text-slate-400"
-                  }`}>
-                    {isReceivable 
-                      ? `Will Receive ${formatCurrency(effectiveWillReceive)}` 
-                      : isPayable 
-                      ? `Needs To Pay ${formatCurrency(effectiveNeedToPay)}` 
-                      : member.isPaymentVerified ? "Settled & Verified" : "Settled Up"}
-                  </span>
-                </div>
-
-                <div>
-                  {isPayable ? (
-                    <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/30 text-[10px] font-bold uppercase tracking-wider">
-                      Waiting Payment
-                    </Badge>
-                  ) : isReceivable ? (
-                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
-                      Receiving
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
-                      Completed
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {/* Progress Indicator */}
-              <div className="w-full h-1.5 bg-slate-900/80 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    isReceivable 
-                      ? "bg-emerald-500 w-3/4" 
-                      : isPayable 
-                      ? "bg-rose-500 w-2/5" 
-                      : "bg-emerald-500 w-full"
-                  }`} 
-                />
+              {/* Banner Amount */}
+              <div>
+                <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight block ${
+                  isReceivable 
+                    ? "text-emerald-500 dark:text-emerald-400" 
+                    : isPayable 
+                    ? "text-rose-500 dark:text-rose-400" 
+                    : member.isPaymentVerified ? "text-emerald-500 dark:text-emerald-400" : "text-slate-400"
+                }`}>
+                  {isReceivable 
+                    ? `Will Receive ${formatCurrency(effectiveWillReceive)}` 
+                    : isPayable 
+                    ? `Needs To Pay ${formatCurrency(effectiveNeedToPay)}` 
+                    : member.isPaymentVerified ? "Settled & Verified" : "Settled Up"}
+                </span>
               </div>
 
               {/* Dynamic Receiver Assignment & Pairwise Settlement Transfers */}
@@ -331,7 +305,7 @@ export function MemberFinancialSummary({
                           name: member.name,
                           avatar: member.avatar,
                           totalPaid: member.totalPaid,
-                          ownShare: member.ownShare,
+                          ownShare: effectiveOwnShare,
                           needToPay: effectiveNeedToPay,
                         }}
                         eligibleReceivers={allMembers
@@ -563,7 +537,7 @@ export function MemberFinancialSummary({
                   <PieChart className="h-3.5 w-3.5 text-purple-500" />
                 </div>
                 <div className="text-sm sm:text-base font-black font-mono text-slate-900 dark:text-slate-100">
-                  {formatCurrency(member.ownShare)}
+                  {formatCurrency(effectiveOwnShare)}
                 </div>
                 <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                   {member.extraPaid > 0 ? `+${formatCurrency(member.extraPaid)} extra` : "Base share"}
@@ -699,7 +673,7 @@ export function MemberFinancialSummary({
                 totalGroupExpense={totalGroupExpense}
                 totalMembers={totalMembers}
                 memberPaidAmount={member.totalPaid}
-                memberOwnShare={member.ownShare}
+                memberOwnShare={effectiveOwnShare}
                 memberNetPosition={member.netPosition}
                 reminderRole="receiver"
                 onSuccess={() => router.refresh()}
@@ -732,7 +706,7 @@ export function MemberFinancialSummary({
                   totalGroupExpense={totalGroupExpense}
                   totalMembers={totalMembers}
                   memberPaidAmount={member.totalPaid}
-                  memberOwnShare={member.ownShare}
+                  memberOwnShare={effectiveOwnShare}
                   memberNetPosition={member.netPosition}
                   reminderRole="payer"
                   onSuccess={() => router.refresh()}
@@ -762,7 +736,7 @@ export function MemberFinancialSummary({
                   totalGroupExpense={totalGroupExpense}
                   totalMembers={totalMembers}
                   memberPaidAmount={member.totalPaid}
-                  memberOwnShare={member.ownShare}
+                  memberOwnShare={effectiveOwnShare}
                   memberNetPosition={member.netPosition}
                   reminderRole="receiver"
                   onSuccess={() => router.refresh()}

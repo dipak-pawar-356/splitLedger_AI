@@ -822,6 +822,10 @@ export async function getGroupFinancialDetails(
         m.willReceive = 0;
         m.netPosition = -totalOwed;
         m.settlementStatus = "needs_to_pay";
+        // When member has owed debt/allocations, their effective own share must reflect their total liability
+        if (m.totalPaid + totalOwed > m.ownShare) {
+          m.ownShare = m.totalPaid + totalOwed;
+        }
       } else if (totalReceiving > 0.01) {
         m.willReceive = totalReceiving;
         m.needToPay = 0;
