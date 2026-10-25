@@ -370,37 +370,19 @@ export function MemberFinancialSummary({
                       {member.owesTo.map((owe, idx) => (
                         <div
                           key={idx}
-                          className="p-3.5 rounded-2xl border border-rose-500/20 dark:border-rose-900/40 bg-slate-900/60 dark:bg-slate-950/60 hover:border-rose-500/40 transition-all duration-200 shadow-xs space-y-2.5"
+                          className="p-3 rounded-2xl border border-rose-500/20 dark:border-rose-900/40 bg-slate-900/60 dark:bg-slate-950/60 hover:border-rose-500/40 transition-all duration-200 shadow-xs space-y-2.5"
                         >
-                          {/* Mini Card Header: Avatar, Name, Status, Amount */}
+                          {/* Mini Card Header: Avatar, Name, Amount */}
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className="h-8 w-8 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center font-bold text-xs shrink-0">
                                 {owe.name.charAt(0).toUpperCase()}
                               </div>
                               <div className="min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-xs font-bold text-slate-100 truncate">
-                                    {owe.name}
-                                  </span>
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-[9px] py-0 px-1.5 font-bold rounded-md ${
-                                      owe.status === "payment_initiated"
-                                        ? "bg-blue-500/10 text-blue-400 border-blue-500/30"
-                                        : owe.status === "waiting_confirmation"
-                                        ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                                        : "bg-rose-500/10 text-rose-400 border-rose-500/30"
-                                    }`}
-                                  >
-                                    {owe.status === "payment_initiated"
-                                      ? "Payment Initiated"
-                                      : owe.status === "waiting_confirmation"
-                                      ? "Waiting Confirmation"
-                                      : "Pending"}
-                                  </Badge>
-                                </div>
-                                <span className="text-[10px] text-slate-400 block">
+                                <span className="text-xs font-bold text-slate-100 truncate block">
+                                  Pay {owe.name}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block truncate">
                                   Assigned Creditor
                                 </span>
                               </div>
@@ -413,8 +395,8 @@ export function MemberFinancialSummary({
                             </div>
                           </div>
 
-                          {/* Mini Card Action Strip: 3-column equal grid */}
-                          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-800/80">
+                          {/* Mini Card Action Strip: QR & Pay Now */}
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
                             {/* QR */}
                             {owe.userId ? (
                               <UpiQuickPayDialog
@@ -471,32 +453,6 @@ export function MemberFinancialSummary({
                                 <span>Pay</span>
                               </Button>
                             )}
-
-                            {/* Manual Settle */}
-                            <SettleAllDialog
-                              groupId={groupId}
-                              groupName={groupName}
-                              suggestions={[{
-                                fromUserId: member.userId || undefined,
-                                fromContactId: member.contactId || undefined,
-                                fromName: member.name,
-                                toUserId: owe.userId,
-                                toContactId: owe.contactId,
-                                toName: owe.name,
-                                amount: owe.amount,
-                                currency: "INR",
-                              }]}
-                              trigger={
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="w-full h-7 text-[11px] font-semibold rounded-lg gap-1 border-slate-700 hover:bg-slate-800 text-slate-200 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
-                                >
-                                  <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                                  <span>Manual</span>
-                                </Button>
-                              }
-                            />
                           </div>
                         </div>
                       ))}
@@ -522,37 +478,19 @@ export function MemberFinancialSummary({
                       {member.receivesFrom.map((rec, idx) => (
                         <div
                           key={idx}
-                          className="p-3.5 rounded-2xl border border-emerald-500/20 dark:border-emerald-900/40 bg-slate-900/60 dark:bg-slate-950/60 hover:border-emerald-500/40 transition-all duration-200 shadow-xs space-y-2.5"
+                          className="p-3 rounded-2xl border border-emerald-500/20 dark:border-emerald-900/40 bg-slate-900/60 dark:bg-slate-950/60 hover:border-emerald-500/40 transition-all duration-200 shadow-xs space-y-2.5"
                         >
-                          {/* Mini Card Header: Avatar, Name, Status, Amount */}
+                          {/* Mini Card Header: Avatar, Name, Amount */}
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className="h-8 w-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-xs shrink-0">
                                 {rec.name.charAt(0).toUpperCase()}
                               </div>
                               <div className="min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="text-xs font-bold text-slate-100 truncate">
-                                    From {rec.name}
-                                  </span>
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-[9px] py-0 px-1.5 font-bold rounded-md ${
-                                      rec.status === "payment_initiated"
-                                        ? "bg-blue-500/10 text-blue-400 border-blue-500/30"
-                                        : rec.status === "waiting_confirmation"
-                                        ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                                        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                                    }`}
-                                  >
-                                    {rec.status === "payment_initiated"
-                                      ? "Payment Initiated"
-                                      : rec.status === "waiting_confirmation"
-                                      ? "Waiting Confirmation"
-                                      : "Pending"}
-                                  </Badge>
-                                </div>
-                                <span className="text-[10px] text-slate-400 block">
+                                <span className="text-xs font-bold text-slate-100 truncate block">
+                                  Waiting from {rec.name}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block truncate">
                                   Incoming Debt Payment
                                 </span>
                               </div>
@@ -565,22 +503,9 @@ export function MemberFinancialSummary({
                             </div>
                           </div>
 
-                          {/* Receiver Lifecycle Indicators */}
-                          <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-0.5">
-                            <span className="inline-flex items-center gap-1">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              Status: <strong className="text-emerald-400 font-semibold">Expected</strong>
-                            </span>
-                            <span>•</span>
-                            <span>Estimated Settlement</span>
-                            <span>•</span>
-                            <span>Receiver Timeline</span>
-                          </div>
-
-                          {/* Mini Card Action Strip: 2-column equal grid */}
-                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
-                            {/* QR */}
-                            {member.userId ? (
+                          {/* Mini Card Action Strip: Show QR */}
+                          {member.userId && (
+                            <div className="pt-1 border-t border-slate-800/80">
                               <UpiQuickPayDialog
                                 groupId={groupId}
                                 groupName={groupName}
@@ -594,46 +519,15 @@ export function MemberFinancialSummary({
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="w-full h-7 text-[11px] font-semibold rounded-lg gap-1 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+                                    className="w-full h-7 text-[11px] font-semibold rounded-lg gap-1.5 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                                   >
                                     <QrCode className="h-3 w-3" />
                                     <span>Show QR</span>
                                   </Button>
                                 }
                               />
-                            ) : (
-                              <Button size="sm" variant="outline" disabled className="w-full h-7 text-[11px] opacity-40">
-                                <QrCode className="h-3 w-3" />
-                                <span>Show QR</span>
-                              </Button>
-                            )}
-
-                            {/* Manual Settle */}
-                            <SettleAllDialog
-                              groupId={groupId}
-                              groupName={groupName}
-                              suggestions={[{
-                                fromUserId: rec.userId,
-                                fromContactId: rec.contactId,
-                                fromName: rec.name,
-                                toUserId: member.userId || undefined,
-                                toContactId: member.contactId || undefined,
-                                toName: member.name,
-                                amount: rec.amount,
-                                currency: "INR",
-                              }]}
-                              trigger={
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="w-full h-7 text-[11px] font-semibold rounded-lg gap-1 border-slate-700 hover:bg-slate-800 text-slate-200 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
-                                >
-                                  <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                                  <span>Manual Settle</span>
-                                </Button>
-                              }
-                            />
-                          </div>
+                            </div>
+                          )}
                         </div>
                       ))}
 

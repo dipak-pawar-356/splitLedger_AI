@@ -475,7 +475,7 @@ export default async function GroupDetailPage({
 
         {/* TAB 1: Member Financials Grid (SECTIONS 3, 4, 5, 9) */}
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 [@media(min-width:1380px)]:grid-cols-3 gap-6 auto-rows-fr items-stretch">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-6 auto-rows-fr items-stretch">
             {members.map((member) => (
               <MemberFinancialSummary
                 key={member.id}

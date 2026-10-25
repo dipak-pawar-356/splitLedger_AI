@@ -142,33 +142,31 @@ export function WhoPaysWhomCard({
                   <span className="text-[11px] text-slate-400">
                     {s.fromName} owes {s.toName}
                   </span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {s.toUserId && (
                       <>
-                        {/* If current user is receiver (or if admin/owner is viewing): Show QR */}
-                        {(currentUserId === s.toUserId || ((isOwner || isAdmin) && currentUserId !== s.fromUserId)) && (
-                          <UpiQuickPayDialog
-                            groupId={groupId}
-                            groupName={groupName}
-                            receiverUserId={s.toUserId}
-                            receiverName={s.toName}
-                            payerUserId={s.fromUserId}
-                            payerName={s.fromName}
-                            amount={s.amount}
-                            mode="receive"
-                            trigger={
-                              <Button
-                                size="sm"
-                                className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                              >
-                                <QrCode className="h-3.5 w-3.5" />
-                                <span>Show QR</span>
-                              </Button>
-                            }
-                          />
-                        )}
+                        {/* Show QR dialog: accessible to receiver, admin/owner, or debtor */}
+                        <UpiQuickPayDialog
+                          groupId={groupId}
+                          groupName={groupName}
+                          receiverUserId={s.toUserId}
+                          receiverName={s.toName}
+                          payerUserId={s.fromUserId}
+                          payerName={s.fromName}
+                          amount={s.amount}
+                          mode="receive"
+                          trigger={
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs px-3 font-bold rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+                            >
+                              <QrCode className="h-3.5 w-3.5" />
+                              <span>Show QR</span>
+                            </Button>
+                          }
+                        />
 
-                        {/* If current user is payer: Pay Now */}
+                        {/* If current user is payer: also provide quick Pay Now action */}
                         {currentUserId === s.fromUserId && (
                           <UpiQuickPayDialog
                             groupId={groupId}
@@ -182,7 +180,7 @@ export function WhoPaysWhomCard({
                             trigger={
                               <Button
                                 size="sm"
-                                className="h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                className="h-7 text-xs px-3 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                               >
                                 <Smartphone className="h-3.5 w-3.5" />
                                 <span>Pay Now</span>
@@ -192,6 +190,8 @@ export function WhoPaysWhomCard({
                         )}
                       </>
                     )}
+
+                    {/* Manual Settle Dialog: accessible to settle debt */}
                     <SettleAllDialog
                       groupId={groupId}
                       groupName={groupName}
@@ -199,10 +199,10 @@ export function WhoPaysWhomCard({
                       trigger={
                         <Button
                           size="sm"
-                          variant="ghost"
-                          className="h-7 text-xs px-2 font-medium rounded-xl gap-1 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                          variant="outline"
+                          className="h-7 text-xs px-3 font-semibold rounded-xl gap-1.5 border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200 shadow-xs transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                         >
-                          <Check className="h-3 w-3" />
+                          <Check className="h-3.5 w-3.5 text-emerald-400" />
                           <span>Manual Settle</span>
                         </Button>
                       }
