@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 import { 
   groups, 
   groupMembers, 
@@ -226,11 +226,12 @@ export interface GroupFinancialSummary {
 export async function getGroupFinancialDetails(
   groupIdOrPublicId: string | number
 ): Promise<GroupFinancialSummary> {
-  try {
-    const user = await requireAuth();
+  return await withDbRetry(async () => {
+    try {
+      const user = await requireAuth();
 
-    const strId = String(groupIdOrPublicId).trim();
-    const isDbId = isDbIntegerId(groupIdOrPublicId);
+      const strId = String(groupIdOrPublicId).trim();
+      const isDbId = isDbIntegerId(groupIdOrPublicId);
     
     // 1. Fetch Group
     const [groupRecord] = await db
@@ -404,7 +405,8 @@ export async function getGroupFinancialDetails(
             eq(groupReceiverAssignments.groupId, groupId),
             eq(groupReceiverAssignments.status, "active")
           )
-        ),
+        )
+        .catch(() => [] as any[]),
     ]);
 
     // Check membership authorization
@@ -1110,8 +1112,9 @@ export async function getGroupFinancialDetails(
           })),
       })),
     };
-  } catch (error) {
-    if (error instanceof ValidationError || error instanceof AuthorizationError) throw error;
-    throw new DatabaseError("Failed to calculate group financials", { originalError: error });
-  }
+    } catch (error) {
+      if (error instanceof ValidationError || error instanceof AuthorizationError) throw error;
+      throw new DatabaseError("Failed to calculate group financials", { originalError: error });
+    }
+  });
 }

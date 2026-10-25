@@ -101,6 +101,33 @@ export async function ensureDatabaseSchema(txDb: any = db) {
       );
       CREATE INDEX IF NOT EXISTS eph_tx_idx ON expense_participation_history(transaction_id);
       CREATE INDEX IF NOT EXISTS eph_group_idx ON expense_participation_history(group_id);
+      ALTER TABLE groups ADD COLUMN IF NOT EXISTS split_config JSONB;
+      CREATE TABLE IF NOT EXISTS group_receiver_assignments (
+        id SERIAL PRIMARY KEY,
+        public_id TEXT UNIQUE NOT NULL,
+        group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+        from_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        from_contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE,
+        from_name TEXT NOT NULL,
+        to_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        to_contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE,
+        to_name TEXT NOT NULL,
+        amount BIGINT NOT NULL,
+        currency TEXT DEFAULT 'INR' NOT NULL,
+        split_method TEXT NOT NULL,
+        status TEXT DEFAULT 'active' NOT NULL,
+        notes TEXT,
+        version INTEGER DEFAULT 1 NOT NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL NOT NULL,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS gra_group_idx ON group_receiver_assignments(group_id);
+      CREATE INDEX IF NOT EXISTS gra_from_user_idx ON group_receiver_assignments(from_user_id);
+      CREATE INDEX IF NOT EXISTS gra_to_user_idx ON group_receiver_assignments(to_user_id);
+      CREATE INDEX IF NOT EXISTS gra_public_id_idx ON group_receiver_assignments(public_id);
+      CREATE INDEX IF NOT EXISTS gra_status_idx ON group_receiver_assignments(group_id, status);
     `);
     schemaEnsured = true;
   } catch (_) {

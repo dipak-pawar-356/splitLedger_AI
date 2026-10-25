@@ -11,14 +11,15 @@ import {
   UserPlus, 
   CheckCircle2, 
   Loader2,
-  Lock
+  Lock,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { submitGroupJoinRequestAction } from "@/actions/group-join-requests";
 
 interface GroupRouteErrorViewProps {
-  errorType: "not_found" | "deleted" | "access_denied";
+  errorType: "not_found" | "deleted" | "access_denied" | "server_error";
   groupIdentifier?: string;
   groupName?: string;
   groupId?: number;
@@ -61,6 +62,42 @@ export function GroupRouteErrorView({
       setIsSubmittingJoin(false);
     }
   };
+
+  if (errorType === "server_error") {
+    return (
+      <div className="flex items-center justify-center min-h-[70vh] p-4">
+        <Card className="max-w-md w-full border-slate-200 dark:border-slate-800 shadow-xl text-center">
+          <CardHeader className="space-y-3 pb-4">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <RefreshCw className="w-8 h-8" />
+            </div>
+            <CardTitle className="text-2xl font-bold tracking-tight">Temporary Loading Error</CardTitle>
+            <CardDescription className="text-sm text-slate-500 dark:text-slate-400">
+              We encountered a temporary issue loading{" "}
+              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                {groupName ? `"${groupName}"` : `(${groupIdentifier})`}
+              </span>
+              . Please refresh the page or try again in a few moments.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-2">
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => window.location.reload()} className="w-full">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Reload Page
+              </Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/dashboard/groups">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Return to My Groups
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (errorType === "not_found") {
     return (

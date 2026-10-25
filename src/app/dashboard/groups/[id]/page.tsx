@@ -184,8 +184,11 @@ export default async function GroupDetailPage({
     }
     return (
       <GroupRouteErrorView 
-        errorType="not_found" 
+        errorType="server_error" 
         groupIdentifier={publicId} 
+        groupName={groupBase.name}
+        groupId={groupBase.id}
+        groupPublicId={groupBase.publicId}
       />
     );
   }
