@@ -102,9 +102,9 @@ export function MemberFinancialSummary({
   const isSettled = !isReceivable && !isPayable;
   const hasPendingSettlement = isReceivable || isPayable;
 
-  // Single source of truth for own share: for a debtor, own share equals totalPaid + what they need to pay
-  const effectiveOwnShare = isPayable 
-    ? Math.max(member.ownShare, member.totalPaid + effectiveNeedToPay) 
+  // Single source of truth for own share: respects equal 1/N dynamic shares and custom allocations
+  const effectiveOwnShare = (splitMethod !== "equal" && isPayable && (member.totalPaid + effectiveNeedToPay > member.ownShare))
+    ? (member.totalPaid + effectiveNeedToPay) 
     : member.ownShare;
 
   const handleRemove = async () => {

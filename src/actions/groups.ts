@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { groups, groupMembers, transactions, settlements, expenseSplits, users, contacts, auditLogs } from "@/lib/db/schema/schema";
+import { groups, groupMembers, transactions, settlements, expenseSplits, users, contacts, auditLogs, groupReceiverAssignments } from "@/lib/db/schema/schema";
 import { eq, and, sql, desc, or, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
@@ -211,14 +211,33 @@ export async function updateGroup(
       .where(eq(groups.id, existingGroup.id))
       .returning();
 
-    // If owner opted to recalculate all existing expenses with the new split method:
-    if (isSplitMethodChanged && data.recalculateExistingExpenses) {
+    // When split method changes, always execute atomic recalculation and supersede receiver assignments if switched to equal:
+    if (isSplitMethodChanged) {
+      if (newMethod === "equal") {
+        await db
+          .update(groupReceiverAssignments)
+          .set({ status: "superseded", updatedAt: new Date() })
+          .where(
+            and(
+              eq(groupReceiverAssignments.groupId, existingGroup.id),
+              eq(groupReceiverAssignments.status, "active")
+            )
+          )
+          .catch(() => {});
+      }
+
       await executeAtomicGroupRecalculation({
         groupId: existingGroup.id,
         triggerOperation: "split_method_change",
-        targetSplitMethod: data.splitMethod,
+        targetSplitMethod: newMethod,
         initiatedByUserId: user.id,
       });
+
+      revalidatePath(`/dashboard/groups/${existingGroup.publicId}`);
+      revalidatePath(`/dashboard/groups/${existingGroup.id}`);
+      revalidatePath(`/groups/${existingGroup.publicId}`);
+      revalidatePath("/dashboard/groups");
+      revalidatePath("/dashboard");
     }
 
     // Record audit log for split method changes specifically

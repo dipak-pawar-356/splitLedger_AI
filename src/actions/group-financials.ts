@@ -19,7 +19,7 @@ import {
   groupJoinRequests,
   groupReceiverAssignments
 } from "@/lib/db/schema/schema";
-import { eq, and, desc, sql, or, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, or, inArray, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { ValidationError, DatabaseError, AuthorizationError } from "@/lib/errors";
@@ -396,22 +396,24 @@ export async function getGroupFinancialDetails(
           )
         ),
 
-      // F. Active Custom Receiver Assignments
-      db
-        .select()
-        .from(groupReceiverAssignments)
-        .where(
-          and(
-            eq(groupReceiverAssignments.groupId, groupId),
-            inArray(groupReceiverAssignments.status, [
-              "active",
-              "pending",
-              "payment_initiated",
-              "waiting_confirmation",
-            ])
-          )
-        )
-        .catch(() => [] as any[]),
+      // F. Active Custom Receiver Assignments (only applicable for non-equal split engines)
+      groupRecord.splitMethod === "equal"
+        ? Promise.resolve([] as any[])
+        : db
+            .select()
+            .from(groupReceiverAssignments)
+            .where(
+              and(
+                eq(groupReceiverAssignments.groupId, groupId),
+                inArray(groupReceiverAssignments.status, [
+                  "active",
+                  "pending",
+                  "payment_initiated",
+                  "waiting_confirmation",
+                ])
+              )
+            )
+            .catch(() => [] as any[]),
     ]);
 
     // Check membership authorization
@@ -574,17 +576,11 @@ export async function getGroupFinancialDetails(
       if (groupRecord.splitMethod !== "equal" && memberPayableMap.has(memberKey)) {
         memberSharePaise = memberPayableMap.get(memberKey)!;
       } else {
-        // Equal Split: Existing unmodified behavior
-        memberSharePaise = allSplits
-          .filter((s) => (memberId && s.userId === memberId) || (contactId && s.contactId === contactId))
-          .reduce((sum, s) => sum + s.amount, 0);
-
-        if (allSplits.length === 0 && expensesList.length > 0) {
-          if (m.membershipStatus === "active" || m.isGuest) {
-            memberSharePaise = Math.round(totalGroupExpenseInPaise / activeCalculationCount);
-          } else {
-            memberSharePaise = 0;
-          }
+        // Equal Split: Every active participating member shares equally in total group expenses
+        if (m.membershipStatus === "active" || m.isGuest) {
+          memberSharePaise = Math.round(totalGroupExpenseInPaise / activeCalculationCount);
+        } else {
+          memberSharePaise = 0;
         }
       }
 
@@ -676,9 +672,11 @@ export async function getGroupFinancialDetails(
 
     const optimalSettlements = calculateOptimalSettlements(optimalBalances, "INR");
 
-    // Ground truth settlement suggestions are either active custom receiver assignments or freshly calculated optimalSettlements
+    // Ground truth settlement suggestions:
+    // In Equal Split mode: ALWAYS freshly calculated optimalSettlements (mathematical 1/N dynamic distribution)
+    // In Non-Equal Split mode: active custom receiver assignments if configured, otherwise optimalSettlements
     let effectivePendingList: any[] = [];
-    if (activeReceiverAssignments.length > 0) {
+    if (groupRecord.splitMethod !== "equal" && activeReceiverAssignments.length > 0) {
       const assignedDebtorKeys = new Set(
         activeReceiverAssignments.map((a) =>
           a.fromUserId ? `user-${a.fromUserId}` : `contact-${a.fromContactId}`
@@ -744,7 +742,7 @@ export async function getGroupFinancialDetails(
           .where(
             and(
               eq(settlements.groupId, groupId),
-              eq(settlements.status, "pending"),
+              ne(settlements.status, "completed"),
               eq(settlements.isDeleted, false)
             )
           );
@@ -758,12 +756,25 @@ export async function getGroupFinancialDetails(
           toContactId: s.toContactId || null,
           amount: Math.round(s.amount),
           currency: s.currency || groupRecord.currency || "INR",
-          status: (s.status as any) || "pending",
+          status: "pending" as const,
           createdAt: new Date(),
         }));
 
         if (pendingToInsert.length > 0) {
           await db.insert(settlements).values(pendingToInsert);
+        }
+
+        if (groupRecord.splitMethod === "equal") {
+          await db
+            .update(groupReceiverAssignments)
+            .set({ status: "superseded", updatedAt: new Date() })
+            .where(
+              and(
+                eq(groupReceiverAssignments.groupId, groupId),
+                eq(groupReceiverAssignments.status, "active")
+              )
+            )
+            .catch(() => {});
         }
       } catch (syncErr) {
         console.error("Failed to auto-sync group pending settlements:", syncErr);
@@ -822,8 +833,8 @@ export async function getGroupFinancialDetails(
         m.willReceive = 0;
         m.netPosition = -totalOwed;
         m.settlementStatus = "needs_to_pay";
-        // When member has owed debt/allocations, their effective own share must reflect their total liability
-        if (m.totalPaid + totalOwed > m.ownShare) {
+        // In non-equal custom engines, reflect total liability in own share if needed
+        if (groupRecord.splitMethod !== "equal" && m.totalPaid + totalOwed > m.ownShare) {
           m.ownShare = m.totalPaid + totalOwed;
         }
       } else if (totalReceiving > 0.01) {

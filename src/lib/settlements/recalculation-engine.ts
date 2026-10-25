@@ -27,8 +27,9 @@ import {
   auditLogs,
   users,
   contacts,
+  groupReceiverAssignments,
 } from "@/lib/db/schema/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, ne } from "drizzle-orm";
 import { generateTimelineId, generateSettlementVersionId, generateAuditId, generatePublicId } from "@/lib/utils";
 import { calculateOptimalSettlements, type Balance } from "./calculator";
 import { revalidatePath } from "next/cache";
@@ -959,13 +960,27 @@ export async function executeAtomicGroupRecalculation(params: {
     // Step 8: Generate pending settlement records using greedy optimal matching
     const optimalSettlements = calculateOptimalSettlements(balances, groupRecord.currency || "INR");
 
-    // Delete existing pending settlements (never touch completed settlements)
+    // If equal split mode, supersede any custom receiver assignments
+    if ((targetSplitMethod || groupRecord.splitMethod) === "equal") {
+      await db
+        .update(groupReceiverAssignments)
+        .set({ status: "superseded", updatedAt: new Date() })
+        .where(
+          and(
+            eq(groupReceiverAssignments.groupId, groupId),
+            eq(groupReceiverAssignments.status, "active")
+          )
+        )
+        .catch(() => {});
+    }
+
+    // Delete existing non-completed settlements (never touch completed settlements)
     await db
       .delete(settlements)
       .where(
         and(
           eq(settlements.groupId, groupId),
-          eq(settlements.status, "pending"),
+          ne(settlements.status, "completed"),
           eq(settlements.isDeleted, false)
         )
       );

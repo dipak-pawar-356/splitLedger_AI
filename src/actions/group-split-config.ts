@@ -153,8 +153,24 @@ export async function saveGroupSplitConfigAction(params: SaveSplitConfigParams) 
       },
     });
 
-    // 6. Recalculate if requested
-    if (params.recalculateExisting) {
+    // 6. If switching to equal split or method changed, supersede custom assignments
+    if (newMethod === "equal" || previousMethod !== newMethod) {
+      if (newMethod === "equal") {
+        await db
+          .update(groupReceiverAssignments)
+          .set({ status: "superseded", updatedAt: new Date() })
+          .where(
+            and(
+              eq(groupReceiverAssignments.groupId, groupId),
+              eq(groupReceiverAssignments.status, "active")
+            )
+          )
+          .catch(() => {});
+      }
+    }
+
+    // 7. Recalculate if requested or if split method changed
+    if (params.recalculateExisting || previousMethod !== newMethod) {
       try {
         await executeAtomicGroupRecalculation({
           groupId,
@@ -172,6 +188,7 @@ export async function saveGroupSplitConfigAction(params: SaveSplitConfigParams) 
     safeRevalidatePath(`/groups/${groupRecord.publicId}`);
     safeRevalidatePath("/dashboard/groups");
     safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/settlements");
 
     return {
       success: true,
