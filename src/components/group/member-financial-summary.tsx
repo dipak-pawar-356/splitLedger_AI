@@ -25,7 +25,8 @@ import {
   Smartphone,
   History,
   AlertCircle,
-  ShieldCheck
+  ShieldCheck,
+  ArrowRightLeft
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -33,6 +34,7 @@ import { UpiQuickPayDialog } from "@/components/settlement/upi-quick-pay-dialog"
 import { ReminderDialog } from "@/components/dialogs/reminder-dialog";
 import { MemberProfileModal } from "@/components/group/member-profile-modal";
 import { MemberPermissionsDialog } from "@/components/group/member-permissions-dialog";
+import { ReceiverAssignmentDialog } from "@/components/dialogs/receiver-assignment-dialog";
 import { removeGroupMember, updateMemberRole, toggleMemberExpenseParticipationAction } from "@/actions/group-members";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -50,6 +52,8 @@ interface MemberFinancialSummaryProps {
   onAddExpenseWithMember?: (member: MemberFinancialDetail) => void;
   totalGroupExpense?: number;
   totalMembers?: number;
+  allMembers?: MemberFinancialDetail[];
+  splitMethod?: string;
 }
 
 export function MemberFinancialSummary({ 
@@ -63,7 +67,9 @@ export function MemberFinancialSummary({
   currentUserEmail,
   onAddExpenseWithMember,
   totalGroupExpense,
-  totalMembers
+  totalMembers,
+  allMembers = [],
+  splitMethod = "equal",
 }: MemberFinancialSummaryProps) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -244,75 +250,180 @@ export function MemberFinancialSummary({
                 </div>
               </div>
 
-              {/* In one row: Show QR if he receives money, and Pay Now when he needs to pay */}
-              {(isCurrentUser || isGroupOwner || isCurrentUserAdmin) && (member.receivesFrom.length > 0 || member.owesTo.length > 0) && (
-                <div className="pt-2.5 mt-2.5 border-t border-slate-200/70 dark:border-slate-800/80 flex items-center gap-2 flex-wrap">
-                  {/* Incoming funds to this member: Show QR */}
-                  {member.receivesFrom.length > 0 && member.userId && (
-                    <UpiQuickPayDialog
-                      groupId={groupId}
-                      groupName={groupName}
-                      receiverUserId={member.userId}
-                      receiverName={member.name}
-                      payerUserId={member.receivesFrom[0].userId}
-                      payerName={member.receivesFrom[0].name}
-                      amount={member.receivesFrom[0].amount}
-                      mode="receive"
-                      trigger={
-                        <Button
-                          size="sm"
-                          className="flex-1 min-w-[130px] h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                        >
-                          <QrCode className="h-3.5 w-3.5" />
-                          <span>Show QR (₹{member.receivesFrom[0].amount.toFixed(2)})</span>
-                        </Button>
-                      }
-                    />
+              {/* Dynamic Receiver Assignment & Pairwise Settlement Transfers */}
+              {(isCurrentUser || isGroupOwner || isCurrentUserAdmin) && (
+                <div className="pt-2.5 mt-2.5 border-t border-slate-200/70 dark:border-slate-800/80 space-y-2">
+                  {/* Admin action: Assign Receivers for debtor when split method is not equal */}
+                  {isPayable && (isGroupOwner || isCurrentUserAdmin) && splitMethod !== "equal" && (
+                    <div className="flex items-center justify-between pb-1">
+                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                        Creditor Allocation
+                      </span>
+                      <ReceiverAssignmentDialog
+                        groupId={groupId}
+                        groupPublicId={groupPublicId}
+                        debtor={{
+                          userId: member.userId,
+                          contactId: member.contactId,
+                          name: member.name,
+                          avatar: member.avatar,
+                          totalPaid: member.totalPaid,
+                          ownShare: member.ownShare,
+                          needToPay: member.needToPay,
+                        }}
+                        eligibleReceivers={allMembers
+                          .filter((m) => m.id !== member.id && m.willReceive > 0.01)
+                          .map((m) => ({
+                            userId: m.userId,
+                            contactId: m.contactId,
+                            name: m.name,
+                            avatar: m.avatar,
+                            willReceive: m.willReceive,
+                          }))}
+                        trigger={
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 border-primary/40 text-primary hover:bg-primary/10 shadow-xs"
+                          >
+                            <ArrowRightLeft className="h-3 w-3" />
+                            <span>Assign Receivers</span>
+                          </Button>
+                        }
+                      />
+                    </div>
                   )}
 
-                  {/* Outgoing funds member owes: Pay Now if current user is debtor; Show QR if admin/owner is viewing */}
-                  {member.owesTo.length > 0 && member.owesTo[0].userId && (
-                    isCurrentUser ? (
-                      <UpiQuickPayDialog
-                        groupId={groupId}
-                        groupName={groupName}
-                        receiverUserId={member.owesTo[0].userId}
-                        receiverName={member.owesTo[0].name}
-                        payerUserId={member.userId}
-                        payerName={member.name}
-                        amount={member.owesTo[0].amount}
-                        mode="pay"
-                        trigger={
-                          <Button
-                            size="sm"
-                            className="flex-1 min-w-[130px] h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                          >
-                            <Smartphone className="h-3.5 w-3.5" />
-                            <span>Pay Now (₹{member.owesTo[0].amount.toFixed(2)})</span>
-                          </Button>
-                        }
-                      />
-                    ) : (
-                      <UpiQuickPayDialog
-                        groupId={groupId}
-                        groupName={groupName}
-                        receiverUserId={member.owesTo[0].userId}
-                        receiverName={member.owesTo[0].name}
-                        payerUserId={member.userId}
-                        payerName={member.name}
-                        amount={member.owesTo[0].amount}
-                        mode="receive"
-                        trigger={
-                          <Button
-                            size="sm"
-                            className="flex-1 min-w-[130px] h-7 text-xs px-2.5 font-bold rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                          >
-                            <QrCode className="h-3.5 w-3.5" />
-                            <span>Show QR (₹{member.owesTo[0].amount.toFixed(2)})</span>
-                          </Button>
-                        }
-                      />
-                    )
+                  {/* Outgoing debts owed by this member (Payer View: e.g. Pay A ₹500, Pay C ₹500) */}
+                  {member.owesTo.length > 0 && (
+                    <div className="space-y-1.5">
+                      {member.owesTo.map((owe, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-2 rounded-xl border border-rose-200/60 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 text-xs gap-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 truncate block">
+                              Pay {owe.name}
+                            </span>
+                            <span className="text-[11px] font-mono font-bold text-rose-600 dark:text-rose-400">
+                              {formatCurrency(owe.amount)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {owe.userId && (
+                              isCurrentUser ? (
+                                <>
+                                  <UpiQuickPayDialog
+                                    groupId={groupId}
+                                    groupName={groupName}
+                                    receiverUserId={owe.userId}
+                                    receiverName={owe.name}
+                                    payerUserId={member.userId || undefined}
+                                    payerName={member.name}
+                                    amount={owe.amount}
+                                    mode="pay"
+                                    trigger={
+                                      <Button
+                                        size="sm"
+                                        className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                      >
+                                        <Smartphone className="h-3 w-3" />
+                                        <span>Pay Now</span>
+                                      </Button>
+                                    }
+                                  />
+                                  <UpiQuickPayDialog
+                                    groupId={groupId}
+                                    groupName={groupName}
+                                    receiverUserId={owe.userId}
+                                    receiverName={owe.name}
+                                    payerUserId={member.userId || undefined}
+                                    payerName={member.name}
+                                    amount={owe.amount}
+                                    mode="receive"
+                                    trigger={
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
+                                      >
+                                        <QrCode className="h-3 w-3" />
+                                        <span>QR</span>
+                                      </Button>
+                                    }
+                                  />
+                                </>
+                              ) : (
+                                <UpiQuickPayDialog
+                                  groupId={groupId}
+                                  groupName={groupName}
+                                  receiverUserId={owe.userId}
+                                  receiverName={owe.name}
+                                  payerUserId={member.userId || undefined}
+                                  payerName={member.name}
+                                  amount={owe.amount}
+                                  mode="receive"
+                                  trigger={
+                                    <Button
+                                      size="sm"
+                                      className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                                    >
+                                      <QrCode className="h-3 w-3" />
+                                      <span>Show QR</span>
+                                    </Button>
+                                  }
+                                />
+                              )
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Incoming funds to this member (Receiver View: e.g. Waiting From Member B: ₹500) */}
+                  {member.receivesFrom.length > 0 && (
+                    <div className="space-y-1.5">
+                      {member.receivesFrom.map((rec, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-2 rounded-xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-950/20 text-xs gap-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 truncate block">
+                              Waiting from {rec.name}
+                            </span>
+                            <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              {formatCurrency(rec.amount)} (Pending)
+                            </span>
+                          </div>
+
+                          {member.userId && (
+                            <UpiQuickPayDialog
+                              groupId={groupId}
+                              groupName={groupName}
+                              receiverUserId={member.userId}
+                              receiverName={member.name}
+                              payerUserId={rec.userId}
+                              payerName={rec.name}
+                              amount={rec.amount}
+                              mode="receive"
+                              trigger={
+                                <Button
+                                  size="sm"
+                                  className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                                >
+                                  <QrCode className="h-3 w-3" />
+                                  <span>Show QR</span>
+                                </Button>
+                              }
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}

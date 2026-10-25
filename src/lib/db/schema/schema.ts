@@ -116,6 +116,21 @@ export const groups = pgTable("groups", {
   type: groupTypeEnum("type").default("friends").notNull(),
   currency: text("currency").default("INR").notNull(),
   splitMethod: splitMethodEnum("split_method").default("equal").notNull(),
+  splitConfig: jsonb("split_config").$type<{
+    method: "equal" | "exact" | "percentage" | "shares";
+    members: Array<{
+      userId?: number;
+      contactId?: number;
+      name?: string;
+      fixedAmountPaise?: number;
+      percentage?: number;
+      shares?: number;
+      isLocked?: boolean;
+    }>;
+    updatedAt?: string;
+    updatedBy?: number;
+    version?: number;
+  }>(),
   createdBy: integer("created_by").references(() => users.id, { onDelete: "cascade" }).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   isDeleted: boolean("is_deleted").default(false),
@@ -1759,5 +1774,60 @@ export type Device = typeof devices.$inferSelect;
 export type NewDevice = typeof devices.$inferInsert;
 export type SecurityAuditEvent = typeof securityAuditEvents.$inferSelect;
 export type NewSecurityAuditEvent = typeof securityAuditEvents.$inferInsert;
+
+// ============================================================================
+// GROUP RECEIVER ASSIGNMENTS (Admin Manual / Customized Debt-to-Creditor Engine)
+// ============================================================================
+
+export const groupReceiverAssignments = pgTable("group_receiver_assignments", {
+  id: serial("id").primaryKey(),
+  publicId: text("public_id").unique().notNull(),
+  groupId: integer("group_id").references(() => groups.id, { onDelete: "cascade" }).notNull(),
+  fromUserId: integer("from_user_id").references(() => users.id, { onDelete: "cascade" }),
+  fromContactId: integer("from_contact_id").references(() => contacts.id, { onDelete: "cascade" }),
+  fromName: text("from_name").notNull(),
+  toUserId: integer("to_user_id").references(() => users.id, { onDelete: "cascade" }),
+  toContactId: integer("to_contact_id").references(() => contacts.id, { onDelete: "cascade" }),
+  toName: text("to_name").notNull(),
+  amount: bigint("amount", { mode: "number" }).notNull(), // in paise
+  currency: text("currency").default("INR").notNull(),
+  splitMethod: text("split_method").notNull(), // 'exact', 'percentage', 'shares'
+  status: text("status").default("active").notNull(), // 'active', 'settled', 'cancelled'
+  notes: text("notes"),
+  version: integer("version").default(1).notNull(),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }).notNull(),
+  updatedBy: integer("updated_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  groupIdx: index("gra_group_idx").on(table.groupId),
+  fromUserIdx: index("gra_from_user_idx").on(table.fromUserId),
+  toUserIdx: index("gra_to_user_idx").on(table.toUserId),
+  publicIdIdx: index("gra_public_id_idx").on(table.publicId),
+  statusIdx: index("gra_status_idx").on(table.groupId, table.status),
+}));
+
+export const groupReceiverAssignmentsRelations = relations(groupReceiverAssignments, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupReceiverAssignments.groupId],
+    references: [groups.id],
+  }),
+  fromUser: one(users, {
+    fields: [groupReceiverAssignments.fromUserId],
+    references: [users.id],
+  }),
+  toUser: one(users, {
+    fields: [groupReceiverAssignments.toUserId],
+    references: [users.id],
+  }),
+  creator: one(users, {
+    fields: [groupReceiverAssignments.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export type GroupReceiverAssignment = typeof groupReceiverAssignments.$inferSelect;
+export type NewGroupReceiverAssignment = typeof groupReceiverAssignments.$inferInsert;
+
 
 

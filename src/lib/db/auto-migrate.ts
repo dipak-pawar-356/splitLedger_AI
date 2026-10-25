@@ -88,6 +88,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`ALTER TABLE groups ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false`;
       await sqlClient`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`;
       await sqlClient`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_by INTEGER`;
+      await sqlClient`ALTER TABLE groups ADD COLUMN IF NOT EXISTS split_config JSONB`;
 
       await sqlClient`ALTER TABLE invitations ADD COLUMN IF NOT EXISTS public_id TEXT`;
       await sqlClient`ALTER TABLE invitations ADD COLUMN IF NOT EXISTS legacy_token TEXT`;
@@ -799,6 +800,35 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`CREATE INDEX IF NOT EXISTS sec_audit_risk_idx ON security_audit_events(risk_level)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS sec_audit_public_id_idx ON security_audit_events(public_id)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS sec_audit_created_idx ON security_audit_events(created_at)`;
+
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS group_receiver_assignments (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE NOT NULL,
+          from_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          from_contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE,
+          from_name TEXT NOT NULL,
+          to_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          to_contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE,
+          to_name TEXT NOT NULL,
+          amount BIGINT NOT NULL,
+          currency TEXT DEFAULT 'INR' NOT NULL,
+          split_method TEXT NOT NULL,
+          status TEXT DEFAULT 'active' NOT NULL,
+          notes TEXT,
+          version INTEGER DEFAULT 1 NOT NULL,
+          created_by INTEGER REFERENCES users(id) ON DELETE SET NULL NOT NULL,
+          updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+          updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS gra_group_idx ON group_receiver_assignments(group_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS gra_from_user_idx ON group_receiver_assignments(from_user_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS gra_to_user_idx ON group_receiver_assignments(to_user_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS gra_public_id_idx ON group_receiver_assignments(public_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS gra_status_idx ON group_receiver_assignments(group_id, status)`;
 
       // ==========================================
       // HIGH-PERFORMANCE COMPOSITE INDEXES

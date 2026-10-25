@@ -459,6 +459,8 @@ export default async function GroupDetailPage({
                 currentUserEmail={user.email}
                 totalGroupExpense={overview.totalExpenses}
                 totalMembers={overview.totalMembers}
+                allMembers={members}
+                splitMethod={group.splitMethod}
               />
             ))}
           </div>

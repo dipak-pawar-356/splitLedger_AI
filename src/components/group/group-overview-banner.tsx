@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { 
   Users, 
@@ -13,8 +15,10 @@ import {
   ArrowDownLeft, 
   CheckCircle2, 
   IndianRupee,
-  Tag
+  Tag,
+  SlidersHorizontal
 } from "lucide-react";
+import { GroupSettingsDialog } from "@/components/dialogs/group-settings-dialog";
 
 interface GroupOverviewBannerProps {
   group: {
@@ -46,10 +50,13 @@ interface GroupOverviewBannerProps {
 }
 
 export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProps) {
+  const [splitSettingsOpen, setSplitSettingsOpen] = useState(false);
   const isReceive = overview.userStatus === "will_receive";
   const isPay = overview.userStatus === "need_to_pay";
+  const canConfigure = group.isAdmin || group.isOwner;
 
   return (
+    <>
     <div className="space-y-4">
       {/* Top Banner Card */}
       <Card className="rounded-3xl border shadow-sm bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white overflow-hidden relative hover:shadow-xl transition-all duration-300">
@@ -72,14 +79,23 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
                     Owner
                   </Badge>
                 )}
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs font-medium">
-                  {group.splitMethod === "shares"
-                    ? "Shares Ratio"
-                    : group.splitMethod === "percentage"
-                    ? "Percentage Split (%)"
-                    : group.splitMethod === "exact"
-                    ? "Exact Amount (₹)"
-                    : "Equal Split (1/N)"}
+                <Badge 
+                  onClick={() => canConfigure && setSplitSettingsOpen(true)}
+                  className={`text-xs font-medium ${
+                    canConfigure ? "cursor-pointer hover:bg-emerald-500/30 hover:scale-105 active:scale-95 transition-all" : ""
+                  } bg-emerald-500/20 text-emerald-300 border-emerald-500/30 flex items-center gap-1`}
+                  title={canConfigure ? "Click to configure split calculation rules" : undefined}
+                >
+                  <span>
+                    {group.splitMethod === "shares"
+                      ? "Shares Ratio"
+                      : group.splitMethod === "percentage"
+                      ? "Percentage Split (%)"
+                      : group.splitMethod === "exact"
+                      ? "Exact Amount (₹)"
+                      : "Equal Split (1/N)"}
+                  </span>
+                  {canConfigure && <SlidersHorizontal className="h-2.5 w-2.5 opacity-70" />}
                 </Badge>
               </div>
               {group.description && (
@@ -166,5 +182,25 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
         </CardContent>
       </Card>
     </div>
+
+    {canConfigure && (
+      <GroupSettingsDialog
+        open={splitSettingsOpen}
+        onOpenChange={setSplitSettingsOpen}
+        groupId={group.id}
+        publicId={group.publicId}
+        isOwner={group.isOwner}
+        isAdmin={group.isAdmin}
+        defaultTab="split"
+        initialData={{
+          name: group.name,
+          description: group.description || "",
+          currency: group.currency,
+          type: group.type,
+          splitMethod: group.splitMethod || "equal",
+        }}
+      />
+    )}
+    </>
   );
 }

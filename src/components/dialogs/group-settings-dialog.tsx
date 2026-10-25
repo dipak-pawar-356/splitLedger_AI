@@ -18,6 +18,8 @@ import { updateMemberRole, removeGroupMember, getGroupMembers } from "@/actions/
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { AdminSplitConfigPanel } from "@/components/group/admin-split-config-panel";
+
 const groupSettingsSchema = z.object({
   name: z.string().min(1, "Group name is required"),
   description: z.string().optional(),
@@ -37,6 +39,7 @@ interface GroupSettingsDialogProps {
   isOwner?: boolean;
   isAdmin?: boolean;
   isActive?: boolean;
+  defaultTab?: string;
   initialData: {
     name: string;
     description: string;
@@ -75,6 +78,7 @@ export function GroupSettingsDialog({
   isOwner = true,
   isAdmin = true,
   isActive = true,
+  defaultTab = "general",
   initialData,
   onSuccess 
 }: GroupSettingsDialogProps) {
@@ -86,7 +90,7 @@ export function GroupSettingsDialog({
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   // Members list in settings
   const [members, setMembers] = useState<any[]>([]);
@@ -135,6 +139,9 @@ export function GroupSettingsDialog({
 
   useEffect(() => {
     if (open) {
+      if (defaultTab) {
+        setActiveTab(defaultTab);
+      }
       reset({
         name: initialData.name,
         description: initialData.description || "",
@@ -144,7 +151,7 @@ export function GroupSettingsDialog({
       });
       loadMembers();
     }
-  }, [open, initialData, reset, loadMembers]);
+  }, [open, initialData, reset, loadMembers, defaultTab]);
 
   const executeSave = async (data: GroupSettingsFormData, recalculateExisting: boolean) => {
     setIsLoading(true);
@@ -298,21 +305,22 @@ export function GroupSettingsDialog({
           {trigger}
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="sm:max-w-[760px] max-h-[90vh] overflow-y-auto p-0">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Settings className="h-5 w-5 text-primary" />
             Group Settings — {initialData.name}
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
-            Configure group details, member roles, preferences, and danger zone actions.
+            Configure group details, member roles, split calculation engine, and danger zone actions.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="px-6 border-b">
-            <TabsList className="grid grid-cols-4 w-full">
+            <TabsList className="grid grid-cols-5 w-full">
               <TabsTrigger value="general" className="text-xs">General</TabsTrigger>
+              <TabsTrigger value="split" className="text-xs font-semibold text-primary">Split Engine</TabsTrigger>
               <TabsTrigger value="permissions" className="text-xs">Permissions</TabsTrigger>
               <TabsTrigger value="members" className="text-xs">Members</TabsTrigger>
               <TabsTrigger value="danger" className="text-xs text-red-600 dark:text-red-400">Danger Zone</TabsTrigger>
@@ -410,6 +418,36 @@ export function GroupSettingsDialog({
                 )}
               </div>
 
+              {/* Dedicated Admin Configuration Panel when non-equal engine selected */}
+              {selectedSplitMethod !== "equal" && (
+                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      <Calculator className="h-3.5 w-3.5 text-primary" />
+                      <span>Member Responsibility & Allocation Rules</span>
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setActiveTab("split")}
+                      className="text-xs h-6 text-primary hover:underline px-2"
+                    >
+                      Expanded View &rarr;
+                    </Button>
+                  </div>
+                  <AdminSplitConfigPanel
+                    groupId={groupId}
+                    publicId={publicId}
+                    splitMethod={selectedSplitMethod}
+                    isAdmin={isAdmin}
+                    isOwner={isOwner}
+                    currency={initialData.currency}
+                    compact={true}
+                  />
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <Label htmlFor="editCover" className="text-sm font-medium">Cover Image URL</Label>
                 <Input
@@ -431,7 +469,22 @@ export function GroupSettingsDialog({
             </form>
           </TabsContent>
 
-          {/* Tab 2: Permissions Guide */}
+          {/* Tab 2: Dedicated Split Engine Tab */}
+          <TabsContent value="split" className="p-6 pt-4 space-y-4">
+            <AdminSplitConfigPanel
+              groupId={groupId}
+              publicId={publicId}
+              splitMethod={selectedSplitMethod}
+              isAdmin={isAdmin}
+              isOwner={isOwner}
+              currency={initialData.currency}
+              onSuccess={() => {
+                onSuccess?.();
+              }}
+            />
+          </TabsContent>
+
+          {/* Tab 3: Permissions Guide */}
           <TabsContent value="permissions" className="p-6 pt-4 space-y-4">
             <div className="space-y-3">
               <div className="p-3.5 rounded-lg border bg-slate-50 dark:bg-slate-900">
