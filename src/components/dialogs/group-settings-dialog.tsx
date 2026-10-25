@@ -649,7 +649,7 @@ export function GroupSettingsDialog({
             Update Group Calculation Engine
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
-            You are changing the group's default split method from{" "}
+            You are changing the group&apos;s default split method from{" "}
             <strong className="text-slate-800 dark:text-slate-200">
               {SPLIT_METHODS.find((m) => m.value === initialData.splitMethod)?.label || initialData.splitMethod}
             </strong>{" "}
