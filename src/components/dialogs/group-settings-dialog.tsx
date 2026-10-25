@@ -306,25 +306,25 @@ export function GroupSettingsDialog({
           {trigger}
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-[760px] max-h-[90vh] overflow-y-auto p-0">
-        <DialogHeader className="p-6 pb-2">
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Settings className="h-5 w-5 text-primary" />
-            Group Settings — {initialData.name}
+      <DialogContent className="w-[96vw] sm:max-w-[780px] md:max-w-[860px] lg:max-w-[940px] max-h-[92vh] overflow-y-auto p-0 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl">
+        <DialogHeader className="p-4 sm:p-6 pb-3 border-b border-slate-100 dark:border-slate-800/80">
+          <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl font-bold tracking-tight">
+            <Settings className="h-5 w-5 text-primary shrink-0" />
+            <span className="truncate">Group Settings — {initialData.name}</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500">
+          <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
             Configure group details, member roles, split calculation engine, and danger zone actions.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="px-6 border-b">
-            <TabsList className="grid grid-cols-5 w-full">
-              <TabsTrigger value="general" className="text-xs">General</TabsTrigger>
-              <TabsTrigger value="split" className="text-xs font-semibold text-primary">Split Engine</TabsTrigger>
-              <TabsTrigger value="permissions" className="text-xs">Permissions</TabsTrigger>
-              <TabsTrigger value="members" className="text-xs">Members</TabsTrigger>
-              <TabsTrigger value="danger" className="text-xs text-red-600 dark:text-red-400">Danger Zone</TabsTrigger>
+          <div className="px-4 sm:px-6 py-2.5 border-b border-slate-100 dark:border-slate-800/80 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <TabsList className="flex sm:grid sm:grid-cols-5 w-full min-w-[500px] sm:min-w-0 h-auto p-1 bg-slate-100 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 rounded-2xl">
+              <TabsTrigger value="general" className="text-xs py-2 px-3 rounded-xl font-medium data-[state=active]:font-bold data-[state=active]:shadow-sm">General</TabsTrigger>
+              <TabsTrigger value="split" className="text-xs py-2 px-3 rounded-xl font-bold text-primary data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm">Split Engine</TabsTrigger>
+              <TabsTrigger value="permissions" className="text-xs py-2 px-3 rounded-xl font-medium data-[state=active]:font-bold data-[state=active]:shadow-sm">Permissions</TabsTrigger>
+              <TabsTrigger value="members" className="text-xs py-2 px-3 rounded-xl font-medium data-[state=active]:font-bold data-[state=active]:shadow-sm">Members</TabsTrigger>
+              <TabsTrigger value="danger" className="text-xs py-2 px-3 rounded-xl font-medium text-rose-600 dark:text-rose-400 data-[state=active]:bg-rose-500/10 data-[state=active]:text-rose-400 data-[state=active]:shadow-sm">Danger Zone</TabsTrigger>
             </TabsList>
           </div>
 
@@ -471,7 +471,7 @@ export function GroupSettingsDialog({
           </TabsContent>
 
           {/* Tab 2: Dedicated Split Engine Tab */}
-          <TabsContent value="split" className="p-6 pt-4 space-y-4">
+          <TabsContent value="split" className="p-3.5 sm:p-6 pt-3 sm:pt-4 space-y-4">
             <AdminSplitConfigPanel
               groupId={groupId}
               publicId={publicId}

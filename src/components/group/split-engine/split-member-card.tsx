@@ -165,10 +165,10 @@ export function SplitMemberCard({
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="group relative p-4 rounded-2xl border border-slate-800/80 bg-slate-900/60 hover:bg-slate-900 hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-center">
-          {/* 1. Member Profile & Identity (4 Cols) */}
-          <div className="lg:col-span-4 flex items-center gap-3 min-w-0">
+      <div className="group relative p-3.5 sm:p-4 rounded-2xl border border-slate-800/80 bg-slate-900/60 hover:bg-slate-900/90 hover:border-indigo-500/30 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200">
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+          {/* 1. Member Profile & Identity (5 Cols on sm+) */}
+          <div className="sm:col-span-5 flex items-center gap-3 min-w-0">
             <div className="relative shrink-0">
               <Avatar className="h-10 w-10 border border-slate-700/80 bg-slate-800 shadow-sm">
                 <AvatarImage src={avatar || undefined} alt={name} />
@@ -184,13 +184,13 @@ export function SplitMemberCard({
             </div>
 
             <div className="min-w-0 space-y-0.5">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-sm font-bold text-slate-100 truncate">
                   {name}
                 </p>
                 <Badge
                   variant="outline"
-                  className={`text-[9px] py-0 px-1 font-bold uppercase tracking-wider ${
+                  className={`text-[9px] py-0 px-1.5 font-bold uppercase tracking-wider rounded-md ${
                     role === "owner"
                       ? "border-amber-500/30 text-amber-400 bg-amber-500/10"
                       : role === "admin"
@@ -212,10 +212,10 @@ export function SplitMemberCard({
             </div>
           </div>
 
-          {/* 2. Interactive Enterprise Numeric Stepper (4 Cols) */}
-          <div className="lg:col-span-4 flex items-center justify-center">
+          {/* 2. Interactive Enterprise Numeric Stepper or Equal Allocation (3 Cols on sm+) */}
+          <div className="sm:col-span-3 flex items-center sm:justify-center">
             {splitMethod !== "equal" ? (
-              <div className="flex items-center gap-1.5 w-full max-w-[240px]">
+              <div className="flex items-center gap-1.5 w-full max-w-[220px]">
                 {/* Decrement Button */}
                 <Button
                   type="button"
@@ -313,15 +313,15 @@ export function SplitMemberCard({
                 )}
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 text-xs font-mono text-slate-400 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800">
-                <Scale className="w-3.5 h-3.5 text-indigo-400" />
+              <div className="flex items-center gap-1.5 text-xs font-mono text-slate-300 bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800/80 shadow-xs">
+                <Scale className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                 <span>1/N Equal Allocation</span>
               </div>
             )}
           </div>
 
-          {/* 3. Right Side: Interactive Calculation & Net Position (4 Cols) */}
-          <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-center gap-1.5">
+          {/* 3. Right Side: Interactive Calculation & Net Position (4 Cols on sm+) */}
+          <div className="sm:col-span-4 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60">
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">
                 Payable:
@@ -333,7 +333,7 @@ export function SplitMemberCard({
               {/* Dynamic diff vs average */}
               {Math.abs(differenceFromAverage) > 0.01 && (
                 <span
-                  className={`text-[10px] font-mono font-bold px-1.5 py-0.2 rounded ${
+                  className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
                     differenceFromAverage > 0
                       ? "text-amber-400 bg-amber-500/10"
                       : "text-emerald-400 bg-emerald-500/10"
@@ -352,7 +352,7 @@ export function SplitMemberCard({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Badge className="text-[10px] font-bold py-0.5 px-2 bg-rose-500/15 text-rose-300 border border-rose-500/30 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3 text-rose-400" />
+                      <AlertCircle className="w-3 h-3 text-rose-400 shrink-0" />
                       <span>Outstanding: {formatCurrency(Math.abs(netBalance))}</span>
                     </Badge>
                   </TooltipTrigger>
@@ -364,7 +364,7 @@ export function SplitMemberCard({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Badge className="text-[10px] font-bold py-0.5 px-2 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3 text-emerald-400" />
+                      <TrendingUp className="w-3 h-3 text-emerald-400 shrink-0" />
                       <span>Receiver: {formatCurrency(netBalance)}</span>
                     </Badge>
                   </TooltipTrigger>
@@ -376,7 +376,7 @@ export function SplitMemberCard({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Badge variant="outline" className="text-[10px] font-bold py-0.5 px-2 bg-slate-800 text-slate-300 border-slate-700 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
                       <span>Fully Settled</span>
                     </Badge>
                   </TooltipTrigger>
