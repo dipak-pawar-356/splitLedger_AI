@@ -369,6 +369,29 @@ export async function verifySettlement(data: {
       });
     }
 
+    // 6.5 Update matching group receiver assignment if active
+    try {
+      const { groupReceiverAssignments } = await import("@/lib/db/schema/schema");
+      await db
+        .update(groupReceiverAssignments)
+        .set({ status: "settled", updatedAt: new Date(), updatedBy: user.id })
+        .where(
+          and(
+            eq(groupReceiverAssignments.groupId, group.id),
+            eq(groupReceiverAssignments.status, "active"),
+            data.fromUserId
+              ? eq(groupReceiverAssignments.fromUserId, data.fromUserId)
+              : eq(groupReceiverAssignments.fromContactId, data.fromContactId!),
+            data.toUserId
+              ? eq(groupReceiverAssignments.toUserId, data.toUserId)
+              : eq(groupReceiverAssignments.toContactId, data.toContactId!),
+            eq(groupReceiverAssignments.amount, amountInPaise)
+          )
+        );
+    } catch (e) {
+      // non-critical if table or match doesn't exist
+    }
+
     // 7. Revalidate Next.js cache
     revalidatePath(`/dashboard/groups/${group.publicId}`);
     revalidatePath(`/dashboard/groups/${group.id}`);

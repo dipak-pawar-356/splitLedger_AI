@@ -267,6 +267,26 @@ export async function markSettlementAsPaid(publicIdOrId: string | number, paymen
             paymentMethod: resolvedPaymentMethod,
           },
         });
+
+        // Update matching group receiver assignment if active
+        const { groupReceiverAssignments } = await import("@/lib/db/schema/schema");
+        await db
+          .update(groupReceiverAssignments)
+          .set({ status: "settled", updatedAt: new Date(), updatedBy: user.id })
+          .where(
+            and(
+              eq(groupReceiverAssignments.groupId, existingSettlement.groupId),
+              eq(groupReceiverAssignments.status, "active"),
+              existingSettlement.fromUserId
+                ? eq(groupReceiverAssignments.fromUserId, existingSettlement.fromUserId)
+                : eq(groupReceiverAssignments.fromContactId, existingSettlement.fromContactId!),
+              existingSettlement.toUserId
+                ? eq(groupReceiverAssignments.toUserId, existingSettlement.toUserId)
+                : eq(groupReceiverAssignments.toContactId, existingSettlement.toContactId!),
+              eq(groupReceiverAssignments.amount, existingSettlement.amount)
+            )
+          )
+          .catch(() => {});
       } catch (logErr) {
         console.warn("Non-critical error recording settlement audit log:", logErr);
       }

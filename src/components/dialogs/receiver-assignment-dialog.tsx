@@ -112,15 +112,19 @@ export function ReceiverAssignmentDialog({
     }
   }, [open, groupId]);
 
-  // Total assigned so far in rupees
+  // Target share representing debtor's liability
+  const targetShare = debtor.ownShare > 0 ? debtor.ownShare : debtor.needToPay;
+
+  // Total assigned so far in rupees = sum(receiver allocations)
   const assignedTotalRupees = assignments.reduce(
     (sum, a) => sum + Number(a.amount) / 100,
     0
   );
 
+  // Remaining liability = Target Share - Assigned Total
   const remainingLiabilityRupees = Math.max(
     0,
-    debtor.needToPay - assignedTotalRupees
+    targetShare - assignedTotalRupees
   );
 
   // Selected receiver details
@@ -306,7 +310,7 @@ export function ReceiverAssignmentDialog({
                     {debtor.name}
                   </h4>
                   <p className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">
-                    Net Liability: {formatCurrency(debtor.needToPay)}
+                    Net Liability: {formatCurrency(targetShare)}
                   </p>
                 </div>
               </div>
@@ -332,7 +336,7 @@ export function ReceiverAssignmentDialog({
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-rose-200/50 dark:border-rose-900/40 text-xs">
               <div>
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Target Share</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(debtor.ownShare)}</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(targetShare)}</span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 uppercase font-semibold block">Paid in Expenses</span>

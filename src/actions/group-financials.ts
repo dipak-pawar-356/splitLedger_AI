@@ -60,8 +60,8 @@ export interface MemberFinancialDetail {
   membershipStatus?: "pending" | "expense_inactive" | "active";
   historicalInclusionDecision?: "included" | "excluded" | null;
   delegatedPermissions?: Record<string, boolean>;
-  receivesFrom: Array<{ name: string; amount: number; userId?: number; contactId?: number; email?: string; phone?: string }>;
-  owesTo: Array<{ name: string; amount: number; userId?: number; contactId?: number; email?: string; phone?: string }>;
+  receivesFrom: Array<{ name: string; amount: number; userId?: number; contactId?: number; email?: string; phone?: string; status?: string }>;
+  owesTo: Array<{ name: string; amount: number; userId?: number; contactId?: number; email?: string; phone?: string; status?: string }>;
 }
 
 export interface GroupFinancialSummary {
@@ -403,7 +403,12 @@ export async function getGroupFinancialDetails(
         .where(
           and(
             eq(groupReceiverAssignments.groupId, groupId),
-            eq(groupReceiverAssignments.status, "active")
+            inArray(groupReceiverAssignments.status, [
+              "active",
+              "pending",
+              "payment_initiated",
+              "waiting_confirmation",
+            ])
           )
         )
         .catch(() => [] as any[]),
@@ -671,10 +676,56 @@ export async function getGroupFinancialDetails(
 
     const optimalSettlements = calculateOptimalSettlements(optimalBalances, "INR");
 
-    // Check whether the database pendingSettlementsList is identical to optimalSettlements
+    // Ground truth settlement suggestions are either active custom receiver assignments or freshly calculated optimalSettlements
+    let effectivePendingList: any[] = [];
+    if (activeReceiverAssignments.length > 0) {
+      const assignedDebtorKeys = new Set(
+        activeReceiverAssignments.map((a) =>
+          a.fromUserId ? `user-${a.fromUserId}` : `contact-${a.fromContactId}`
+        )
+      );
+
+      const mappedAssignments = activeReceiverAssignments.map((a) => {
+        const fromKey = a.fromUserId ? `user-${a.fromUserId}` : `contact-${a.fromContactId}`;
+        const toKey = a.toUserId ? `user-${a.toUserId}` : `contact-${a.toContactId}`;
+        return {
+          fromUserId: a.fromUserId || undefined,
+          fromContactId: a.fromContactId || undefined,
+          fromName: a.fromName || memberNamesMap[fromKey] || "Debtor",
+          fromAvatar: memberAvatarsMap[fromKey] || null,
+          toUserId: a.toUserId || undefined,
+          toContactId: a.toContactId || undefined,
+          toName: a.toName || memberNamesMap[toKey] || "Creditor",
+          toAvatar: memberAvatarsMap[toKey] || null,
+          amount: Number(a.amount),
+          currency: a.currency || "INR",
+          status: a.status || "pending",
+        };
+      });
+
+      // Include optimal settlements for debtors who don't have custom assignments yet
+      const remainingOptimal = optimalSettlements
+        .filter((opt) => {
+          const key = opt.fromUserId ? `user-${opt.fromUserId}` : `contact-${opt.fromContactId}`;
+          return !assignedDebtorKeys.has(key);
+        })
+        .map((s) => ({
+          ...s,
+          status: "pending",
+        }));
+
+      effectivePendingList = [...mappedAssignments, ...remainingOptimal];
+    } else {
+      effectivePendingList = optimalSettlements.map((s) => ({
+        ...s,
+        status: "pending",
+      }));
+    }
+
+    // Check whether the database pendingSettlementsList is identical to effectivePendingList
     const isDbInSync =
-      pendingSettlementsList.length === optimalSettlements.length &&
-      optimalSettlements.every((opt) =>
+      pendingSettlementsList.length === effectivePendingList.length &&
+      effectivePendingList.every((opt) =>
         pendingSettlementsList.some(
           (ps) =>
             ((opt.fromUserId && ps.fromUserId === opt.fromUserId) ||
@@ -698,7 +749,7 @@ export async function getGroupFinancialDetails(
             )
           );
 
-        const pendingToInsert = optimalSettlements.map((s) => ({
+        const pendingToInsert = effectivePendingList.map((s) => ({
           publicId: generatePublicId("set"),
           groupId,
           fromUserId: s.fromUserId || null,
@@ -707,7 +758,7 @@ export async function getGroupFinancialDetails(
           toContactId: s.toContactId || null,
           amount: Math.round(s.amount),
           currency: s.currency || groupRecord.currency || "INR",
-          status: "pending" as const,
+          status: (s.status as any) || "pending",
           createdAt: new Date(),
         }));
 
@@ -718,26 +769,6 @@ export async function getGroupFinancialDetails(
         console.error("Failed to auto-sync group pending settlements:", syncErr);
       }
     }
-
-    // Ground truth settlement suggestions are either active custom receiver assignments or freshly calculated optimalSettlements
-    const effectivePendingList = activeReceiverAssignments.length > 0
-      ? activeReceiverAssignments.map((a) => {
-          const fromKey = a.fromUserId ? `user-${a.fromUserId}` : `contact-${a.fromContactId}`;
-          const toKey = a.toUserId ? `user-${a.toUserId}` : `contact-${a.toContactId}`;
-          return {
-            fromUserId: a.fromUserId || undefined,
-            fromContactId: a.fromContactId || undefined,
-            fromName: a.fromName || memberNamesMap[fromKey] || "Debtor",
-            fromAvatar: memberAvatarsMap[fromKey] || null,
-            toUserId: a.toUserId || undefined,
-            toContactId: a.toContactId || undefined,
-            toName: a.toName || memberNamesMap[toKey] || "Creditor",
-            toAvatar: memberAvatarsMap[toKey] || null,
-            amount: a.amount,
-            currency: a.currency || "INR",
-          };
-        })
-      : optimalSettlements;
 
     // Populate pairwise debts into members
     processedMembers.forEach((m) => {
@@ -758,6 +789,7 @@ export async function getGroupFinancialDetails(
             contactId: s.fromContactId,
             email: fromMember?.email || undefined,
             phone: fromMember?.phone || undefined,
+            status: s.status || "pending",
           };
         });
 
@@ -775,8 +807,32 @@ export async function getGroupFinancialDetails(
             contactId: s.toContactId,
             email: toMember?.email || undefined,
             phone: toMember?.phone || undefined,
+            status: s.status || "pending",
           };
         });
+    });
+
+    // 7.5 Synchronize each member's settlement status, netPosition, needToPay, and willReceive from their aggregated allocations
+    processedMembers.forEach((m) => {
+      const totalOwed = m.owesTo.reduce((sum, o) => sum + o.amount, 0);
+      const totalReceiving = m.receivesFrom.reduce((sum, r) => sum + r.amount, 0);
+
+      if (totalOwed > 0.01) {
+        m.needToPay = totalOwed;
+        m.willReceive = 0;
+        m.netPosition = -totalOwed;
+        m.settlementStatus = "needs_to_pay";
+      } else if (totalReceiving > 0.01) {
+        m.willReceive = totalReceiving;
+        m.needToPay = 0;
+        m.netPosition = totalReceiving;
+        m.settlementStatus = "will_receive";
+      } else {
+        m.needToPay = 0;
+        m.willReceive = 0;
+        m.netPosition = 0;
+        m.settlementStatus = "settled";
+      }
     });
 
     // 8. Current Logged-in User Overview in this Group (SECTION 1 & 2)
@@ -788,12 +844,14 @@ export async function getGroupFinancialDetails(
     let userStatus: "will_receive" | "need_to_pay" | "settled" = "settled";
     let statusText = "You are all settled up in this group";
 
-    if (userNetBalance > 0.01) {
-      userStatus = "will_receive";
-      statusText = `You Will Receive ₹${userNetBalance.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    } else if (userNetBalance < -0.01) {
-      userStatus = "need_to_pay";
-      statusText = `You Need To Pay ₹${Math.abs(userNetBalance).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (currentUserDetail) {
+      if (currentUserDetail.needToPay > 0.01) {
+        userStatus = "need_to_pay";
+        statusText = `You Need To Pay ₹${currentUserDetail.needToPay.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      } else if (currentUserDetail.willReceive > 0.01) {
+        userStatus = "will_receive";
+        statusText = `You Will Receive ₹${currentUserDetail.willReceive.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
     }
 
     // 9. Who Pays Whom Suggestions (SECTION 6)
@@ -903,9 +961,7 @@ export async function getGroupFinancialDetails(
     const totalPayableInGroup = processedMembers
       .reduce((sum, m) => sum + m.needToPay, 0);
 
-    const pendingSettlementsAmount = pendingSettlementsList.length > 0
-      ? pendingSettlementsList.reduce((sum, s) => sum + Number(s.amount), 0) / 100
-      : (optimalSettlements.reduce((sum, s) => sum + s.amount, 0) / 100);
+    const pendingSettlementsAmount = effectivePendingList.reduce((sum, s) => sum + Number(s.amount), 0) / 100;
 
     const totalSettledAmount = completedSettlementsList.reduce((sum, s) => sum + Number(s.amount), 0) / 100;
 

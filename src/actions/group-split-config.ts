@@ -540,7 +540,9 @@ export async function getReceiverAssignmentsAction(groupIdOrPublicId: string | n
       .where(eq(groupReceiverAssignments.groupId, groupRecord.id))
       .orderBy(desc(groupReceiverAssignments.createdAt));
 
-    const active = allAssignments.filter((a) => a.status === "active");
+    const active = allAssignments.filter((a) =>
+      ["active", "pending", "payment_initiated", "waiting_confirmation"].includes(a.status)
+    );
     const history = allAssignments;
 
     return { active, history };
