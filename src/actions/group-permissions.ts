@@ -135,10 +135,15 @@ export async function updateMemberDelegatedPermissionsAction(data: {
       throw new ValidationError("Permissions can only be delegated to approved active members");
     }
 
-    // Sanitize permissions to ensure only known keys are saved
+    // Sanitize permissions to ensure all provided keys are boolean-mapped and core permissions are guaranteed
     const sanitizedPermissions: Record<string, boolean> = {};
+    if (data.permissions && typeof data.permissions === "object") {
+      for (const [k, v] of Object.entries(data.permissions)) {
+        sanitizedPermissions[k] = Boolean(v);
+      }
+    }
     for (const item of DELEGATED_PERMISSIONS_LIST) {
-      sanitizedPermissions[item.key] = Boolean(data.permissions[item.key]);
+      sanitizedPermissions[item.key] = Boolean(data.permissions?.[item.key]);
     }
 
     await db

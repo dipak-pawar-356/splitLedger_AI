@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { AdminSplitConfigPanel } from "@/components/group/admin-split-config-panel";
+import { SplitMethodSwitchWizard } from "./split-method-switch-wizard";
 
 const groupSettingsSchema = z.object({
   name: z.string().min(1, "Group name is required"),
@@ -693,103 +694,24 @@ export function GroupSettingsDialog({
       </DialogContent>
     </Dialog>
 
-    {/* Confirmation Dialog for Split Method Change (Option A vs Option B) */}
-    <Dialog open={showSplitConfirm} onOpenChange={setShowSplitConfirm}>
-      <DialogContent className="sm:max-w-[480px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <Calculator className="h-5 w-5 text-primary" />
-            Update Group Calculation Engine
-          </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500">
-            You are changing the group&apos;s default split method from{" "}
-            <strong className="text-slate-800 dark:text-slate-200">
-              {SPLIT_METHODS.find((m) => m.value === initialData.splitMethod)?.label || initialData.splitMethod}
-            </strong>{" "}
-            to{" "}
-            <strong className="text-primary">
-              {SPLIT_METHODS.find((m) => m.value === pendingGeneralData?.splitMethod)?.label || pendingGeneralData?.splitMethod}
-            </strong>
-            .
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-            How would you like to apply this new calculation method?
-          </p>
-
-          <RadioGroup
-            value={recalculateChoice}
-            onValueChange={(val: any) => setRecalculateChoice(val)}
-            className="gap-3"
-          >
-            {/* Option A: Future Only */}
-            <label
-              htmlFor="opt-future"
-              className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                recalculateChoice === "future"
-                  ? "border-primary bg-primary/5 dark:bg-primary/10 shadow-xs"
-                  : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
-              }`}
-            >
-              <RadioGroupItem value="future" id="opt-future" className="mt-0.5" />
-              <div className="space-y-1">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                  Option A: Future Expenses Only
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-semibold">Recommended</span>
-                </span>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Existing expenses and historical balances remain unchanged. All new expenses created in this group will default to the newly selected calculation engine.
-                </p>
-              </div>
-            </label>
-
-            {/* Option B: Recalculate All Existing */}
-            <label
-              htmlFor="opt-all"
-              className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                recalculateChoice === "all"
-                  ? "border-primary bg-primary/5 dark:bg-primary/10 shadow-xs"
-                  : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
-              }`}
-            >
-              <RadioGroupItem value="all" id="opt-all" className="mt-0.5" />
-              <div className="space-y-1">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                  Option B: Recalculate All Existing Expenses
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-semibold">Ledger Recompute</span>
-                </span>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Immediately recalculates every existing expense in this group using the new split method. Member balances, own shares, and settlement suggestions will be synchronized.
-                </p>
-              </div>
-            </label>
-          </RadioGroup>
-        </div>
-
-        <div className="flex items-center justify-end gap-2 pt-2 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowSplitConfirm(false)}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => pendingGeneralData && executeSave(pendingGeneralData, recalculateChoice === "all")}
-            disabled={isLoading}
-            className="gap-1.5"
-          >
-            {isLoading ? "Updating..." : "Confirm & Save"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    {/* Enterprise 5-Step Wizard for Split Method Change */}
+    <SplitMethodSwitchWizard
+      open={showSplitConfirm}
+      onOpenChange={setShowSplitConfirm}
+      currentMethod={(initialData.splitMethod as any) || "equal"}
+      initialTargetMethod={pendingGeneralData?.splitMethod as any}
+      groupName={initialData.name}
+      membersCount={members.length}
+      expensesCount={1}
+      totalExpenseRupees={0}
+      onConfirm={async (recalculateExisting, targetMethod) => {
+        if (!pendingGeneralData) return;
+        const finalData = { ...pendingGeneralData, splitMethod: targetMethod };
+        setValue("splitMethod", targetMethod, { shouldDirty: true });
+        await executeSave(finalData, recalculateExisting);
+      }}
+      isLoading={isLoading}
+    />
     </>
   );
 }

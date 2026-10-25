@@ -294,6 +294,7 @@ export async function getGroupSplitConfigAction(groupIdOrPublicId: string | numb
           percentage:
             savedConfig?.percentage ??
             (activeMembers.length > 0 ? Math.round(100 / activeMembers.length) : 0),
+          role: m.userId === groupRecord.createdBy ? "owner" : m.isAdmin ? "admin" : m.isGuest ? "guest" : "member",
           shares: savedConfig?.shares ?? 1,
           isLocked: savedConfig?.isLocked ?? false,
         };
