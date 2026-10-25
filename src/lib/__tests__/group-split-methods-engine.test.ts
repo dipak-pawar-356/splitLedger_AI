@@ -4,7 +4,6 @@ import {
   calculateMemberNetBalances,
   validateIntegrity,
   type ParticipantShareInput,
-  type ParticipantKey,
 } from "@/lib/settlements/recalculation-engine";
 import { calculateOptimalSettlements } from "@/lib/settlements/calculator";
 
@@ -14,7 +13,7 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
   // =========================================================================
   describe("Equal Split Engine", () => {
     it("handles single member paying and splitting 100% of expense", () => {
-      const participants: ParticipantShareInput[] = [{ userId: 1, contactId: null }];
+      const participants: ParticipantShareInput[] = [{ userId: 1 }];
       const totalPaise = 100000; // ₹1,000.00
       const shares = calculateSharesForExpense(totalPaise, participants, "equal");
 
@@ -26,8 +25,8 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
 
     it("handles two members splitting evenly", () => {
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null },
-        { userId: 2, contactId: null },
+        { userId: 1 },
+        { userId: 2 },
       ];
       const totalPaise = 100000; // ₹1,000.00
       const shares = calculateSharesForExpense(totalPaise, participants, "equal");
@@ -40,9 +39,9 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
 
     it("handles three members with odd paise remainder allocated deterministically", () => {
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null },
-        { userId: 2, contactId: null },
-        { userId: 3, contactId: null },
+        { userId: 1 },
+        { userId: 2 },
+        { userId: 3 },
       ];
       const totalPaise = 100000; // ₹1,000.00 = 100,000 paise
       // 100,000 / 3 = 33,333 paise with remainder 1 paise distributed to index 0
@@ -58,7 +57,6 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
     it("handles 10 members with zero drift", () => {
       const participants: ParticipantShareInput[] = Array.from({ length: 10 }, (_, i) => ({
         userId: i + 1,
-        contactId: null,
       }));
       const totalPaise = 99999; // ₹999.99 = 99,999 paise
       // 99,999 / 10 = 9999 paise with remainder 9 paise distributed across indices 0 to 8
@@ -73,9 +71,9 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
 
     it("handles decimal expenses (e.g. ₹123.45 across 3 members)", () => {
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null },
-        { userId: 2, contactId: null },
-        { userId: 3, contactId: null },
+        { userId: 1 },
+        { userId: 2 },
+        { userId: 3 },
       ];
       const totalPaise = 12345; // ₹123.45
       const shares = calculateSharesForExpense(totalPaise, participants, "equal");
@@ -95,9 +93,9 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
       // Total ₹1000: Dipak = ₹500, Raj = ₹300, Kunal = ₹200
       const totalPaise = 100000;
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null, amountPaise: 50000 },
-        { userId: 2, contactId: null, amountPaise: 30000 },
-        { userId: 3, contactId: null, amountPaise: 20000 },
+        { userId: 1, amountPaise: 50000 },
+        { userId: 2, amountPaise: 30000 },
+        { userId: 3, amountPaise: 20000 },
       ];
 
       const shares = calculateSharesForExpense(totalPaise, participants, "exact");
@@ -111,8 +109,8 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
 
     it("falls back to equal distribution if no custom amounts provided for exact method", () => {
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null },
-        { userId: 2, contactId: null },
+        { userId: 1 },
+        { userId: 2 },
       ];
       const totalPaise = 50000;
       const shares = calculateSharesForExpense(totalPaise, participants, "exact");
@@ -131,9 +129,9 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
     it("calculates exact shares for 50%, 30%, 20% on ₹1,000", () => {
       const totalPaise = 100000; // ₹1000.00
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null, percentage: 50 },
-        { userId: 2, contactId: null, percentage: 30 },
-        { userId: 3, contactId: null, percentage: 20 },
+        { userId: 1, percentage: 50 },
+        { userId: 2, percentage: 30 },
+        { userId: 3, percentage: 20 },
       ];
 
       const shares = calculateSharesForExpense(totalPaise, participants, "percentage");
@@ -148,9 +146,9 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
     it("handles decimal percentages (e.g. 33.33%, 33.33%, 33.34%) with zero drift", () => {
       const totalPaise = 100000; // ₹1,000.00
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null, percentage: 33.33 },
-        { userId: 2, contactId: null, percentage: 33.33 },
-        { userId: 3, contactId: null, percentage: 33.34 },
+        { userId: 1, percentage: 33.33 },
+        { userId: 2, percentage: 33.33 },
+        { userId: 3, percentage: 33.34 },
       ];
 
       const shares = calculateSharesForExpense(totalPaise, participants, "percentage");
@@ -170,9 +168,9 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
     it("allocates proportional shares for integer shares (5, 3, 2 units on ₹1,000)", () => {
       const totalPaise = 100000; // ₹1000.00
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null, shares: 5 },
-        { userId: 2, contactId: null, shares: 3 },
-        { userId: 3, contactId: null, shares: 2 },
+        { userId: 1, shares: 5 },
+        { userId: 2, shares: 3 },
+        { userId: 3, shares: 2 },
       ];
 
       const shares = calculateSharesForExpense(totalPaise, participants, "shares");
@@ -191,9 +189,9 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
       // P2: (2.5 / 5) * 50000 = 25000
       // P3: (1.0 / 5) * 50000 = 10000
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null, shares: 1.5 },
-        { userId: 2, contactId: null, shares: 2.5 },
-        { userId: 3, contactId: null, shares: 1.0 },
+        { userId: 1, shares: 1.5 },
+        { userId: 2, shares: 2.5 },
+        { userId: 3, shares: 1.0 },
       ];
 
       const shares = calculateSharesForExpense(totalPaise, participants, "shares");
@@ -208,8 +206,8 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
     it("handles indivisible share proportions with exact remainder allocation", () => {
       const totalPaise = 100001; // ₹1000.01 (100,001 paise)
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null, shares: 1 },
-        { userId: 2, contactId: null, shares: 1 },
+        { userId: 1, shares: 1 },
+        { userId: 2, shares: 1 },
       ];
 
       const shares = calculateSharesForExpense(totalPaise, participants, "shares");
@@ -228,8 +226,8 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
     it("handles guest members identified by contactId without userId", () => {
       const totalPaise = 80000;
       const participants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null, percentage: 60 }, // Registered user
-        { userId: null, contactId: 101, percentage: 40 }, // Guest member
+        { userId: 1, percentage: 60 }, // Registered user
+        { contactId: 101, percentage: 40 }, // Guest member
       ];
 
       const shares = calculateSharesForExpense(totalPaise, participants, "percentage");
@@ -244,8 +242,8 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
     it("only distributes among active included participants", () => {
       const totalPaise = 60000;
       const activeParticipants: ParticipantShareInput[] = [
-        { userId: 1, contactId: null, shares: 2 },
-        { userId: 3, contactId: null, shares: 1 },
+        { userId: 1, shares: 2 },
+        { userId: 3, shares: 1 },
       ];
       const shares = calculateSharesForExpense(totalPaise, activeParticipants, "shares");
 
@@ -264,8 +262,8 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
       // Transaction 1: ₹1,000 paid by User 1, split by Percentage (60% U1, 40% U2)
       // Transaction 2: ₹600 paid by User 2, split by Shares (2 units U1, 1 unit U2)
       const members = [
-        { userId: 1, contactId: null },
-        { userId: 2, contactId: null },
+        { userId: 1 },
+        { userId: 2 },
       ];
 
       const expenses = [
@@ -301,8 +299,8 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
       // User 1 pays ₹1,000 for a dinner.
       // Split by Percentage: User 1 (30% = ₹300), User 2 (70% = ₹700)
       const members = [
-        { userId: 1, contactId: null },
-        { userId: 2, contactId: null },
+        { userId: 1 },
+        { userId: 2 },
       ];
 
       const expenses = [
@@ -344,7 +342,6 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
     it("preserves sum(shares) === totalExpense for large prime expense (₹999,999.73 across 7 members)", () => {
       const participants: ParticipantShareInput[] = Array.from({ length: 7 }, (_, i) => ({
         userId: i + 1,
-        contactId: null,
       }));
       const totalPaise = 99999973; // ₹999,999.73
 
@@ -357,9 +354,9 @@ describe("Group Split Method Engine - Mathematical Accuracy, Persistence & Invar
 
     it("validates integrity check passes with 0 discrepancy", () => {
       const members = [
-        { userId: 1, contactId: null },
-        { userId: 2, contactId: null },
-        { userId: 3, contactId: null },
+        { userId: 1 },
+        { userId: 2 },
+        { userId: 3 },
       ];
 
       const calculatedShares = calculateSharesForExpense(33333, members, "equal");

@@ -415,24 +415,33 @@ export function hasParticipantSetOrSharesChanged(
  * netPosition = (totalPaid - ownShare) + (settledPaid - settledReceived)
  */
 export function calculateMemberNetBalances(
-  members: Array<{ userId?: number; contactId?: number; name?: string }>,
-  expenses: Array<{ paidBy?: number; paidByContact?: number; amountPaise: number }>,
-  splits: Array<{ userId?: number; contactId?: number; amountPaise: number }>,
-  completedSettlements: Array<{ fromUserId?: number; fromContactId?: number; toUserId?: number; toContactId?: number; amountPaise: number }>
+  members: Array<{ userId?: number | null; contactId?: number | null; name?: string }>,
+  expenses: Array<{ paidBy?: number | null; paidByContact?: number | null; amountPaise: number }>,
+  splits: Array<{ userId?: number | null; contactId?: number | null; amountPaise: number }>,
+  completedSettlements: Array<{ fromUserId?: number | null; fromContactId?: number | null; toUserId?: number | null; toContactId?: number | null; amountPaise: number }>
 ): Balance[] {
-  const balanceMap = new Map<string, { userId?: number; contactId?: number; name?: string; amount: number }>();
+  const balanceMap = new Map<string, Balance>();
 
   // Initialize members
   for (const m of members) {
     const key = getParticipantKey(m);
-    balanceMap.set(key, { userId: m.userId, contactId: m.contactId, name: m.name, amount: 0 });
+    balanceMap.set(key, {
+      userId: m.userId ?? undefined,
+      contactId: m.contactId ?? undefined,
+      name: m.name,
+      amount: 0,
+    });
   }
 
   // Add expenses paid
   for (const e of expenses) {
     const payerKey = getParticipantKey({ userId: e.paidBy, contactId: e.paidByContact });
     if (!balanceMap.has(payerKey)) {
-      balanceMap.set(payerKey, { userId: e.paidBy, contactId: e.paidByContact, amount: 0 });
+      balanceMap.set(payerKey, {
+        userId: e.paidBy ?? undefined,
+        contactId: e.paidByContact ?? undefined,
+        amount: 0,
+      });
     }
     balanceMap.get(payerKey)!.amount += e.amountPaise;
   }
@@ -441,7 +450,11 @@ export function calculateMemberNetBalances(
   for (const s of splits) {
     const splitKey = getParticipantKey(s);
     if (!balanceMap.has(splitKey)) {
-      balanceMap.set(splitKey, { userId: s.userId, contactId: s.contactId, amount: 0 });
+      balanceMap.set(splitKey, {
+        userId: s.userId ?? undefined,
+        contactId: s.contactId ?? undefined,
+        amount: 0,
+      });
     }
     balanceMap.get(splitKey)!.amount -= s.amountPaise;
   }
@@ -452,10 +465,18 @@ export function calculateMemberNetBalances(
     const receiverKey = getParticipantKey({ userId: cs.toUserId, contactId: cs.toContactId });
 
     if (!balanceMap.has(payerKey)) {
-      balanceMap.set(payerKey, { userId: cs.fromUserId, contactId: cs.fromContactId, amount: 0 });
+      balanceMap.set(payerKey, {
+        userId: cs.fromUserId ?? undefined,
+        contactId: cs.fromContactId ?? undefined,
+        amount: 0,
+      });
     }
     if (!balanceMap.has(receiverKey)) {
-      balanceMap.set(receiverKey, { userId: cs.toUserId, contactId: cs.toContactId, amount: 0 });
+      balanceMap.set(receiverKey, {
+        userId: cs.toUserId ?? undefined,
+        contactId: cs.toContactId ?? undefined,
+        amount: 0,
+      });
     }
 
     // Payer gave money, so their debt is reduced (credited balance)

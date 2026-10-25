@@ -2077,6 +2077,7 @@ export function generateExcelWorkbook(data: ExportReportData): string {
           totalAmount: tx.amount / 100,
           paidByName: tx.paidByName || "Member",
           splitBetween: "All Members",
+          splitMethod: tx.splitMethod || "Equal",
           myShare: tx.amount / 200,
           otherMembersShare: tx.amount / 200,
           pendingAmount: tx.status === "pending" ? tx.amount / 100 : 0,

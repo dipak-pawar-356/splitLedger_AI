@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Settings, Shield, Users, AlertTriangle, Trash2, LogOut, ArrowRight, UserCheck, Archive, RefreshCw, Calculator, HelpCircle, CheckCircle2 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -290,6 +291,7 @@ export function GroupSettingsDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       {trigger && (
         <DialogTrigger asChild>
