@@ -26,7 +26,12 @@ import {
   History,
   AlertCircle,
   ShieldCheck,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Wallet,
+  PieChart,
+  Calendar,
+  Clock,
+  Users
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -164,77 +169,111 @@ export function MemberFinancialSummary({
     <>
       <Card className={`w-full group hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden bg-card rounded-3xl ${
         isReceivable 
-          ? "border-2 border-emerald-500 shadow-sm shadow-emerald-500/10 dark:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/15 hover:border-emerald-400 dark:hover:border-emerald-400" 
+          ? "border-2 border-emerald-500/60 shadow-md shadow-emerald-500/10 dark:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/15 hover:border-emerald-400 dark:hover:border-emerald-400" 
           : isPayable 
-          ? "border-2 border-rose-500 shadow-sm shadow-rose-500/10 dark:border-rose-500 hover:shadow-xl hover:shadow-rose-500/15 hover:border-rose-400 dark:hover:border-rose-400" 
+          ? "border-2 border-rose-500/60 shadow-md shadow-rose-500/10 dark:border-rose-500/50 hover:shadow-2xl hover:shadow-rose-500/15 hover:border-rose-400 dark:hover:border-rose-400" 
           : "border border-slate-200/90 dark:border-slate-800 hover:shadow-xl hover:border-primary/40"
       }`}>
         <div>
           {/* Card Header: Avatar, Name, Role, Badges */}
-          <CardHeader className="flex flex-row items-center gap-3.5 pb-3 pt-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30">
-            <Avatar className="h-12 w-12 border-2 border-white/50 shadow-xs shrink-0 group-hover:scale-105 transition-transform duration-300">
-              <AvatarImage src={member.avatar || undefined} />
-              <AvatarFallback className="font-bold bg-primary text-white text-base">
+          <CardHeader className="flex flex-row items-center gap-3.5 p-5 pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40">
+            <Avatar className={`h-12 w-12 rounded-2xl ring-2 shrink-0 group-hover:scale-105 transition-transform duration-300 ${
+              isReceivable 
+                ? "ring-emerald-500/40" 
+                : isPayable 
+                ? "ring-rose-500/40" 
+                : "ring-slate-700"
+            }`}>
+              <AvatarImage src={member.avatar || undefined} className="rounded-2xl" />
+              <AvatarFallback className="rounded-2xl font-black bg-primary/20 text-primary text-base">
                 {member.name.charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <CardTitle className="text-sm font-bold tracking-tight truncate text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors">
+                <CardTitle className="text-base font-bold tracking-tight truncate text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors">
                   {member.name}
                 </CardTitle>
-                <Badge className="text-[10px] py-0 px-1.5 font-semibold capitalize bg-primary/20 text-primary border-primary/30">
+                <Badge className="text-[10px] py-0 px-2 font-semibold capitalize bg-primary/20 text-primary border-primary/30 rounded-md">
                   {member.role}
                 </Badge>
                 {member.isGuest ? (
-                  <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                  <Badge variant="secondary" className="text-[10px] py-0 px-2 font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-md">
                     Guest
                   </Badge>
                 ) : (
-                  <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  <Badge variant="secondary" className="text-[10px] py-0 px-2 font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-md">
                     User
                   </Badge>
                 )}
                 {member.membershipStatus === "expense_inactive" && (
-                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border-amber-300">
+                  <Badge variant="outline" className="text-[10px] py-0 px-2 font-bold bg-amber-500/10 text-amber-400 border-amber-500/30 rounded-md">
                     Expense Inactive
                   </Badge>
                 )}
                 {isCurrentUser && (
-                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-bold bg-primary/10 text-primary border-primary/30">
+                  <Badge variant="outline" className="text-[10px] py-0 px-2 font-bold bg-primary/10 text-primary border-primary/30 rounded-md">
                     You
                   </Badge>
                 )}
                 {member.isPaymentVerified && (
-                  <Badge className="text-[10px] py-0 px-1.5 font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 flex items-center">
-                    <CheckCircle2 className="h-2.5 w-2.5" />
+                  <Badge className="text-[10px] py-0 px-2 font-semibold bg-emerald-500/15 text-emerald-400 border-emerald-500/30 gap-1 flex items-center rounded-md">
+                    <CheckCircle2 className="h-3 w-3" />
                     Verified
                   </Badge>
                 )}
               </div>
-              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+              <p className="text-xs text-slate-400 truncate mt-1 font-mono">
                 {member.email || member.phone || (member.isGuest ? "Guest Member" : "Registered User")}
               </p>
             </div>
           </CardHeader>
 
-          <CardContent className="p-4 space-y-3">
-            {/* Net Position Status Banner (SECTIONS 2 & 4) */}
-            <div className={`p-3.5 rounded-2xl border-2 transition-all duration-200 group-hover:shadow-xs ${
+          <CardContent className="p-5 space-y-4">
+            {/* Net Position Status Banner (Hero Section) */}
+            <div className={`p-4 rounded-2xl border transition-all duration-300 space-y-3 ${
               isReceivable 
-                ? "bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-500/40 dark:border-emerald-500/50 group-hover:border-emerald-500/70" 
+                ? "bg-gradient-to-br from-emerald-500/10 via-emerald-950/20 to-transparent border-emerald-500/30 shadow-xs" 
                 : isPayable 
-                ? "bg-rose-50/60 dark:bg-rose-950/25 border-rose-500/40 dark:border-rose-500/50 group-hover:border-rose-500/70" 
-                : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
+                ? "bg-gradient-to-br from-rose-500/10 via-rose-950/20 to-transparent border-rose-500/30 shadow-xs" 
+                : "bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800"
             }`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+              {/* Banner Top Row: Status Label & Contribution Pill */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  {isReceivable ? (
+                    <TrendingUp className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                  ) : isPayable ? (
+                    <Wallet className="h-4 w-4 text-rose-500 dark:text-rose-400" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                  )}
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Settlement Status
                   </span>
-                  <span className={`text-base font-black tracking-tight mt-0.5 block ${
-                    isReceivable ? "text-emerald-600 dark:text-emerald-400" : isPayable ? "text-rose-600 dark:text-rose-400" : member.isPaymentVerified ? "text-emerald-600 dark:text-emerald-400" : "text-slate-600"
+                </div>
+
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-900/60 border border-slate-800 text-slate-300">
+                  <PieChart className="h-3 w-3 text-slate-400" />
+                  <span className="text-[10px] uppercase font-bold text-slate-400">
+                    Contribution
+                  </span>
+                  <span className="text-xs font-black font-mono text-slate-100">
+                    {member.contributionPercentage}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Banner Amount & Status Badge */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <span className={`text-xl sm:text-2xl font-black font-mono tracking-tight block ${
+                    isReceivable 
+                      ? "text-emerald-500 dark:text-emerald-400" 
+                      : isPayable 
+                      ? "text-rose-500 dark:text-rose-400" 
+                      : member.isPaymentVerified ? "text-emerald-500 dark:text-emerald-400" : "text-slate-400"
                   }`}>
                     {isReceivable 
                       ? `Will Receive ${formatCurrency(effectiveWillReceive)}` 
@@ -244,23 +283,43 @@ export function MemberFinancialSummary({
                   </span>
                 </div>
 
-                <div className="text-right">
-                  <span className="text-[10px] font-semibold text-slate-400 block uppercase">
-                    Contribution
-                  </span>
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                    {member.contributionPercentage}%
-                  </span>
+                <div>
+                  {isPayable ? (
+                    <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/30 text-[10px] font-bold uppercase tracking-wider">
+                      Waiting Payment
+                    </Badge>
+                  ) : isReceivable ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
+                      Receiving
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
+                      Completed
+                    </Badge>
+                  )}
                 </div>
+              </div>
+
+              {/* Progress Indicator */}
+              <div className="w-full h-1.5 bg-slate-900/80 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isReceivable 
+                      ? "bg-emerald-500 w-3/4" 
+                      : isPayable 
+                      ? "bg-rose-500 w-2/5" 
+                      : "bg-emerald-500 w-full"
+                  }`} 
+                />
               </div>
 
               {/* Dynamic Receiver Assignment & Pairwise Settlement Transfers */}
               {(isCurrentUser || isGroupOwner || isCurrentUserAdmin) && (
-                <div className="pt-2.5 mt-2.5 border-t border-slate-200/70 dark:border-slate-800/80 space-y-2.5">
+                <div className="pt-2 mt-2 border-t border-slate-200/50 dark:border-slate-800/80 space-y-3">
                   {/* Admin action: Assign Receivers for debtor when split method is not equal */}
                   {isPayable && (isGroupOwner || isCurrentUserAdmin) && splitMethod !== "equal" && (
                     <div className="flex items-center justify-between pb-1">
-                      <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                      <span className="text-xs font-bold text-slate-300">
                         Creditor Allocation
                       </span>
                       <ReceiverAssignmentDialog
@@ -288,9 +347,9 @@ export function MemberFinancialSummary({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 border-primary/40 text-primary hover:bg-primary/10 shadow-xs"
+                            className="h-7 text-xs px-2.5 font-semibold rounded-xl gap-1.5 border-primary/40 text-primary hover:bg-primary/10 shadow-xs transition-all duration-200 hover:-translate-y-0.5"
                           >
-                            <ArrowRightLeft className="h-3 w-3" />
+                            <ArrowRightLeft className="h-3.5 w-3.5" />
                             <span>Assign Receivers</span>
                           </Button>
                         }
@@ -300,210 +359,288 @@ export function MemberFinancialSummary({
 
                   {/* Outgoing debts owed by this member (Payer View: e.g. Pay Dipak ₹5,000, Pay Raj ₹2,000) */}
                   {member.owesTo.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                        Assigned Receivers ({member.owesTo.length})
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        <span className="flex items-center gap-1.5">
+                          <Users className="h-3 w-3 text-rose-400" />
+                          Assigned Receivers ({member.owesTo.length})
+                        </span>
                       </div>
+
                       {member.owesTo.map((owe, idx) => (
                         <div
                           key={idx}
-                          className="p-2.5 rounded-xl border border-rose-200/70 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/25 text-xs space-y-1.5"
+                          className="p-3.5 rounded-2xl border border-rose-500/20 dark:border-rose-900/40 bg-slate-900/60 dark:bg-slate-950/60 hover:border-rose-500/40 transition-all duration-200 shadow-xs space-y-2.5"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <span className="font-bold text-slate-900 dark:text-slate-100 truncate block">
-                                Pay {owe.name}
-                              </span>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-xs font-mono font-bold text-rose-600 dark:text-rose-400">
-                                  {formatCurrency(owe.amount)}
+                          {/* Mini Card Header: Avatar, Name, Status, Amount */}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-8 w-8 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center font-bold text-xs shrink-0">
+                                {owe.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-bold text-slate-100 truncate">
+                                    {owe.name}
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[9px] py-0 px-1.5 font-bold rounded-md ${
+                                      owe.status === "payment_initiated"
+                                        ? "bg-blue-500/10 text-blue-400 border-blue-500/30"
+                                        : owe.status === "waiting_confirmation"
+                                        ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                        : "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                                    }`}
+                                  >
+                                    {owe.status === "payment_initiated"
+                                      ? "Payment Initiated"
+                                      : owe.status === "waiting_confirmation"
+                                      ? "Waiting Confirmation"
+                                      : "Pending"}
+                                  </Badge>
+                                </div>
+                                <span className="text-[10px] text-slate-400 block">
+                                  Assigned Creditor
                                 </span>
-                                <Badge variant="outline" className="text-[9px] py-0 px-1 font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">
-                                  {owe.status === "payment_initiated" ? "Payment Initiated" : owe.status === "waiting_confirmation" ? "Waiting Confirmation" : "Pending"}
-                                </Badge>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                              {/* QR */}
-                              {owe.userId && (
-                                <UpiQuickPayDialog
-                                  groupId={groupId}
-                                  groupName={groupName}
-                                  receiverUserId={owe.userId}
-                                  receiverName={owe.name}
-                                  payerUserId={member.userId || undefined}
-                                  payerName={member.name}
-                                  amount={owe.amount}
-                                  mode="receive"
-                                  trigger={
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
-                                    >
-                                      <QrCode className="h-3 w-3" />
-                                      <span>QR</span>
-                                    </Button>
-                                  }
-                                />
-                              )}
+                            <div className="text-right shrink-0">
+                              <span className="text-sm sm:text-base font-black font-mono text-rose-400">
+                                {formatCurrency(owe.amount)}
+                              </span>
+                            </div>
+                          </div>
 
-                              {/* Pay Now */}
-                              {owe.userId && (
-                                <UpiQuickPayDialog
-                                  groupId={groupId}
-                                  groupName={groupName}
-                                  receiverUserId={owe.userId}
-                                  receiverName={owe.name}
-                                  payerUserId={member.userId || undefined}
-                                  payerName={member.name}
-                                  amount={owe.amount}
-                                  mode="pay"
-                                  trigger={
-                                    <Button
-                                      size="sm"
-                                      className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                                    >
-                                      <Smartphone className="h-3 w-3" />
-                                      <span>Pay Now</span>
-                                    </Button>
-                                  }
-                                />
-                              )}
-
-                              {/* Manual Settle */}
-                              <SettleAllDialog
+                          {/* Mini Card Action Strip: 3-column equal grid */}
+                          <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-800/80">
+                            {/* QR */}
+                            {owe.userId ? (
+                              <UpiQuickPayDialog
                                 groupId={groupId}
                                 groupName={groupName}
-                                suggestions={[{
-                                  fromUserId: member.userId || undefined,
-                                  fromContactId: member.contactId || undefined,
-                                  fromName: member.name,
-                                  toUserId: owe.userId,
-                                  toContactId: owe.contactId,
-                                  toName: owe.name,
-                                  amount: owe.amount,
-                                  currency: "INR",
-                                }]}
+                                receiverUserId={owe.userId}
+                                receiverName={owe.name}
+                                payerUserId={member.userId || undefined}
+                                payerName={member.name}
+                                amount={owe.amount}
+                                mode="receive"
                                 trigger={
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                                    className="w-full h-7 text-[11px] font-semibold rounded-lg gap-1 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                                   >
-                                    <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                                    <span>Manual Settle</span>
+                                    <QrCode className="h-3 w-3" />
+                                    <span>QR</span>
                                   </Button>
                                 }
                               />
-                            </div>
+                            ) : (
+                              <Button size="sm" variant="outline" disabled className="w-full h-7 text-[11px] opacity-40">
+                                <QrCode className="h-3 w-3" />
+                                <span>QR</span>
+                              </Button>
+                            )}
+
+                            {/* Pay Now */}
+                            {owe.userId ? (
+                              <UpiQuickPayDialog
+                                groupId={groupId}
+                                groupName={groupName}
+                                receiverUserId={owe.userId}
+                                receiverName={owe.name}
+                                payerUserId={member.userId || undefined}
+                                payerName={member.name}
+                                amount={owe.amount}
+                                mode="pay"
+                                trigger={
+                                  <Button
+                                    size="sm"
+                                    className="w-full h-7 text-[11px] font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+                                  >
+                                    <Smartphone className="h-3 w-3" />
+                                    <span>Pay Now</span>
+                                  </Button>
+                                }
+                              />
+                            ) : (
+                              <Button size="sm" disabled className="w-full h-7 text-[11px] opacity-40">
+                                <Smartphone className="h-3 w-3" />
+                                <span>Pay</span>
+                              </Button>
+                            )}
+
+                            {/* Manual Settle */}
+                            <SettleAllDialog
+                              groupId={groupId}
+                              groupName={groupName}
+                              suggestions={[{
+                                fromUserId: member.userId || undefined,
+                                fromContactId: member.contactId || undefined,
+                                fromName: member.name,
+                                toUserId: owe.userId,
+                                toContactId: owe.contactId,
+                                toName: owe.name,
+                                amount: owe.amount,
+                                currency: "INR",
+                              }]}
+                              trigger={
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="w-full h-7 text-[11px] font-semibold rounded-lg gap-1 border-slate-700 hover:bg-slate-800 text-slate-200 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+                                >
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                                  <span>Manual</span>
+                                </Button>
+                              }
+                            />
                           </div>
                         </div>
                       ))}
 
                       {/* Bottom Total Pending Liability */}
-                      <div className="flex items-center justify-between p-2 rounded-xl bg-rose-100/70 dark:bg-rose-950/40 border border-rose-300/70 dark:border-rose-900/60 text-xs font-bold text-rose-700 dark:text-rose-300">
-                        <span className="uppercase text-[10px] tracking-wider">Total Pending</span>
-                        <span className="font-mono text-sm">{formatCurrency(effectiveNeedToPay)}</span>
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-rose-950/40 border border-rose-900/60 text-xs font-bold text-rose-300">
+                        <span className="uppercase text-[10px] tracking-wider text-rose-400">Total Pending Liability</span>
+                        <span className="font-mono text-sm font-black">{formatCurrency(effectiveNeedToPay)}</span>
                       </div>
                     </div>
                   )}
 
                   {/* Incoming funds to this member (Receiver View: e.g. Waiting from Kunal ₹2,000) */}
                   {member.receivesFrom.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                        Incoming Allocations ({member.receivesFrom.length})
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        <span className="flex items-center gap-1.5">
+                          <Users className="h-3 w-3 text-emerald-400" />
+                          Incoming Allocations ({member.receivesFrom.length})
+                        </span>
                       </div>
+
                       {member.receivesFrom.map((rec, idx) => (
                         <div
                           key={idx}
-                          className="p-2.5 rounded-xl border border-emerald-200/70 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/25 text-xs space-y-1.5"
+                          className="p-3.5 rounded-2xl border border-emerald-500/20 dark:border-emerald-900/40 bg-slate-900/60 dark:bg-slate-950/60 hover:border-emerald-500/40 transition-all duration-200 shadow-xs space-y-2.5"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <span className="font-bold text-slate-900 dark:text-slate-100 truncate block">
-                                Waiting from {rec.name}
-                              </span>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                  {formatCurrency(rec.amount)}
+                          {/* Mini Card Header: Avatar, Name, Status, Amount */}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-8 w-8 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-bold text-xs shrink-0">
+                                {rec.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-xs font-bold text-slate-100 truncate">
+                                    From {rec.name}
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[9px] py-0 px-1.5 font-bold rounded-md ${
+                                      rec.status === "payment_initiated"
+                                        ? "bg-blue-500/10 text-blue-400 border-blue-500/30"
+                                        : rec.status === "waiting_confirmation"
+                                        ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                    }`}
+                                  >
+                                    {rec.status === "payment_initiated"
+                                      ? "Payment Initiated"
+                                      : rec.status === "waiting_confirmation"
+                                      ? "Waiting Confirmation"
+                                      : "Pending"}
+                                  </Badge>
+                                </div>
+                                <span className="text-[10px] text-slate-400 block">
+                                  Incoming Debt Payment
                                 </span>
-                                <Badge variant="outline" className="text-[9px] py-0 px-1 font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">
-                                  {rec.status === "payment_initiated" ? "Payment Initiated" : rec.status === "waiting_confirmation" ? "Waiting Confirmation" : "Pending"}
-                                </Badge>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                              {/* QR */}
-                              {member.userId && (
-                                <UpiQuickPayDialog
-                                  groupId={groupId}
-                                  groupName={groupName}
-                                  receiverUserId={member.userId}
-                                  receiverName={member.name}
-                                  payerUserId={rec.userId}
-                                  payerName={rec.name}
-                                  amount={rec.amount}
-                                  mode="receive"
-                                  trigger={
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
-                                    >
-                                      <QrCode className="h-3 w-3" />
-                                      <span>QR</span>
-                                    </Button>
-                                  }
-                                />
-                              )}
-
-                              {/* Manual Settle */}
-                              <SettleAllDialog
-                                groupId={groupId}
-                                groupName={groupName}
-                                suggestions={[{
-                                  fromUserId: rec.userId,
-                                  fromContactId: rec.contactId,
-                                  fromName: rec.name,
-                                  toUserId: member.userId || undefined,
-                                  toContactId: member.contactId || undefined,
-                                  toName: member.name,
-                                  amount: rec.amount,
-                                  currency: "INR",
-                                }]}
-                                trigger={
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 text-[11px] px-2 font-bold rounded-lg gap-1 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
-                                  >
-                                    <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                                    <span>Manual Settle</span>
-                                  </Button>
-                                }
-                              />
+                            <div className="text-right shrink-0">
+                              <span className="text-sm sm:text-base font-black font-mono text-emerald-400">
+                                {formatCurrency(rec.amount)}
+                              </span>
                             </div>
                           </div>
 
-                          {/* Receiver Timeline & Expected Status */}
-                          <div className="pt-1 border-t border-emerald-200/50 dark:border-emerald-900/30 text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
-                            <span>Payment Status: <strong className="text-emerald-600 dark:text-emerald-400">Expected</strong></span>
+                          {/* Receiver Lifecycle Indicators */}
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-0.5">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              Status: <strong className="text-emerald-400 font-semibold">Expected</strong>
+                            </span>
                             <span>•</span>
                             <span>Estimated Settlement</span>
                             <span>•</span>
                             <span>Receiver Timeline</span>
                           </div>
+
+                          {/* Mini Card Action Strip: 2-column equal grid */}
+                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+                            {/* QR */}
+                            {member.userId ? (
+                              <UpiQuickPayDialog
+                                groupId={groupId}
+                                groupName={groupName}
+                                receiverUserId={member.userId}
+                                receiverName={member.name}
+                                payerUserId={rec.userId}
+                                payerName={rec.name}
+                                amount={rec.amount}
+                                mode="receive"
+                                trigger={
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full h-7 text-[11px] font-semibold rounded-lg gap-1 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+                                  >
+                                    <QrCode className="h-3 w-3" />
+                                    <span>Show QR</span>
+                                  </Button>
+                                }
+                              />
+                            ) : (
+                              <Button size="sm" variant="outline" disabled className="w-full h-7 text-[11px] opacity-40">
+                                <QrCode className="h-3 w-3" />
+                                <span>Show QR</span>
+                              </Button>
+                            )}
+
+                            {/* Manual Settle */}
+                            <SettleAllDialog
+                              groupId={groupId}
+                              groupName={groupName}
+                              suggestions={[{
+                                fromUserId: rec.userId,
+                                fromContactId: rec.contactId,
+                                fromName: rec.name,
+                                toUserId: member.userId || undefined,
+                                toContactId: member.contactId || undefined,
+                                toName: member.name,
+                                amount: rec.amount,
+                                currency: "INR",
+                              }]}
+                              trigger={
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="w-full h-7 text-[11px] font-semibold rounded-lg gap-1 border-slate-700 hover:bg-slate-800 text-slate-200 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+                                >
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                                  <span>Manual Settle</span>
+                                </Button>
+                              }
+                            />
+                          </div>
                         </div>
                       ))}
 
                       {/* Bottom Total Pending Receivable */}
-                      <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-100/70 dark:bg-emerald-950/40 border border-emerald-300/70 dark:border-emerald-900/60 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                        <span className="uppercase text-[10px] tracking-wider">Total Pending</span>
-                        <span className="font-mono text-sm">{formatCurrency(effectiveWillReceive)}</span>
+                      <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-900/60 text-xs font-bold text-emerald-300">
+                        <span className="uppercase text-[10px] tracking-wider text-emerald-400">Total Pending Receivable</span>
+                        <span className="font-mono text-sm font-black">{formatCurrency(effectiveWillReceive)}</span>
                       </div>
                     </div>
                   )}
@@ -511,33 +648,41 @@ export function MemberFinancialSummary({
               )}
             </div>
 
-            {/* Paid vs Own Share Grid (SECTION 4) */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200">
-                <span className="text-[10px] text-slate-400 font-semibold uppercase block">Total Paid</span>
-                <span className="text-xs font-black text-slate-900 dark:text-slate-100 mt-0.5 block">
+            {/* Financial Metrics Grid: Total Paid & Own Share */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-200 space-y-1">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span className="text-[10px] uppercase font-bold tracking-wider">Total Paid</span>
+                  <Receipt className="h-3.5 w-3.5 text-blue-500" />
+                </div>
+                <div className="text-sm sm:text-base font-black font-mono text-slate-900 dark:text-slate-100">
                   {formatCurrency(member.totalPaid)}
-                </span>
-                <span className="text-[10px] text-slate-400">{member.expenseCount} expenses</span>
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                  {member.expenseCount} {member.expenseCount === 1 ? "expense" : "expenses"}
+                </div>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 hover:bg-slate-100/80 dark:hover:bg-slate-800/60 hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200">
-                <span className="text-[10px] text-slate-400 font-semibold uppercase block">Own Share</span>
-                <span className="text-xs font-black text-slate-900 dark:text-slate-100 mt-0.5 block">
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-200 space-y-1">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span className="text-[10px] uppercase font-bold tracking-wider">Own Share</span>
+                  <PieChart className="h-3.5 w-3.5 text-purple-500" />
+                </div>
+                <div className="text-sm sm:text-base font-black font-mono text-slate-900 dark:text-slate-100">
                   {formatCurrency(member.ownShare)}
-                </span>
-                <span className="text-[10px] text-slate-400">
+                </div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                   {member.extraPaid > 0 ? `+${formatCurrency(member.extraPaid)} extra` : "Base share"}
-                </span>
+                </div>
               </div>
             </div>
 
-            {/* Expense Participation Setting (FEATURE 3, 4, 8, 9) */}
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+            {/* Expense Participation Setting */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all duration-200 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <History className="h-3.5 w-3.5 text-indigo-500" />
-                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                     Expense Participation
                   </span>
                 </div>
@@ -558,7 +703,7 @@ export function MemberFinancialSummary({
                   <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                     Included in Previous Expenses
                   </p>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
                     {isHistoricalIncluded
                       ? "Participates in past expenses prior to joining"
                       : "Participates only in expenses incurred after joining"}
@@ -588,11 +733,17 @@ export function MemberFinancialSummary({
               </div>
             </div>
 
-            {/* Member Details & Timestamps (FEATURE 8) */}
-            <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 pt-0.5">
-              <span>Joined: {formatDate(member.joinedAt)}</span>
+            {/* Member Joined Date & Activity */}
+            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1 pt-1">
+              <div className="flex items-center gap-1.5">
+                <Calendar className="h-3 w-3 text-slate-400" />
+                <span>Joined: {formatDate(member.joinedAt)}</span>
+              </div>
               {member.lastActivity && (
-                <span>Updated: {formatDate(member.lastActivity)}</span>
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-3 w-3 text-slate-400" />
+                  <span>Active: {formatDate(member.lastActivity)}</span>
+                </div>
               )}
             </div>
 
@@ -600,234 +751,46 @@ export function MemberFinancialSummary({
             {(Number(member.settledPaid || 0) > 0 || Number(member.settledReceived || 0) > 0) && (
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {Number(member.settledPaid || 0) > 0 ? (
-                  <div className="p-2 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                  <div className="p-2.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Settled Paid</span>
-                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                       +{formatCurrency(member.settledPaid || 0)}
                     </span>
                   </div>
                 ) : <div />}
                 {Number(member.settledReceived || 0) > 0 ? (
-                  <div className="p-2 rounded-xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/30">
+                  <div className="p-2.5 rounded-xl bg-teal-50/50 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/30">
                     <span className="text-[10px] text-slate-400 font-semibold uppercase block">Settled Received</span>
-                    <span className="text-xs font-bold text-teal-600 dark:text-teal-400">
+                    <span className="text-xs font-bold text-teal-600 dark:text-teal-400 font-mono">
                       -{formatCurrency(member.settledReceived || 0)}
                     </span>
                   </div>
                 ) : <div />}
               </div>
             )}
-
-            {/* Pairwise Settlement Details (SECTION 6) - Privacy & RBAC Protected */}
-            {hasFullSettlementAccess ? (
-              <>
-                {member.receivesFrom.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-2 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors">
-                    <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Receives from:</span>
-                    {member.receivesFrom.map((r, i) => (
-                      <div key={i} className="flex justify-between items-center text-slate-600 dark:text-slate-300 gap-2">
-                        <span className="truncate">{r.name}</span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
-                          {(isCurrentUser || isGroupOwner || isCurrentUserAdmin) && member.userId && (
-                            <UpiQuickPayDialog
-                              groupId={groupId}
-                              groupName={groupName}
-                              receiverUserId={member.userId}
-                              receiverName={member.name}
-                              payerUserId={r.userId}
-                              payerName={r.name}
-                              amount={r.amount}
-                              mode="receive"
-                              trigger={
-                                <Button
-                                  size="sm"
-                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                                >
-                                  <QrCode className="h-2.5 w-2.5" />
-                                  <span>Show QR</span>
-                                </Button>
-                              }
-                            />
-                          )}
-                          {!isCurrentUser && currentUserId && r.userId === currentUserId && member.userId && (
-                            <UpiQuickPayDialog
-                              groupId={groupId}
-                              groupName={groupName}
-                              receiverUserId={member.userId}
-                              receiverName={member.name}
-                              payerUserId={currentUserId}
-                              amount={r.amount}
-                              mode="pay"
-                              trigger={
-                                <Button
-                                  size="sm"
-                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                                >
-                                  <Smartphone className="h-2.5 w-2.5" />
-                                  <span>Pay Now</span>
-                                </Button>
-                              }
-                            />
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {member.owesTo.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-2 hover:border-rose-300 dark:hover:border-rose-800 transition-colors">
-                    <span className="font-semibold text-rose-700 dark:text-rose-400 block">Needs to pay:</span>
-                    {member.owesTo.map((o, i) => (
-                      <div key={i} className="flex justify-between items-center text-slate-600 dark:text-slate-300 gap-2">
-                        <span className="truncate">{o.name}</span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
-                          {isCurrentUser && o.userId && (
-                            <UpiQuickPayDialog
-                              groupId={groupId}
-                              groupName={groupName}
-                              receiverUserId={o.userId}
-                              receiverName={o.name}
-                              payerUserId={member.userId}
-                              payerName={member.name}
-                              amount={o.amount}
-                              mode="pay"
-                              trigger={
-                                <Button
-                                  size="sm"
-                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                                >
-                                  <Smartphone className="h-2.5 w-2.5" />
-                                  <span>Pay Now</span>
-                                </Button>
-                              }
-                            />
-                          )}
-                          {!isCurrentUser && o.userId && (o.userId === currentUserId || isGroupOwner || isCurrentUserAdmin) && (
-                            <UpiQuickPayDialog
-                              groupId={groupId}
-                              groupName={groupName}
-                              receiverUserId={o.userId}
-                              receiverName={o.userId === currentUserId ? "You" : o.name}
-                              payerUserId={member.userId}
-                              payerName={member.name}
-                              amount={o.amount}
-                              mode="receive"
-                              trigger={
-                                <Button
-                                  size="sm"
-                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                                >
-                                  <QrCode className="h-2.5 w-2.5" />
-                                  <span>Show QR</span>
-                                </Button>
-                              }
-                            />
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {mutualReceives.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-[11px] space-y-2 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors">
-                    <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">Settlement with you:</span>
-                    {mutualReceives.map((r, i) => (
-                      <div key={i} className="flex justify-between items-center text-slate-600 dark:text-slate-300 gap-2">
-                        <span>Receives from you</span>
-                        <div className="flex items-center gap-2">
-                          <strong className="text-emerald-600 font-mono">+{formatCurrency(r.amount)}</strong>
-                          {member.userId && (
-                            <UpiQuickPayDialog
-                              groupId={groupId}
-                              groupName={groupName}
-                              receiverUserId={member.userId}
-                              receiverName={member.name}
-                              payerUserId={currentUserId}
-                              amount={r.amount}
-                              mode="pay"
-                              trigger={
-                                <Button
-                                  size="sm"
-                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                                >
-                                  <Smartphone className="h-2.5 w-2.5" />
-                                  <span>Pay Now</span>
-                                </Button>
-                              }
-                            />
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {mutualOwes.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-rose-50/40 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 text-[11px] space-y-2 hover:border-rose-300 dark:hover:border-rose-800 transition-colors">
-                    <span className="font-semibold text-rose-700 dark:text-rose-400 block">Settlement with you:</span>
-                    {mutualOwes.map((o, i) => (
-                      <div key={i} className="flex justify-between items-center text-slate-600 dark:text-slate-300 gap-2">
-                        <span>Owes to you</span>
-                        <div className="flex items-center gap-2">
-                          <strong className="text-rose-600 font-mono">-{formatCurrency(o.amount)}</strong>
-                          {currentUserId && (
-                            <UpiQuickPayDialog
-                              groupId={groupId}
-                              groupName={groupName}
-                              receiverUserId={currentUserId}
-                              receiverName="You"
-                              payerUserId={member.userId}
-                              payerName={member.name}
-                              amount={o.amount}
-                              mode="receive"
-                              trigger={
-                                <Button
-                                  size="sm"
-                                  className="h-6 text-[10px] px-2 font-bold rounded-lg gap-1 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                                >
-                                  <QrCode className="h-2.5 w-2.5" />
-                                  <span>Show QR</span>
-                                </Button>
-                              }
-                            />
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {mutualReceives.length === 0 && mutualOwes.length === 0 && (
-                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 text-center hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
-                    <span>Settlement details visible to owner & member</span>
-                  </div>
-                )}
-              </>
-            )}
           </CardContent>
         </div>
 
-        {/* Card Footer Actions (SECTION 5) */}
-        <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-between gap-1.5 flex-wrap">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        {/* Card Footer Actions */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="rounded-xl text-[11px] h-7 px-2.5 gap-1"
+              className="rounded-xl text-xs h-8 px-3 gap-1.5 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
               onClick={() => setIsProfileModalOpen(true)}
             >
-              <User className="h-3 w-3" />
+              <User className="h-3.5 w-3.5" />
               <span>Profile</span>
             </Button>
 
-            {/* If Current User is owed money, allow them to view or send their own settlement summary directly */}
+            {/* Contextual Reminder Action:
+                IF current user & receivable: "Send Settlement Copy"
+                IF member owes money: "Remind to Pay"
+                IF member will receive money: "Request Settlement"
+                IF settled: Disabled "No Pending Settlements"
+            */}
             {isCurrentUser && member.willReceive > 0.01 && (
               <ReminderDialog
                 recipientEmail={member.email || undefined}
@@ -851,20 +814,15 @@ export function MemberFinancialSummary({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="rounded-xl text-[11px] h-7 px-2.5 gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 font-bold"
+                    className="rounded-xl text-xs h-8 px-3 gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:text-emerald-300 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 font-semibold transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                   >
-                    <Mail className="h-3 w-3" />
+                    <Mail className="h-3.5 w-3.5" />
                     <span>Send Settlement Copy</span>
                   </Button>
                 }
               />
             )}
 
-            {/* Contextual Reminder Action:
-                IF member.netPosition < -0.01 (owes money): "🔔 Remind to Pay"
-                IF member.netPosition > 0.01 (will receive money): "📨 Request Settlement"
-                IF member.netPosition == 0: Disabled "✓ No Pending Settlements"
-            */}
             {!isCurrentUser && (
               member.needToPay > 0.01 ? (
                 <ReminderDialog
@@ -889,9 +847,9 @@ export function MemberFinancialSummary({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="rounded-xl text-[11px] h-7 px-2.5 gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 font-bold"
+                      className="rounded-xl text-xs h-8 px-3 gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:text-rose-300 dark:hover:bg-rose-950/30 border-rose-300 dark:border-rose-800 font-semibold transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                     >
-                      <Bell className="h-3 w-3" />
+                      <Bell className="h-3.5 w-3.5" />
                       <span>Remind to Pay</span>
                     </Button>
                   }
@@ -919,9 +877,9 @@ export function MemberFinancialSummary({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="rounded-xl text-[11px] h-7 px-2.5 gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 font-bold"
+                      className="rounded-xl text-xs h-8 px-3 gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:text-emerald-300 dark:hover:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 font-semibold transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                     >
-                      <Mail className="h-3 w-3" />
+                      <Mail className="h-3.5 w-3.5" />
                       <span>Request Settlement</span>
                     </Button>
                   }
@@ -932,28 +890,28 @@ export function MemberFinancialSummary({
                   variant="outline"
                   size="sm"
                   disabled
-                  className="rounded-xl text-[11px] h-7 px-2.5 gap-1 text-slate-400 border-slate-200 dark:border-slate-800 opacity-60 cursor-not-allowed"
+                  className="rounded-xl text-xs h-8 px-3 gap-1.5 text-slate-400 border-slate-200 dark:border-slate-800 opacity-60 cursor-not-allowed"
                   title="No pending settlements."
                 >
-                  <CheckCircle2 className="h-3 w-3 text-slate-400" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-slate-400" />
                   <span>No Pending Settlements</span>
                 </Button>
               )
             )}
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             {isGroupOwner && !isCurrentUser && member.userId && member.role !== "owner" && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 disabled={isRoleUpdating}
-                className="rounded-xl text-[11px] h-7 px-2 gap-1 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
+                className="rounded-xl text-xs h-8 px-2.5 gap-1.5 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                 onClick={handleToggleAdminRole}
                 title={member.role === "admin" ? "Demote to Member" : "Promote to Admin"}
               >
-                <Shield className={`h-3 w-3 ${member.role === "admin" ? "text-primary font-bold" : "text-slate-400"}`} />
+                <Shield className={`h-3.5 w-3.5 ${member.role === "admin" ? "text-primary font-bold" : "text-slate-400"}`} />
                 <span>{member.role === "admin" ? "Admin" : "Make Admin"}</span>
               </Button>
             )}
@@ -975,10 +933,10 @@ export function MemberFinancialSummary({
                 variant="ghost"
                 size="sm"
                 disabled={isDeleting}
-                className="rounded-xl text-[11px] h-7 px-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                className="rounded-xl text-xs h-8 px-2.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                 onClick={handleRemove}
               >
-                <Trash2 className="h-3 w-3" />
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>

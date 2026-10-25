@@ -407,38 +407,65 @@ export default async function GroupDetailPage({
 
       {/* TABS VIEW: Financials, Expenses, Members, Settlements */}
       <Tabs defaultValue={activeTab} className="space-y-6">
-            <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl flex-wrap h-auto gap-1">
-              <TabsTrigger value="overview" className="rounded-xl text-xs font-semibold">
+            <TabsList className="bg-slate-900/90 backdrop-blur-md border border-slate-800/90 p-1.5 rounded-2xl shadow-xl flex-wrap h-auto gap-1.5 transition-all">
+              <TabsTrigger
+                value="overview"
+                className="rounded-xl text-xs font-semibold px-4 py-2 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              >
                 Member Financials ({members.length})
               </TabsTrigger>
-              <TabsTrigger value="insights" className="rounded-xl text-xs font-semibold">
+              <TabsTrigger
+                value="insights"
+                className="rounded-xl text-xs font-semibold px-4 py-2 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              >
                 Expense Insights & Stats
               </TabsTrigger>
-              <TabsTrigger value="expenses" className="rounded-xl text-xs font-semibold">
+              <TabsTrigger
+                value="expenses"
+                className="rounded-xl text-xs font-semibold px-4 py-2 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              >
                 Expenses History ({groupExpenses.length})
               </TabsTrigger>
-              <TabsTrigger value="settlements" className="rounded-xl text-xs font-semibold">
+              <TabsTrigger
+                value="settlements"
+                className="rounded-xl text-xs font-semibold px-4 py-2 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              >
                 Settlement Audit ({visiblePendingSettlements.length > 0 ? `${visiblePendingSettlements.length} Pending` : `${visibleSettlementSuggestions.length} Dues`})
               </TabsTrigger>
-              <TabsTrigger value="activity" className="rounded-xl text-xs font-semibold">
+              <TabsTrigger
+                value="activity"
+                className="rounded-xl text-xs font-semibold px-4 py-2 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              >
                 Group Activity ({groupActivities.length})
               </TabsTrigger>
 
           {(group.isAdmin || group.isOwner) && (
             <>
-              <TabsTrigger value="member-approvals" className="rounded-xl text-xs font-semibold text-amber-600 dark:text-amber-400 gap-1.5">
+              <TabsTrigger
+                value="member-approvals"
+                className="rounded-xl text-xs font-semibold px-3.5 py-2 text-amber-400 hover:text-amber-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-200 data-[state=active]:border data-[state=active]:border-amber-500/40"
+              >
                 <UserPlus className="h-3.5 w-3.5" />
                 <span>Member Approvals ({pendingJoinRequests.length})</span>
               </TabsTrigger>
-              <TabsTrigger value="admin-approvals" className="rounded-xl text-xs font-semibold text-emerald-600 dark:text-emerald-400 gap-1.5">
+              <TabsTrigger
+                value="admin-approvals"
+                className="rounded-xl text-xs font-semibold px-3.5 py-2 text-emerald-400 hover:text-emerald-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-200 data-[state=active]:border data-[state=active]:border-emerald-500/40"
+              >
                 <ShieldCheck className="h-3.5 w-3.5" />
                 <span>Approval Center</span>
               </TabsTrigger>
-              <TabsTrigger value="admin-reminders" className="rounded-xl text-xs font-semibold text-amber-600 dark:text-amber-400 gap-1.5">
+              <TabsTrigger
+                value="admin-reminders"
+                className="rounded-xl text-xs font-semibold px-3.5 py-2 text-amber-400 hover:text-amber-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-200 data-[state=active]:border data-[state=active]:border-amber-500/40"
+              >
                 <BellRing className="h-3.5 w-3.5" />
                 <span>Reminder Center</span>
               </TabsTrigger>
-              <TabsTrigger value="admin-logs" className="rounded-xl text-xs font-semibold text-blue-600 dark:text-blue-400 gap-1.5">
+              <TabsTrigger
+                value="admin-logs"
+                className="rounded-xl text-xs font-semibold px-3.5 py-2 text-blue-400 hover:text-blue-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-200 data-[state=active]:border data-[state=active]:border-blue-500/40"
+              >
                 <Mail className="h-3.5 w-3.5" />
                 <span>Reminder Logs</span>
               </TabsTrigger>
@@ -448,7 +475,7 @@ export default async function GroupDetailPage({
 
         {/* TAB 1: Member Financials Grid (SECTIONS 3, 4, 5, 9) */}
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 [@media(min-width:1380px)]:grid-cols-3 gap-6 auto-rows-fr items-stretch">
             {members.map((member) => (
               <MemberFinancialSummary
                 key={member.id}
