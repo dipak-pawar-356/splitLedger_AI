@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SUGGESTED_QUICK_QUESTIONS } from "@/lib/ai/prompts";
-import { FormattedAIAnswer } from "@/components/ai/formatted-ai-answer";
+import { FormattedAIAnswer, formatInlineText } from "@/components/ai/formatted-ai-answer";
 
 interface Message {
   id: string;
@@ -206,7 +206,7 @@ export function FloatingAIAssistant() {
                         </p>
                         <ul className="list-disc pl-3.5 space-y-0.5 text-[10.5px]">
                           {msg.insights.map((ins, idx) => (
-                            <li key={idx}>{ins}</li>
+                            <li key={idx}>{formatInlineText(ins)}</li>
                           ))}
                         </ul>
                       </div>

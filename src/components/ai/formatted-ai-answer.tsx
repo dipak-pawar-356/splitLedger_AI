@@ -29,7 +29,7 @@ interface FormattedAIAnswerProps {
  * Cleanly format inline text by transforming markdown bold (**text**)
  * and italic (*text*) into styled elements and removing all raw asterisks.
  */
-function formatInlineText(text: string): React.ReactNode {
+export function formatInlineText(text: string): React.ReactNode {
   if (!text) return null;
 
   // Split by markdown bold (**...**)

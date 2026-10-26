@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AIInsight } from "@/actions/financial-intelligence";
+import { formatInlineText } from "@/components/ai/formatted-ai-answer";
 import { 
   Sparkles, 
   TrendingUp, 
@@ -79,10 +80,10 @@ export function AIInsightsFeed({ insights }: AIInsightsFeedProps) {
                 </div>
                 <div className="space-y-1 min-w-0">
                   <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-                    {insight.title}
+                    {formatInlineText(insight.title)}
                   </h4>
                   <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
-                    {insight.description}
+                    {formatInlineText(insight.description)}
                   </p>
                 </div>
               </div>

@@ -28,7 +28,7 @@ import {
   CornerDownLeft 
 } from "lucide-react";
 import { askFinancialAssistant, AIAssistantResponse } from "@/actions/ai-assistant";
-import { FormattedAIAnswer } from "@/components/ai/formatted-ai-answer";
+import { FormattedAIAnswer, formatInlineText } from "@/components/ai/formatted-ai-answer";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -440,7 +440,7 @@ export function AIFinancialAssistantCard() {
                           {msg.response.insights.map((ins, iIdx) => (
                             <div key={iIdx} className="flex items-start gap-2">
                               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
-                              <span className="leading-relaxed">{ins}</span>
+                              <span className="leading-relaxed">{formatInlineText(ins)}</span>
                             </div>
                           ))}
                         </div>

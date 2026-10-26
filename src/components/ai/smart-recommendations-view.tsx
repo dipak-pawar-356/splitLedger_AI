@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SmartRecommendation } from "@/actions/financial-intelligence";
+import { formatInlineText } from "@/components/ai/formatted-ai-answer";
 import { 
   Zap, 
   ArrowRight, 
@@ -136,12 +137,12 @@ export function SmartRecommendationsView({
               <div className="space-y-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-                    {rec.title}
+                    {formatInlineText(rec.title)}
                   </h4>
                   {getPriorityBadge(rec.priority)}
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
-                  {rec.reason} {rec.suggestedAction}
+                  {formatInlineText(rec.reason)} {formatInlineText(rec.suggestedAction)}
                 </p>
               </div>
 
