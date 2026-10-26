@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { CashFlowAnalysis } from "@/actions/financial-intelligence";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
-import { TrendingUp, PieChart, BarChart3, ArrowUpRight, ArrowDownLeft, Calendar, Sparkles } from "lucide-react";
+import { PieChart, BarChart3, ArrowUpRight, ArrowDownLeft, Calendar } from "lucide-react";
 
 interface AIFinancialChartsProps {
   cashFlow: CashFlowAnalysis;
@@ -26,6 +26,7 @@ const CATEGORY_COLORS = [
 
 export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialChartsProps) {
   const [activeChart, setActiveChart] = useState<"trend" | "categories">("trend");
+  const shouldReduceMotion = useReducedMotion();
 
   const flows = cashFlow.monthlyFlows.length > 0 ? cashFlow.monthlyFlows : [
     { month: "Current Month", inflow: cashFlow.moneyIn, outflow: cashFlow.moneyOut, net: cashFlow.netFlow }
@@ -47,7 +48,7 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
             <div>
               <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                 <span>Financial Trends & Visual Analytics</span>
-                <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-200 dark:border-indigo-800 bg-indigo-500/5">
+                <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-200 dark:border-indigo-800 bg-indigo-500/5 font-semibold">
                   Dynamic
                 </Badge>
               </CardTitle>
@@ -58,11 +59,18 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
           </div>
 
           {/* Framer Motion Sliding Toggle */}
-          <div className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 self-start sm:self-auto backdrop-blur-xs">
+          <div
+            role="radiogroup"
+            aria-label="Chart view mode"
+            className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 self-start sm:self-auto backdrop-blur-xs"
+          >
             <button
               type="button"
+              role="radio"
+              aria-checked={activeChart === "trend"}
+              tabIndex={activeChart === "trend" ? 0 : -1}
               onClick={() => setActiveChart("trend")}
-              className={`relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+              className={`relative px-3.5 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                 activeChart === "trend"
                   ? "text-primary-foreground"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
@@ -72,7 +80,11 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
                 <motion.div
                   layoutId="chart-toggle-pill"
                   className="absolute inset-0 bg-primary rounded-xl shadow-xs"
-                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0 }
+                      : { type: "spring", stiffness: 450, damping: 32 }
+                  }
                 />
               )}
               <span className="relative z-10 flex items-center gap-1.5">
@@ -83,8 +95,11 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
 
             <button
               type="button"
+              role="radio"
+              aria-checked={activeChart === "categories"}
+              tabIndex={activeChart === "categories" ? 0 : -1}
               onClick={() => setActiveChart("categories")}
-              className={`relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+              className={`relative px-3.5 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                 activeChart === "categories"
                   ? "text-primary-foreground"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
@@ -94,7 +109,11 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
                 <motion.div
                   layoutId="chart-toggle-pill"
                   className="absolute inset-0 bg-primary rounded-xl shadow-xs"
-                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                  transition={
+                    shouldReduceMotion
+                      ? { duration: 0 }
+                      : { type: "spring", stiffness: 450, damping: 32 }
+                  }
                 />
               )}
               <span className="relative z-10 flex items-center gap-1.5">
@@ -111,20 +130,20 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
           {activeChart === "trend" ? (
             <motion.div
               key="trend"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
+              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
               className="space-y-6"
             >
               {/* Trend Legend */}
               <div className="flex items-center gap-5 text-xs pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 shadow-xs" />
+                  <span className="w-3 h-3 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 shadow-xs" aria-hidden="true" />
                   <span className="font-bold text-slate-700 dark:text-slate-300">Income Inflow</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 shadow-xs" />
+                  <span className="w-3 h-3 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 shadow-xs" aria-hidden="true" />
                   <span className="font-bold text-slate-700 dark:text-slate-300">Expense Outflow</span>
                 </div>
               </div>
@@ -138,17 +157,17 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
                   return (
                     <motion.div
                       key={idx}
-                      whileHover={{ scale: 1.005, backgroundColor: "rgba(100, 116, 139, 0.04)" }}
+                      whileHover={shouldReduceMotion ? {} : { scale: 1.005, backgroundColor: "rgba(100, 116, 139, 0.04)" }}
                       className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30 space-y-3 transition-colors"
                     >
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-slate-400" />
+                          <Calendar className="h-4 w-4 text-slate-400" aria-hidden="true" />
                           <span>{item.month}</span>
                         </span>
                         <Badge
                           variant="outline"
-                          className={`font-mono text-xs font-bold ${
+                          className={`font-mono tabular-nums text-xs font-bold ${
                             item.net >= 0
                               ? "text-emerald-700 dark:text-emerald-300 border-emerald-300 bg-emerald-50/50 dark:bg-emerald-950/40"
                               : "text-rose-700 dark:text-rose-300 border-rose-300 bg-rose-50/50 dark:bg-rose-950/40"
@@ -162,18 +181,25 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
                         {/* Inflow Bar */}
                         <div className="flex items-center gap-3">
                           <div className="w-16 sm:w-20 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0">
-                            <ArrowUpRight className="h-3 w-3" />
+                            <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
                             <span>Inflow</span>
                           </div>
-                          <div className="flex-1 bg-slate-200/80 dark:bg-slate-800 h-3 rounded-full overflow-hidden">
+                          <div
+                            role="progressbar"
+                            aria-valuenow={item.inflow}
+                            aria-valuemin={0}
+                            aria-valuemax={maxFlowVal}
+                            aria-label={`${item.month} inflow: ${formatCurrency(item.inflow, "INR")}`}
+                            className="flex-1 bg-slate-200/80 dark:bg-slate-800 h-3 rounded-full overflow-hidden"
+                          >
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${Math.max(2, inflowWidth)}%` }}
-                              transition={{ duration: 0.7, ease: "easeOut", delay: idx * 0.1 }}
+                              transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.6, ease: "easeOut", delay: idx * 0.08 }}
                               className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full"
                             />
                           </div>
-                          <span className="w-24 text-right font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400 shrink-0">
+                          <span className="w-24 text-right font-mono tabular-nums font-bold text-xs text-emerald-600 dark:text-emerald-400 shrink-0">
                             {formatCurrency(item.inflow, "INR")}
                           </span>
                         </div>
@@ -181,18 +207,25 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
                         {/* Outflow Bar */}
                         <div className="flex items-center gap-3">
                           <div className="w-16 sm:w-20 text-[11px] font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1 shrink-0">
-                            <ArrowDownLeft className="h-3 w-3" />
+                            <ArrowDownLeft className="h-3 w-3" aria-hidden="true" />
                             <span>Outflow</span>
                           </div>
-                          <div className="flex-1 bg-slate-200/80 dark:bg-slate-800 h-3 rounded-full overflow-hidden">
+                          <div
+                            role="progressbar"
+                            aria-valuenow={item.outflow}
+                            aria-valuemin={0}
+                            aria-valuemax={maxFlowVal}
+                            aria-label={`${item.month} outflow: ${formatCurrency(item.outflow, "INR")}`}
+                            className="flex-1 bg-slate-200/80 dark:bg-slate-800 h-3 rounded-full overflow-hidden"
+                          >
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{ width: `${Math.max(2, outflowWidth)}%` }}
-                              transition={{ duration: 0.7, ease: "easeOut", delay: idx * 0.1 + 0.1 }}
+                              transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.6, ease: "easeOut", delay: idx * 0.08 + 0.08 }}
                               className="bg-gradient-to-r from-rose-500 to-pink-500 h-full rounded-full"
                             />
                           </div>
-                          <span className="w-24 text-right font-mono font-bold text-xs text-rose-500 shrink-0">
+                          <span className="w-24 text-right font-mono tabular-nums font-bold text-xs text-rose-500 shrink-0">
                             {formatCurrency(item.outflow, "INR")}
                           </span>
                         </div>
@@ -205,10 +238,10 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
           ) : (
             <motion.div
               key="categories"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
+              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
               className="space-y-4"
             >
               {categoryBreakdown.length > 0 ? (
@@ -220,7 +253,7 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
                     return (
                       <motion.div
                         key={idx}
-                        whileHover={{ scale: 1.005 }}
+                        whileHover={shouldReduceMotion ? {} : { scale: 1.005 }}
                         className="p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 space-y-2 transition-colors"
                       >
                         <div className="flex items-center justify-between text-xs">
@@ -228,6 +261,7 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
                             <span
                               className="w-3 h-3 rounded-full shadow-xs shrink-0"
                               style={{ backgroundColor: color }}
+                              aria-hidden="true"
                             />
                             <span className="font-bold text-slate-800 dark:text-slate-200">
                               {cat.name}
@@ -239,21 +273,28 @@ export function AIFinancialCharts({ cashFlow, categoryBreakdown }: AIFinancialCh
                             )}
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-slate-500 font-mono text-[11px] font-semibold">
+                            <span className="text-slate-500 font-mono tabular-nums text-[11px] font-semibold">
                               {cat.percentage}%
                             </span>
-                            <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                            <span className="font-mono tabular-nums font-bold text-slate-900 dark:text-slate-100">
                               {formatCurrency(cat.amount, "INR")}
                             </span>
                           </div>
                         </div>
 
                         {/* Animated Progress Bar */}
-                        <div className="w-full bg-slate-200/80 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                        <div
+                          role="progressbar"
+                          aria-valuenow={cat.percentage}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`${cat.name} spending proportion: ${cat.percentage}%`}
+                          className="w-full bg-slate-200/80 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden"
+                        >
                           <motion.div
                             initial={{ width: 0 }}
                             animate={{ width: `${Math.max(2, cat.percentage)}%` }}
-                            transition={{ duration: 0.6, ease: "easeOut", delay: idx * 0.05 }}
+                            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.5, ease: "easeOut", delay: idx * 0.04 }}
                             className="h-full rounded-full"
                             style={{ backgroundColor: color }}
                           />

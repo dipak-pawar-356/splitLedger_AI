@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ interface BudgetCardProps {
 export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   const handleDelete = async () => {
     if (!confirm(`Are you sure you want to delete budget "${budget.name}"?`)) return;
@@ -51,8 +52,8 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
 
   return (
     <motion.div
-      whileHover={{ y: -3, scale: 1.01 }}
-      transition={{ duration: 0.2 }}
+      whileHover={shouldReduceMotion ? undefined : { y: -2, scale: 1.005 }}
+      transition={{ duration: 0.15, ease: "easeOut" }}
       className="h-full"
     >
       <Card className={`rounded-3xl border shadow-sm transition-all overflow-hidden flex flex-col justify-between h-full ${
@@ -100,10 +101,12 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-slate-700"
+                  aria-label={`Edit budget ${budget.name}`}
+                  title={`Edit budget ${budget.name}`}
+                  className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-indigo-500"
                   onClick={() => onEdit(budget)}
                 >
-                  <Edit3 className="h-3.5 w-3.5" />
+                  <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
                 </Button>
               )}
               <Button
@@ -111,10 +114,12 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
                 variant="ghost"
                 size="sm"
                 disabled={isDeleting}
-                className="h-7 w-7 p-0 rounded-lg text-rose-400 hover:text-rose-600"
+                aria-label={`Delete budget ${budget.name}`}
+                title={`Delete budget ${budget.name}`}
+                className="h-7 w-7 p-0 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 focus-visible:ring-2 focus-visible:ring-rose-500"
                 onClick={handleDelete}
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
               </Button>
             </div>
           </div>
@@ -125,14 +130,14 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
           {/* Main Numbers */}
           <div className="flex items-baseline justify-between">
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Spent</span>
-              <span className="text-xl font-black text-slate-900 dark:text-slate-100">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Spent</span>
+              <span className="text-xl font-black text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight">
                 {formatCurrency(budget.usedAmount)}
               </span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Limit</span>
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Limit</span>
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-300 font-mono tabular-nums">
                 {formatCurrency(budget.amount)}
               </span>
             </div>
@@ -141,18 +146,25 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
           {/* Dynamic Progress Bar (SECTION 2: Green, Yellow, Red) */}
           <div className="space-y-1.5">
             <div className="flex justify-between text-[11px] font-semibold">
-              <span className={isExceeded ? "text-rose-600 font-bold" : isWarning ? "text-amber-600 font-bold" : "text-emerald-600"}>
+              <span className={`font-mono tabular-nums ${isExceeded ? "text-rose-600 font-bold" : isWarning ? "text-amber-600 font-bold" : "text-emerald-600"}`}>
                 {budget.usedPercentage}% Used
               </span>
-              <span className="text-slate-500">
+              <span className="text-slate-500 font-mono tabular-nums">
                 {formatCurrency(budget.remainingAmount)} remaining
               </span>
             </div>
-            <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
+            <div 
+              role="progressbar"
+              aria-label={`${budget.name} budget progress: ${budget.usedPercentage}% used, ${formatCurrency(budget.remainingAmount)} remaining`}
+              aria-valuenow={Math.min(100, Math.round(budget.usedPercentage))}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden"
+            >
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.min(100, budget.usedPercentage)}%` }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
+                transition={{ duration: shouldReduceMotion ? 0 : 0.6, ease: "easeOut" }}
                 className={`h-full rounded-full ${
                   isExceeded
                     ? "bg-gradient-to-r from-rose-500 to-pink-500"
@@ -168,13 +180,13 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
           <div className="grid grid-cols-2 gap-2 text-xs pt-1">
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
               <span className="text-[10px] text-slate-400 font-medium block">Daily Allowance</span>
-              <span className="font-extrabold text-slate-900 dark:text-slate-100 block mt-0.5">
+              <span className="font-extrabold text-slate-900 dark:text-slate-100 block mt-0.5 font-mono tabular-nums">
                 {formatCurrency(budget.dailyBudgetRemaining)} / day
               </span>
             </div>
             <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
               <span className="text-[10px] text-slate-400 font-medium block">Days Left</span>
-              <span className="font-extrabold text-slate-900 dark:text-slate-100 block mt-0.5">
+              <span className="font-extrabold text-slate-900 dark:text-slate-100 block mt-0.5 font-mono tabular-nums">
                 {budget.remainingDays} Days
               </span>
             </div>

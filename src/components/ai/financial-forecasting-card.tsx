@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
@@ -14,12 +14,12 @@ import {
   ArrowDownLeft, 
   Sparkles, 
   ShieldCheck, 
-  Scale,
-  Calendar,
-  Zap,
-  Activity,
-  CheckCircle2,
-  AlertCircle
+  Scale, 
+  Calendar, 
+  Zap, 
+  Activity, 
+  CheckCircle2, 
+  AlertCircle 
 } from "lucide-react";
 
 interface FinancialForecastingCardProps {
@@ -29,6 +29,7 @@ interface FinancialForecastingCardProps {
 
 export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForecastingCardProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<"1m" | "1q" | "6m" | "1y">("1m");
+  const shouldReduceMotion = useReducedMotion();
 
   const currentForecast = forecasts.find((f) => f.period === selectedPeriod) || forecasts[0];
 
@@ -70,15 +71,22 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
             </div>
 
             {/* Sliding Framer Motion Period Selector */}
-            <div className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 self-start sm:self-auto backdrop-blur-xs">
+            <div
+              role="radiogroup"
+              aria-label="Forecast timeframe period"
+              className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 self-start sm:self-auto backdrop-blur-xs"
+            >
               {forecasts.map((f) => {
                 const isSelected = selectedPeriod === f.period;
                 return (
                   <button
                     key={f.period}
                     type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    tabIndex={isSelected ? 0 : -1}
                     onClick={() => setSelectedPeriod(f.period)}
-                    className={`relative px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                    className={`relative px-3.5 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                       isSelected
                         ? "text-primary-foreground"
                         : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
@@ -88,7 +96,11 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                       <motion.div
                         layoutId="forecast-period-pill"
                         className="absolute inset-0 bg-primary rounded-xl shadow-xs"
-                        transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                        transition={
+                          shouldReduceMotion
+                            ? { duration: 0 }
+                            : { type: "spring", stiffness: 450, damping: 32 }
+                        }
                       />
                     )}
                     <span className="relative z-10">{f.period.toUpperCase()}</span>
@@ -115,9 +127,16 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span className="font-mono font-bold">{currentForecast.confidencePct}% Confidence</span>
+                <span className="font-mono tabular-nums font-bold">{currentForecast.confidencePct}% Confidence</span>
               </div>
-              <div className="hidden sm:block w-16 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div
+                role="progressbar"
+                aria-valuenow={currentForecast.confidencePct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`Forecast confidence rating: ${currentForecast.confidencePct}%`}
+                className="hidden sm:block w-16 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden"
+              >
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                   style={{ width: `${currentForecast.confidencePct}%` }}
@@ -130,16 +149,16 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
           <AnimatePresence mode="wait">
             <motion.div
               key={selectedPeriod}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
+              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
               className="grid grid-cols-1 sm:grid-cols-3 gap-4"
             >
               {/* Card 1: Projected Income */}
               <motion.div
-                whileHover={{ y: -3, scale: 1.01 }}
-                transition={{ duration: 0.2 }}
+                whileHover={shouldReduceMotion ? {} : { y: -2 }}
+                transition={{ duration: 0.18 }}
                 className="relative p-5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/[0.04] to-transparent border border-emerald-500/20 dark:border-emerald-500/30 hover:border-emerald-500/50 shadow-xs transition-all duration-300 group overflow-hidden"
               >
                 <div className="flex items-center justify-between text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
@@ -153,12 +172,12 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                 </div>
 
                 <div className="mt-3">
-                  <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 block tracking-tight font-mono">
+                  <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 block tracking-tight font-mono tabular-nums">
                     {formatCurrency(currentForecast.predictedIncome)}
                   </span>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-emerald-500/10 text-xs">
                     <span className="text-slate-500 dark:text-slate-400">Expected credits & splits</span>
-                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 dark:border-emerald-800 bg-emerald-500/5">
+                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 dark:border-emerald-800 bg-emerald-500/5 font-semibold">
                       Incoming
                     </Badge>
                   </div>
@@ -167,8 +186,8 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
 
               {/* Card 2: Projected Expense */}
               <motion.div
-                whileHover={{ y: -3, scale: 1.01 }}
-                transition={{ duration: 0.2 }}
+                whileHover={shouldReduceMotion ? {} : { y: -2 }}
+                transition={{ duration: 0.18 }}
                 className="relative p-5 rounded-2xl bg-gradient-to-br from-rose-500/10 via-rose-500/[0.04] to-transparent border border-rose-500/20 dark:border-rose-500/30 hover:border-rose-500/50 shadow-xs transition-all duration-300 group overflow-hidden"
               >
                 <div className="flex items-center justify-between text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">
@@ -182,12 +201,12 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                 </div>
 
                 <div className="mt-3">
-                  <span className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 block tracking-tight font-mono">
+                  <span className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 block tracking-tight font-mono tabular-nums">
                     {formatCurrency(currentForecast.predictedExpense)}
                   </span>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-rose-500/10 text-xs">
                     <span className="text-slate-500 dark:text-slate-400">Expected bills & splits</span>
-                    <Badge variant="outline" className="text-[10px] text-rose-600 border-rose-200 dark:border-rose-800 bg-rose-500/5">
+                    <Badge variant="outline" className="text-[10px] text-rose-600 border-rose-200 dark:border-rose-800 bg-rose-500/5 font-semibold">
                       Debits
                     </Badge>
                   </div>
@@ -196,8 +215,8 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
 
               {/* Card 3: Projected Net Savings */}
               <motion.div
-                whileHover={{ y: -3, scale: 1.01 }}
-                transition={{ duration: 0.2 }}
+                whileHover={shouldReduceMotion ? {} : { y: -2 }}
+                transition={{ duration: 0.18 }}
                 className={`relative p-5 rounded-2xl shadow-xs transition-all duration-300 group overflow-hidden ${
                   currentForecast.predictedSavings >= 0
                     ? "bg-gradient-to-br from-indigo-500/10 via-indigo-500/[0.04] to-transparent border border-indigo-500/20 dark:border-indigo-500/30 hover:border-indigo-500/50"
@@ -225,7 +244,7 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                 </div>
 
                 <div className="mt-3">
-                  <span className={`text-2xl sm:text-3xl font-black block tracking-tight font-mono ${
+                  <span className={`text-2xl sm:text-3xl font-black block tracking-tight font-mono tabular-nums ${
                     currentForecast.predictedSavings >= 0
                       ? "text-indigo-600 dark:text-indigo-400"
                       : "text-rose-600 dark:text-rose-400"
@@ -260,11 +279,18 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                 <Activity className="h-3.5 w-3.5 text-indigo-500" />
                 Forecasted Inflow vs Outflow Velocity Ratio
               </span>
-              <span className="text-slate-900 dark:text-slate-100 font-mono text-[11px]">
+              <span className="text-slate-900 dark:text-slate-100 font-mono tabular-nums text-[11px]">
                 {forecastInflowRatio}% Inflow / {100 - forecastInflowRatio}% Outflow
               </span>
             </div>
-            <div className="h-2.5 w-full bg-slate-200/80 dark:bg-slate-800 rounded-full overflow-hidden flex">
+            <div
+              role="progressbar"
+              aria-valuenow={forecastInflowRatio}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Forecasted inflow velocity ratio: ${forecastInflowRatio} percent`}
+              className="h-2.5 w-full bg-slate-200/80 dark:bg-slate-800 rounded-full overflow-hidden flex"
+            >
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${forecastInflowRatio}%` }}
@@ -312,7 +338,7 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Money In */}
             <motion.div
-              whileHover={{ y: -2 }}
+              whileHover={shouldReduceMotion ? {} : { y: -2 }}
               className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-800 hover:border-emerald-500/40 transition-colors"
             >
               <div className="flex items-center justify-between">
@@ -322,17 +348,17 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                 </span>
                 <ArrowUpRight className="h-4 w-4 text-emerald-500" />
               </div>
-              <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 block mt-1.5 font-mono">
+              <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 block mt-1.5 font-mono tabular-nums">
                 {formatCurrency(cashFlow.moneyIn)}
               </span>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 block mt-1">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 block mt-1 font-mono tabular-nums">
                 Avg {formatCurrency(cashFlow.averageMonthlyInflow)}/mo
               </span>
             </motion.div>
 
             {/* Money Out */}
             <motion.div
-              whileHover={{ y: -2 }}
+              whileHover={shouldReduceMotion ? {} : { y: -2 }}
               className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-800 hover:border-rose-500/40 transition-colors"
             >
               <div className="flex items-center justify-between">
@@ -342,17 +368,17 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                 </span>
                 <ArrowDownLeft className="h-4 w-4 text-rose-500" />
               </div>
-              <span className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 block mt-1.5 font-mono">
+              <span className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 block mt-1.5 font-mono tabular-nums">
                 {formatCurrency(cashFlow.moneyOut)}
               </span>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 block mt-1">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 block mt-1 font-mono tabular-nums">
                 Avg {formatCurrency(cashFlow.averageMonthlyOutflow)}/mo
               </span>
             </motion.div>
 
             {/* Net Liquidity Flow */}
             <motion.div
-              whileHover={{ y: -2 }}
+              whileHover={shouldReduceMotion ? {} : { y: -2 }}
               className={`p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border transition-colors ${
                 cashFlow.netFlow >= 0
                   ? "border-slate-200/70 dark:border-slate-800 hover:border-emerald-500/40"
@@ -370,7 +396,7 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                   <TrendingDown className="h-4 w-4 text-rose-500" />
                 )}
               </div>
-              <span className={`text-xl sm:text-2xl font-black block mt-1.5 font-mono ${
+              <span className={`text-xl sm:text-2xl font-black block mt-1.5 font-mono tabular-nums ${
                 cashFlow.netFlow >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
               }`}>
                 {cashFlow.netFlow >= 0 ? "+" : ""}{formatCurrency(cashFlow.netFlow)}
@@ -388,11 +414,18 @@ export function FinancialForecastingCard({ forecasts, cashFlow }: FinancialForec
                 <Zap className="h-3.5 w-3.5 text-teal-500" />
                 Live Liquidity Balance Velocity
               </span>
-              <span className="font-mono text-slate-500 dark:text-slate-400 text-[11px]">
+              <span className="font-mono tabular-nums text-slate-500 dark:text-slate-400 text-[11px]">
                 {inflowRatio}% Inflow vs {outflowRatio}% Outflow
               </span>
             </div>
-            <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex">
+            <div
+              role="progressbar"
+              aria-valuenow={inflowRatio}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Live liquidity velocity: ${inflowRatio}% Inflow vs ${outflowRatio}% Outflow`}
+              className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex"
+            >
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${inflowRatio}%` }}

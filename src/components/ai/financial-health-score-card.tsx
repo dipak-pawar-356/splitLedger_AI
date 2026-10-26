@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ interface FinancialHealthScoreCardProps {
 
 export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCardProps) {
   const { score, grade, components, thirteenFactors, strengths, improvements, scoreDelta, changeExplanation, previousScore } = healthScore;
+  const shouldReduceMotion = useReducedMotion();
 
   const getGradeBadgeClass = () => {
     if (score >= 85) return "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300";
@@ -56,6 +57,22 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
     pendingBills: 4,
     latePayments: 4,
   };
+
+  const factorList = [
+    { key: "savings", label: "Savings", icon: PiggyBank, val: tf.savings, max: 15, color: "text-emerald-500", barBg: "bg-emerald-500" },
+    { key: "debt", label: "Debt Ratio", icon: Scale, val: tf.debt, max: 10, color: "text-rose-500", barBg: "bg-rose-500" },
+    { key: "budgetDiscipline", label: "Budgets", icon: Target, val: tf.budgetDiscipline, max: 10, color: "text-indigo-500", barBg: "bg-indigo-500" },
+    { key: "settlementSpeed", label: "Settlements", icon: CheckCircle2, val: tf.settlementSpeed, max: 10, color: "text-teal-500", barBg: "bg-teal-500" },
+    { key: "profileCompletion", label: "Profile", icon: UserCheck, val: tf.profileCompletion, max: 5, color: "text-cyan-500", barBg: "bg-cyan-500" },
+    { key: "verification", label: "Verified", icon: ShieldCheck, val: tf.verification, max: 5, color: "text-blue-500", barBg: "bg-blue-500" },
+    { key: "loanHealth", label: "Loans", icon: Briefcase, val: tf.loanHealth, max: 8, color: "text-violet-500", barBg: "bg-violet-500" },
+    { key: "incomeStability", label: "Inflows", icon: Activity, val: tf.incomeStability, max: 8, color: "text-emerald-500", barBg: "bg-emerald-500" },
+    { key: "expenseStability", label: "Outflow Var", icon: TrendingUp, val: tf.expenseStability, max: 7, color: "text-amber-500", barBg: "bg-amber-500" },
+    { key: "emergencyFund", label: "Runway", icon: Zap, val: tf.emergencyFund, max: 7, color: "text-yellow-500", barBg: "bg-yellow-500" },
+    { key: "recurringIncome", label: "Recurring", icon: Sparkles, val: tf.recurringIncome, max: 5, color: "text-indigo-500", barBg: "bg-indigo-500" },
+    { key: "latePayments", label: "On-Time", icon: Clock, val: tf.latePayments, max: 5, color: "text-rose-500", barBg: "bg-rose-500" },
+    { key: "pendingBills", label: "Bills Clear", icon: AlertTriangle, val: tf.pendingBills, max: 5, color: "text-orange-500", barBg: "bg-orange-500" },
+  ];
 
   // SVG Gauge calculations
   const radius = 36;
@@ -92,9 +109,16 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
         {/* Score Radial Visual & Overview */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-50/90 to-slate-100/50 dark:from-slate-900/50 dark:to-slate-800/30 border border-slate-200/70 dark:border-slate-800">
           <div className="flex items-center gap-5">
-            {/* Animated SVG Circular Progress Gauge */}
-            <div className="relative flex items-center justify-center w-24 h-24 shrink-0">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 88 88">
+            {/* Animated SVG Circular Progress Gauge with WAI-ARIA role */}
+            <div
+              role="progressbar"
+              aria-valuenow={score}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Financial Health Score: ${score} out of 100 (${grade} grade)`}
+              className="relative flex items-center justify-center w-24 h-24 shrink-0"
+            >
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 88 88" aria-hidden="true">
                 {/* Background circle */}
                 <circle
                   cx="44"
@@ -118,15 +142,15 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
                   }
                   strokeWidth="7"
                   strokeDasharray={circumference}
-                  initial={{ strokeDashoffset: circumference }}
+                  initial={shouldReduceMotion ? false : { strokeDashoffset: circumference }}
                   animate={{ strokeDashoffset }}
-                  transition={{ duration: 1.2, ease: "easeOut" }}
+                  transition={shouldReduceMotion ? { duration: 0 } : { duration: 1.0, ease: "easeOut" }}
                   strokeLinecap="round"
                   fill="transparent"
                 />
               </svg>
               <div className="absolute flex flex-col items-center justify-center text-center">
-                <span className="text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-slate-100">
+                <span className="text-2xl font-black font-mono tracking-tight tabular-nums text-slate-900 dark:text-slate-100">
                   {score}
                 </span>
                 <span className="text-[10px] text-slate-400 font-bold uppercase -mt-0.5">
@@ -153,23 +177,23 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
             <span className="text-[10px] uppercase font-bold text-slate-400">Score Delta</span>
             <div className="flex items-center gap-1.5 mt-1">
               {scoreDelta > 0 ? (
-                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-mono font-bold text-xs gap-1">
+                <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-mono tabular-nums font-bold text-xs gap-1">
                   <TrendingUp className="h-3 w-3" />
                   +{scoreDelta} pts
                 </Badge>
               ) : scoreDelta < 0 ? (
-                <Badge className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-mono font-bold text-xs gap-1">
+                <Badge className="bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 font-mono tabular-nums font-bold text-xs gap-1">
                   <TrendingDown className="h-3 w-3" />
                   {scoreDelta} pts
                 </Badge>
               ) : (
-                <Badge variant="outline" className="font-mono font-bold text-xs gap-1">
+                <Badge variant="outline" className="font-mono tabular-nums font-bold text-xs gap-1">
                   <Minus className="h-3 w-3" />
                   0 pts
                 </Badge>
               )}
             </div>
-            <span className="text-[11px] font-mono text-slate-400 mt-1">Prev: {previousScore ?? score}</span>
+            <span className="text-[11px] font-mono tabular-nums text-slate-400 mt-1">Prev: {previousScore ?? score}</span>
           </div>
         </div>
 
@@ -187,169 +211,42 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
         {/* 13-Factor Breakdown Grid */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
               13 Comprehensive Health Factors
             </span>
-            <span className="text-[11px] font-mono text-slate-400 font-semibold">100 Max Pts</span>
+            <span className="text-[11px] font-mono tabular-nums text-slate-400 font-semibold">100 Max Pts</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 text-xs">
-            {/* 1. Savings */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <PiggyBank className="h-3 w-3 text-emerald-500" /> Savings
-                </span>
-                <span className="font-mono font-bold">{tf.savings}/15</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${(tf.savings / 15) * 100}%` }} />
-              </div>
-            </div>
+            {factorList.map((f) => {
+              const Icon = f.icon;
+              const pct = Math.round((f.val / f.max) * 100);
 
-            {/* 2. Debt Ratio */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <Scale className="h-3 w-3 text-rose-500" /> Debt Ratio
-                </span>
-                <span className="font-mono font-bold">{tf.debt}/10</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-rose-500 h-full rounded-full" style={{ width: `${(tf.debt / 10) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 3. Budget Discipline */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <Target className="h-3 w-3 text-indigo-500" /> Budgets
-                </span>
-                <span className="font-mono font-bold">{tf.budgetDiscipline}/10</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${(tf.budgetDiscipline / 10) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 4. Settlement Speed */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3 text-teal-500" /> Settlements
-                </span>
-                <span className="font-mono font-bold">{tf.settlementSpeed}/10</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-teal-500 h-full rounded-full" style={{ width: `${(tf.settlementSpeed / 10) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 5. Profile Completion */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <UserCheck className="h-3 w-3 text-cyan-500" /> Profile
-                </span>
-                <span className="font-mono font-bold">{tf.profileCompletion}/5</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${(tf.profileCompletion / 5) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 6. Verification */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <ShieldCheck className="h-3 w-3 text-blue-500" /> Verified
-                </span>
-                <span className="font-mono font-bold">{tf.verification}/5</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-blue-500 h-full rounded-full" style={{ width: `${(tf.verification / 5) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 7. Loan Health */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <Briefcase className="h-3 w-3 text-violet-500" /> Loans
-                </span>
-                <span className="font-mono font-bold">{tf.loanHealth}/8</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-violet-500 h-full rounded-full" style={{ width: `${(tf.loanHealth / 8) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 8. Income Stability */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <Activity className="h-3 w-3 text-emerald-500" /> Inflows
-                </span>
-                <span className="font-mono font-bold">{tf.incomeStability}/8</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${(tf.incomeStability / 8) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 9. Expense Stability */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3 text-amber-500" /> Outflow Var
-                </span>
-                <span className="font-mono font-bold">{tf.expenseStability}/7</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-amber-500 h-full rounded-full" style={{ width: `${(tf.expenseStability / 7) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 10. Emergency Fund */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <Zap className="h-3 w-3 text-yellow-500" /> Runway
-                </span>
-                <span className="font-mono font-bold">{tf.emergencyFund}/7</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-yellow-500 h-full rounded-full" style={{ width: `${(tf.emergencyFund / 7) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 11. Recurring Income */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <Sparkles className="h-3 w-3 text-indigo-500" /> Recurring
-                </span>
-                <span className="font-mono font-bold">{tf.recurringIncome}/5</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-indigo-500 h-full rounded-full" style={{ width: `${(tf.recurringIncome / 5) * 100}%` }} />
-              </div>
-            </div>
-
-            {/* 12. Late Payments */}
-            <div className="p-2.5 rounded-xl border bg-card space-y-1">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="font-semibold flex items-center gap-1">
-                  <Clock className="h-3 w-3 text-rose-500" /> On-Time
-                </span>
-                <span className="font-mono font-bold">{tf.latePayments}/5</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1">
-                <div className="bg-rose-500 h-full rounded-full" style={{ width: `${(tf.latePayments / 5) * 100}%` }} />
-              </div>
-            </div>
+              return (
+                <div key={f.key} className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-card space-y-1.5 shadow-2xs">
+                  <div className="flex items-center justify-between text-slate-500 min-w-0">
+                    <span className="font-semibold flex items-center gap-1 truncate text-[11px] sm:text-xs">
+                      <Icon className={`h-3 w-3 ${f.color} shrink-0`} />
+                      <span className="truncate">{f.label}</span>
+                    </span>
+                    <span className="font-mono tabular-nums font-bold text-[11px] shrink-0">{f.val}/{f.max}</span>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-valuenow={f.val}
+                    aria-valuemin={0}
+                    aria-valuemax={f.max}
+                    aria-label={`${f.label}: ${f.val} of ${f.max} points`}
+                    className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden"
+                  >
+                    <div
+                      className={`${f.barBg} h-full rounded-full transition-all duration-500`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -385,7 +282,7 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
                     <span>{imp}</span>
                   </div>
                   <Link href="/dashboard/budgets">
-                    <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[10px] text-primary gap-0.5">
+                    <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[10px] text-primary gap-0.5 focus-visible:ring-1 focus-visible:ring-primary">
                       Act <ArrowUpRight className="h-3 w-3" />
                     </Button>
                   </Link>

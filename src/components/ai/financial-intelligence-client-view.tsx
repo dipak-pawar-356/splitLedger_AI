@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   FinancialIntelligenceData,
   getFinancialIntelligence,
@@ -65,9 +65,53 @@ export function FinancialIntelligenceClientView({
   const [budgetToEdit, setBudgetToEdit] = useState<BudgetProgress | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
 
+  const shouldReduceMotion = useReducedMotion();
+  const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+
+  const subSubjects = [
+    { id: "assistant", label: "AI Assistant", icon: Bot, color: "text-primary" },
+    { id: "voice-automation", label: "Voice & Automation", icon: Mic, color: "text-indigo-500" },
+    { id: "insights", label: "Health & Business Intel", icon: Sparkles, color: "text-amber-500" },
+    { id: "subscriptions", label: "Subscriptions", icon: Repeat, color: "text-purple-500" },
+    {
+      id: "budgets",
+      label: `Budget Tracker`,
+      badge: data.budgets.length,
+      icon: Target,
+      color: "text-emerald-500",
+    },
+    { id: "forecasting", label: "Forecasting & Charts", icon: TrendingUp, color: "text-blue-500" },
+    { id: "ocr", label: "Receipt OCR", icon: Camera, color: "text-rose-500" },
+  ];
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Keyboard navigation across tabs for WAI-ARIA compliance
+  const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    let nextIndex: number | null = null;
+    if (e.key === "ArrowRight") {
+      nextIndex = (index + 1) % subSubjects.length;
+    } else if (e.key === "ArrowLeft") {
+      nextIndex = (index - 1 + subSubjects.length) % subSubjects.length;
+    } else if (e.key === "Home") {
+      nextIndex = 0;
+    } else if (e.key === "End") {
+      nextIndex = subSubjects.length - 1;
+    }
+
+    if (nextIndex !== null) {
+      e.preventDefault();
+      const target = subSubjects[nextIndex];
+      setActiveTab(target.id);
+      const btn = tabRefs.current[target.id];
+      if (btn) {
+        btn.focus();
+        btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }
+    }
+  };
 
   // Reload fresh data from database
   const handleRefresh = useCallback(async () => {
@@ -107,20 +151,40 @@ export function FinancialIntelligenceClientView({
 
   if (!isMounted) {
     return (
-      <div className="space-y-6 pb-12 animate-pulse">
+      <div className="space-y-6 pb-12 animate-pulse" aria-busy="true" aria-label="Loading AI intelligence dashboard">
         <div className="h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl w-2/3" />
-        <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-2xl w-full" />
+        <div className="h-11 bg-slate-100 dark:bg-slate-800 rounded-2xl w-full" />
+        <div className="h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl w-full" />
         <div className="h-64 bg-slate-100 dark:bg-slate-800 rounded-3xl w-full" />
       </div>
     );
   }
 
+  const tabMotionProps = shouldReduceMotion
+    ? {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+        transition: { duration: 0.15 },
+      }
+    : {
+        initial: { opacity: 0, y: 8 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -8 },
+        transition: { duration: 0.2, ease: "easeOut" },
+      };
+
   return (
     <div className="space-y-6 pb-12" suppressHydrationWarning>
+      {/* Screen Reader Live Announcement */}
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {isRefreshing ? "Synchronizing database records..." : "Financial intelligence dashboard updated"}
+      </div>
+
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
         <div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
               AI Financial Intelligence & Assistant
             </h1>
@@ -133,13 +197,14 @@ export function FinancialIntelligenceClientView({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
           <Button
             size="sm"
             variant="outline"
-            className="rounded-xl text-xs font-semibold gap-1.5 h-9"
+            className="rounded-xl text-xs font-semibold gap-1.5 h-9 min-h-[36px] sm:min-h-[38px] px-3.5 focus-visible:ring-2 focus-visible:ring-primary/40"
             onClick={handleRefresh}
             disabled={isRefreshing}
+            aria-label={isRefreshing ? "Synchronizing database records" : "Refresh financial intelligence"}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
             <span>{isRefreshing ? "Syncing..." : "Refresh"}</span>
@@ -147,48 +212,52 @@ export function FinancialIntelligenceClientView({
 
           <Button
             size="sm"
-            className="rounded-xl text-xs font-semibold gap-1.5 bg-primary h-9 shadow-sm"
+            className="rounded-xl text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground h-9 min-h-[36px] sm:min-h-[38px] px-3.5 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
             onClick={handleCreateBudget}
+            aria-label="Create a new budget target"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Create Budget</span>
           </Button>
         </div>
-      </div>
+      </header>
 
       {/* Global AI Search Bar */}
-      <GlobalAISearchBar />
+      <section aria-label="Global Search">
+        <GlobalAISearchBar />
+      </section>
 
       {/* Main Feature Tabs */}
-      {/* Main Feature Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        {/* Responsive Horizontal Scrollable Sub-Subjects Bar */}
+      <div className="space-y-6">
+        {/* Responsive Horizontal Scrollable Sub-Subjects Bar with Linear Edge Masks */}
         <div className="relative">
-          <div className="p-1.5 rounded-2xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none backdrop-blur-md shadow-xs">
-            {[
-              { id: "assistant", label: "AI Assistant", icon: Bot, color: "text-primary" },
-              { id: "voice-automation", label: "Voice & Automation", icon: Mic, color: "text-indigo-500" },
-              { id: "insights", label: "Health & Business Intel", icon: Sparkles, color: "text-amber-500" },
-              { id: "subscriptions", label: "Subscriptions", icon: Repeat, color: "text-purple-500" },
-              {
-                id: "budgets",
-                label: `Budget Tracker`,
-                badge: data.budgets.length,
-                icon: Target,
-                color: "text-emerald-500"
-              },
-              { id: "forecasting", label: "Forecasting & Charts", icon: TrendingUp, color: "text-blue-500" },
-              { id: "ocr", label: "Receipt OCR", icon: Camera, color: "text-rose-500" },
-            ].map((sub) => {
+          {/* Visual gradient edge masks on mobile touch scroller */}
+          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-3 bg-gradient-to-r from-background to-transparent z-10 sm:hidden" />
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-background to-transparent z-10 sm:hidden" />
+
+          <div
+            role="tablist"
+            aria-label="Financial Intelligence Modules"
+            className="p-1.5 rounded-2xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none backdrop-blur-md shadow-xs touch-pan-x"
+          >
+            {subSubjects.map((sub, idx) => {
               const isActive = activeTab === sub.id;
               const Icon = sub.icon;
 
               return (
                 <button
                   key={sub.id}
-                  type="button"
+                  ref={(el) => {
+                    tabRefs.current[sub.id] = el;
+                  }}
+                  id={`ai-tab-${sub.id}`}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`ai-tabpanel-${sub.id}`}
+                  tabIndex={isActive ? 0 : -1}
+                  onKeyDown={(e) => handleTabKeyDown(e, idx)}
                   onClick={() => setActiveTab(sub.id)}
-                  className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors shrink-0 ${
+                  className={`relative flex items-center gap-2 px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-bold whitespace-nowrap transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                     isActive
                       ? "text-slate-900 dark:text-slate-100"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
@@ -198,18 +267,24 @@ export function FinancialIntelligenceClientView({
                     <motion.div
                       layoutId="active-ai-subsubject-capsule"
                       className="absolute inset-0 bg-white dark:bg-slate-800 rounded-xl shadow-xs border border-slate-200/90 dark:border-slate-700/80"
-                      transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                      transition={
+                        shouldReduceMotion
+                          ? { duration: 0 }
+                          : { type: "spring", stiffness: 450, damping: 32 }
+                      }
                     />
                   )}
                   <span className="relative z-10 flex items-center gap-1.5">
                     <Icon className={`h-4 w-4 ${sub.color} shrink-0`} />
                     <span>{sub.label}</span>
                     {sub.badge !== undefined && (
-                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                        isActive
-                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                          : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                      }`}>
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                          isActive
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                        }`}
+                      >
                         {sub.badge}
                       </span>
                     )}
@@ -225,11 +300,12 @@ export function FinancialIntelligenceClientView({
           {activeTab === "assistant" && (
             <motion.div
               key="assistant"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
-              className="space-y-6"
+              role="tabpanel"
+              id="ai-tabpanel-assistant"
+              aria-labelledby="ai-tab-assistant"
+              tabIndex={0}
+              {...tabMotionProps}
+              className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
               <AIFinancialAssistantCard />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -246,11 +322,12 @@ export function FinancialIntelligenceClientView({
           {activeTab === "voice-automation" && (
             <motion.div
               key="voice-automation"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
-              className="space-y-6"
+              role="tabpanel"
+              id="ai-tabpanel-voice-automation"
+              aria-labelledby="ai-tab-voice-automation"
+              tabIndex={0}
+              {...tabMotionProps}
+              className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
               <VoiceAssistantPanel onCommandExecuted={() => handleRefresh()} />
               <AutomationRulesBuilder />
@@ -261,11 +338,12 @@ export function FinancialIntelligenceClientView({
           {activeTab === "insights" && (
             <motion.div
               key="insights"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
-              className="space-y-6"
+              role="tabpanel"
+              id="ai-tabpanel-insights"
+              aria-labelledby="ai-tab-insights"
+              tabIndex={0}
+              {...tabMotionProps}
+              className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
               <FinancialHealthScoreCard healthScore={data.healthScore} />
               <BusinessIntelligenceCard intelligence={data} />
@@ -283,11 +361,12 @@ export function FinancialIntelligenceClientView({
           {activeTab === "subscriptions" && (
             <motion.div
               key="subscriptions"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
-              className="space-y-6"
+              role="tabpanel"
+              id="ai-tabpanel-subscriptions"
+              aria-labelledby="ai-tab-subscriptions"
+              tabIndex={0}
+              {...tabMotionProps}
+              className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
               <AISubscriptionsCard />
             </motion.div>
@@ -297,11 +376,12 @@ export function FinancialIntelligenceClientView({
           {activeTab === "budgets" && (
             <motion.div
               key="budgets"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
-              className="space-y-6"
+              role="tabpanel"
+              id="ai-tabpanel-budgets"
+              aria-labelledby="ai-tab-budgets"
+              tabIndex={0}
+              {...tabMotionProps}
+              className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-emerald-50/20 dark:from-slate-900/40 dark:to-emerald-950/20 border border-slate-200/80 dark:border-slate-800">
                 <div>
@@ -315,8 +395,9 @@ export function FinancialIntelligenceClientView({
                 </div>
                 <Button
                   size="sm"
-                  className="rounded-xl text-xs gap-1.5 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white self-start sm:self-auto"
+                  className="rounded-xl text-xs gap-1.5 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white self-start sm:self-auto min-h-[36px]"
                   onClick={handleCreateBudget}
+                  aria-label="Add a new spending budget target"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>Add Target</span>
@@ -340,7 +421,7 @@ export function FinancialIntelligenceClientView({
                       Create your first monthly grocery, family, trip, or entertainment budget to keep spending within safe thresholds.
                     </p>
                   </div>
-                  <Button size="sm" className="rounded-xl text-xs font-bold bg-primary shadow-sm" onClick={handleCreateBudget}>
+                  <Button size="sm" className="rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm min-h-[36px]" onClick={handleCreateBudget}>
                     <Plus className="h-3.5 w-3.5 mr-1" />
                     Set Up First Budget
                   </Button>
@@ -353,11 +434,12 @@ export function FinancialIntelligenceClientView({
           {activeTab === "forecasting" && (
             <motion.div
               key="forecasting"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
-              className="space-y-6"
+              role="tabpanel"
+              id="ai-tabpanel-forecasting"
+              aria-labelledby="ai-tab-forecasting"
+              tabIndex={0}
+              {...tabMotionProps}
+              className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
               <FinancialForecastingCard
                 forecasts={data.forecasts}
@@ -374,17 +456,18 @@ export function FinancialIntelligenceClientView({
           {activeTab === "ocr" && (
             <motion.div
               key="ocr"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22, ease: "easeOut" }}
-              className="space-y-6"
+              role="tabpanel"
+              id="ai-tabpanel-ocr"
+              aria-labelledby="ai-tab-ocr"
+              tabIndex={0}
+              {...tabMotionProps}
+              className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* OCR Scanner Card */}
                 <motion.div
-                  whileHover={{ y: -4, scale: 1.01 }}
-                  transition={{ duration: 0.2 }}
+                  whileHover={shouldReduceMotion ? {} : { y: -3 }}
+                  transition={{ duration: 0.18 }}
                 >
                   <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4 hover:border-blue-500/50 transition-all bg-card relative overflow-hidden group">
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
@@ -406,8 +489,9 @@ export function FinancialIntelligenceClientView({
                     </div>
                     <Button
                       size="sm"
-                      className="w-full rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-sm"
+                      className="w-full rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-sm min-h-[38px]"
                       onClick={() => setIsReceiptModalOpen(true)}
+                      aria-label="Open OCR receipt scanner dialog"
                     >
                       <Upload className="h-3.5 w-3.5 mr-1.5" />
                       Open OCR Scanner Modal
@@ -417,8 +501,8 @@ export function FinancialIntelligenceClientView({
 
                 {/* Smart Categorization */}
                 <motion.div
-                  whileHover={{ y: -4, scale: 1.01 }}
-                  transition={{ duration: 0.2 }}
+                  whileHover={shouldReduceMotion ? {} : { y: -3 }}
+                  transition={{ duration: 0.18 }}
                 >
                   <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4 hover:border-emerald-500/50 transition-all bg-card relative overflow-hidden group">
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
@@ -441,10 +525,11 @@ export function FinancialIntelligenceClientView({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full rounded-xl text-xs font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                      className="w-full rounded-xl text-xs font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-950/30 min-h-[38px]"
                       onClick={() => {
                         toast.success("Categorization models active on all incoming ledger transactions.");
                       }}
+                      aria-label="Model status info"
                     >
                       Categorization Active
                     </Button>
@@ -453,8 +538,8 @@ export function FinancialIntelligenceClientView({
 
                 {/* Subscription Audit */}
                 <motion.div
-                  whileHover={{ y: -4, scale: 1.01 }}
-                  transition={{ duration: 0.2 }}
+                  whileHover={shouldReduceMotion ? {} : { y: -3 }}
+                  transition={{ duration: 0.18 }}
                 >
                   <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4 hover:border-purple-500/50 transition-all bg-card relative overflow-hidden group">
                     <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500" />
@@ -477,10 +562,11 @@ export function FinancialIntelligenceClientView({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="w-full rounded-xl text-xs font-semibold hover:bg-purple-50 dark:hover:bg-purple-950/30"
+                      className="w-full rounded-xl text-xs font-semibold hover:bg-purple-50 dark:hover:bg-purple-950/30 min-h-[38px]"
                       onClick={() => {
                         setActiveTab("subscriptions");
                       }}
+                      aria-label="Jump to subscriptions tab"
                     >
                       View Subscriptions
                     </Button>
@@ -490,7 +576,7 @@ export function FinancialIntelligenceClientView({
             </motion.div>
           )}
         </AnimatePresence>
-      </Tabs>
+      </div>
 
       {/* Budget Modal */}
       <BudgetDialog

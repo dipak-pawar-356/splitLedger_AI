@@ -174,11 +174,15 @@ export function AutomationRulesBuilder() {
 
           <div className="flex items-center gap-2 self-start sm:self-auto">
             {/* Tab switch */}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <div role="tablist" aria-label="Automation view mode" className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
               <button
                 type="button"
+                role="tab"
+                id="tab-automation-rules"
+                aria-selected={activeTab === "rules"}
+                aria-controls="panel-automation-rules"
                 onClick={() => setActiveTab("rules")}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all focus-visible:ring-1 focus-visible:ring-primary ${
                   activeTab === "rules"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
@@ -188,8 +192,12 @@ export function AutomationRulesBuilder() {
               </button>
               <button
                 type="button"
+                role="tab"
+                id="tab-automation-logs"
+                aria-selected={activeTab === "logs"}
+                aria-controls="panel-automation-logs"
                 onClick={() => setActiveTab("logs")}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all focus-visible:ring-1 focus-visible:ring-primary ${
                   activeTab === "logs"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
@@ -202,9 +210,10 @@ export function AutomationRulesBuilder() {
             <Button
               size="sm"
               onClick={() => setIsDialogOpen(true)}
+              aria-label="Create new automation rule"
               className="rounded-xl text-xs font-bold gap-1.5 bg-primary h-8"
             >
-              <Plus className="h-3.5 w-3.5" />
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Create Rule</span>
             </Button>
           </div>
@@ -213,7 +222,12 @@ export function AutomationRulesBuilder() {
 
       <CardContent className="p-6">
         {activeTab === "rules" ? (
-          <div className="space-y-3">
+          <div 
+            id="panel-automation-rules"
+            role="tabpanel"
+            aria-labelledby="tab-automation-rules"
+            className="space-y-3"
+          >
             {rules.map((rule) => (
               <div
                 key={rule.id}
@@ -255,6 +269,7 @@ export function AutomationRulesBuilder() {
                     size="sm"
                     variant="outline"
                     className="rounded-xl text-xs h-8 px-3"
+                    aria-label={`${rule.enabled ? "Pause" : "Enable"} rule ${rule.name}`}
                     onClick={() => handleToggle(rule.id, rule.enabled)}
                   >
                     {rule.enabled ? "Pause" : "Enable"}
@@ -263,21 +278,23 @@ export function AutomationRulesBuilder() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="rounded-xl h-8 w-8 text-slate-400 hover:text-slate-700"
+                    className="rounded-xl h-8 w-8 text-slate-400 hover:text-slate-700 focus-visible:ring-1 focus-visible:ring-primary"
                     onClick={() => handleDuplicate(rule)}
-                    title="Duplicate"
+                    aria-label={`Duplicate rule ${rule.name}`}
+                    title={`Duplicate rule ${rule.name}`}
                   >
-                    <Copy className="h-3.5 w-3.5" />
+                    <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
 
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="rounded-xl h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50"
+                    className="rounded-xl h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 focus-visible:ring-1 focus-visible:ring-rose-500"
                     onClick={() => handleDelete(rule.id)}
-                    title="Delete"
+                    aria-label={`Delete rule ${rule.name}`}
+                    title={`Delete rule ${rule.name}`}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
                 </div>
               </div>

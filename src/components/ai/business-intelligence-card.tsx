@@ -1,23 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { FinancialIntelligenceData } from "@/actions/financial-intelligence";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   FileSpreadsheet,
   TrendingUp,
   TrendingDown,
-  ShieldAlert,
   ShieldCheck,
-  ArrowUpRight,
   PieChart,
   Wallet,
   CheckCircle2,
   Sparkles,
-  Activity
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
@@ -27,8 +23,9 @@ interface BusinessIntelligenceCardProps {
 
 export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceCardProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<"monthly" | "quarterly" | "yearly">("monthly");
+  const shouldReduceMotion = useReducedMotion();
 
-  const { cashFlow, healthScore, savingsMetrics, executiveNarrative, budgets } = intelligence;
+  const { cashFlow, savingsMetrics, executiveNarrative, budgets } = intelligence;
 
   // Multiplier for periods
   const multiplier = selectedPeriod === "quarterly" ? 3 : selectedPeriod === "yearly" ? 12 : 1;
@@ -49,7 +46,7 @@ export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceC
             <div>
               <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                 <span>Executive Business Intelligence & Risk Analysis</span>
-                <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 dark:border-emerald-800 bg-emerald-500/5">
+                <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200 dark:border-emerald-800 bg-emerald-500/5 font-semibold">
                   AI Synthesized
                 </Badge>
               </CardTitle>
@@ -61,7 +58,11 @@ export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceC
 
           <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
             {/* Sliding Framer Motion Period Selector */}
-            <div className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 backdrop-blur-xs">
+            <div
+              role="radiogroup"
+              aria-label="Executive report timeframe period"
+              className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 backdrop-blur-xs"
+            >
               {[
                 { key: "monthly", label: "Monthly" },
                 { key: "quarterly", label: "Quarterly" },
@@ -72,8 +73,11 @@ export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceC
                   <button
                     key={p.key}
                     type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    tabIndex={isSelected ? 0 : -1}
                     onClick={() => setSelectedPeriod(p.key as any)}
-                    className={`relative px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                    className={`relative px-3 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                       isSelected
                         ? "text-primary-foreground"
                         : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
@@ -83,7 +87,11 @@ export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceC
                       <motion.div
                         layoutId="bi-period-pill"
                         className="absolute inset-0 bg-primary rounded-xl shadow-xs"
-                        transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                        transition={
+                          shouldReduceMotion
+                            ? { duration: 0 }
+                            : { type: "spring", stiffness: 450, damping: 32 }
+                        }
                       />
                     )}
                     <span className="relative z-10">{p.label}</span>
@@ -113,28 +121,28 @@ export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceC
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedPeriod}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.2 }}
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
+            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            transition={{ duration: 0.18 }}
             className="p-5 rounded-2xl bg-gradient-to-br from-slate-50/90 to-emerald-50/20 dark:from-slate-900/50 dark:to-emerald-950/20 border border-slate-200/80 dark:border-slate-800 space-y-2 shadow-2xs"
           >
             <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-slate-100">
-              <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" />
+              <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
               <span className="uppercase tracking-wider">{selectedPeriod} Executive Summary</span>
             </div>
             <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-sans">
               During this {selectedPeriod} period, total corporate & personal outflow stands at{" "}
-              <strong className="font-mono">{formatCurrency(displayOutflow, "INR")}</strong> against an inflow of{" "}
-              <strong className="font-mono">{formatCurrency(displayInflow, "INR")}</strong>, resulting in a net variance of{" "}
-              <strong className={`font-mono ${displayNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+              <strong className="font-mono tabular-nums">{formatCurrency(displayOutflow, "INR")}</strong> against an inflow of{" "}
+              <strong className="font-mono tabular-nums">{formatCurrency(displayInflow, "INR")}</strong>, resulting in a net variance of{" "}
+              <strong className={`font-mono tabular-nums ${displayNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                 {displayNet >= 0 ? "+" : ""}
                 {formatCurrency(displayNet, "INR")}
               </strong>{" "}
               ({savingsMetrics.savingsRatePct}% savings rate).
             </p>
             <div className="pt-2 flex items-center gap-2 text-xs text-slate-500 border-t border-slate-200/40 dark:border-slate-800">
-              <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+              <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
               <span>Recommended Action: {executiveNarrative.recommendedAction}</span>
             </div>
           </motion.div>
@@ -143,30 +151,30 @@ export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceC
         {/* 4 Live KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
           <motion.div
-            whileHover={{ y: -2 }}
+            whileHover={shouldReduceMotion ? {} : { y: -2 }}
             className="p-4 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs space-y-1 shadow-2xs hover:border-rose-500/40 transition-colors"
           >
             <div className="flex items-center justify-between text-slate-500">
               <span className="font-semibold text-[11px]">Total Outflow</span>
-              <TrendingDown className="h-4 w-4 text-rose-500" />
+              <TrendingDown className="h-4 w-4 text-rose-500" aria-hidden="true" />
             </div>
-            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 font-mono">
+            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 font-mono tabular-nums">
               {formatCurrency(displayOutflow, "INR")}
             </p>
-            <span className="text-[10px] text-slate-400 block">
+            <span className="text-[10px] text-slate-400 block font-mono tabular-nums">
               {budgets.length} active budgets
             </span>
           </motion.div>
 
           <motion.div
-            whileHover={{ y: -2 }}
+            whileHover={shouldReduceMotion ? {} : { y: -2 }}
             className="p-4 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs space-y-1 shadow-2xs hover:border-emerald-500/40 transition-colors"
           >
             <div className="flex items-center justify-between text-slate-500">
               <span className="font-semibold text-[11px]">Total Inflow</span>
-              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              <TrendingUp className="h-4 w-4 text-emerald-500" aria-hidden="true" />
             </div>
-            <p className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
+            <p className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">
               {formatCurrency(displayInflow, "INR")}
             </p>
             <span className="text-[10px] text-slate-400 block">
@@ -175,38 +183,38 @@ export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceC
           </motion.div>
 
           <motion.div
-            whileHover={{ y: -2 }}
+            whileHover={shouldReduceMotion ? {} : { y: -2 }}
             className="p-4 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs space-y-1 shadow-2xs hover:border-blue-500/40 transition-colors"
           >
             <div className="flex items-center justify-between text-slate-500">
               <span className="font-semibold text-[11px]">Net Savings</span>
-              <Wallet className="h-4 w-4 text-blue-500" />
+              <Wallet className="h-4 w-4 text-blue-500" aria-hidden="true" />
             </div>
             <p
-              className={`text-lg sm:text-xl font-black font-mono ${
+              className={`text-lg sm:text-xl font-black font-mono tabular-nums ${
                 displayNet >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
               }`}
             >
               {displayNet >= 0 ? "+" : ""}
               {formatCurrency(displayNet, "INR")}
             </p>
-            <span className="text-[10px] text-slate-400 block">
+            <span className="text-[10px] text-slate-400 block font-mono tabular-nums">
               {savingsMetrics.savingsRatePct}% savings velocity
             </span>
           </motion.div>
 
           <motion.div
-            whileHover={{ y: -2 }}
+            whileHover={shouldReduceMotion ? {} : { y: -2 }}
             className="p-4 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 text-xs space-y-1 shadow-2xs hover:border-amber-500/40 transition-colors"
           >
             <div className="flex items-center justify-between text-slate-500">
               <span className="font-semibold text-[11px]">Budget Usage</span>
-              <PieChart className="h-4 w-4 text-amber-500" />
+              <PieChart className="h-4 w-4 text-amber-500" aria-hidden="true" />
             </div>
-            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 font-mono">
+            <p className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 font-mono tabular-nums">
               {budgetUtilization}%
             </p>
-            <span className="text-[10px] text-slate-400 block">
+            <span className="text-[10px] text-slate-400 block font-mono tabular-nums">
               Target: {formatCurrency(displayBudget, "INR")}
             </span>
           </motion.div>
@@ -217,10 +225,10 @@ export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceC
           {executiveNarrative.keyHighlights.map((hl, idx) => (
             <motion.div
               key={idx}
-              whileHover={{ scale: 1.01 }}
+              whileHover={shouldReduceMotion ? {} : { scale: 1.01 }}
               className="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 text-xs flex items-center gap-2.5 transition-colors"
             >
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
               <span className="font-semibold text-slate-700 dark:text-slate-300">{hl}</span>
             </motion.div>
           ))}
