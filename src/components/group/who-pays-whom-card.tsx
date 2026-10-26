@@ -144,8 +144,29 @@ export function WhoPaysWhomCard({
                   </span>
                   <div className="flex items-center gap-2 flex-wrap">
                     {s.toUserId && (
-                      <>
-                        {/* Show QR dialog: accessible to receiver, admin/owner, or debtor */}
+                      currentUserId === s.fromUserId ? (
+                        /* Payer view: Pay Now (opens UPI payment dialog with receiver QR, UPI ID, app deep links) */
+                        <UpiQuickPayDialog
+                          groupId={groupId}
+                          groupName={groupName}
+                          receiverUserId={s.toUserId}
+                          receiverName={s.toName}
+                          payerUserId={s.fromUserId}
+                          payerName={s.fromName}
+                          amount={s.amount}
+                          mode="pay"
+                          trigger={
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs px-3 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+                            >
+                              <Smartphone className="h-3.5 w-3.5" />
+                              <span>Pay Now</span>
+                            </Button>
+                          }
+                        />
+                      ) : (
+                        /* Receiver / Admin / Other view: Show QR (displays the QR code for receiver to collect payment) */
                         <UpiQuickPayDialog
                           groupId={groupId}
                           groupName={groupName}
@@ -165,30 +186,7 @@ export function WhoPaysWhomCard({
                             </Button>
                           }
                         />
-
-                        {/* If current user is payer: also provide quick Pay Now action */}
-                        {currentUserId === s.fromUserId && (
-                          <UpiQuickPayDialog
-                            groupId={groupId}
-                            groupName={groupName}
-                            receiverUserId={s.toUserId}
-                            receiverName={s.toName}
-                            payerUserId={s.fromUserId}
-                            payerName={s.fromName}
-                            amount={s.amount}
-                            mode="pay"
-                            trigger={
-                              <Button
-                                size="sm"
-                                className="h-7 text-xs px-3 font-bold rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
-                              >
-                                <Smartphone className="h-3.5 w-3.5" />
-                                <span>Pay Now</span>
-                              </Button>
-                            }
-                          />
-                        )}
-                      </>
+                      )
                     )}
 
                     {/* Manual Settle Dialog: accessible to settle debt */}

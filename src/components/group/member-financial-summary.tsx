@@ -369,38 +369,8 @@ export function MemberFinancialSummary({
                             </div>
                           </div>
 
-                          {/* Mini Card Action Strip: QR & Pay Now */}
-                          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
-                            {/* QR */}
-                            {owe.userId ? (
-                              <UpiQuickPayDialog
-                                groupId={groupId}
-                                groupName={groupName}
-                                receiverUserId={owe.userId}
-                                receiverName={owe.name}
-                                payerUserId={member.userId || undefined}
-                                payerName={member.name}
-                                amount={owe.amount}
-                                mode="receive"
-                                trigger={
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="w-full h-7 text-[11px] font-semibold rounded-lg gap-1 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 hover:text-indigo-300 transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
-                                  >
-                                    <QrCode className="h-3 w-3" />
-                                    <span>QR</span>
-                                  </Button>
-                                }
-                              />
-                            ) : (
-                              <Button size="sm" variant="outline" disabled className="w-full h-7 text-[11px] opacity-40">
-                                <QrCode className="h-3 w-3" />
-                                <span>QR</span>
-                              </Button>
-                            )}
-
-                            {/* Pay Now */}
+                          {/* Mini Card Action Strip: Single Pay Now action for Payer */}
+                          <div className="pt-1 border-t border-slate-800/80">
                             {owe.userId ? (
                               <UpiQuickPayDialog
                                 groupId={groupId}
@@ -414,7 +384,7 @@ export function MemberFinancialSummary({
                                 trigger={
                                   <Button
                                     size="sm"
-                                    className="w-full h-7 text-[11px] font-bold rounded-lg gap-1 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+                                    className="w-full h-7 text-[11px] font-bold rounded-lg gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                                   >
                                     <Smartphone className="h-3 w-3" />
                                     <span>Pay Now</span>
