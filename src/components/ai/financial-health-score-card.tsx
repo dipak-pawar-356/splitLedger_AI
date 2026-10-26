@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,8 +8,8 @@ import { FinancialHealthScore } from "@/actions/financial-intelligence";
 import { 
   ShieldCheck, 
   TrendingUp, 
-  TrendingDown,
-  Minus,
+  TrendingDown, 
+  Minus, 
   CheckCircle2, 
   AlertCircle, 
   Sparkles, 
@@ -16,12 +17,12 @@ import {
   Scale, 
   Target, 
   Activity, 
-  UserCheck,
-  Zap,
-  Clock,
-  Briefcase,
-  AlertTriangle,
-  ArrowUpRight
+  UserCheck, 
+  Zap, 
+  Clock, 
+  Briefcase, 
+  AlertTriangle, 
+  ArrowUpRight 
 } from "lucide-react";
 import Link from "next/link";
 
@@ -56,42 +57,90 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
     latePayments: 4,
   };
 
+  // SVG Gauge calculations
+  const radius = 36;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (score / 100) * circumference;
+
   return (
-    <Card className="rounded-3xl border shadow-sm overflow-hidden bg-card">
-      <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden bg-card transition-all duration-300 hover:shadow-md">
+      <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-gradient-to-r from-slate-50/80 via-emerald-50/20 to-teal-50/20 dark:from-slate-900/40 dark:via-emerald-950/20 dark:to-teal-950/10">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-2xl bg-primary/10 text-primary">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs shrink-0">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-base font-bold flex items-center gap-2">
-                Dynamic Financial Health Score
-                <Badge variant="outline" className="text-[10px] font-mono">13 FACTORS</Badge>
+              <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2">
+                <span>Dynamic Financial Health Score</span>
+                <Badge variant="outline" className="text-[10px] font-mono text-emerald-600 border-emerald-200 dark:border-emerald-800 bg-emerald-500/5">
+                  13 FACTORS
+                </Badge>
               </CardTitle>
-              <CardDescription className="text-xs">
-                Recalculated in real-time from verified transactions, settlements, and budget allocations.
+              <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Recalculated in real-time from verified transactions, settlements, and budget allocations
               </CardDescription>
             </div>
           </div>
-          <Badge className={`text-xs px-3 py-1 font-bold ${getGradeBadgeClass()}`}>
+          <Badge className={`text-xs px-3.5 py-1 font-bold shadow-xs self-start sm:self-auto ${getGradeBadgeClass()}`}>
             {grade} ({score}/100)
           </Badge>
         </div>
       </CardHeader>
 
-      <CardContent className="p-6 space-y-6">
+      <CardContent className="p-5 sm:p-6 space-y-6">
         {/* Score Radial Visual & Overview */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-50/90 to-slate-100/50 dark:from-slate-900/50 dark:to-slate-800/30 border border-slate-200/70 dark:border-slate-800">
           <div className="flex items-center gap-5">
-            <div className="relative flex items-center justify-center w-20 h-20 rounded-full border-4 border-primary/20 bg-background shadow-inner shrink-0">
-              <span className="text-2xl font-black text-primary font-mono">{score}</span>
-              <span className="absolute text-[10px] text-slate-400 font-semibold bottom-2">/ 100</span>
+            {/* Animated SVG Circular Progress Gauge */}
+            <div className="relative flex items-center justify-center w-24 h-24 shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 88 88">
+                {/* Background circle */}
+                <circle
+                  cx="44"
+                  cy="44"
+                  r={radius}
+                  className="stroke-slate-200 dark:stroke-slate-800"
+                  strokeWidth="7"
+                  fill="transparent"
+                />
+                {/* Animated progress circle */}
+                <motion.circle
+                  cx="44"
+                  cy="44"
+                  r={radius}
+                  className={
+                    score >= 70
+                      ? "stroke-emerald-500"
+                      : score >= 50
+                      ? "stroke-amber-500"
+                      : "stroke-rose-500"
+                  }
+                  strokeWidth="7"
+                  strokeDasharray={circumference}
+                  initial={{ strokeDashoffset: circumference }}
+                  animate={{ strokeDashoffset }}
+                  transition={{ duration: 1.2, ease: "easeOut" }}
+                  strokeLinecap="round"
+                  fill="transparent"
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-slate-100">
+                  {score}
+                </span>
+                <span className="text-[10px] text-slate-400 font-bold uppercase -mt-0.5">
+                  / 100
+                </span>
+              </div>
             </div>
+
             <div className="space-y-1">
-              <span className="text-xs uppercase font-bold text-slate-400">Rating Grade</span>
-              <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{grade} Financial Posture</h3>
-              <p className="text-xs text-slate-500">
+              <span className="text-[11px] uppercase font-bold text-slate-400">Rating Grade</span>
+              <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">
+                {grade} Financial Posture
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-md">
                 {score >= 70
                   ? "Your financial records reflect disciplined debt settlement, steady savings, and healthy liquidity."
                   : "Address pending group settlements and category budget limits to enhance your health rating."}
@@ -100,9 +149,9 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
           </div>
 
           {/* Delta & Change Tracker */}
-          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-200/60 dark:border-slate-800">
+          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-200/60 dark:border-slate-800 shrink-0">
             <span className="text-[10px] uppercase font-bold text-slate-400">Score Delta</span>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex items-center gap-1.5 mt-1">
               {scoreDelta > 0 ? (
                 <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-mono font-bold text-xs gap-1">
                   <TrendingUp className="h-3 w-3" />
@@ -120,7 +169,7 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
                 </Badge>
               )}
             </div>
-            <span className="text-[10px] text-slate-400 mt-1">Prev: {previousScore ?? score}</span>
+            <span className="text-[11px] font-mono text-slate-400 mt-1">Prev: {previousScore ?? score}</span>
           </div>
         </div>
 
@@ -138,6 +187,7 @@ export function FinancialHealthScoreCard({ healthScore }: FinancialHealthScoreCa
         {/* 13-Factor Breakdown Grid */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
+
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
               13 Comprehensive Health Factors
             </span>

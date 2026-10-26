@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,13 +50,18 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
   const isWarning = budget.healthStatus === "warning";
 
   return (
-    <Card className={`rounded-3xl border shadow-sm transition-all overflow-hidden flex flex-col justify-between ${
-      isExceeded
-        ? "border-rose-300 dark:border-rose-900 bg-rose-50/15 dark:bg-rose-950/10"
-        : isWarning
-        ? "border-amber-300 dark:border-amber-900 bg-amber-50/15 dark:bg-amber-950/10"
-        : "border-slate-200/80 dark:border-slate-800 bg-card"
-    }`}>
+    <motion.div
+      whileHover={{ y: -3, scale: 1.01 }}
+      transition={{ duration: 0.2 }}
+      className="h-full"
+    >
+      <Card className={`rounded-3xl border shadow-sm transition-all overflow-hidden flex flex-col justify-between h-full ${
+        isExceeded
+          ? "border-rose-300 dark:border-rose-900 bg-rose-50/15 dark:bg-rose-950/10 shadow-rose-500/5"
+          : isWarning
+          ? "border-amber-300 dark:border-amber-900 bg-amber-50/15 dark:bg-amber-950/10 shadow-amber-500/5"
+          : "border-slate-200/80 dark:border-slate-800 bg-card hover:border-slate-300 dark:hover:border-slate-700"
+      }`}>
       <div>
         {/* Header */}
         <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/20">
@@ -143,15 +149,17 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
               </span>
             </div>
             <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(100, budget.usedPercentage)}%` }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+                className={`h-full rounded-full ${
                   isExceeded
-                    ? "bg-rose-500"
+                    ? "bg-gradient-to-r from-rose-500 to-pink-500"
                     : isWarning
-                    ? "bg-amber-500"
-                    : "bg-emerald-500"
+                    ? "bg-gradient-to-r from-amber-500 to-yellow-500"
+                    : "bg-gradient-to-r from-emerald-500 to-teal-400"
                 }`}
-                style={{ width: `${Math.min(100, budget.usedPercentage)}%` }}
               />
             </div>
           </div>
@@ -203,5 +211,6 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
         </span>
       </div>
     </Card>
+    </motion.div>
   );
 }

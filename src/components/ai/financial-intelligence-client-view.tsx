@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   FinancialIntelligenceData,
   getFinancialIntelligence,
@@ -57,6 +58,7 @@ export function FinancialIntelligenceClientView({
   groups,
 }: FinancialIntelligenceClientViewProps) {
   const [data, setData] = useState<FinancialIntelligenceData>(initialData);
+  const [activeTab, setActiveTab] = useState<string>("assistant");
   const [isMounted, setIsMounted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isBudgetDialogOpen, setIsBudgetDialogOpen] = useState(false);
@@ -158,199 +160,336 @@ export function FinancialIntelligenceClientView({
       <GlobalAISearchBar />
 
       {/* Main Feature Tabs */}
-      <Tabs defaultValue="assistant" className="space-y-6">
-        <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl flex-wrap h-auto gap-1">
-          <TabsTrigger value="assistant" className="rounded-xl text-xs font-semibold">
-            <Bot className="h-3.5 w-3.5 mr-1.5 inline text-primary" />
-            AI Assistant
-          </TabsTrigger>
-          <TabsTrigger value="voice-automation" className="rounded-xl text-xs font-semibold">
-            <Mic className="h-3.5 w-3.5 mr-1.5 inline text-indigo-500" />
-            Voice & Automation
-          </TabsTrigger>
-          <TabsTrigger value="insights" className="rounded-xl text-xs font-semibold">
-            <Sparkles className="h-3.5 w-3.5 mr-1.5 inline text-amber-500" />
-            Health & Business Intel
-          </TabsTrigger>
-          <TabsTrigger value="subscriptions" className="rounded-xl text-xs font-semibold">
-            <Repeat className="h-3.5 w-3.5 mr-1.5 inline text-indigo-500" />
-            Subscriptions
-          </TabsTrigger>
-          <TabsTrigger value="budgets" className="rounded-xl text-xs font-semibold">
-            <Target className="h-3.5 w-3.5 mr-1.5 inline text-emerald-500" />
-            Budget Tracker ({data.budgets.length})
-          </TabsTrigger>
-          <TabsTrigger value="forecasting" className="rounded-xl text-xs font-semibold">
-            <TrendingUp className="h-3.5 w-3.5 mr-1.5 inline text-blue-500" />
-            Forecasting & Charts
-          </TabsTrigger>
-          <TabsTrigger value="ocr" className="rounded-xl text-xs font-semibold">
-            <Camera className="h-3.5 w-3.5 mr-1.5 inline text-rose-500" />
-            Receipt OCR
-          </TabsTrigger>
-        </TabsList>
+      {/* Main Feature Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        {/* Responsive Horizontal Scrollable Sub-Subjects Bar */}
+        <div className="relative">
+          <div className="p-1.5 rounded-2xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none backdrop-blur-md shadow-xs">
+            {[
+              { id: "assistant", label: "AI Assistant", icon: Bot, color: "text-primary" },
+              { id: "voice-automation", label: "Voice & Automation", icon: Mic, color: "text-indigo-500" },
+              { id: "insights", label: "Health & Business Intel", icon: Sparkles, color: "text-amber-500" },
+              { id: "subscriptions", label: "Subscriptions", icon: Repeat, color: "text-purple-500" },
+              {
+                id: "budgets",
+                label: `Budget Tracker`,
+                badge: data.budgets.length,
+                icon: Target,
+                color: "text-emerald-500"
+              },
+              { id: "forecasting", label: "Forecasting & Charts", icon: TrendingUp, color: "text-blue-500" },
+              { id: "ocr", label: "Receipt OCR", icon: Camera, color: "text-rose-500" },
+            ].map((sub) => {
+              const isActive = activeTab === sub.id;
+              const Icon = sub.icon;
 
-        {/* TAB 1: AI Assistant & Q&A */}
-        <TabsContent value="assistant" className="space-y-6">
-          <AIFinancialAssistantCard />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <AIInsightsFeed insights={data.aiInsights} />
-            <SmartRecommendationsView
-              recommendations={data.recommendations}
-              onOpenBudgetDialog={handleCreateBudget}
-            />
+              return (
+                <button
+                  key={sub.id}
+                  type="button"
+                  onClick={() => setActiveTab(sub.id)}
+                  className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors shrink-0 ${
+                    isActive
+                      ? "text-slate-900 dark:text-slate-100"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="active-ai-subsubject-capsule"
+                      className="absolute inset-0 bg-white dark:bg-slate-800 rounded-xl shadow-xs border border-slate-200/90 dark:border-slate-700/80"
+                      transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <Icon className={`h-4 w-4 ${sub.color} shrink-0`} />
+                    <span>{sub.label}</span>
+                    {sub.badge !== undefined && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
+                        isActive
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                      }`}>
+                        {sub.badge}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </TabsContent>
+        </div>
 
-        {/* TAB 2: Multilingual Voice Assistant & Automation Rules */}
-        <TabsContent value="voice-automation" className="space-y-6">
-          <VoiceAssistantPanel onCommandExecuted={() => handleRefresh()} />
-          <AutomationRulesBuilder />
-        </TabsContent>
-
-        {/* TAB 3: Financial Health Score & Business Intelligence */}
-        <TabsContent value="insights" className="space-y-6">
-          <FinancialHealthScoreCard healthScore={data.healthScore} />
-          <BusinessIntelligenceCard intelligence={data} />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <AIInsightsFeed insights={data.aiInsights} />
-            <SmartRecommendationsView
-              recommendations={data.recommendations}
-              onOpenBudgetDialog={handleCreateBudget}
-            />
-          </div>
-        </TabsContent>
-
-        {/* TAB 4: Subscriptions */}
-        <TabsContent value="subscriptions" className="space-y-6">
-          <AISubscriptionsCard />
-        </TabsContent>
-
-        {/* TAB 5: Live Budget Tracker */}
-        <TabsContent value="budgets" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Active Spending Budgets
-              </h2>
-              <p className="text-xs text-slate-500">
-                Live automated comparisons of actual expense outflow against your spending targets in INR (₹)
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl text-xs gap-1.5 font-bold"
-              onClick={handleCreateBudget}
+        <AnimatePresence mode="wait">
+          {/* TAB 1: AI Assistant & Q&A */}
+          {activeTab === "assistant" && (
+            <motion.div
+              key="assistant"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="space-y-6"
             >
-              <Plus className="h-3.5 w-3.5 text-primary" />
-              <span>Add Target</span>
-            </Button>
-          </div>
-
-          {data.budgets.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {data.budgets.map((b) => (
-                <BudgetCard key={b.id} budget={b} onEdit={handleEditBudget} />
-              ))}
-            </div>
-          ) : (
-            <Card className="rounded-3xl border-2 border-dashed p-10 text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto text-primary">
-                <Target className="h-6 w-6" />
+              <AIFinancialAssistantCard />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AIInsightsFeed insights={data.aiInsights} />
+                <SmartRecommendationsView
+                  recommendations={data.recommendations}
+                  onOpenBudgetDialog={handleCreateBudget}
+                />
               </div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">No Active Budgets Found</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Create your first monthly grocery, family, trip, or entertainment budget to keep spending within safe thresholds.
-              </p>
-              <Button size="sm" className="rounded-xl text-xs font-semibold" onClick={handleCreateBudget}>
-                <Plus className="h-3.5 w-3.5 mr-1" />
-                Set Up First Budget
-              </Button>
-            </Card>
+            </motion.div>
           )}
-        </TabsContent>
 
-        {/* TAB 6: Forecasting & Live Interactive Charts */}
-        <TabsContent value="forecasting" className="space-y-6">
-          <FinancialForecastingCard
-            forecasts={data.forecasts}
-            cashFlow={data.cashFlow}
-          />
-          <AIFinancialCharts
-            cashFlow={data.cashFlow}
-            categoryBreakdown={data.categoryBreakdown}
-          />
-        </TabsContent>
+          {/* TAB 2: Multilingual Voice Assistant & Automation Rules */}
+          {activeTab === "voice-automation" && (
+            <motion.div
+              key="voice-automation"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <VoiceAssistantPanel onCommandExecuted={() => handleRefresh()} />
+              <AutomationRulesBuilder />
+            </motion.div>
+          )}
 
-        {/* TAB 7: Receipt OCR Scanner */}
-        <TabsContent value="ocr" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="rounded-3xl border shadow-sm p-6 space-y-4 hover:border-primary/40 transition-colors bg-card">
-              <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 w-fit">
-                <Camera className="h-6 w-6" />
+          {/* TAB 3: Financial Health Score & Business Intelligence */}
+          {activeTab === "insights" && (
+            <motion.div
+              key="insights"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <FinancialHealthScoreCard healthScore={data.healthScore} />
+              <BusinessIntelligenceCard intelligence={data} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AIInsightsFeed insights={data.aiInsights} />
+                <SmartRecommendationsView
+                  recommendations={data.recommendations}
+                  onOpenBudgetDialog={handleCreateBudget}
+                />
               </div>
-              <div>
-                <CardTitle className="text-base font-bold">Receipt OCR Scanner</CardTitle>
-                <p className="text-xs text-slate-500 mt-1">
-                  Upload grocery, restaurant, or fuel bills to automatically extract amount, taxes, and log to database
-                </p>
-              </div>
-              <Button
-                size="sm"
-                className="w-full rounded-xl text-xs font-semibold bg-primary"
-                onClick={() => setIsReceiptModalOpen(true)}
-              >
-                <Upload className="h-3.5 w-3.5 mr-1.5" />
-                Open OCR Scanner Modal
-              </Button>
-            </Card>
+            </motion.div>
+          )}
 
-            <Card className="rounded-3xl border shadow-sm p-6 space-y-4 hover:border-primary/40 transition-colors bg-card">
-              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 w-fit">
-                <Zap className="h-6 w-6" />
-              </div>
-              <div>
-                <CardTitle className="text-base font-bold">Smart Categorization</CardTitle>
-                <p className="text-xs text-slate-500 mt-1">
-                  Automatically assigns categories and tags based on merchant title and recurring patterns
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full rounded-xl text-xs font-semibold"
-                onClick={() => {
-                  toast.success("Categorization models active on all incoming ledger transactions.");
-                }}
-              >
-                Categorization Active
-              </Button>
-            </Card>
+          {/* TAB 4: Subscriptions */}
+          {activeTab === "subscriptions" && (
+            <motion.div
+              key="subscriptions"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <AISubscriptionsCard />
+            </motion.div>
+          )}
 
-            <Card className="rounded-3xl border shadow-sm p-6 space-y-4 hover:border-primary/40 transition-colors bg-card">
-              <div className="p-3 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 w-fit">
-                <Brain className="h-6 w-6" />
+          {/* TAB 5: Live Budget Tracker */}
+          {activeTab === "budgets" && (
+            <motion.div
+              key="budgets"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-emerald-50/20 dark:from-slate-900/40 dark:to-emerald-950/20 border border-slate-200/80 dark:border-slate-800">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <Target className="h-4 w-4 text-emerald-500" />
+                    <span>Active Spending Budgets</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Live automated comparisons of actual expense outflow against your spending targets in INR (₹)
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className="rounded-xl text-xs gap-1.5 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white self-start sm:self-auto"
+                  onClick={handleCreateBudget}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Target</span>
+                </Button>
               </div>
-              <div>
-                <CardTitle className="text-base font-bold">Subscription Audit</CardTitle>
-                <p className="text-xs text-slate-500 mt-1">
-                  Identifies recurring monthly utilities, gym memberships, and duplicate digital subscriptions
-                </p>
+
+              {data.budgets.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {data.budgets.map((b) => (
+                    <BudgetCard key={b.id} budget={b} onEdit={handleEditBudget} />
+                  ))}
+                </div>
+              ) : (
+                <Card className="rounded-3xl border-2 border-dashed p-10 text-center space-y-4 bg-card/50">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto text-primary shadow-xs">
+                    <Target className="h-7 w-7" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">No Active Budgets Found</h3>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                      Create your first monthly grocery, family, trip, or entertainment budget to keep spending within safe thresholds.
+                    </p>
+                  </div>
+                  <Button size="sm" className="rounded-xl text-xs font-bold bg-primary shadow-sm" onClick={handleCreateBudget}>
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Set Up First Budget
+                  </Button>
+                </Card>
+              )}
+            </motion.div>
+          )}
+
+          {/* TAB 6: Forecasting & Live Interactive Charts */}
+          {activeTab === "forecasting" && (
+            <motion.div
+              key="forecasting"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <FinancialForecastingCard
+                forecasts={data.forecasts}
+                cashFlow={data.cashFlow}
+              />
+              <AIFinancialCharts
+                cashFlow={data.cashFlow}
+                categoryBreakdown={data.categoryBreakdown}
+              />
+            </motion.div>
+          )}
+
+          {/* TAB 7: Receipt OCR Scanner */}
+          {activeTab === "ocr" && (
+            <motion.div
+              key="ocr"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* OCR Scanner Card */}
+                <motion.div
+                  whileHover={{ y: -4, scale: 1.01 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4 hover:border-blue-500/50 transition-all bg-card relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+                    <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 w-fit">
+                      <Camera className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                          Receipt OCR Scanner
+                        </CardTitle>
+                        <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
+                          AI Vision
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Upload grocery, restaurant, or fuel bills to automatically extract amounts, taxes, and itemized splits.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-sm"
+                      onClick={() => setIsReceiptModalOpen(true)}
+                    >
+                      <Upload className="h-3.5 w-3.5 mr-1.5" />
+                      Open OCR Scanner Modal
+                    </Button>
+                  </Card>
+                </motion.div>
+
+                {/* Smart Categorization */}
+                <motion.div
+                  whileHover={{ y: -4, scale: 1.01 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4 hover:border-emerald-500/50 transition-all bg-card relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+                    <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 w-fit">
+                      <Zap className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                          Smart Categorization
+                        </CardTitle>
+                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
+                          Active
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Automatically assigns categories and tags based on merchant title, transaction patterns, and notes.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full rounded-xl text-xs font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                      onClick={() => {
+                        toast.success("Categorization models active on all incoming ledger transactions.");
+                      }}
+                    >
+                      Categorization Active
+                    </Button>
+                  </Card>
+                </motion.div>
+
+                {/* Subscription Audit */}
+                <motion.div
+                  whileHover={{ y: -4, scale: 1.01 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4 hover:border-purple-500/50 transition-all bg-card relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500" />
+                    <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 w-fit">
+                      <Brain className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                          Subscription Audit
+                        </CardTitle>
+                        <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-bold">
+                          Recurring
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Identifies recurring monthly utilities, gym memberships, and duplicate digital subscriptions.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full rounded-xl text-xs font-semibold hover:bg-purple-50 dark:hover:bg-purple-950/30"
+                      onClick={() => {
+                        setActiveTab("subscriptions");
+                      }}
+                    >
+                      View Subscriptions
+                    </Button>
+                  </Card>
+                </motion.div>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full rounded-xl text-xs font-semibold"
-                onClick={() => {
-                  toast.info("Navigate to the Subscriptions tab to audit recurring outflows.");
-                }}
-              >
-                View Subscriptions
-              </Button>
-            </Card>
-          </div>
-        </TabsContent>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Tabs>
 
       {/* Budget Modal */}

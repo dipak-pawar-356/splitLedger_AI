@@ -91,8 +91,8 @@ export function GlobalAISearchBar() {
   return (
     <div ref={containerRef} className="relative w-full">
       {/* Search Input Bar */}
-      <div className="relative flex items-center">
-        <Search className="absolute left-3.5 h-4 w-4 text-slate-400 pointer-events-none" />
+      <div className="relative flex items-center group">
+        <Search className="absolute left-3.5 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors pointer-events-none" />
         <Input
           value={query}
           onChange={(e) => {
@@ -103,32 +103,38 @@ export function GlobalAISearchBar() {
             if (results.length > 0) setIsOpen(true);
           }}
           placeholder="Global AI Search across transactions, groups, budgets, notes, and settlements..."
-          className="rounded-2xl pl-10 pr-10 h-11 text-xs bg-background border-slate-200/80 dark:border-slate-800 shadow-sm"
+          className="rounded-2xl pl-10 pr-20 h-11 text-xs sm:text-sm bg-background border-slate-200/80 dark:border-slate-800 focus-visible:ring-primary/30 shadow-xs transition-all"
           suppressHydrationWarning
         />
-        {isSearching ? (
-          <Loader2 className="absolute right-3.5 h-4 w-4 text-primary animate-spin" />
-        ) : query ? (
-          <button
-            type="button"
-            onClick={() => {
-              setQuery("");
-              setResults([]);
-              setIsOpen(false);
-            }}
-            className="absolute right-3.5 text-slate-400 hover:text-slate-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : null}
+        <div className="absolute right-3.5 flex items-center gap-1.5">
+          {isSearching ? (
+            <Loader2 className="h-4 w-4 text-primary animate-spin" />
+          ) : query ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setResults([]);
+                setIsOpen(false);
+              }}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : (
+            <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              Ctrl+K
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Results Dropdown */}
       {isOpen && (results.length > 0 || (query.trim() && !isSearching)) && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl bg-popover border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden text-xs animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl bg-popover/95 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden text-xs backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Filter Pills */}
           {results.length > 0 && (
-            <div className="p-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            <div className="p-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
               {[
                 { key: "all", label: "All" },
                 { key: "transaction", label: "Transactions" },
@@ -140,10 +146,10 @@ export function GlobalAISearchBar() {
                   key={f.key}
                   type="button"
                   onClick={() => setSelectedFilter(f.key)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all ${
                     selectedFilter === f.key
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800"
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "bg-background text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50"
                   }`}
                 >
                   {f.label}
