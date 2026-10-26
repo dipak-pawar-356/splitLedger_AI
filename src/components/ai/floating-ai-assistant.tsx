@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SUGGESTED_QUICK_QUESTIONS } from "@/lib/ai/prompts";
+import { FormattedAIAnswer } from "@/components/ai/formatted-ai-answer";
 
 interface Message {
   id: string;
@@ -30,20 +31,6 @@ interface Message {
 }
 
 const QUICK_PROMPTS = SUGGESTED_QUICK_QUESTIONS;
-
-function formatMessageContent(content: string) {
-  const parts = content.split(/(\*\*.*?\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={i} className="font-semibold text-slate-900 dark:text-slate-100">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    return part;
-  });
-}
 
 export function FloatingAIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -194,7 +181,11 @@ export function FloatingAIAssistant() {
                         : "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800"
                     }`}
                   >
-                    <p className="whitespace-pre-line">{formatMessageContent(msg.content)}</p>
+                    {msg.role === "assistant" ? (
+                      <FormattedAIAnswer content={msg.content} />
+                    ) : (
+                      <p className="whitespace-pre-line">{msg.content}</p>
+                    )}
 
                     {msg.metrics && msg.metrics.length > 0 && (
                       <div className="grid grid-cols-2 gap-1.5 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">

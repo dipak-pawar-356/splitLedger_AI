@@ -99,6 +99,15 @@
   .glassmorphism {
     @apply backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/60;
   }
+  .no-scrollbar::-webkit-scrollbar,
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar,
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
   .input-focus-glow {
     @apply transition-all duration-150 focus:border-primary focus:ring-4 focus:ring-primary/10;
   }

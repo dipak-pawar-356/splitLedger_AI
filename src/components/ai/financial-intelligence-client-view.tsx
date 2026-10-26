@@ -238,7 +238,7 @@ export function FinancialIntelligenceClientView({
           <div
             role="tablist"
             aria-label="Financial Intelligence Modules"
-            className="p-1.5 rounded-2xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none backdrop-blur-md shadow-xs touch-pan-x"
+            className="p-1.5 rounded-2xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none no-scrollbar backdrop-blur-md shadow-xs touch-pan-x"
           >
             {subSubjects.map((sub, idx) => {
               const isActive = activeTab === sub.id;

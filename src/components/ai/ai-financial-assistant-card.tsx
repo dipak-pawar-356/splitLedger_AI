@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, Send, Bot, ArrowUpRight, CheckCircle2, HelpCircle, Loader2 } from "lucide-react";
 import { askFinancialAssistant, AIAssistantResponse } from "@/actions/ai-assistant";
+import { FormattedAIAnswer } from "@/components/ai/formatted-ai-answer";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -75,7 +76,7 @@ export function AIFinancialAssistantCard() {
           <div
             role="toolbar"
             aria-label="Suggested financial questions"
-            className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none"
+            className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none no-scrollbar"
           >
             {QUICK_QUESTIONS.map((q, idx) => (
               <motion.button
@@ -155,7 +156,7 @@ export function AIFinancialAssistantCard() {
                 <div className="w-9 h-9 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0 mt-0.5 border border-primary/20 shadow-xs">
                   <Sparkles className="h-4 w-4" aria-hidden="true" />
                 </div>
-                <div className="space-y-1.5 flex-1">
+                <div className="space-y-2 flex-1">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
                       Financial Assistant Analysis
@@ -164,9 +165,7 @@ export function AIFinancialAssistantCard() {
                       Verified
                     </Badge>
                   </div>
-                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-sans">
-                    {response.answer}
-                  </p>
+                  <FormattedAIAnswer content={response.answer} />
                 </div>
               </div>
 
