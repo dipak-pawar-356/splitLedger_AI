@@ -1,4 +1,7 @@
-import * as XLSX from "xlsx";
+// Dynamic import of xlsx ensures optimal client-side code splitting and avoids bundling SheetJS on initial page load
+async function getXlsx() {
+  return await import("xlsx");
+}
 
 export interface AnalyzedFileSummary {
   fileName: string;
@@ -144,6 +147,7 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
     headers = Array.from(new Set(rawData.flatMap((r) => Object.keys(r))));
   } else {
     const arrayBuffer = await file.arrayBuffer();
+    const XLSX = await getXlsx();
     const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
@@ -283,7 +287,8 @@ export function generateContactCsvTemplate(): string {
 /**
  * Generate standard Excel template (.xlsx) for downloading
  */
-export function generateContactXlsxTemplateBlob(): Blob {
+export async function generateContactXlsxTemplateBlob(): Promise<Blob> {
+  const XLSX = await getXlsx();
   const wsData = [
     [
       "Full Name",
@@ -452,7 +457,8 @@ export function exportContactsToVcf(contacts: any[]): string {
 /**
  * Client Export Contacts to XLSX Blob
  */
-export function exportContactsToXlsxBlob(contacts: any[]): Blob {
+export async function exportContactsToXlsxBlob(contacts: any[]): Promise<Blob> {
+  const XLSX = await getXlsx();
   const aoaData: any[][] = [
     [
       "Name",

@@ -440,15 +440,19 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
   };
 
   // Download Templates
-  const handleDownloadXlsxTemplate = () => {
-    const blob = generateContactXlsxTemplateBlob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "contacts-import-template.xlsx";
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Downloaded Excel Import Template (.xlsx)");
+  const handleDownloadXlsxTemplate = async () => {
+    try {
+      const blob = await generateContactXlsxTemplateBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "contacts-import-template.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Downloaded Excel Import Template (.xlsx)");
+    } catch {
+      toast.error("Failed to generate Excel template");
+    }
   };
 
   const handleDownloadCsvTemplate = () => {

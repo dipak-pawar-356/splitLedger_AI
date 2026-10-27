@@ -1,6 +1,75 @@
 import { neon } from "@neondatabase/serverless";
 
 let migrationPromise: Promise<void> | null = null;
+let contactsMigrationPromise: Promise<void> | null = null;
+
+export async function ensureContactsSchema(): Promise<void> {
+  if (contactsMigrationPromise) return contactsMigrationPromise;
+
+  contactsMigrationPromise = (async () => {
+    try {
+      const connStr = process.env.DATABASE_URL;
+      if (!connStr) return;
+      const sqlClient = neon(connStr);
+
+      const statements = [
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS public_id TEXT`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS avatar TEXT`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS notification_preference TEXT DEFAULT 'email'`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT false`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_by INTEGER`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company TEXT`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS address TEXT`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'::jsonb`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT false`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS category TEXT`,
+        sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`,
+        sqlClient`
+          CREATE TABLE IF NOT EXISTS contact_imports (
+            id SERIAL PRIMARY KEY,
+            public_id TEXT UNIQUE NOT NULL,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            file_name TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            file_type TEXT NOT NULL,
+            imported_records INTEGER DEFAULT 0 NOT NULL,
+            updated_records INTEGER DEFAULT 0 NOT NULL,
+            skipped_records INTEGER DEFAULT 0 NOT NULL,
+            failed_records INTEGER DEFAULT 0 NOT NULL,
+            total_records INTEGER DEFAULT 0 NOT NULL,
+            duration_ms INTEGER DEFAULT 0 NOT NULL,
+            status TEXT DEFAULT 'completed' NOT NULL,
+            error_report JSONB,
+            imported_contact_ids JSONB DEFAULT '[]'::jsonb,
+            created_at TIMESTAMP DEFAULT NOW() NOT NULL
+          )
+        `,
+        sqlClient`CREATE INDEX IF NOT EXISTS contact_import_user_idx ON contact_imports(user_id)`,
+        sqlClient`CREATE INDEX IF NOT EXISTS contact_import_public_id_idx ON contact_imports(public_id)`,
+        sqlClient`CREATE INDEX IF NOT EXISTS contact_user_idx ON contacts(user_id)`,
+        sqlClient`CREATE INDEX IF NOT EXISTS contact_public_id_idx ON contacts(public_id)`,
+        sqlClient`CREATE INDEX IF NOT EXISTS contact_deleted_idx ON contacts(is_deleted)`,
+        sqlClient`CREATE INDEX IF NOT EXISTS contact_user_deleted_idx ON contacts(user_id, is_deleted)`,
+      ];
+
+      for (const stmt of statements) {
+        try {
+          await stmt;
+        } catch (err: any) {
+          console.warn("Contact schema statement warning:", err?.message || err);
+        }
+      }
+    } catch (err: any) {
+      console.warn("ensureContactsSchema error:", err?.message || err);
+    }
+  })();
+
+  return contactsMigrationPromise;
+}
 
 export async function ensureDatabaseSchema(): Promise<void> {
   if (migrationPromise) return migrationPromise;
@@ -110,41 +179,8 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`ALTER TABLE settlements ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`;
       await sqlClient`ALTER TABLE settlements ADD COLUMN IF NOT EXISTS deleted_by INTEGER`;
 
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS public_id TEXT`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_by INTEGER`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company TEXT`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS address TEXT`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'::jsonb`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT false`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false`;
-      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS category TEXT`;
-
-      // Contact imports table
-      await sqlClient`
-        CREATE TABLE IF NOT EXISTS contact_imports (
-          id SERIAL PRIMARY KEY,
-          public_id TEXT UNIQUE NOT NULL,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          file_name TEXT NOT NULL,
-          file_size INTEGER NOT NULL,
-          file_type TEXT NOT NULL,
-          imported_records INTEGER DEFAULT 0 NOT NULL,
-          updated_records INTEGER DEFAULT 0 NOT NULL,
-          skipped_records INTEGER DEFAULT 0 NOT NULL,
-          failed_records INTEGER DEFAULT 0 NOT NULL,
-          total_records INTEGER DEFAULT 0 NOT NULL,
-          duration_ms INTEGER DEFAULT 0 NOT NULL,
-          status TEXT DEFAULT 'completed' NOT NULL,
-          error_report JSONB,
-          imported_contact_ids JSONB DEFAULT '[]'::jsonb,
-          created_at TIMESTAMP DEFAULT NOW() NOT NULL
-        )
-      `;
-      await sqlClient`CREATE INDEX IF NOT EXISTS contact_import_user_idx ON contact_imports(user_id)`;
-      await sqlClient`CREATE INDEX IF NOT EXISTS contact_import_public_id_idx ON contact_imports(public_id)`;
+      // Execute robust contact schema migrations
+      await ensureContactsSchema();
 
       // Create or alter Audit Logs
       await sqlClient`

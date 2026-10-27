@@ -55,7 +55,7 @@ export function ContactExportDialog({
       ? filteredContacts
       : allContacts;
 
-  const handleExecuteExport = () => {
+  const handleExecuteExport = async () => {
     setIsExporting(true);
     try {
       const timestamp = new Date().toISOString().slice(0, 10);
@@ -79,7 +79,7 @@ export function ContactExportDialog({
         a.click();
         URL.revokeObjectURL(url);
       } else if (format === "xlsx") {
-        const blob = exportContactsToXlsxBlob(contactsToExport);
+        const blob = await exportContactsToXlsxBlob(contactsToExport);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
