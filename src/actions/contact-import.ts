@@ -1,6 +1,6 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
 import {
   contacts,
   contactImports,
@@ -14,10 +14,12 @@ import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
+import { ensureContactsSchema } from "@/lib/db/auto-migrate";
 
 /**
- * Formula Injection Protection (CWE-1236):
- * If cell starts with '=', '+', '-', '@', '\t', '\r', prefix with single quote
+ * Formula Injection Protection (CWE-1236 / CSV Injection):
+ * If a text cell starts with '=', '+', '-', '@', '\t', '\r', prefix with single quote
+ * and store as safe plain text.
  */
 function sanitizeFormulaInjection(value: string | null | undefined): string | null {
   if (!value || typeof value !== "string") return null;
@@ -28,15 +30,43 @@ function sanitizeFormulaInjection(value: string | null | undefined): string | nu
   return trimmed;
 }
 
+/**
+ * Clean contact name:
+ * - Trims whitespace
+ * - Collapses consecutive spaces
+ * - Preserves Unicode, Marathi, Hindi, and special characters (O'Neil, Mary-Jane, etc.)
+ */
+function cleanContactName(raw: string | null | undefined): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  const cleaned = raw.trim().replace(/\s+/g, " ");
+  if (!cleaned) return null;
+  return sanitizeFormulaInjection(cleaned)?.slice(0, 150) || null;
+}
+
+const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+function normalizePhone(p?: string | null): string {
+  if (!p) return "";
+  const digits = String(p).replace(/[^0-9]/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("91") && digits.length === 12) return digits.slice(2);
+  if (digits.startsWith("0") && digits.length === 11) return digits.slice(1);
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
 export interface ParsedContactRecord {
+  rowNumber?: number;
   name: string;
   email?: string | null;
   phone?: string | null;
   company?: string | null;
   address?: string | null;
   tags?: string[] | null;
-  notes?: string | null;
+  notes?: string | null; // ONLY saved if explicitly mapped by user
   openingBalance?: number;
+  currency?: string;
+  action?: "new" | "update" | "merge" | "skip";
+  existingContactId?: number | null;
   customFields?: Record<string, any> | null;
 }
 
@@ -45,7 +75,7 @@ export interface ImportOptions {
   fileSize: number;
   fileType: "xlsx" | "csv" | "vcf" | "google" | "outlook";
   records: ParsedContactRecord[];
-  duplicateStrategy: "skip" | "update" | "merge" | "create_copy";
+  duplicateStrategy?: "skip" | "update" | "merge" | "create_copy";
 }
 
 export interface ImportResult {
@@ -61,19 +91,53 @@ export interface ImportResult {
 }
 
 /**
+ * Fetch existing contacts for client-side Preview & Duplicate Resolution
+ */
+export async function getExistingContactsForImportPreviewAction() {
+  const user = await requireAuth();
+  try {
+    await ensureContactsSchema();
+  } catch (_) {}
+
+  return await withDbRetry(async () => {
+    return await db
+      .select({
+        id: contacts.id,
+        publicId: contacts.publicId,
+        name: contacts.name,
+        email: contacts.email,
+        phone: contacts.phone,
+        company: contacts.company,
+        address: contacts.address,
+        tags: contacts.tags,
+        notes: contacts.notes,
+        openingBalance: contacts.openingBalance,
+        currency: contacts.currency,
+      })
+      .from(contacts)
+      .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)));
+  });
+}
+
+/**
  * FEATURE 2: Enterprise Contact Import Processing Engine
+ * Validates every row independently before database insertion.
+ * Protects against CSV injection, handles duplicates, and preserves Unicode / Marathi / Hindi names.
  */
 export async function importContactsAction(options: ImportOptions): Promise<ImportResult> {
   const startTime = Date.now();
   const user = await requireAuth();
 
-  const { fileName, fileSize, fileType, records, duplicateStrategy } = options;
+  try {
+    await ensureContactsSchema();
+  } catch (_) {}
+
+  const { fileName, fileSize, fileType, records, duplicateStrategy = "merge" } = options;
 
   if (!records || records.length === 0) {
     throw new ValidationError("No contact records provided to import");
   }
 
-  // File size & row limit safety
   if (fileSize > 15 * 1024 * 1024) {
     throw new ValidationError("File size exceeds 15MB limit");
   }
@@ -82,35 +146,36 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
     throw new ValidationError("Maximum limit of 5,000 records per import exceeded");
   }
 
-  // Fetch all existing contacts of current user for fast duplicate checking
-  const existingContacts = await db
-    .select({
-      id: contacts.id,
-      publicId: contacts.publicId,
-      name: contacts.name,
-      email: contacts.email,
-      phone: contacts.phone,
-      company: contacts.company,
-      address: contacts.address,
-      tags: contacts.tags,
-      notes: contacts.notes,
-      customFields: contacts.customFields,
-    })
-    .from(contacts)
-    .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)));
+  // Fetch all existing contacts of current user for duplicate detection
+  const existingContacts = await withDbRetry(async () => {
+    return await db
+      .select({
+        id: contacts.id,
+        publicId: contacts.publicId,
+        name: contacts.name,
+        email: contacts.email,
+        phone: contacts.phone,
+        company: contacts.company,
+        address: contacts.address,
+        tags: contacts.tags,
+        notes: contacts.notes,
+        customFields: contacts.customFields,
+      })
+      .from(contacts)
+      .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)));
+  });
 
+  const byId = new Map<number, (typeof existingContacts)[0]>();
   const byEmail = new Map<string, (typeof existingContacts)[0]>();
   const byPhone = new Map<string, (typeof existingContacts)[0]>();
   const byName = new Map<string, (typeof existingContacts)[0]>();
 
-  const normalizePhone = (p?: string | null) =>
-    p ? p.replace(/[^0-9]/g, "").slice(-10) : "";
-
   for (const c of existingContacts) {
+    byId.set(c.id, c);
     if (c.email) byEmail.set(c.email.trim().toLowerCase(), c);
     const p = normalizePhone(c.phone);
     if (p) byPhone.set(p, c);
-    byName.set(c.name.trim().toLowerCase(), c);
+    if (c.name) byName.set(c.name.trim().toLowerCase(), c);
   }
 
   let importedRecords = 0;
@@ -120,24 +185,24 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
   const errorReport: Array<{ row: number; name?: string; error: string }> = [];
   const importedContactIds: number[] = [];
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
   for (let i = 0; i < records.length; i++) {
     const raw = records[i];
-    const rowNum = i + 1;
+    const rowNum = raw.rowNumber || i + 1;
 
     try {
-      const sanitizedName = sanitizeFormulaInjection(raw.name)?.slice(0, 150);
+      // 1. Mandatory Name Validation (Preserves Unicode / Marathi / Hindi / O'Neil)
+      const sanitizedName = cleanContactName(raw.name);
       if (!sanitizedName || sanitizedName.length === 0) {
         errorReport.push({ row: rowNum, error: "Missing required contact name" });
         failedRecords++;
         continue;
       }
 
+      // 2. Email Validation (if provided)
       let sanitizedEmail: string | null = null;
-      if (raw.email && raw.email.trim()) {
-        const cleanEmail = raw.email.trim().toLowerCase();
-        if (emailRegex.test(cleanEmail)) {
+      if (raw.email && String(raw.email).trim()) {
+        const cleanEmail = String(raw.email).trim().toLowerCase();
+        if (EMAIL_REGEX.test(cleanEmail)) {
           sanitizedEmail = sanitizeFormulaInjection(cleanEmail);
         } else {
           errorReport.push({
@@ -150,47 +215,71 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
         }
       }
 
+      // 3. Phone Validation (if provided)
       let sanitizedPhone: string | null = null;
-      if (raw.phone && raw.phone.trim()) {
-        const digits = raw.phone.replace(/[^0-9+]/g, "").trim();
-        if (digits.length >= 6) {
+      if (raw.phone && String(raw.phone).trim()) {
+        const digits = String(raw.phone).replace(/[^0-9+]/g, "").trim();
+        const rawDigits = String(raw.phone).replace(/[^0-9]/g, "");
+        if (rawDigits.length >= 6 && rawDigits.length <= 15) {
           sanitizedPhone = sanitizeFormulaInjection(digits);
         } else {
           errorReport.push({
             row: rowNum,
             name: sanitizedName,
-            error: `Invalid phone number: '${raw.phone}'`,
+            error: `Invalid phone number (must be 6-15 digits): '${raw.phone}'`,
           });
           failedRecords++;
           continue;
         }
       }
 
-      const sanitizedCompany = sanitizeFormulaInjection(raw.company)?.slice(0, 120);
-      const sanitizedAddress = sanitizeFormulaInjection(raw.address)?.slice(0, 250);
-      const sanitizedNotes = sanitizeFormulaInjection(raw.notes)?.slice(0, 1000);
+      // 4. Other String Fields Sanitization
+      const sanitizedCompany = raw.company
+        ? sanitizeFormulaInjection(String(raw.company).trim())?.slice(0, 120) || null
+        : null;
+      const sanitizedAddress = raw.address
+        ? sanitizeFormulaInjection(String(raw.address).trim())?.slice(0, 250) || null
+        : null;
+
+      // 5. Notes handling:
+      // Notes is ONLY saved if explicitly provided (i.e. user mapped it).
+      // Test notes from unmapped files must never be written as descriptions.
+      const sanitizedNotes = raw.notes && String(raw.notes).trim()
+        ? sanitizeFormulaInjection(String(raw.notes).trim())?.slice(0, 1000) || null
+        : null;
+
       const tagsArray = Array.isArray(raw.tags)
-        ? raw.tags.map((t) => sanitizeFormulaInjection(t)?.slice(0, 40) || "").filter(Boolean)
+        ? raw.tags
+            .map((t) => sanitizeFormulaInjection(String(t).trim())?.slice(0, 40) || "")
+            .filter(Boolean)
         : [];
 
-      // Check conflict against existing contacts
+      // Opening balance: numeric float converted to integer paise
+      const openingBalancePaise = Math.round((Number(raw.openingBalance) || 0) * 100);
+      const currency = raw.currency ? sanitizeFormulaInjection(raw.currency) || "INR" : "INR";
+
+      // 6. Action & Conflict Resolution
       const normEmail = sanitizedEmail ? sanitizedEmail.toLowerCase() : "";
       const normPhone = normalizePhone(sanitizedPhone);
       const normName = sanitizedName.toLowerCase();
 
-      const existingMatch =
-        (normEmail ? byEmail.get(normEmail) : null) ||
-        (normPhone ? byPhone.get(normPhone) : null) ||
-        byName.get(normName);
+      // Check if user specifically linked an existing contact ID or matched
+      const existingMatch = raw.existingContactId
+        ? byId.get(raw.existingContactId)
+        : (normEmail ? byEmail.get(normEmail) : null) ||
+          (normPhone ? byPhone.get(normPhone) : null) ||
+          byName.get(normName);
 
-      if (existingMatch) {
-        if (duplicateStrategy === "skip") {
-          skippedRecords++;
-          continue;
-        }
+      // Determine explicit user action or fallback to strategy
+      const chosenAction = raw.action || (existingMatch ? duplicateStrategy : "new");
 
-        if (duplicateStrategy === "update") {
-          // Update existing contact fields
+      if (chosenAction === "skip") {
+        skippedRecords++;
+        continue;
+      }
+
+      if (chosenAction === "update" && existingMatch) {
+        await withDbRetry(async () => {
           await db
             .update(contacts)
             .set({
@@ -199,25 +288,24 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
               phone: sanitizedPhone || existingMatch.phone,
               company: sanitizedCompany || existingMatch.company,
               address: sanitizedAddress || existingMatch.address,
-              notes: sanitizedNotes || existingMatch.notes,
+              ...(sanitizedNotes !== null && { notes: sanitizedNotes }),
               tags: tagsArray.length > 0 ? tagsArray : existingMatch.tags || [],
               updatedAt: new Date(),
             })
             .where(eq(contacts.id, existingMatch.id));
+        });
 
-          updatedRecords++;
-          continue;
-        }
+        updatedRecords++;
+        continue;
+      }
 
-        if (duplicateStrategy === "merge") {
-          // Smart merge: retain existing and supplement missing values
-          const mergedTags = Array.from(
-            new Set([...(existingMatch.tags || []), ...tagsArray])
-          );
-          const mergedNotes = [existingMatch.notes, sanitizedNotes]
-            .filter(Boolean)
-            .join("\n\n---\nMerged Notes:\n");
+      if (chosenAction === "merge" && existingMatch) {
+        // Smart merge: supplement missing details without overwriting existing non-empty values
+        const mergedTags = Array.from(
+          new Set([...(existingMatch.tags || []), ...tagsArray])
+        );
 
+        await withDbRetry(async () => {
           await db
             .update(contacts)
             .set({
@@ -225,69 +313,45 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
               phone: existingMatch.phone || sanitizedPhone,
               company: existingMatch.company || sanitizedCompany,
               address: existingMatch.address || sanitizedAddress,
-              notes: mergedNotes || null,
+              // Only supplement notes if existing contact had none and new row provided explicit notes
+              notes: existingMatch.notes || sanitizedNotes || null,
               tags: mergedTags,
               updatedAt: new Date(),
             })
             .where(eq(contacts.id, existingMatch.id));
+        });
 
-          updatedRecords++;
-          continue;
-        }
-
-        if (duplicateStrategy === "create_copy") {
-          // Create new record with copy suffix
-          const copyName = `${sanitizedName} (Copy)`;
-          const [created] = await db
-            .insert(contacts)
-            .values({
-              publicId: generatePublicId(),
-              userId: user.id,
-              name: copyName,
-              email: sanitizedEmail,
-              phone: sanitizedPhone,
-              company: sanitizedCompany,
-              address: sanitizedAddress,
-              tags: tagsArray,
-              notes: sanitizedNotes,
-              openingBalance: Math.round((raw.openingBalance || 0) * 100),
-              currency: "INR",
-              customFields: raw.customFields || {},
-            })
-            .returning();
-
-          if (created) {
-            importedContactIds.push(created.id);
-            importedRecords++;
-          }
-          continue;
-        }
+        updatedRecords++;
+        continue;
       }
 
-      // No conflict -> Insert fresh contact
-      const [newContact] = await db
-        .insert(contacts)
-        .values({
-          publicId: generatePublicId(),
-          userId: user.id,
-          name: sanitizedName,
-          email: sanitizedEmail,
-          phone: sanitizedPhone,
-          company: sanitizedCompany,
-          address: sanitizedAddress,
-          tags: tagsArray,
-          notes: sanitizedNotes,
-          openingBalance: Math.round((raw.openingBalance || 0) * 100),
-          currency: "INR",
-          customFields: raw.customFields || {},
-        })
-        .returning();
+      // Default: Insert fresh contact
+      const [newContact] = await withDbRetry(async () => {
+        return await db
+          .insert(contacts)
+          .values({
+            publicId: generatePublicId(),
+            userId: user.id,
+            name: sanitizedName,
+            email: sanitizedEmail,
+            phone: sanitizedPhone,
+            company: sanitizedCompany,
+            address: sanitizedAddress,
+            tags: tagsArray,
+            notes: sanitizedNotes,
+            openingBalance: openingBalancePaise,
+            currency: currency,
+            customFields: raw.customFields || {},
+          })
+          .returning();
+      });
 
       if (newContact) {
         importedContactIds.push(newContact.id);
         importedRecords++;
 
-        // Update local lookup maps
+        // Update local maps for subsequent duplicate detection
+        byId.set(newContact.id, newContact);
         if (sanitizedEmail) byEmail.set(sanitizedEmail.toLowerCase(), newContact);
         if (normPhone) byPhone.set(normPhone, newContact);
         byName.set(sanitizedName.toLowerCase(), newContact);
@@ -306,40 +370,41 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
   const durationMs = Date.now() - startTime;
   const importPublicId = `IMP-${generatePublicId()}`;
 
-  // Store import session in contact_imports table
+  // Record import session
   try {
-    await db.insert(contactImports).values({
-      publicId: importPublicId,
-      userId: user.id,
-      fileName,
-      fileSize,
-      fileType,
-      importedRecords,
-      updatedRecords,
-      skippedRecords,
-      failedRecords,
-      totalRecords: records.length,
-      durationMs,
-      status: "completed",
-      errorReport: errorReport.length > 0 ? errorReport : null,
-      importedContactIds,
-    });
-
-    // Record system audit log
-    await db.insert(auditLogs).values({
-      userId: user.id,
-      action: "import",
-      entityType: "contact",
-      entityId: 0,
-      entityPublicId: importPublicId,
-      changes: {
+    await withDbRetry(async () => {
+      await db.insert(contactImports).values({
+        publicId: importPublicId,
+        userId: user.id,
         fileName,
+        fileSize,
+        fileType,
         importedRecords,
         updatedRecords,
         skippedRecords,
         failedRecords,
+        totalRecords: records.length,
         durationMs,
-      },
+        status: "completed",
+        errorReport: errorReport.length > 0 ? errorReport : null,
+        importedContactIds,
+      });
+
+      await db.insert(auditLogs).values({
+        userId: user.id,
+        action: "import",
+        entityType: "contact",
+        entityId: 0,
+        entityPublicId: importPublicId,
+        changes: {
+          fileName,
+          importedRecords,
+          updatedRecords,
+          skippedRecords,
+          failedRecords,
+          durationMs,
+        },
+      });
     });
   } catch (auditErr) {
     console.warn("Non-critical error logging import audit:", auditErr);

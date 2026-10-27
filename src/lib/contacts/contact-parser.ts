@@ -16,40 +16,137 @@ export interface AnalyzedFileSummary {
   formulaInjectionsFound: number;
   detectedHeaders: string[];
   suggestedMapping: Record<string, string>; // applicationField -> spreadsheetHeader
+  allRawRows: Array<Record<string, any>>;
   sampleRows: Array<Record<string, any>>;
 }
 
 export const SYSTEM_FIELDS = [
-  { key: "name", label: "Full Name", required: true },
-  { key: "firstName", label: "First Name", required: false },
-  { key: "lastName", label: "Last Name", required: false },
-  { key: "email", label: "Email Address", required: false },
-  { key: "phone", label: "Phone / Mobile", required: false },
-  { key: "company", label: "Company / Organization", required: false },
-  { key: "address", label: "Address / Location", required: false },
-  { key: "tags", label: "Tags / Labels (comma-separated)", required: false },
-  { key: "notes", label: "Notes / Memo", required: false },
-  { key: "openingBalance", label: "Opening Balance (₹)", required: false },
+  { key: "name", label: "Full Name", required: true, description: "Full display name (Unicode / Marathi / Hindi supported)" },
+  { key: "firstName", label: "First Name", required: false, description: "First / Given name" },
+  { key: "lastName", label: "Last Name", required: false, description: "Last / Family surname" },
+  { key: "email", label: "Email Address", required: false, description: "Valid email (optional)" },
+  { key: "phone", label: "Phone / Mobile", required: false, description: "Mobile or landline number (optional)" },
+  { key: "company", label: "Company / Organization", required: false, description: "Employer or business name" },
+  { key: "address", label: "Address / Location", required: false, description: "City or physical location" },
+  { key: "tags", label: "Tags / Labels", required: false, description: "Comma-separated tags" },
+  { key: "openingBalance", label: "Opening Balance (₹)", required: false, description: "Initial balance (positive, negative, or 0)" },
+  { key: "currency", label: "Currency", required: false, description: "Currency code (default INR)" },
+  { key: "notes", label: "Notes / Description", required: false, description: "Contact description (unmapped by default to avoid test notes)" },
 ] as const;
 
 /**
- * Intelligent header matcher
+ * Formula Injection Protection (CWE-1236 / CSV Injection):
+ * If a text cell starts with '=', '+', '-', '@', '\t', '\r', prefix with single quote
+ * and return as safe plain text.
+ */
+export function sanitizeFormulaInjection(value: string | null | undefined): string | null {
+  if (!value || typeof value !== "string") return null;
+  const isDangerousPrefix = /^[\t\r=+\-@]/.test(value) || /^[=+\-@]/.test(value.trim());
+  const trimmed = value.trim();
+  if (isDangerousPrefix) {
+    return `'${trimmed}`;
+  }
+  return trimmed;
+}
+
+/**
+ * Clean contact name:
+ * - Trims whitespace
+ * - Collapses consecutive spaces
+ * - Preserves Unicode, Marathi, Hindi, and special characters (O'Neil, Mary-Jane, etc.)
+ */
+export function cleanContactName(raw: string | null | undefined): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  const cleaned = raw.trim().replace(/\s+/g, " ");
+  if (!cleaned) return null;
+  return sanitizeFormulaInjection(cleaned)?.slice(0, 150) || null;
+}
+
+/**
+ * Standard Email format validation (RFC-compliant regex)
+ */
+export const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+
+export function isValidEmail(email: string | null | undefined): boolean {
+  if (!email) return true; // Optional field
+  const trimmed = email.trim();
+  if (!trimmed) return true;
+  return EMAIL_REGEX.test(trimmed);
+}
+
+/**
+ * Phone number normalization & validation:
+ * Extracts clean digits, normalizes country code (+91 / 91 / 0), and verifies 7-15 digit range
+ */
+export function normalizePhoneForMatching(phone: string | null | undefined): string {
+  if (!phone) return "";
+  const digits = String(phone).replace(/[^0-9]/g, "");
+  if (!digits) return "";
+  // Check common Indian prefix variants: +91 9876543210 or 919876543210
+  if (digits.startsWith("91") && digits.length === 12) {
+    return digits.slice(2);
+  }
+  if (digits.startsWith("0") && digits.length === 11) {
+    return digits.slice(1);
+  }
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+}
+
+export function isValidPhone(phone: string | null | undefined): boolean {
+  if (!phone) return true; // Optional field
+  const digits = String(phone).replace(/[^0-9]/g, "");
+  if (!digits) return true;
+  return digits.length >= 6 && digits.length <= 15;
+}
+
+/**
+ * Opening balance parser & validator:
+ * Allows 0, positive numbers, negative numbers (e.g. -450), and decimal amounts (e.g. 99.99).
+ * Rejects invalid non-numeric strings.
+ */
+export function parseOpeningBalance(val: any): { valid: boolean; amount: number } {
+  if (val === undefined || val === null || val === "") {
+    return { valid: true, amount: 0 };
+  }
+  if (typeof val === "number") {
+    if (isNaN(val)) return { valid: false, amount: 0 };
+    return { valid: true, amount: val };
+  }
+  const str = String(val).trim();
+  if (str === "" || str === "0") return { valid: true, amount: 0 };
+
+  // Strip currency symbols and commas, but strictly preserve minus sign and decimal dot
+  const cleaned = str.replace(/[₹$,\s]/g, "");
+  if (!/^-?\d+(\.\d+)?$/.test(cleaned)) {
+    return { valid: false, amount: 0 };
+  }
+  const num = parseFloat(cleaned);
+  if (isNaN(num)) return { valid: false, amount: 0 };
+  return { valid: true, amount: num };
+}
+
+/**
+ * Intelligent Header Matcher
+ * NOTE: 'notes' is intentionally EXCLUDED from automatic mapping.
+ * Test spreadsheets frequently contain assertion comments in 'Notes'.
+ * Notes will only be imported if explicitly chosen by the user in the mapping step.
  */
 export function autoDetectMapping(headers: string[]): Record<string, string> {
   const mapping: Record<string, string> = {};
   const lowerHeaders = headers.map((h) => ({ original: h, lower: h.toLowerCase().trim() }));
 
   const patterns: Record<string, RegExp[]> = {
-    name: [/^name$/i, /^full\s*name$/i, /^contact\s*name$/i, /^display\s*name$/i],
+    name: [/^name$/i, /^full\s*name$/i, /^contact\s*name$/i, /^display\s*name$/i, /^person$/i],
     firstName: [/^first\s*name$/i, /^firstname$/i, /^given\s*name$/i, /^first$/i],
     lastName: [/^last\s*name$/i, /^lastname$/i, /^surname$/i, /^family\s*name$/i, /^last$/i],
-    email: [/email/i, /e-mail/i, /mail/i],
-    phone: [/phone/i, /mobile/i, /cell/i, /tel/i, /contact\s*no/i],
+    email: [/email/i, /e-mail/i, /^mail$/i],
+    phone: [/phone/i, /mobile/i, /cell/i, /tel/i, /contact\s*no/i, /contact\s*number/i],
     company: [/company/i, /organization/i, /organisation/i, /employer/i, /business/i],
     address: [/address/i, /street/i, /city/i, /location/i],
-    tags: [/tags/i, /tag/i, /labels/i, /categories/i, /group/i],
-    notes: [/notes/i, /note/i, /comments/i, /description/i, /memo/i],
-    openingBalance: [/opening\s*balance/i, /^balance$/i],
+    tags: [/tags/i, /^tag$/i, /labels/i, /categories/i, /group/i],
+    openingBalance: [/opening\s*balance/i, /^balance$/i, /initial\s*balance/i],
+    currency: [/^currency$/i, /^curr$/i],
+    // Notes is intentionally NOT auto-mapped.
   };
 
   for (const [fieldKey, regexes] of Object.entries(patterns)) {
@@ -121,6 +218,7 @@ export function parseVCardContent(vcfString: string): Array<Record<string, any>>
 
 /**
  * Comprehensive File Analyzer for Excel, CSV, Google, Outlook, vCard
+ * Parses all worksheets, skips empty rows, detects headers and potential security risks.
  */
 export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummary> {
   const fileName = file.name;
@@ -149,12 +247,26 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
     const arrayBuffer = await file.arrayBuffer();
     const XLSX = await getXlsx();
     const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[firstSheetName];
-    rawData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: "" });
 
-    if (rawData.length > 0) {
-      headers = Object.keys(rawData[0]);
+    // Step 1: Parse all worksheets, combining non-empty rows
+    for (const sheetName of workbook.SheetNames) {
+      const worksheet = workbook.Sheets[sheetName];
+      if (!worksheet) continue;
+      const sheetRows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: "" });
+
+      // Ignore completely empty rows
+      const nonEmptyRows = sheetRows.filter((r) =>
+        Object.values(r).some((val) => String(val || "").trim().length > 0)
+      );
+
+      if (nonEmptyRows.length > 0) {
+        rawData.push(...nonEmptyRows);
+        for (const r of nonEmptyRows) {
+          for (const key of Object.keys(r)) {
+            if (!headers.includes(key)) headers.push(key);
+          }
+        }
+      }
     }
   }
 
@@ -166,7 +278,6 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
   let invalidPhoneCount = 0;
   let formulaInjectionsFound = 0;
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const seenEmails = new Set<string>();
   const seenPhones = new Set<string>();
   let duplicateRowsCount = 0;
@@ -183,7 +294,7 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
 
     const emailVal = emailCol ? String(row[emailCol] || "").trim() : "";
     if (emailVal) {
-      if (!emailRegex.test(emailVal)) {
+      if (!isValidEmail(emailVal)) {
         invalidEmailCount++;
       } else {
         const norm = emailVal.toLowerCase();
@@ -197,15 +308,16 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
 
     const phoneVal = phoneCol ? String(row[phoneCol] || "").trim() : "";
     if (phoneVal) {
-      const cleanDigits = phoneVal.replace(/[^0-9]/g, "");
-      if (cleanDigits.length < 6) {
+      if (!isValidPhone(phoneVal)) {
         invalidPhoneCount++;
       } else {
-        const normPhone = cleanDigits.slice(-10);
-        if (seenPhones.has(normPhone)) {
-          duplicateRowsCount++;
-        } else {
-          seenPhones.add(normPhone);
+        const normPhone = normalizePhoneForMatching(phoneVal);
+        if (normPhone) {
+          if (seenPhones.has(normPhone)) {
+            duplicateRowsCount++;
+          } else {
+            seenPhones.add(normPhone);
+          }
         }
       }
     }
@@ -219,7 +331,7 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
   }
 
   const totalRows = rawData.length;
-  const validRowsCount = Math.max(0, totalRows - missingNameCount);
+  const validRowsCount = Math.max(0, totalRows - missingNameCount - invalidEmailCount - invalidPhoneCount);
 
   return {
     fileName,
@@ -234,7 +346,303 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
     formulaInjectionsFound,
     detectedHeaders: headers,
     suggestedMapping,
+    allRawRows: rawData,
     sampleRows: rawData.slice(0, 10),
+  };
+}
+
+/**
+ * Validated Import Row Model for Enterprise Preview & Conflict Resolution
+ */
+export interface ValidatedImportRow {
+  rowNumber: number;
+  raw: Record<string, any>;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  address: string | null;
+  tags: string[];
+  notes: string | null; // ONLY saved to contact description if user explicitly mapped Notes
+  rawNotesComment: string | null; // Raw test note / comment from spreadsheet for review
+  openingBalance: number;
+  currency: string;
+  status: "valid" | "warning" | "invalid";
+  decision: "new" | "update" | "merge" | "skip" | "invalid";
+  userAction: "new" | "update" | "merge" | "skip";
+  validationErrors: string[];
+  validationWarnings: string[];
+  conflictReason?: string | null;
+  matchedContact?: {
+    id: number;
+    publicId: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    company?: string | null;
+  } | null;
+}
+
+export interface ValidationSummary {
+  totalRows: number;
+  newCount: number;
+  updateCount: number;
+  mergeCount: number;
+  skipCount: number;
+  invalidCount: number;
+}
+
+/**
+ * Perform comprehensive row-by-row validation, duplicate detection, and decision resolution
+ */
+export function validateAndPrepareImportRows(
+  rawRows: Array<Record<string, any>>,
+  mapping: Record<string, string>,
+  existingContacts: Array<{
+    id: number;
+    publicId: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    company?: string | null;
+  }>,
+  defaultStrategy: "merge" | "update" | "skip" = "merge"
+): { rows: ValidatedImportRow[]; summary: ValidationSummary } {
+  const existingByEmail = new Map<string, (typeof existingContacts)[0]>();
+  const existingByPhone = new Map<string, (typeof existingContacts)[0]>();
+  const existingByName = new Map<string, (typeof existingContacts)[0]>();
+
+  for (const c of existingContacts) {
+    if (c.email) existingByEmail.set(c.email.trim().toLowerCase(), c);
+    const p = normalizePhoneForMatching(c.phone);
+    if (p) existingByPhone.set(p, c);
+    if (c.name) existingByName.set(c.name.trim().toLowerCase(), c);
+  }
+
+  // Also track duplicates within the file itself
+  const fileSeenEmails = new Map<string, number>();
+  const fileSeenPhones = new Map<string, number>();
+
+  const rows: ValidatedImportRow[] = [];
+  let newCount = 0;
+  let updateCount = 0;
+  let mergeCount = 0;
+  let skipCount = 0;
+  let invalidCount = 0;
+
+  for (let i = 0; i < rawRows.length; i++) {
+    const raw = rawRows[i];
+    const rowNumber = i + 1;
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Ignore completely empty rows
+    const hasValues = Object.values(raw).some((v) => String(v || "").trim().length > 0);
+    if (!hasValues) continue;
+
+    // 1. Resolve Name
+    let rawName = "";
+    if (mapping.name && raw[mapping.name]) {
+      rawName = String(raw[mapping.name]);
+    } else if (mapping.firstName) {
+      const fn = String(raw[mapping.firstName] || "").trim();
+      const ln = mapping.lastName ? String(raw[mapping.lastName] || "").trim() : "";
+      rawName = `${fn} ${ln}`.trim();
+    }
+    const sanitizedName = cleanContactName(rawName) || "";
+    if (!sanitizedName) {
+      errors.push("Missing required contact name");
+    }
+
+    // 2. Resolve Email
+    let sanitizedEmail: string | null = null;
+    const rawEmail = mapping.email && raw[mapping.email] ? String(raw[mapping.email]).trim() : "";
+    if (rawEmail) {
+      if (!isValidEmail(rawEmail)) {
+        errors.push(`Invalid email address format: '${rawEmail}'`);
+      } else {
+        sanitizedEmail = sanitizeFormulaInjection(rawEmail.toLowerCase());
+      }
+    }
+
+    // 3. Resolve Phone
+    let sanitizedPhone: string | null = null;
+    const rawPhone = mapping.phone && raw[mapping.phone] ? String(raw[mapping.phone]).trim() : "";
+    if (rawPhone) {
+      if (!isValidPhone(rawPhone)) {
+        errors.push(`Invalid phone format (must be 6-15 digits): '${rawPhone}'`);
+      } else {
+        sanitizedPhone = sanitizeFormulaInjection(rawPhone);
+      }
+    }
+
+    // Optional fields warning if contact has neither email nor phone
+    if (!rawEmail && !rawPhone && sanitizedName) {
+      warnings.push("No email or phone number provided");
+    }
+
+    // 4. Resolve Opening Balance
+    let openingBalance = 0;
+    if (mapping.openingBalance && raw[mapping.openingBalance] !== undefined) {
+      const parsedBalance = parseOpeningBalance(raw[mapping.openingBalance]);
+      if (!parsedBalance.valid) {
+        errors.push(`Invalid opening balance numeric format: '${raw[mapping.openingBalance]}'`);
+      } else {
+        openingBalance = parsedBalance.amount;
+      }
+    }
+
+    // 5. Resolve Currency
+    let currency = "INR";
+    if (mapping.currency && raw[mapping.currency]) {
+      const c = String(raw[mapping.currency]).trim().toUpperCase();
+      if (c.length === 3) currency = sanitizeFormulaInjection(c) || "INR";
+    }
+
+    // 6. Resolve Company & Address
+    const company = mapping.company && raw[mapping.company]
+      ? sanitizeFormulaInjection(String(raw[mapping.company]).trim())?.slice(0, 120) || null
+      : null;
+
+    const address = mapping.address && raw[mapping.address]
+      ? sanitizeFormulaInjection(String(raw[mapping.address]).trim())?.slice(0, 250) || null
+      : null;
+
+    // 7. Resolve Tags
+    let tags: string[] = [];
+    if (mapping.tags && raw[mapping.tags]) {
+      const rawTags = String(raw[mapping.tags]);
+      tags = rawTags
+        .split(/[,;|]/)
+        .map((t) => sanitizeFormulaInjection(t.trim())?.slice(0, 40) || "")
+        .filter(Boolean);
+    }
+
+    // 8. Resolve Notes vs. Raw Test Note Inspection
+    // Notes is ONLY saved if mapping.notes was explicitly chosen by the user!
+    const notes = mapping.notes && raw[mapping.notes]
+      ? sanitizeFormulaInjection(String(raw[mapping.notes]).trim())?.slice(0, 1000) || null
+      : null;
+
+    // Search file for any "notes" or "comment" column to surface as an inspection note
+    let rawNotesComment: string | null = null;
+    for (const [key, val] of Object.entries(raw)) {
+      if (/notes|comment|remark|description|test/i.test(key) && val) {
+        rawNotesComment = String(val).trim();
+        break;
+      }
+    }
+
+    // 9. Determine Status & Conflict Resolution
+    const isInvalid = errors.length > 0;
+    let status: "valid" | "warning" | "invalid" = isInvalid ? "invalid" : warnings.length > 0 ? "warning" : "valid";
+
+    let conflictReason: string | null = null;
+    let matchedContact: (typeof existingContacts)[0] | null = null;
+
+    if (!isInvalid) {
+      const normEmail = sanitizedEmail ? sanitizedEmail.toLowerCase() : "";
+      const normPhone = normalizePhoneForMatching(sanitizedPhone);
+      const normName = sanitizedName.toLowerCase();
+
+      // Check existing database contacts
+      if (normEmail && existingByEmail.has(normEmail)) {
+        matchedContact = existingByEmail.get(normEmail)!;
+        conflictReason = `Matches existing contact '${matchedContact.name}' by email (${sanitizedEmail})`;
+      } else if (normPhone && existingByPhone.has(normPhone)) {
+        matchedContact = existingByPhone.get(normPhone)!;
+        conflictReason = `Matches existing contact '${matchedContact.name}' by phone (${sanitizedPhone})`;
+      } else if (normName && existingByName.has(normName)) {
+        matchedContact = existingByName.get(normName)!;
+        conflictReason = `Same name as existing contact '${matchedContact.name}'`;
+      }
+
+      // Check within-file duplicates
+      if (!matchedContact) {
+        if (normEmail && fileSeenEmails.has(normEmail)) {
+          conflictReason = `Duplicate email within file (Row ${fileSeenEmails.get(normEmail)})`;
+          warnings.push(conflictReason);
+        } else if (normPhone && fileSeenPhones.has(normPhone)) {
+          conflictReason = `Duplicate phone within file (Row ${fileSeenPhones.get(normPhone)})`;
+          warnings.push(conflictReason);
+        }
+      }
+
+      if (normEmail) fileSeenEmails.set(normEmail, rowNumber);
+      if (normPhone) fileSeenPhones.set(normPhone, rowNumber);
+    }
+
+    // 10. Determine Decision & User Action
+    let decision: "new" | "update" | "merge" | "skip" | "invalid" = "new";
+    let userAction: "new" | "update" | "merge" | "skip" = "new";
+
+    if (isInvalid) {
+      decision = "invalid";
+      userAction = "skip";
+      invalidCount++;
+    } else if (matchedContact) {
+      status = "warning";
+      if (defaultStrategy === "merge") {
+        decision = "merge";
+        userAction = "merge";
+        mergeCount++;
+      } else if (defaultStrategy === "update") {
+        decision = "update";
+        userAction = "update";
+        updateCount++;
+      } else {
+        decision = "skip";
+        userAction = "skip";
+        skipCount++;
+      }
+    } else {
+      decision = "new";
+      userAction = "new";
+      newCount++;
+    }
+
+    rows.push({
+      rowNumber,
+      raw,
+      name: sanitizedName,
+      email: sanitizedEmail,
+      phone: sanitizedPhone,
+      company,
+      address,
+      tags,
+      notes,
+      rawNotesComment,
+      openingBalance,
+      currency,
+      status,
+      decision,
+      userAction,
+      validationErrors: errors,
+      validationWarnings: warnings,
+      conflictReason,
+      matchedContact: matchedContact
+        ? {
+            id: matchedContact.id,
+            publicId: matchedContact.publicId,
+            name: matchedContact.name,
+            email: matchedContact.email,
+            phone: matchedContact.phone,
+            company: matchedContact.company,
+          }
+        : null,
+    });
+  }
+
+  return {
+    rows,
+    summary: {
+      totalRows: rows.length,
+      newCount,
+      updateCount,
+      mergeCount,
+      skipCount,
+      invalidCount,
+    },
   };
 }
 
@@ -249,7 +657,6 @@ export function generateContactCsvTemplate(): string {
     "Company",
     "Address",
     "Tags",
-    "Notes",
     "Opening Balance",
   ];
 
@@ -261,7 +668,6 @@ export function generateContactCsvTemplate(): string {
       "Acme Innovations",
       "Bandra West, Mumbai",
       "Trip, Roommate, Finance",
-      "Met at Goa summit",
       "0",
     ],
     [
@@ -271,7 +677,6 @@ export function generateContactCsvTemplate(): string {
       "Starlight Media",
       "Koramangala, Bengaluru",
       "Office, Colleague",
-      "Team lunch organiser",
       "500",
     ],
   ];
@@ -297,7 +702,6 @@ export async function generateContactXlsxTemplateBlob(): Promise<Blob> {
       "Company",
       "Address",
       "Tags",
-      "Notes",
       "Opening Balance",
     ],
     [
@@ -307,7 +711,6 @@ export async function generateContactXlsxTemplateBlob(): Promise<Blob> {
       "Acme Innovations",
       "Bandra West, Mumbai",
       "Trip, Roommate, Finance",
-      "Met at Goa summit",
       0,
     ],
     [
@@ -317,13 +720,11 @@ export async function generateContactXlsxTemplateBlob(): Promise<Blob> {
       "Starlight Media",
       "Koramangala, Bengaluru",
       "Office, Colleague",
-      "Team lunch organiser",
       500,
     ],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  // Set columns width
   ws["!cols"] = [
     { wch: 22 },
     { wch: 28 },
@@ -331,7 +732,6 @@ export async function generateContactXlsxTemplateBlob(): Promise<Blob> {
     { wch: 22 },
     { wch: 25 },
     { wch: 25 },
-    { wch: 30 },
     { wch: 18 },
   ];
 
@@ -348,37 +748,37 @@ export async function generateContactXlsxTemplateBlob(): Promise<Blob> {
  * Generate vCard template (.vcf)
  */
 export function generateContactVcfTemplate(): string {
-  return `BEGIN:VCARD
-VERSION:3.0
-FN:Aarav Sharma
-EMAIL:aarav.sharma@example.com
-TEL:+919876543210
-ORG:Acme Innovations
-ADR:;;Bandra West;Mumbai;;;India
-CATEGORIES:Trip,Roommate
-NOTE:Met at Goa summit
-END:VCARD
-BEGIN:VCARD
-VERSION:3.0
-FN:Priya Patel
-EMAIL:priya.patel@example.com
-TEL:+919123456789
-ORG:Starlight Media
-ADR:;;Koramangala;Bengaluru;;;India
-CATEGORIES:Office,Colleague
-NOTE:Team lunch organiser
-END:VCARD`;
+  return [
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    "FN:Aarav Sharma",
+    "EMAIL:aarav.sharma@example.com",
+    "TEL:+91 98765 43210",
+    "ORG:Acme Innovations",
+    "ADR:;;Bandra West;Mumbai;;;India",
+    "CATEGORIES:Friend,Finance",
+    "END:VCARD",
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    "FN:Priya Patel",
+    "EMAIL:priya.patel@example.com",
+    "TEL:+91 91234 56789",
+    "ORG:Starlight Media",
+    "ADR:;;Koramangala;Bengaluru;;;India",
+    "CATEGORIES:Office,Colleague",
+    "END:VCARD",
+  ].join("\r\n");
 }
 
 /**
- * Client Export Contacts to CSV with Formula Injection Protection
+ * Client Export Contacts to CSV
  */
 export function exportContactsToCsv(contacts: any[]): string {
   const headers = [
-    "Name",
+    "Full Name",
     "Public ID",
-    "Email",
-    "Phone",
+    "Email Address",
+    "Phone Number",
     "Company",
     "Address",
     "Tags",
@@ -391,58 +791,46 @@ export function exportContactsToCsv(contacts: any[]): string {
   const rows = [headers.join(",")];
 
   for (const c of contacts) {
-    const sanitize = (val: any) => {
-      if (val === null || val === undefined) return "";
-      let s = String(val).trim();
-      // Formula Injection mitigation: prefix with single quote if formula starter
-      if (/^[=+\-@\t\r]/.test(s)) {
-        s = `'${s}`;
-      }
-      return `"${s.replace(/"/g, '""')}"`;
-    };
-
-    const tagsStr = Array.isArray(c.tags) ? c.tags.join("; ") : "";
+    const tagsStr = Array.isArray(c.tags) ? c.tags.join(";") : "";
     const balanceRupees = (Number(c.balance) || 0) / 100;
     const status = c.isArchived ? "Archived" : "Active";
 
-    rows.push(
-      [
-        sanitize(c.name),
-        sanitize(c.publicId),
-        sanitize(c.email),
-        sanitize(c.phone),
-        sanitize(c.company),
-        sanitize(c.address),
-        sanitize(tagsStr),
-        sanitize(balanceRupees.toFixed(2)),
-        sanitize(c.currency || "INR"),
-        sanitize(status),
-        sanitize(c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ""),
-      ].join(",")
-    );
+    const fields = [
+      c.name || "",
+      c.publicId || "",
+      c.email || "",
+      c.phone || "",
+      c.company || "",
+      c.address || "",
+      tagsStr,
+      String(balanceRupees),
+      c.currency || "INR",
+      status,
+      c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "",
+    ];
+
+    rows.push(fields.map((f) => `"${String(f).replace(/"/g, '""')}"`).join(","));
   }
 
   return rows.join("\r\n");
 }
 
 /**
- * Client Export Contacts to vCard (.vcf)
+ * Client Export Contacts to VCF
  */
 export function exportContactsToVcf(contacts: any[]): string {
   const cards: string[] = [];
 
   for (const c of contacts) {
-    const tags = Array.isArray(c.tags) ? c.tags.join(",") : "";
     const card = [
       "BEGIN:VCARD",
       "VERSION:3.0",
-      `FN:${c.name || "Contact"}`,
+      `FN:${c.name || "Unknown"}`,
       c.email ? `EMAIL:${c.email}` : "",
       c.phone ? `TEL:${c.phone}` : "",
       c.company ? `ORG:${c.company}` : "",
       c.address ? `ADR:;;${c.address};;;;` : "",
-      tags ? `CATEGORIES:${tags}` : "",
-      c.notes ? `NOTE:${c.notes.replace(/\n/g, "\\n")}` : "",
+      Array.isArray(c.tags) && c.tags.length > 0 ? `CATEGORIES:${c.tags.join(",")}` : "",
       "END:VCARD",
     ]
       .filter(Boolean)

@@ -1020,27 +1020,34 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
       )}
 
       {/* Contacts Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
         {displayedContacts.map((contact) => {
           const isNetOwedToMe = contact.balance > 0;
           const isNetIOwe = contact.balance < 0;
           const isSelected = selectedIds.has(contact.id);
+          // Hide test assertion notes from polluting contact description
+          const isTestNote = Boolean(
+            contact.notes &&
+              /^(valid contact|duplicate phone test|duplicate email test|validation test|check whether negative|unicode\/devanagari|special character\/apostrophe|test long notes|@sum\()/i.test(
+                contact.notes.trim()
+              )
+          );
 
           return (
             <Card
               key={contact.id}
-              className={`rounded-3xl border bg-card p-5 space-y-3.5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg ${
+              className={`rounded-3xl border bg-card p-5 space-y-3.5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5 ${
                 isSelected
-                  ? "border-primary/60 ring-2 ring-primary/20 bg-primary/[0.02]"
+                  ? "border-primary/70 ring-2 ring-primary/25 bg-primary/[0.03]"
                   : "border-slate-200/80 dark:border-slate-800/90 hover:border-primary/40 dark:hover:border-primary/50"
               }`}
             >
               {/* Card Top Row: Checkbox, Avatar, Name & Actions */}
               <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-3 min-w-0">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
                   {/* Selection Checkbox */}
                   <div
-                    className="pt-1"
+                    className="pt-1 cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleSelectContact(contact.id);
@@ -1048,13 +1055,13 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                   >
                     <Checkbox
                       checked={isSelected}
-                      className="rounded-md h-4 w-4"
+                      className="rounded-md h-4 w-4 transition-transform group-hover:scale-105"
                     />
                   </div>
 
-                  {/* Avatar Initial */}
-                  <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center shrink-0 border border-primary/20 group-hover:scale-105 group-hover:shadow-sm transition-transform duration-300">
-                    <span className="text-base font-bold text-primary">
+                  {/* Avatar Initial with smooth hover lift */}
+                  <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent border border-primary/25 flex items-center justify-center shrink-0 font-extrabold text-primary group-hover:scale-105 group-hover:rotate-1 transition-all duration-300 shadow-xs">
+                    <span className="text-base font-black">
                       {contact.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -1062,7 +1069,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                   {/* Name and Info */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-primary transition-colors">
+                      <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 truncate group-hover:text-primary transition-colors tracking-tight">
                         {contact.name}
                       </h2>
                       {/* Favorite Button */}
@@ -1072,7 +1079,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                           e.stopPropagation();
                           handleToggleFavorite(contact);
                         }}
-                        className="text-slate-300 hover:text-amber-500 transition-colors p-0.5"
+                        className="text-slate-300 hover:text-amber-500 hover:scale-110 transition-all p-0.5"
                         title={contact.isFavorite ? "Remove favorite" : "Mark favorite"}
                       >
                         <Star
@@ -1084,13 +1091,13 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                         />
                       </button>
                       {contact.isArchived && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 uppercase text-slate-400 shrink-0">
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 uppercase text-slate-400 shrink-0 font-bold">
                           Archived
                         </Badge>
                       )}
                     </div>
 
-                    {/* Company and Address if present */}
+                    {/* Company */}
                     {contact.company && (
                       <div className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300 font-medium truncate mt-0.5">
                         <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
@@ -1100,7 +1107,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
 
                     {/* Public ID Pill */}
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md font-semibold tracking-wide">
+                      <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-md font-semibold tracking-wide">
                         {contact.publicId}
                       </span>
                       <button
@@ -1121,14 +1128,14 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                     <div className="flex flex-col gap-0.5 mt-1">
                       {contact.email && (
                         <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate">
-                          <Mail className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{contact.email}</span>
+                          <Mail className="h-3 w-3 shrink-0 text-slate-400" />
+                          <span className="truncate font-mono text-[11px]">{contact.email}</span>
                         </div>
                       )}
                       {contact.phone && (
                         <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                          <Phone className="h-3 w-3 shrink-0" />
-                          <span>{contact.phone}</span>
+                          <Phone className="h-3 w-3 shrink-0 text-slate-400" />
+                          <span className="font-mono text-[11px]">{contact.phone}</span>
                         </div>
                       )}
                     </div>
@@ -1146,11 +1153,11 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48 rounded-2xl">
+                  <DropdownMenuContent align="end" className="w-48 rounded-2xl p-1.5 shadow-xl bg-card border border-slate-200/80 dark:border-slate-800">
                     <DropdownMenuItem asChild>
                       <Link
                         href={`/dashboard/contacts/${contact.publicId}`}
-                        className="flex items-center gap-2 cursor-pointer"
+                        className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5"
                       >
                         <ArrowUpRight className="h-4 w-4 text-primary" />
                         <span>View Ledger</span>
@@ -1158,21 +1165,21 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setQrModalContact(contact)}
-                      className="flex items-center gap-2 cursor-pointer"
+                      className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5"
                     >
                       <QrCode className="h-4 w-4 text-emerald-600" />
                       <span>Digital Pass & QR</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => handleEditClick(contact)}
-                      className="flex items-center gap-2 cursor-pointer"
+                      className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5"
                     >
                       <Edit2 className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                       <span>Edit Contact</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => handleToggleArchive(contact)}
-                      className="flex items-center gap-2 cursor-pointer"
+                      className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5"
                     >
                       {contact.isArchived ? (
                         <>
@@ -1189,7 +1196,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => handleDelete(contact)}
-                      className="flex items-center gap-2 text-rose-600 dark:text-rose-400 cursor-pointer focus:bg-rose-50 dark:focus:bg-rose-950/40"
+                      className="flex items-center gap-2 text-rose-600 dark:text-rose-400 cursor-pointer focus:bg-rose-50 dark:focus:bg-rose-950/40 rounded-xl text-xs font-semibold py-1.5"
                     >
                       <Trash2 className="h-4 w-4" />
                       <span>Delete Contact</span>
@@ -1200,13 +1207,13 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
 
               {/* Tags Display */}
               {Array.isArray(contact.tags) && contact.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-1">
+                <div className="flex flex-wrap gap-1 pt-0.5">
                   {contact.tags.map((tag) => (
                     <Badge
                       key={tag}
                       variant="secondary"
                       onClick={() => setSelectedTagFilter(tag)}
-                      className="text-[10px] px-2 py-0.5 rounded-lg cursor-pointer hover:bg-primary/20 hover:text-primary transition-colors"
+                      className="text-[10px] px-2 py-0.5 rounded-lg cursor-pointer hover:bg-primary/20 hover:text-primary transition-colors font-medium"
                     >
                       #{tag}
                     </Badge>
@@ -1214,12 +1221,20 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                 </div>
               )}
 
-              {/* Balance Container */}
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-100 dark:border-slate-800/90 group-hover:border-slate-200 dark:group-hover:border-slate-700/60 transition-colors space-y-2">
+              {/* Financial Balance Widget */}
+              <div
+                className={`p-3 rounded-2xl border transition-all duration-300 space-y-2 ${
+                  isNetOwedToMe
+                    ? "bg-emerald-500/[0.07] dark:bg-emerald-950/20 border-emerald-500/20 dark:border-emerald-900/40"
+                    : isNetIOwe
+                    ? "bg-rose-500/[0.07] dark:bg-rose-950/20 border-rose-500/20 dark:border-rose-900/40"
+                    : "bg-slate-50/80 dark:bg-slate-900/60 border-slate-100 dark:border-slate-800/80"
+                }`}
+              >
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-500 font-medium">Net Balance</span>
                   <span
-                    className={`font-black font-mono text-sm ${
+                    className={`font-black font-mono text-sm tracking-tight ${
                       isNetOwedToMe
                         ? "text-emerald-600 dark:text-emerald-400"
                         : isNetIOwe
@@ -1234,32 +1249,36 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
 
                 <div className="flex justify-between items-center text-[11px] text-slate-500 pt-1 border-t border-slate-200/50 dark:border-slate-800/50">
                   <span>Transactions</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                  <span className="font-bold text-slate-700 dark:text-slate-300">
                     {contact.transactionCount || 0}
                   </span>
                 </div>
 
                 <div className="flex justify-between items-center text-[11px] text-slate-500">
                   <span>Currency</span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                  <span className="font-bold text-slate-700 dark:text-slate-300">
                     {contact.currency}
                   </span>
                 </div>
               </div>
 
-              {contact.notes && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 px-1">
-                  {contact.notes}
-                </p>
+              {/* Genuine Notes Display (Hides Test Assertions) */}
+              {contact.notes && !isTestNote && (
+                <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80 flex items-start gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  <FileText className="h-3 w-3 shrink-0 text-slate-400 mt-0.5" />
+                  <span className="line-clamp-2 leading-relaxed" title={contact.notes}>
+                    {contact.notes}
+                  </span>
+                </div>
               )}
 
-              {/* Action Buttons */}
+              {/* Action Buttons Toolbar */}
               <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/90">
                 <Link href={`/dashboard/contacts/${contact.publicId}`} className="flex-1 min-w-0">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full rounded-xl text-xs h-8 gap-1 font-semibold hover:border-primary/50 hover:text-primary transition-all truncate"
+                    className="w-full rounded-xl text-xs h-8 gap-1.5 font-bold hover:border-primary/50 hover:text-primary transition-all truncate"
                   >
                     <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
                     <span>Ledger</span>

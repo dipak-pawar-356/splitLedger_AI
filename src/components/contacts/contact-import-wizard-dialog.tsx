@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -38,13 +39,33 @@ import {
   ShieldCheck,
   Check,
   X,
+  XCircle,
+  Search,
+  Filter,
+  Info,
+  Building2,
+  Mail,
+  Phone,
+  HelpCircle,
+  FileDown,
 } from "lucide-react";
 import {
   analyzeContactFile,
   SYSTEM_FIELDS,
+  validateAndPrepareImportRows,
   type AnalyzedFileSummary,
+  type ValidatedImportRow,
+  type ValidationSummary,
+  generateContactCsvTemplate,
+  generateContactXlsxTemplateBlob,
+  generateContactVcfTemplate,
 } from "@/lib/contacts/contact-parser";
-import { importContactsAction, type ImportResult } from "@/actions/contact-import";
+import {
+  importContactsAction,
+  getExistingContactsForImportPreviewAction,
+  type ImportResult,
+} from "@/actions/contact-import";
+import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -54,7 +75,7 @@ interface ContactImportWizardDialogProps {
   onSuccess?: () => void;
 }
 
-type WizardStep = "source" | "analyze" | "mapping" | "duplicates" | "importing" | "complete";
+type WizardStep = "source" | "analyzing" | "mapping" | "preview" | "importing" | "complete";
 
 export function ContactImportWizardDialog({
   open,
@@ -67,19 +88,24 @@ export function ContactImportWizardDialog({
   const [step, setStep] = useState<WizardStep>("source");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<AnalyzedFileSummary | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStage, setAnalysisStage] = useState<string>("Reading file contents...");
   const [error, setError] = useState<string | null>(null);
 
   // Mapping state: applicationField -> spreadsheetColumn
   const [mapping, setMapping] = useState<Record<string, string>>({});
 
-  // Duplicate Strategy state
-  const [duplicateStrategy, setDuplicateStrategy] = useState<
-    "skip" | "update" | "merge" | "create_copy"
-  >("merge");
+  // Duplicate Strategy state: default for conflicted rows
+  const [defaultStrategy, setDefaultStrategy] = useState<"merge" | "update" | "skip">("merge");
+
+  // Validated Preview rows and summary metrics
+  const [existingContacts, setExistingContacts] = useState<any[]>([]);
+  const [previewRows, setPreviewRows] = useState<ValidatedImportRow[]>([]);
+  const [previewFilter, setPreviewFilter] = useState<"all" | "ready" | "conflicts" | "invalid">("all");
+  const [previewSearch, setPreviewSearch] = useState("");
 
   // Import progress & completion
   const [importProgress, setImportProgress] = useState(0);
+  const [importStage, setImportStage] = useState("Validating and parsing records...");
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [isImporting, setIsImporting] = useState(false);
 
@@ -97,6 +123,7 @@ export function ContactImportWizardDialog({
       setError(null);
       setImportResult(null);
       setImportProgress(0);
+      setPreviewRows([]);
     }
     onOpenChange(isOpen);
   };
@@ -105,13 +132,28 @@ export function ContactImportWizardDialog({
   const handleFileChosen = async (file: File) => {
     setError(null);
     setSelectedFile(file);
-    setIsAnalyzing(true);
-    setStep("analyze");
+    setStep("analyzing");
+    setAnalysisStage("Scanning worksheets & extracting headers...");
 
     try {
+      // 1. Analyze uploaded file
       const summary = await analyzeContactFile(file);
       setAnalysis(summary);
-      setMapping(summary.suggestedMapping);
+
+      // Pre-populate mapping (Notes intentionally defaults to unmapped)
+      const initialMapping: Record<string, string> = { ...summary.suggestedMapping };
+      if (!initialMapping.notes) initialMapping.notes = ""; // Force unmapped default
+      setMapping(initialMapping);
+
+      setAnalysisStage("Checking against existing contact records...");
+      // 2. Fetch existing contacts for duplicate resolution
+      const existing = await getExistingContactsForImportPreviewAction();
+      setExistingContacts(existing || []);
+
+      // Brief animation pause for professional transition
+      setTimeout(() => {
+        setStep("mapping");
+      }, 500);
     } catch (err) {
       console.error("File analysis error:", err);
       setError(
@@ -120,114 +162,178 @@ export function ContactImportWizardDialog({
           : "Failed to parse the selected file. Please verify file integrity."
       );
       setStep("source");
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
-  // Step 2 -> 3: Move to mapping
-  const handleProceedToMapping = () => {
+  // Step 2 -> 3: Move from Mapping to Preview & Conflict Resolution
+  const handleProceedToPreview = () => {
     if (!analysis) return;
-    setStep("mapping");
-  };
 
-  // Step 3 -> 4: Move to duplicate settings
-  const handleProceedToDuplicates = () => {
     // Validate required field (name or firstName)
     if (!mapping.name && !mapping.firstName) {
       toast.error("Please map either 'Full Name' or 'First Name' to proceed.");
       return;
     }
-    setStep("duplicates");
+
+    // Generate comprehensive preview rows
+    const { rows } = validateAndPrepareImportRows(
+      analysis.allRawRows,
+      mapping,
+      existingContacts,
+      defaultStrategy
+    );
+
+    setPreviewRows(rows);
+    setStep("preview");
   };
 
-  // Step 4 -> 5: Run import
+  // Re-run validation whenever defaultStrategy changes while on preview
+  const handleDefaultStrategyChange = (newStrat: "merge" | "update" | "skip") => {
+    setDefaultStrategy(newStrat);
+    if (!analysis) return;
+    const { rows } = validateAndPrepareImportRows(
+      analysis.allRawRows,
+      mapping,
+      existingContacts,
+      newStrat
+    );
+    setPreviewRows(rows);
+  };
+
+  // Allow user to override action for a specific row
+  const handleRowActionChange = (
+    rowNumber: number,
+    action: "new" | "update" | "merge" | "skip"
+  ) => {
+    setPreviewRows((prev) =>
+      prev.map((r) => (r.rowNumber === rowNumber ? { ...r, userAction: action } : r))
+    );
+  };
+
+  // Filtered preview rows based on search and tab
+  const filteredPreviewRows = useMemo(() => {
+    return previewRows.filter((r) => {
+      // Tab filter
+      if (previewFilter === "ready" && (r.status === "invalid" || r.userAction === "skip")) {
+        return false;
+      }
+      if (previewFilter === "conflicts" && !r.matchedContact) {
+        return false;
+      }
+      if (previewFilter === "invalid" && r.status !== "invalid") {
+        return false;
+      }
+
+      // Search filter
+      if (previewSearch.trim()) {
+        const q = previewSearch.toLowerCase().trim();
+        const matchesName = r.name.toLowerCase().includes(q);
+        const matchesEmail = r.email ? r.email.toLowerCase().includes(q) : false;
+        const matchesPhone = r.phone ? r.phone.toLowerCase().includes(q) : false;
+        const matchesCompany = r.company ? r.company.toLowerCase().includes(q) : false;
+        const matchesNotes = r.rawNotesComment ? r.rawNotesComment.toLowerCase().includes(q) : false;
+        return matchesName || matchesEmail || matchesPhone || matchesCompany || matchesNotes;
+      }
+
+      return true;
+    });
+  }, [previewRows, previewFilter, previewSearch]);
+
+  // Preview metrics
+  const previewMetrics: ValidationSummary = useMemo(() => {
+    let newCount = 0;
+    let updateCount = 0;
+    let mergeCount = 0;
+    let skipCount = 0;
+    let invalidCount = 0;
+
+    for (const r of previewRows) {
+      if (r.status === "invalid") {
+        invalidCount++;
+      } else if (r.userAction === "skip") {
+        skipCount++;
+      } else if (r.userAction === "update") {
+        updateCount++;
+      } else if (r.userAction === "merge") {
+        mergeCount++;
+      } else {
+        newCount++;
+      }
+    }
+
+    return {
+      totalRows: previewRows.length,
+      newCount,
+      updateCount,
+      mergeCount,
+      skipCount,
+      invalidCount,
+    };
+  }, [previewRows]);
+
+  // Valid rows ready for actual import
+  const rowsReadyToImportCount = useMemo(() => {
+    return previewRows.filter((r) => r.status !== "invalid" && r.userAction !== "skip").length;
+  }, [previewRows]);
+
+  // Step 4 -> 5: Run Import
   const handleExecuteImport = async () => {
-    if (!analysis || !selectedFile) return;
+    if (!analysis || !selectedFile || previewRows.length === 0) return;
+
+    if (rowsReadyToImportCount === 0) {
+      toast.error("No valid contacts are selected to import.");
+      return;
+    }
 
     setStep("importing");
     setIsImporting(true);
-    setImportProgress(20);
+    setImportProgress(15);
+    setImportStage("Preparing validated contact payload...");
 
     try {
-      // Build mapped contact records from sample / analyzed rows
-      const recordsToImport: any[] = [];
-      const rawRows = analysis.sampleRows; // In client parser we have sample rows; for larger files, read full sheet
-      // Let's re-read the full file using XLSX to get every row
-      const XLSX = await import("xlsx");
-      let allRawRows: any[] = [];
+      // Build final records payload respecting user actions per row
+      const finalRecordsToImport = previewRows.map((r) => ({
+        rowNumber: r.rowNumber,
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        company: r.company,
+        address: r.address,
+        tags: r.tags,
+        // STRICT: Only send notes if user explicitly mapped it in mapping step!
+        notes: r.notes || null,
+        openingBalance: r.openingBalance,
+        currency: r.currency,
+        action: r.userAction,
+        existingContactId: r.matchedContact ? r.matchedContact.id : null,
+      }));
 
-      if (analysis.fileType === "vcf") {
-        const text = await selectedFile.text();
-        const { parseVCardContent } = await import("@/lib/contacts/contact-parser");
-        allRawRows = parseVCardContent(text);
-      } else {
-        const buffer = await selectedFile.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        allRawRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
-      }
+      // Simulate progressive progress stages
+      setTimeout(() => {
+        setImportProgress(40);
+        setImportStage("Validating records & sanitizing formula prefixes...");
+      }, 300);
 
-      setImportProgress(45);
-
-      for (const row of allRawRows) {
-        // Resolve mapped name
-        let name = "";
-        if (mapping.name && row[mapping.name]) {
-          name = String(row[mapping.name]).trim();
-        } else if (mapping.firstName) {
-          const fn = String(row[mapping.firstName] || "").trim();
-          const ln = mapping.lastName ? String(row[mapping.lastName] || "").trim() : "";
-          name = `${fn} ${ln}`.trim();
-        }
-
-        if (!name) continue;
-
-        const email = mapping.email && row[mapping.email] ? String(row[mapping.email]).trim() : null;
-        const phone = mapping.phone && row[mapping.phone] ? String(row[mapping.phone]).trim() : null;
-        const company = mapping.company && row[mapping.company] ? String(row[mapping.company]).trim() : null;
-        const address = mapping.address && row[mapping.address] ? String(row[mapping.address]).trim() : null;
-        const notes = mapping.notes && row[mapping.notes] ? String(row[mapping.notes]).trim() : null;
-
-        let tags: string[] = [];
-        if (mapping.tags && row[mapping.tags]) {
-          const tVal = String(row[mapping.tags]);
-          tags = tVal.split(/[,;|]/).map((t) => t.trim()).filter(Boolean);
-        }
-
-        let openingBalance = 0;
-        if (mapping.openingBalance && row[mapping.openingBalance]) {
-          const num = parseFloat(String(row[mapping.openingBalance]).replace(/[^0-9.-]/g, ""));
-          if (!isNaN(num)) openingBalance = num;
-        }
-
-        recordsToImport.push({
-          name,
-          email,
-          phone,
-          company,
-          address,
-          notes,
-          tags,
-          openingBalance,
-        });
-      }
-
-      setImportProgress(70);
+      setTimeout(() => {
+        setImportProgress(70);
+        setImportStage("Executing atomic database updates & merging...");
+      }, 700);
 
       const result = await importContactsAction({
         fileName: selectedFile.name,
         fileSize: selectedFile.size,
         fileType: analysis.fileType,
-        records: recordsToImport,
-        duplicateStrategy,
+        records: finalRecordsToImport,
+        duplicateStrategy: defaultStrategy,
       });
 
       setImportProgress(100);
+      setImportStage("Import finalized successfully!");
       setImportResult(result);
       setStep("complete");
+
       toast.success(
-        `Import completed: ${result.importedRecords} imported, ${result.updatedRecords} updated!`
+        `Import completed: ${result.importedRecords} created, ${result.updatedRecords} updated/merged!`
       );
       onSuccess?.();
       router.refresh();
@@ -236,589 +342,821 @@ export function ContactImportWizardDialog({
       const msg = err instanceof Error ? err.message : "Failed to import contacts";
       setError(msg);
       toast.error(msg);
-      setStep("duplicates");
+      setStep("preview");
     } finally {
       setIsImporting(false);
     }
   };
 
-  // Download error report if any rows failed
-  const handleDownloadErrorReport = () => {
-    if (!importResult?.errorReport || importResult.errorReport.length === 0) return;
-    const csvContent =
-      "Row Number,Contact Name,Error Reason\r\n" +
-      importResult.errorReport
-        .map((e) => `"${e.row}","${(e.name || "").replace(/"/g, '""')}","${e.error.replace(/"/g, '""')}"`)
-        .join("\r\n");
+  // Download comprehensive CSV report of import execution
+  const handleDownloadReport = () => {
+    if (!previewRows || previewRows.length === 0) return;
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const headers = [
+      "Row Number",
+      "Name",
+      "Email",
+      "Phone",
+      "Company",
+      "Opening Balance",
+      "Action Assigned",
+      "Status",
+      "Conflict Details / Errors",
+      "Original File Note",
+    ];
+
+    const rows = [headers.join(",")];
+
+    for (const r of previewRows) {
+      const errDetail = r.validationErrors.length > 0
+        ? r.validationErrors.join("; ")
+        : r.conflictReason || "Valid";
+
+      const fields = [
+        String(r.rowNumber),
+        r.name || "",
+        r.email || "",
+        r.phone || "",
+        r.company || "",
+        String(r.openingBalance),
+        r.userAction.toUpperCase(),
+        r.status.toUpperCase(),
+        errDetail,
+        r.rawNotesComment || "",
+      ];
+
+      rows.push(fields.map((f) => `"${String(f).replace(/"/g, '""')}"`).join(","));
+    }
+
+    const blob = new Blob([rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `import-errors-${importResult.publicId}.csv`;
+    a.download = `import-report-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Error report downloaded.");
+    toast.success("Downloaded comprehensive import report (CSV)");
+  };
+
+  // Sample data preview helper for Mapping step
+  const getSampleValuesForColumn = (columnName: string) => {
+    if (!analysis || !columnName) return [];
+    return analysis.sampleRows
+      .map((r) => r[columnName])
+      .filter((v) => v !== undefined && v !== null && String(v).trim().length > 0)
+      .slice(0, 3);
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[780px] max-h-[92vh] overflow-y-auto rounded-3xl p-6 sm:p-7 bg-card border border-slate-200/80 dark:border-slate-800 shadow-2xl">
-        {/* Header with Wizard Step Progress */}
-        <DialogHeader className="pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between gap-3">
+      <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col p-0 rounded-3xl overflow-hidden border border-slate-200/90 dark:border-slate-800 shadow-2xl bg-card">
+        {/* Header Bar */}
+        <DialogHeader className="p-5 sm:p-6 pb-4 border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-primary/10 text-primary border border-primary/20 shadow-xs">
-                <Contact className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                <UploadCloud className="h-5 w-5" />
               </div>
               <div>
-                <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
-                  Contact Import Center
+                <DialogTitle className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <span>Import Contacts</span>
+                  <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-primary border-primary/30">
+                    Enterprise
+                  </Badge>
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Import contacts from Excel, CSV, Google Contacts, Outlook, or vCard files
+                  Import, validate, deduplicate, and map spreadsheet contacts into your ledger
                 </DialogDescription>
               </div>
             </div>
 
-            {/* Step Pills */}
-            <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
-              <span className={step === "source" ? "text-primary font-black" : ""}>Source</span>
-              <span>→</span>
-              <span className={step === "analyze" ? "text-primary font-black" : ""}>Analyze</span>
-              <span>→</span>
-              <span className={step === "mapping" ? "text-primary font-black" : ""}>Mapping</span>
-              <span>→</span>
-              <span className={step === "duplicates" || step === "importing" ? "text-primary font-black" : ""}>Review</span>
+            {/* Stepper Pill Indicator */}
+            <div className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+              <span className={`px-2 py-0.5 rounded-lg transition-colors ${step === "source" ? "bg-primary text-primary-foreground font-bold" : "text-slate-500"}`}>
+                1. Upload
+              </span>
+              <span className={`px-2 py-0.5 rounded-lg transition-colors ${step === "mapping" ? "bg-primary text-primary-foreground font-bold" : "text-slate-500"}`}>
+                2. Mapping
+              </span>
+              <span className={`px-2 py-0.5 rounded-lg transition-colors ${step === "preview" ? "bg-primary text-primary-foreground font-bold" : "text-slate-500"}`}>
+                3. Preview
+              </span>
+              <span className={`px-2 py-0.5 rounded-lg transition-colors ${step === "complete" ? "bg-emerald-600 text-white font-bold" : "text-slate-500"}`}>
+                4. Done
+              </span>
             </div>
           </div>
         </DialogHeader>
 
-        {/* Global Error Banner */}
-        {error && (
-          <div className="mt-4 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-2.5 text-xs text-rose-600 dark:text-rose-400">
-            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-semibold">Import Notice</p>
-              <p className="mt-0.5">{error}</p>
+        {/* Dynamic Step Content */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+          {error && (
+            <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 flex items-center gap-3 text-xs text-rose-700 dark:text-rose-300">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+              <span className="flex-1 font-medium">{error}</span>
+              <Button size="sm" variant="ghost" className="h-7 px-2 text-rose-600" onClick={() => setError(null)}>
+                Dismiss
+              </Button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* STEP 1: CHOOSE SOURCE */}
-        {step === "source" && (
-          <div className="space-y-6 pt-4">
-            {/* Drag and Drop Zone */}
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                  handleFileChosen(e.dataTransfer.files[0]);
-                }
-              }}
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-primary/50 dark:hover:border-primary/50 bg-slate-50/50 dark:bg-slate-900/40 rounded-3xl p-8 sm:p-10 text-center cursor-pointer transition-all duration-300 group hover:-translate-y-0.5 hover:shadow-md"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv,.vcf,.txt"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFileChosen(e.target.files[0]);
-                  }
-                }}
-              />
-
-              <div className="flex flex-col items-center justify-center space-y-3">
-                <div className="p-4 rounded-2xl bg-primary/10 text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">
+          {/* ========================================================================= */}
+          {/* STEP 1: FILE SOURCE SELECTION */}
+          {/* ========================================================================= */}
+          {step === "source" && (
+            <div className="space-y-6">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-3xl p-8 sm:p-12 text-center cursor-pointer hover:border-primary/60 hover:bg-primary/[0.02] transition-all duration-300 group"
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept=".xlsx,.xls,.csv,.vcf"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileChosen(file);
+                  }}
+                />
+                <div className="h-16 w-16 mx-auto rounded-3xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300 shadow-sm">
                   <UploadCloud className="h-8 w-8" />
                 </div>
-                <div>
-                  <h4 className="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100">
-                    Drop your contact spreadsheet or file here
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                    Supports Excel (.xlsx, .xls), CSV (.csv), Google Contacts Export, Outlook Contacts, and vCard (.vcf)
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 mt-4">
+                  Choose or drag spreadsheet to import
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
+                  Supports Excel (.xlsx, .xls), Comma-Separated Values (.csv), and vCard (.vcf) up to 15MB and 5,000 contacts.
+                </p>
+
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                  <Badge variant="secondary" className="text-[11px] font-semibold py-1 px-2.5 rounded-lg">
+                    Excel (.xlsx, .xls)
+                  </Badge>
+                  <Badge variant="secondary" className="text-[11px] font-semibold py-1 px-2.5 rounded-lg">
+                    CSV (.csv)
+                  </Badge>
+                  <Badge variant="secondary" className="text-[11px] font-semibold py-1 px-2.5 rounded-lg">
+                    vCard (.vcf)
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Template Download Utility */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <FileSpreadsheet className="h-5 w-5 text-emerald-600 shrink-0" />
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                      Need a sample template?
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Download pre-formatted templates with headers for instant auto-mapping.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs font-semibold rounded-xl gap-1.5"
+                    onClick={async () => {
+                      const blob = await generateContactXlsxTemplateBlob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "contacts-template.xlsx";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Excel Template</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs font-semibold rounded-xl gap-1.5"
+                    onClick={() => {
+                      const csv = generateContactCsvTemplate();
+                      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "contacts-template.csv";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5 text-primary" />
+                    <span>CSV Template</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* STEP 2: ANIMATED ANALYZING STAGE */}
+          {/* ========================================================================= */}
+          {step === "analyzing" && (
+            <div className="py-12 flex flex-col items-center justify-center space-y-5 text-center">
+              <div className="relative">
+                <div className="h-20 w-20 rounded-3xl bg-primary/10 text-primary flex items-center justify-center animate-pulse">
+                  <Sparkles className="h-9 w-9 text-primary animate-spin" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5 max-w-sm">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+                  Analyzing Spreadsheet
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {analysisStage}
+                </p>
+              </div>
+
+              <div className="w-full max-w-xs space-y-2">
+                <Progress value={65} className="h-2" />
+                <span className="text-[11px] text-slate-400 font-mono">Scanning rows & security tokens...</span>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* STEP 3: COLUMN MAPPING */}
+          {/* ========================================================================= */}
+          {step === "mapping" && analysis && (
+            <div className="space-y-5">
+              {/* File Info Banner */}
+              <div className="p-4 rounded-2xl bg-primary/[0.04] border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                    <FileSpreadsheet className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <span>{analysis.fileName}</span>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {analysis.totalRows} Rows Detected
+                      </Badge>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Verify auto-detected columns below. Unmapped columns will be ignored.
+                    </p>
+                  </div>
+                </div>
+
+                {analysis.formulaInjectionsFound > 0 && (
+                  <Badge variant="outline" className="text-amber-700 dark:text-amber-300 border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-[10px] gap-1 py-1 px-2.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                    <span>{analysis.formulaInjectionsFound} Formula Prefixes Auto-Sanitized</span>
+                  </Badge>
+                )}
+              </div>
+
+              {/* Notes handling notice */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+                <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-bold">Notice regarding spreadsheet notes & test descriptions</p>
+                  <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
+                    The <strong>Notes / Description</strong> field is unmapped by default. If your file contains test assertions or developer notes, leaving it unmapped ensures test comments are not stored in your permanent contacts. You can view test comments during the Preview step!
                   </p>
                 </div>
+              </div>
+
+              {/* Mapping Table */}
+              <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold">
+                        <th className="py-2.5 px-4 w-1/3">Target Contact Field</th>
+                        <th className="py-2.5 px-4 w-1/3">Spreadsheet Column</th>
+                        <th className="py-2.5 px-4 w-1/3">Sample Value from File</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                      {SYSTEM_FIELDS.map((field) => {
+                        const currentMapped = mapping[field.key] || "";
+                        const samples = currentMapped ? getSampleValuesForColumn(currentMapped) : [];
+
+                        return (
+                          <tr key={field.key} className="hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors">
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 dark:text-slate-100">
+                                  {field.label}
+                                </span>
+                                {field.required ? (
+                                  <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[9px] py-0 px-1 border-0">
+                                    Required
+                                  </Badge>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400">Optional</span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{field.description}</p>
+                            </td>
+
+                            <td className="py-3 px-4">
+                              <Select
+                                value={currentMapped || "__none__"}
+                                onValueChange={(val) => {
+                                  setMapping((prev) => ({
+                                    ...prev,
+                                    [field.key]: val === "__none__" ? "" : val,
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger className="h-8 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 font-medium">
+                                  <SelectValue placeholder="[ Do Not Map ]" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl max-h-56">
+                                  <SelectItem value="__none__" className="text-xs text-slate-400 font-medium">
+                                    [ Do Not Map / Ignore ]
+                                  </SelectItem>
+                                  {analysis.detectedHeaders.map((header) => (
+                                    <SelectItem key={header} value={header} className="text-xs font-medium">
+                                      {header}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
+
+                            <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-mono text-[11px] truncate max-w-xs">
+                              {samples.length > 0 ? (
+                                <span className="truncate block" title={samples.join(" | ")}>
+                                  {samples[0]} {samples.length > 1 && <span className="text-slate-400 text-[10px] font-sans">({samples.length} items)</span>}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic font-sans text-[10px]">No sample data</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* STEP 4: ENTERPRISE PREVIEW & CONFLICT RESOLUTION */}
+          {/* ========================================================================= */}
+          {step === "preview" && (
+            <div className="space-y-4">
+              {/* Top Metrics Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-center">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Analyzed</span>
+                  <span className="text-lg font-black text-slate-900 dark:text-slate-100">{previewMetrics.totalRows}</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block">New Records</span>
+                  <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{previewMetrics.newCount}</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-center">
+                  <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider block">Updates</span>
+                  <span className="text-lg font-black text-blue-600 dark:text-blue-400">{previewMetrics.updateCount}</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-center">
+                  <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider block">Merges</span>
+                  <span className="text-lg font-black text-purple-600 dark:text-purple-400">{previewMetrics.mergeCount}</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-500/10 border border-slate-500/20 text-center">
+                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Skipped</span>
+                  <span className="text-lg font-black text-slate-600 dark:text-slate-400">{previewMetrics.skipCount}</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-center">
+                  <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider block">Invalid (Blocked)</span>
+                  <span className="text-lg font-black text-rose-600 dark:text-rose-400">{previewMetrics.invalidCount}</span>
+                </div>
+              </div>
+
+              {/* Control Toolbar: Default Strategy & Search / Filter */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewFilter("all")}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+                      previewFilter === "all"
+                        ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                    }`}
+                  >
+                    All Rows ({previewMetrics.totalRows})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewFilter("ready")}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+                      previewFilter === "ready"
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100"
+                    }`}
+                  >
+                    Ready ({rowsReadyToImportCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewFilter("conflicts")}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+                      previewFilter === "conflicts"
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100"
+                    }`}
+                  >
+                    Conflicts ({previewMetrics.mergeCount + previewMetrics.updateCount})
+                  </button>
+                  {previewMetrics.invalidCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewFilter("invalid")}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+                        previewFilter === "invalid"
+                          ? "bg-rose-600 text-white shadow-xs"
+                          : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 hover:bg-rose-100"
+                      }`}
+                    >
+                      Invalid ({previewMetrics.invalidCount})
+                    </button>
+                  )}
+                </div>
+
+                {/* Default Strategy Selector */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] font-bold text-slate-500 whitespace-nowrap">Duplicate Rule:</span>
+                  <Select
+                    value={defaultStrategy}
+                    onValueChange={(val: any) => handleDefaultStrategyChange(val)}
+                  >
+                    <SelectTrigger className="h-8 text-xs font-semibold rounded-xl w-44 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="merge" className="text-xs font-medium">
+                        Smart Merge (Keep existing)
+                      </SelectItem>
+                      <SelectItem value="update" className="text-xs font-medium">
+                        Update Existing Records
+                      </SelectItem>
+                      <SelectItem value="skip" className="text-xs font-medium">
+                        Skip Duplicates
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Search Bar for Preview */}
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  value={previewSearch}
+                  onChange={(e) => setPreviewSearch(e.target.value)}
+                  placeholder="Filter preview rows by name, email, phone, company, or test note..."
+                  className="pl-8 h-8 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                />
+              </div>
+
+              {/* Preview Matrix Table */}
+              <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-xs max-h-[380px] overflow-y-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 bg-slate-100/90 dark:bg-slate-900/95 backdrop-blur-md z-10 border-b border-slate-200/80 dark:border-slate-800 font-bold text-slate-600 dark:text-slate-400">
+                    <tr>
+                      <th className="py-2.5 px-3 w-12 text-center">Row</th>
+                      <th className="py-2.5 px-3 w-14 text-center">Status</th>
+                      <th className="py-2.5 px-3 min-w-[150px]">Contact Name</th>
+                      <th className="py-2.5 px-3 min-w-[160px]">Email & Mobile</th>
+                      <th className="py-2.5 px-3 min-w-[110px]">Opening Bal</th>
+                      <th className="py-2.5 px-3 min-w-[160px]">File Test Note</th>
+                      <th className="py-2.5 px-3 min-w-[140px] text-right">Action to Take</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 bg-white/50 dark:bg-slate-950/40">
+                    {filteredPreviewRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-10 text-center text-slate-400 italic text-xs">
+                          No rows match your active preview filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredPreviewRows.map((row) => {
+                        const isInvalid = row.status === "invalid";
+                        const hasConflict = Boolean(row.matchedContact);
+
+                        return (
+                          <tr
+                            key={row.rowNumber}
+                            className={`transition-colors ${
+                              isInvalid
+                                ? "bg-rose-500/[0.04] hover:bg-rose-500/[0.08]"
+                                : hasConflict
+                                ? "bg-amber-500/[0.03] hover:bg-amber-500/[0.06]"
+                                : "hover:bg-slate-50/60 dark:hover:bg-slate-900/30"
+                            }`}
+                          >
+                            {/* Row Number */}
+                            <td className="py-3 px-3 text-center text-slate-400 font-mono text-[11px] font-semibold">
+                              #{row.rowNumber}
+                            </td>
+
+                            {/* Status Icon */}
+                            <td className="py-3 px-3 text-center">
+                              {isInvalid ? (
+                                <span title={row.validationErrors.join(", ")} className="inline-block">
+                                  <XCircle className="h-4 w-4 text-rose-600 mx-auto" />
+                                </span>
+                              ) : hasConflict ? (
+                                <span title={row.conflictReason || "Conflict with existing contact"} className="inline-block">
+                                  <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto" />
+                                </span>
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600 mx-auto" />
+                              )}
+                            </td>
+
+                            {/* Contact Name & Company */}
+                            <td className="py-3 px-3">
+                              <div className="flex items-center gap-2">
+                                <div className="h-7 w-7 rounded-xl bg-primary/10 text-primary font-bold flex items-center justify-center text-xs shrink-0">
+                                  {row.name ? row.name.charAt(0).toUpperCase() : "?"}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="font-bold text-slate-900 dark:text-slate-100 block truncate text-xs">
+                                    {row.name || <span className="text-rose-500 italic">Missing Name</span>}
+                                  </span>
+                                  {row.company && (
+                                    <span className="text-[10px] text-slate-500 flex items-center gap-1 truncate">
+                                      <Building2 className="h-2.5 w-2.5" />
+                                      {row.company}
+                                    </span>
+                                  )}
+                                  {isInvalid && (
+                                    <span className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold block truncate">
+                                      {row.validationErrors[0]}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Email & Mobile */}
+                            <td className="py-3 px-3">
+                              <div className="space-y-0.5">
+                                {row.email ? (
+                                  <div className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300 truncate font-mono">
+                                    <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+                                    <span className="truncate">{row.email}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">No email</span>
+                                )}
+                                {row.phone ? (
+                                  <div className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300 font-mono">
+                                    <Phone className="h-3 w-3 text-slate-400 shrink-0" />
+                                    <span>{row.phone}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic">No mobile</span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Opening Balance */}
+                            <td className="py-3 px-3 font-mono text-xs font-bold">
+                              <span
+                                className={
+                                  row.openingBalance > 0
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : row.openingBalance < 0
+                                    ? "text-rose-600 dark:text-rose-400"
+                                    : "text-slate-500"
+                                }
+                              >
+                                {row.openingBalance > 0 ? "+" : ""}
+                                {formatCurrency(row.openingBalance, row.currency)}
+                              </span>
+                            </td>
+
+                            {/* File Test Note (Muted Inspection Badge) */}
+                            <td className="py-3 px-3 max-w-[180px]">
+                              {row.rawNotesComment ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] font-normal py-0.5 px-2 rounded-lg truncate max-w-full block bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
+                                  title={`File test note: "${row.rawNotesComment}" (will NOT be saved as contact description)`}
+                                >
+                                  {row.rawNotesComment}
+                                </Badge>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">—</span>
+                              )}
+                              {hasConflict && (
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold block truncate mt-0.5">
+                                  {row.conflictReason}
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Action to Take */}
+                            <td className="py-3 px-3 text-right">
+                              {isInvalid ? (
+                                <Badge variant="outline" className="text-[10px] text-rose-600 border-rose-300 bg-rose-50 dark:bg-rose-950/40">
+                                  Blocked (Invalid)
+                                </Badge>
+                              ) : (
+                                <Select
+                                  value={row.userAction}
+                                  onValueChange={(val: any) => handleRowActionChange(row.rowNumber, val)}
+                                >
+                                  <SelectTrigger className="h-7 text-[11px] font-bold rounded-lg w-32 ml-auto bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent align="end" className="rounded-xl">
+                                    <SelectItem value="new" className="text-xs font-semibold text-emerald-600">
+                                      Import as New
+                                    </SelectItem>
+                                    <SelectItem value="merge" className="text-xs font-semibold text-purple-600">
+                                      Merge Existing
+                                    </SelectItem>
+                                    <SelectItem value="update" className="text-xs font-semibold text-blue-600">
+                                      Update Existing
+                                    </SelectItem>
+                                    <SelectItem value="skip" className="text-xs font-semibold text-slate-500">
+                                      Skip Row
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* STEP 5: ANIMATED IMPORTING STAGE */}
+          {/* ========================================================================= */}
+          {step === "importing" && (
+            <div className="py-12 flex flex-col items-center justify-center space-y-5 text-center">
+              <div className="relative">
+                <div className="h-20 w-20 rounded-3xl bg-primary/10 text-primary flex items-center justify-center shadow-lg shadow-primary/10">
+                  <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5 max-w-sm">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+                  Importing Contacts
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  {importStage}
+                </p>
+              </div>
+
+              <div className="w-full max-w-xs space-y-2">
+                <Progress value={importProgress} className="h-2.5 rounded-full" />
+                <div className="flex justify-between text-[11px] font-mono text-slate-400">
+                  <span>Progress</span>
+                  <span>{importProgress}%</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* STEP 6: SUMMARY REPORT & COMPLETE */}
+          {/* ========================================================================= */}
+          {step === "complete" && importResult && (
+            <div className="py-6 space-y-6 text-center">
+              <div className="h-16 w-16 mx-auto rounded-3xl bg-emerald-500/15 text-emerald-600 flex items-center justify-center shadow-md shadow-emerald-500/10">
+                <CheckCircle2 className="h-8 w-8" />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-xl font-extrabold text-slate-900 dark:text-slate-100">
+                  Import Completed Successfully!
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Processed in {(importResult.durationMs / 1000).toFixed(1)}s with session ID{" "}
+                  <code className="font-mono text-primary font-bold">{importResult.publicId}</code>
+                </p>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto">
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider block">Imported</span>
+                  <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{importResult.importedRecords}</span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-blue-500/10 border border-blue-500/20">
+                  <span className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider block">Updated / Merged</span>
+                  <span className="text-2xl font-black text-blue-600 dark:text-blue-400">{importResult.updatedRecords}</span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-slate-500/10 border border-slate-500/20">
+                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Skipped</span>
+                  <span className="text-2xl font-black text-slate-600 dark:text-slate-400">{importResult.skippedRecords}</span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20">
+                  <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider block">Invalid</span>
+                  <span className="text-2xl font-black text-rose-600 dark:text-rose-400">{importResult.failedRecords}</span>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <Button
-                  type="button"
                   variant="outline"
                   size="sm"
-                  className="rounded-xl text-xs font-bold pointer-events-none"
+                  onClick={handleDownloadReport}
+                  className="rounded-xl text-xs font-semibold gap-1.5 h-9"
                 >
-                  Browse Files
+                  <FileDown className="h-4 w-4 text-emerald-600" />
+                  <span>Download Full CSV Report</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleOpenChange(false)}
+                  className="rounded-xl text-xs font-bold gap-1.5 h-9 bg-primary text-primary-foreground shadow-sm"
+                >
+                  <span>Done & View Contacts</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Supported Formats Grid */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Supported File Formats & Providers
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <div>
-                    <span className="font-bold block text-slate-800 dark:text-slate-200">Excel (.xlsx)</span>
-                    <span className="text-[10px] text-slate-400">Microsoft Office</span>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
-                  <FileText className="h-4 w-4 text-blue-600 shrink-0" />
-                  <div>
-                    <span className="font-bold block text-slate-800 dark:text-slate-200">CSV (.csv)</span>
-                    <span className="text-[10px] text-slate-400">Comma Separated</span>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
-                  <Contact className="h-4 w-4 text-amber-600 shrink-0" />
-                  <div>
-                    <span className="font-bold block text-slate-800 dark:text-slate-200">Google Contacts</span>
-                    <span className="text-[10px] text-slate-400">Google Workspace</span>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
-                  <FileSpreadsheet className="h-4 w-4 text-indigo-600 shrink-0" />
-                  <div>
-                    <span className="font-bold block text-slate-800 dark:text-slate-200">vCard (.vcf)</span>
-                    <span className="text-[10px] text-slate-400">Apple / Android Pass</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Security Guard Notice */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 flex items-center gap-2.5 text-xs text-slate-500">
-              <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-              <span>
-                Files are analyzed client-side first with automatic CSV/formula injection sanitization and strict authenticated user protection.
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: ANALYZE FILE */}
-        {step === "analyze" && (
-          <div className="space-y-6 pt-4">
-            {isAnalyzing ? (
-              <div className="py-16 flex flex-col items-center justify-center gap-3 text-slate-400">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-xs font-semibold">
-                  Analyzing spreadsheet structure, detecting headers & validating rows...
-                </p>
-              </div>
-            ) : analysis ? (
-              <div className="space-y-5">
-                {/* File Header Card */}
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
-                      <FileSpreadsheet className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-                        {analysis.fileName}
-                      </h4>
-                      <p className="text-[11px] text-slate-400">
-                        {(analysis.fileSize / 1024).toFixed(1)} KB • {analysis.fileType.toUpperCase()} file
-                      </p>
-                    </div>
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setStep("source")}
-                    className="rounded-xl text-xs h-8"
-                  >
-                    Change File
-                  </Button>
-                </div>
-
-                {/* Analysis Metrics Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 text-center">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 mx-auto" />
-                    <span className="text-lg font-black text-emerald-600 mt-1 block">
-                      {analysis.totalRows}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-medium">Records Found</span>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 text-center">
-                    <Check className="h-4 w-4 text-emerald-600 mx-auto" />
-                    <span className="text-lg font-black text-emerald-600 mt-1 block">
-                      {analysis.validRowsCount}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-medium">Valid Ready</span>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-center">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 mx-auto" />
-                    <span className="text-lg font-black text-amber-600 mt-1 block">
-                      {analysis.duplicateRowsCount}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-medium">Duplicates</span>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-blue-500/5 border border-blue-500/20 text-center">
-                    <AlertCircle className="h-4 w-4 text-blue-600 mx-auto" />
-                    <span className="text-lg font-black text-blue-600 mt-1 block">
-                      {analysis.invalidEmailCount}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-medium">Invalid Emails</span>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-rose-500/5 border border-rose-500/20 text-center col-span-2 sm:col-span-1">
-                    <X className="h-4 w-4 text-rose-600 mx-auto" />
-                    <span className="text-lg font-black text-rose-600 mt-1 block">
-                      {analysis.missingNameCount}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-medium">Missing Name</span>
-                  </div>
-                </div>
-
-                {/* Detected Columns Pills */}
-                <div className="space-y-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Detected Spreadsheet Columns ({analysis.detectedHeaders.length})
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {analysis.detectedHeaders.map((header) => (
-                      <Badge
-                        key={header}
-                        variant="secondary"
-                        className="text-xs px-2.5 py-1 font-mono rounded-lg"
-                      >
-                        {header}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Action footer */}
-                <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setStep("source")}
-                    className="rounded-xl text-xs font-semibold h-10"
-                  >
-                    Back
-                  </Button>
-
-                  <Button
-                    type="button"
-                    onClick={handleProceedToMapping}
-                    className="rounded-xl text-xs font-bold h-10 px-5 gap-1.5 bg-primary text-primary-foreground shadow-sm"
-                  >
-                    <span>Proceed to Field Mapping</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        {/* STEP 3: FIELD MAPPING */}
-        {step === "mapping" && analysis && (
-          <div className="space-y-6 pt-4">
-            <div className="space-y-1">
-              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                Map Spreadsheet Columns to System Fields
-              </h4>
-              <p className="text-xs text-slate-500">
-                We have automatically matched columns based on your headers. Adjust mappings if needed.
-              </p>
-            </div>
-
-            {/* Mapping Grid */}
-            <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
-              {SYSTEM_FIELDS.map((field) => {
-                const currentVal = mapping[field.key] || "";
-
-                return (
-                  <div
-                    key={field.key}
-                    className="p-3.5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
-                  >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                          {field.label}
-                        </span>
-                        {field.required && (
-                          <Badge className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-[9px] px-1 py-0">
-                            Required
-                          </Badge>
-                        )}
-                      </div>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        field: {field.key}
-                      </span>
-                    </div>
-
-                    <div className="w-full sm:w-64">
-                      <Select
-                        value={currentVal || "__none__"}
-                        onValueChange={(val) => {
-                          setMapping((prev) => ({
-                            ...prev,
-                            [field.key]: val === "__none__" ? "" : val,
-                          }));
-                        }}
-                      >
-                        <SelectTrigger className="rounded-xl text-xs h-9 border-slate-200/80 dark:border-slate-800">
-                          <SelectValue placeholder="Do Not Map" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-2xl">
-                          <SelectItem value="__none__">-- Do Not Map --</SelectItem>
-                          {analysis.detectedHeaders.map((hdr) => (
-                            <SelectItem key={hdr} value={hdr}>
-                              {hdr}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Action footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep("analyze")}
-                className="rounded-xl text-xs font-semibold h-10"
-              >
-                Back to Analysis
-              </Button>
-
-              <Button
-                type="button"
-                onClick={handleProceedToDuplicates}
-                className="rounded-xl text-xs font-bold h-10 px-5 gap-1.5 bg-primary text-primary-foreground shadow-sm"
-              >
-                <span>Duplicate Handling & Strategy</span>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 4: DUPLICATE RESOLUTION STRATEGY */}
-        {step === "duplicates" && analysis && (
-          <div className="space-y-6 pt-4">
-            <div className="space-y-1">
-              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                Duplicate Handling Strategy
-              </h4>
-              <p className="text-xs text-slate-500">
-                Choose how to resolve contacts that match existing entries by phone, email, or name.
-              </p>
-            </div>
-
-            {/* Strategy Options */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Option 1: Smart Merge */}
-              <div
-                onClick={() => setDuplicateStrategy("merge")}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  duplicateStrategy === "merge"
-                    ? "bg-primary/5 border-primary ring-1 ring-primary/20 shadow-xs"
-                    : "bg-card border-slate-200/80 dark:border-slate-800 hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
-                    Smart Merge (Recommended)
-                  </span>
-                  <Badge variant="secondary" className="text-[9px] px-1.5 py-0 font-bold">
-                    Safe
-                  </Badge>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Combines tags, merges notes, and updates missing phone/email without overwriting existing data.
-                </p>
-              </div>
-
-              {/* Option 2: Update Existing */}
-              <div
-                onClick={() => setDuplicateStrategy("update")}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  duplicateStrategy === "update"
-                    ? "bg-primary/5 border-primary ring-1 ring-primary/20 shadow-xs"
-                    : "bg-card border-slate-200/80 dark:border-slate-800 hover:border-slate-300"
-                }`}
-              >
-                <span className="font-bold text-xs text-slate-900 dark:text-slate-100 block">
-                  Update Existing
-                </span>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Overwrites contact fields with fresh spreadsheet values while preserving transaction history.
-                </p>
-              </div>
-
-              {/* Option 3: Skip Existing */}
-              <div
-                onClick={() => setDuplicateStrategy("skip")}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  duplicateStrategy === "skip"
-                    ? "bg-primary/5 border-primary ring-1 ring-primary/20 shadow-xs"
-                    : "bg-card border-slate-200/80 dark:border-slate-800 hover:border-slate-300"
-                }`}
-              >
-                <span className="font-bold text-xs text-slate-900 dark:text-slate-100 block">
-                  Skip Existing
-                </span>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Keeps existing contacts untouched and only imports completely new records.
-                </p>
-              </div>
-
-              {/* Option 4: Create Copy */}
-              <div
-                onClick={() => setDuplicateStrategy("create_copy")}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  duplicateStrategy === "create_copy"
-                    ? "bg-primary/5 border-primary ring-1 ring-primary/20 shadow-xs"
-                    : "bg-card border-slate-200/80 dark:border-slate-800 hover:border-slate-300"
-                }`}
-              >
-                <span className="font-bold text-xs text-slate-900 dark:text-slate-100 block">
-                  Create New Copy
-                </span>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Imports duplicates as distinct separate records with a &apos;(Copy)&apos; suffix.
-                </p>
-              </div>
-            </div>
-
-            {/* Action footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setStep("mapping")}
-                className="rounded-xl text-xs font-semibold h-10"
-              >
-                Back to Mapping
-              </Button>
-
-              <Button
-                type="button"
-                onClick={handleExecuteImport}
-                className="rounded-xl text-xs font-bold h-10 px-6 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Start Import ({analysis.validRowsCount} Records)</span>
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 5: IMPORTING IN PROGRESS */}
-        {step === "importing" && (
-          <div className="py-16 text-center space-y-4">
-            <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
-            <div className="space-y-1">
-              <h4 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                Importing Contacts to Live Database...
-              </h4>
-              <p className="text-xs text-slate-500">
-                Validating fields, checking duplicates, and creating contact records
-              </p>
-            </div>
-            <div className="max-w-md mx-auto space-y-1.5 pt-2">
-              <Progress value={importProgress} className="h-2 rounded-full" />
-              <span className="text-[11px] text-slate-400 font-mono">{importProgress}% complete</span>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 6: IMPORT COMPLETE */}
-        {step === "complete" && importResult && (
-          <div className="py-8 text-center space-y-5">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto border border-emerald-500/20">
-              <Check className="h-8 w-8" />
-            </div>
-
-            <div className="space-y-1 max-w-md mx-auto">
-              <h3 className="text-xl font-black text-slate-900 dark:text-slate-100">
-                Import Completed Successfully!
-              </h3>
-              <p className="text-xs text-slate-500">
-                Processed in {(importResult.durationMs / 1000).toFixed(2)} seconds. Your contacts are ready to use in groups and expense splits.
-              </p>
-            </div>
-
-            {/* Results Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto text-xs">
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Imported</span>
-                <span className="text-lg font-black text-emerald-600 block mt-1">
-                  {importResult.importedRecords}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Updated</span>
-                <span className="text-lg font-black text-blue-600 block mt-1">
-                  {importResult.updatedRecords}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Skipped</span>
-                <span className="text-lg font-black text-slate-600 block mt-1">
-                  {importResult.skippedRecords}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Failed</span>
-                <span className={`text-lg font-black block mt-1 ${importResult.failedRecords > 0 ? "text-rose-600" : "text-slate-600"}`}>
-                  {importResult.failedRecords}
-                </span>
-              </div>
-            </div>
-
-            {/* Error report button if any failed */}
-            {importResult.failedRecords > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleDownloadErrorReport}
-                className="rounded-xl text-xs gap-1.5 font-bold text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Download Error Report ({importResult.failedRecords})</span>
-              </Button>
+        {/* Footer Navigation Bar */}
+        {step !== "analyzing" && step !== "importing" && step !== "complete" && (
+          <div className="p-4 px-6 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 flex items-center justify-between">
+            {step === "source" && (
+              <>
+                <span className="text-[11px] text-slate-400">Step 1 of 4: File Selection</span>
+                <Button variant="ghost" size="sm" onClick={() => handleOpenChange(false)} className="rounded-xl text-xs">
+                  Cancel
+                </Button>
+              </>
             )}
 
-            <div className="pt-2 flex justify-center">
-              <Button
-                type="button"
-                onClick={() => handleOpenChange(false)}
-                className="rounded-xl font-bold text-xs h-10 px-8 bg-primary text-primary-foreground shadow-md"
-              >
-                Done & View Contacts
-              </Button>
-            </div>
+            {step === "mapping" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStep("source")}
+                  className="rounded-xl text-xs font-semibold gap-1.5"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <span>Back</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleProceedToPreview}
+                  className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-xs"
+                >
+                  <span>Preview & Resolve Conflicts</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+
+            {step === "preview" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStep("mapping")}
+                  className="rounded-xl text-xs font-semibold gap-1.5"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <span>Back to Mapping</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleExecuteImport}
+                  disabled={rowsReadyToImportCount === 0}
+                  className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-md hover:shadow-lg transition-all"
+                >
+                  <Check className="h-4 w-4" />
+                  <span>Execute Import ({rowsReadyToImportCount} Contacts)</span>
+                </Button>
+              </>
+            )}
           </div>
         )}
       </DialogContent>
