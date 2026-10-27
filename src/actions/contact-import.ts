@@ -19,7 +19,7 @@ import { generatePublicId } from "@/lib/utils";
  * Formula Injection Protection (CWE-1236):
  * If cell starts with '=', '+', '-', '@', '\t', '\r', prefix with single quote
  */
-export function sanitizeFormulaInjection(value: string | null | undefined): string | null {
+function sanitizeFormulaInjection(value: string | null | undefined): string | null {
   if (!value || typeof value !== "string") return null;
   const trimmed = value.trim();
   if (/^[=+\-@\t\r]/.test(trimmed)) {
