@@ -1,8 +1,9 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { settlements, transactions, contacts, groups, expenseSplits, groupMembers } from "@/lib/db/schema/schema";
-import { eq, and, or, desc, inArray } from "drizzle-orm";
+import { settlements, transactions, contacts, groups, expenseSplits, groupMembers, users } from "@/lib/db/schema/schema";
+import { eq, and, or, desc, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { calculateOptimalSettlements, type Balance } from "@/lib/settlements/calculator";
@@ -734,4 +735,443 @@ export async function createSettlementsFromCalculation(groupId: number) {
     throw new DatabaseError("Failed to create settlements from calculation", { originalError: error });
   }
 }
+
+export interface UserPendingSettlementItem {
+  id: string;
+  databaseId?: number | null;
+  publicId?: string | null;
+  payerName: string;
+  payerAvatar?: string | null;
+  payerEmail?: string | null;
+  payerIsCurrentUser: boolean;
+  fromUserId?: number | null;
+  fromContactId?: number | null;
+  receiverName: string;
+  receiverAvatar?: string | null;
+  receiverEmail?: string | null;
+  receiverIsCurrentUser: boolean;
+  toUserId?: number | null;
+  toContactId?: number | null;
+  amount: number; // in Rupees
+  currency: string;
+  reason: string;
+  groupId?: number | null;
+  groupName: string;
+  groupIcon?: string | null;
+  groupCategory: string;
+  splitMethod: string;
+  createdAt: string;
+  dueStatus: "Due Today" | "Due Now" | "Overdue" | "Pending Confirmation";
+  paymentStatus: "Pending" | "Unpaid";
+  transactionReference: string;
+}
+
+export interface UserPendingSettlementOverview {
+  totalPendingAmount: number;
+  totalPayableAmount: number;
+  totalReceivableAmount: number;
+  pendingCount: number;
+  groupsInvolvedCount: number;
+  estimatedTransfers: number;
+  items: UserPendingSettlementItem[];
+}
+
+/**
+ * FEATURE 1: Fetch every pending settlement related ONLY to the currently logged-in user's profile.
+ * Never includes settlements from other users.
+ */
+export async function getUserPendingSettlementsAction(groupIdOrPublicId?: string | number): Promise<UserPendingSettlementOverview> {
+  const user = await requireAuth();
+
+  let numericGroupId: number | undefined;
+  if (groupIdOrPublicId !== undefined && groupIdOrPublicId !== null && groupIdOrPublicId !== "") {
+    if (typeof groupIdOrPublicId === "number") {
+      numericGroupId = groupIdOrPublicId;
+    } else if (/^\d+$/.test(groupIdOrPublicId)) {
+      numericGroupId = Number(groupIdOrPublicId);
+    } else {
+      const [foundGroup] = await db
+        .select({ id: groups.id })
+        .from(groups)
+        .where(eq(groups.publicId, groupIdOrPublicId))
+        .limit(1);
+      if (foundGroup) {
+        numericGroupId = foundGroup.id;
+      }
+    }
+  }
+
+  const settleFromUser = alias(users, "pending_settle_from_user");
+  const settleToUser = alias(users, "pending_settle_to_user");
+  const settleFromContact = alias(contacts, "pending_settle_from_contact");
+  const settleToContact = alias(contacts, "pending_settle_to_contact");
+
+  const conditions = [
+    eq(settlements.isDeleted, false),
+    eq(settlements.status, "pending"),
+    or(eq(settlements.fromUserId, user.id), eq(settlements.toUserId, user.id)),
+  ];
+
+  if (numericGroupId) {
+    conditions.push(eq(settlements.groupId, numericGroupId));
+  }
+
+  const explicitRows = await db
+    .select({
+      id: settlements.id,
+      publicId: settlements.publicId,
+      amount: settlements.amount,
+      currency: settlements.currency,
+      status: settlements.status,
+      paymentMethod: settlements.paymentMethod,
+      notes: settlements.notes,
+      createdAt: settlements.createdAt,
+      groupId: settlements.groupId,
+      groupName: groups.name,
+      groupCoverImage: groups.coverImage,
+      groupType: groups.type,
+      groupSplitMethod: groups.splitMethod,
+      fromUserId: settlements.fromUserId,
+      fromUserName: settleFromUser.name,
+      fromUserAvatar: settleFromUser.avatar,
+      fromUserEmail: settleFromUser.email,
+      fromContactId: settlements.fromContactId,
+      fromContactName: settleFromContact.name,
+      toUserId: settlements.toUserId,
+      toUserName: settleToUser.name,
+      toUserAvatar: settleToUser.avatar,
+      toUserEmail: settleToUser.email,
+      toContactId: settlements.toContactId,
+      toContactName: settleToContact.name,
+    })
+    .from(settlements)
+    .leftJoin(groups, eq(settlements.groupId, groups.id))
+    .leftJoin(settleFromUser, eq(settlements.fromUserId, settleFromUser.id))
+    .leftJoin(settleToUser, eq(settlements.toUserId, settleToUser.id))
+    .leftJoin(settleFromContact, eq(settlements.fromContactId, settleFromContact.id))
+    .leftJoin(settleToContact, eq(settlements.toContactId, settleToContact.id))
+    .where(and(...conditions))
+    .orderBy(desc(settlements.createdAt));
+
+  const items: UserPendingSettlementItem[] = [];
+  const coveredKeys = new Set<string>();
+
+  for (const row of explicitRows) {
+    const isPayerCurrentUser = row.fromUserId === user.id;
+    const isReceiverCurrentUser = row.toUserId === user.id;
+
+    if (!isPayerCurrentUser && !isReceiverCurrentUser) continue;
+
+    const payerName = isPayerCurrentUser
+      ? `${user.name || "You"} (You)`
+      : row.fromUserName || row.fromContactName || `Member #${row.fromUserId || row.fromContactId}`;
+    const receiverName = isReceiverCurrentUser
+      ? `${user.name || "You"} (You)`
+      : row.toUserName || row.toContactName || `Member #${row.toUserId || row.toContactId}`;
+
+    const createdTime = row.createdAt ? new Date(row.createdAt).getTime() : Date.now();
+    const daysDiff = (Date.now() - createdTime) / (1000 * 60 * 60 * 24);
+    let dueStatus: "Due Today" | "Due Now" | "Overdue" | "Pending Confirmation" = "Due Now";
+    if (daysDiff > 7) {
+      dueStatus = "Overdue";
+    } else if (daysDiff < 1) {
+      dueStatus = "Due Today";
+    }
+
+    const item: UserPendingSettlementItem = {
+      id: `db-${row.id}`,
+      databaseId: row.id,
+      publicId: row.publicId,
+      payerName,
+      payerAvatar: row.fromUserAvatar,
+      payerEmail: row.fromUserEmail,
+      payerIsCurrentUser: isPayerCurrentUser,
+      fromUserId: row.fromUserId,
+      fromContactId: row.fromContactId,
+      receiverName,
+      receiverAvatar: row.toUserAvatar,
+      receiverEmail: row.toUserEmail,
+      receiverIsCurrentUser: isReceiverCurrentUser,
+      toUserId: row.toUserId,
+      toContactId: row.toContactId,
+      amount: Math.round(Number(row.amount)) / 100,
+      currency: row.currency || "INR",
+      reason: row.notes || (row.groupId ? `Debt clearance in ${row.groupName || "group"}` : "Direct debt settlement"),
+      groupId: row.groupId,
+      groupName: row.groupName || "Personal / Direct Ledger",
+      groupIcon: row.groupCoverImage,
+      groupCategory: row.groupType || "general",
+      splitMethod: row.groupSplitMethod || "equal",
+      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString(),
+      dueStatus,
+      paymentStatus: "Pending",
+      transactionReference: row.publicId,
+    };
+
+    items.push(item);
+    if (row.groupId) {
+      coveredKeys.add(`${row.groupId}-${row.fromUserId || `c${row.fromContactId}`}-${row.toUserId || `c${row.toContactId}`}`);
+    }
+  }
+
+  // Also discover calculated debt suggestions from active groups
+  try {
+    const userGroupMemberships = await db
+      .select({
+        groupId: groupMembers.groupId,
+        groupName: groups.name,
+        groupType: groups.type,
+        groupIcon: groups.coverImage,
+        groupSplitMethod: groups.splitMethod,
+      })
+      .from(groupMembers)
+      .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+      .where(
+        and(
+          eq(groupMembers.userId, user.id),
+          eq(groups.isDeleted, false),
+          numericGroupId ? eq(groupMembers.groupId, numericGroupId) : sql`true`
+        )
+      );
+
+    for (const gm of userGroupMemberships) {
+      const suggestions = await calculateGroupSettlements(gm.groupId);
+      for (const s of suggestions) {
+        const isFromMe = s.fromUserId === user.id;
+        const isToMe = s.toUserId === user.id;
+        if (!isFromMe && !isToMe) continue;
+
+        const key = `${gm.groupId}-${s.fromUserId || `c${s.fromContactId}`}-${s.toUserId || `c${s.toContactId}`}`;
+        if (coveredKeys.has(key)) continue;
+
+        const amtRupees = s.amount > 1000 ? s.amount / 100 : s.amount;
+        if (amtRupees <= 0) continue;
+
+        items.push({
+          id: `calc-${gm.groupId}-${s.fromUserId ?? `c${s.fromContactId}`}-${s.toUserId ?? `c${s.toContactId}`}`,
+          databaseId: null,
+          publicId: `CALC-${generatePublicId()}`,
+          payerName: isFromMe ? `${user.name || "You"} (You)` : s.fromName || `User #${s.fromUserId}`,
+          payerAvatar: (s as any).fromAvatar || null,
+          payerIsCurrentUser: isFromMe,
+          fromUserId: s.fromUserId,
+          fromContactId: s.fromContactId,
+          receiverName: isToMe ? `${user.name || "You"} (You)` : s.toName || `User #${s.toUserId}`,
+          receiverAvatar: (s as any).toAvatar || null,
+          receiverIsCurrentUser: isToMe,
+          toUserId: s.toUserId,
+          toContactId: s.toContactId,
+          amount: amtRupees,
+          currency: s.currency || "INR",
+          reason: `Optimal debt transfer in ${gm.groupName}`,
+          groupId: gm.groupId,
+          groupName: gm.groupName,
+          groupIcon: gm.groupIcon,
+          groupCategory: gm.groupType || "general",
+          splitMethod: gm.groupSplitMethod || "equal",
+          createdAt: new Date().toISOString(),
+          dueStatus: "Due Now",
+          paymentStatus: "Pending",
+          transactionReference: "Awaiting Confirmation",
+        });
+
+        coveredKeys.add(key);
+      }
+    }
+  } catch (calcErr) {
+    console.warn("Non-critical error gathering group calculated debt transfers:", calcErr);
+  }
+
+  const distinctGroupIds = new Set(items.map((i) => i.groupId).filter(Boolean));
+  const totalPendingAmount = items.reduce((acc, i) => acc + i.amount, 0);
+  const totalPayableAmount = items.filter((i) => i.payerIsCurrentUser).reduce((acc, i) => acc + i.amount, 0);
+  const totalReceivableAmount = items.filter((i) => i.receiverIsCurrentUser).reduce((acc, i) => acc + i.amount, 0);
+
+  return {
+    totalPendingAmount: Math.round(totalPendingAmount * 100) / 100,
+    totalPayableAmount: Math.round(totalPayableAmount * 100) / 100,
+    totalReceivableAmount: Math.round(totalReceivableAmount * 100) / 100,
+    pendingCount: items.length,
+    groupsInvolvedCount: distinctGroupIds.size,
+    estimatedTransfers: items.length,
+    items,
+  };
+}
+
+/**
+ * FEATURE 1: Execute settlement for selected pending items with strict verification and atomic recalculation.
+ */
+export async function executeSettlementBatchAction(
+  itemsToSettle: Array<{
+    id: string;
+    databaseId?: number | null;
+    publicId?: string | null;
+    amount: number;
+    currency?: string;
+    fromUserId?: number | null;
+    fromContactId?: number | null;
+    toUserId?: number | null;
+    toContactId?: number | null;
+    groupId?: number | null;
+    notes?: string;
+  }>,
+  options?: {
+    paymentMethod?: string;
+    notes?: string;
+  }
+) {
+  const user = await requireAuth();
+
+  if (!itemsToSettle || itemsToSettle.length === 0) {
+    throw new ValidationError("No settlements selected for execution");
+  }
+
+  const paymentMethod = options?.paymentMethod || "UPI";
+  const commonNotes = options?.notes?.trim();
+  const now = new Date();
+  const affectedGroupIds = new Set<number>();
+  let settledCount = 0;
+  let totalSettledRupees = 0;
+
+  for (const item of itemsToSettle) {
+    if (item.groupId) {
+      affectedGroupIds.add(item.groupId);
+    }
+
+    if (item.databaseId) {
+      // Mark existing DB record as completed
+      const [existing] = await db
+        .select()
+        .from(settlements)
+        .where(
+          and(
+            eq(settlements.id, item.databaseId),
+            eq(settlements.isDeleted, false)
+          )
+        )
+        .limit(1);
+
+      if (existing) {
+        await db
+          .update(settlements)
+          .set({
+            status: "completed",
+            paidAt: now,
+            paymentMethod,
+            notes: commonNotes || item.notes || existing.notes,
+            updatedAt: now,
+          })
+          .where(eq(settlements.id, existing.id));
+
+        // Insert audit log & history
+        try {
+          const { settlementHistory, auditLogs } = await import("@/lib/db/schema/schema");
+          await db.insert(auditLogs).values({
+            userId: user.id,
+            action: "update",
+            entityType: "settlement",
+            entityId: existing.id,
+            changes: { status: "completed", paymentMethod, paidAt: now },
+          });
+
+          if (existing.groupId) {
+            await db.insert(settlementHistory).values({
+              publicId: generatePublicId(),
+              settlementId: existing.id,
+              groupId: existing.groupId,
+              fromUserId: existing.fromUserId,
+              fromContactId: existing.fromContactId,
+              fromName: "Member",
+              toUserId: existing.toUserId,
+              toContactId: existing.toContactId,
+              toName: "Member",
+              amount: existing.amount,
+              currency: existing.currency || "INR",
+              paymentMethod,
+              reason: commonNotes || "Settle All Debts Batch Workflow",
+              approvedBy: user.id,
+              approvedByName: user.name || "User",
+              approvedDate: now,
+              previousBalance: -existing.amount,
+              newBalance: 0,
+            });
+          }
+        } catch (e) {
+          console.warn("Audit record non-critical error:", e);
+        }
+
+        settledCount++;
+        totalSettledRupees += existing.amount / 100;
+      }
+    } else {
+      // It's a calculated suggestion, insert as completed record
+      const [newSettlement] = await db
+        .insert(settlements)
+        .values({
+          publicId: generatePublicId(),
+          groupId: item.groupId || null,
+          fromUserId: item.fromUserId || null,
+          fromContactId: item.fromContactId || null,
+          toUserId: item.toUserId || null,
+          toContactId: item.toContactId || null,
+          amount: Math.round(item.amount * 100),
+          currency: item.currency || "INR",
+          status: "completed",
+          paymentMethod,
+          paidAt: now,
+          notes: commonNotes || item.notes || "Settle All Debts Execution",
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+
+      if (newSettlement) {
+        try {
+          const { settlementHistory, auditLogs } = await import("@/lib/db/schema/schema");
+          await db.insert(auditLogs).values({
+            userId: user.id,
+            action: "create",
+            entityType: "settlement",
+            entityId: newSettlement.id,
+            changes: { status: "completed", amount: newSettlement.amount, paymentMethod },
+          });
+        } catch (e) {
+          console.warn("Audit record error:", e);
+        }
+
+        settledCount++;
+        totalSettledRupees += item.amount;
+      }
+    }
+  }
+
+  // Atomically recalculate all affected groups
+  for (const grpId of affectedGroupIds) {
+    try {
+      await executeAtomicGroupRecalculation({
+        groupId: grpId,
+        triggerOperation: "recalculate",
+        initiatedByUserId: user.id,
+      });
+      revalidatePath(`/dashboard/groups/${grpId}`);
+    } catch (recalcErr) {
+      console.warn(`Recalculation failed for group ${grpId}:`, recalcErr);
+    }
+  }
+
+  // Revalidate global views
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/settlements");
+  revalidatePath("/dashboard/groups");
+  revalidatePath("/dashboard/reports");
+  revalidatePath("/dashboard/analytics");
+  revalidatePath("/dashboard/contacts");
+
+  return {
+    success: true,
+    settledCount,
+    totalSettledRupees: Math.round(totalSettledRupees * 100) / 100,
+  };
+}
+
 

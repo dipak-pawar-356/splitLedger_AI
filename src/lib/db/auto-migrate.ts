@@ -114,6 +114,37 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false`;
       await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`;
       await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS deleted_by INTEGER`;
+      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company TEXT`;
+      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS address TEXT`;
+      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb`;
+      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'::jsonb`;
+      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT false`;
+      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT false`;
+      await sqlClient`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS category TEXT`;
+
+      // Contact imports table
+      await sqlClient`
+        CREATE TABLE IF NOT EXISTS contact_imports (
+          id SERIAL PRIMARY KEY,
+          public_id TEXT UNIQUE NOT NULL,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          file_name TEXT NOT NULL,
+          file_size INTEGER NOT NULL,
+          file_type TEXT NOT NULL,
+          imported_records INTEGER DEFAULT 0 NOT NULL,
+          updated_records INTEGER DEFAULT 0 NOT NULL,
+          skipped_records INTEGER DEFAULT 0 NOT NULL,
+          failed_records INTEGER DEFAULT 0 NOT NULL,
+          total_records INTEGER DEFAULT 0 NOT NULL,
+          duration_ms INTEGER DEFAULT 0 NOT NULL,
+          status TEXT DEFAULT 'completed' NOT NULL,
+          error_report JSONB,
+          imported_contact_ids JSONB DEFAULT '[]'::jsonb,
+          created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        )
+      `;
+      await sqlClient`CREATE INDEX IF NOT EXISTS contact_import_user_idx ON contact_imports(user_id)`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS contact_import_public_id_idx ON contact_imports(public_id)`;
 
       // Create or alter Audit Logs
       await sqlClient`

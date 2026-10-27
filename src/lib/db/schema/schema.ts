@@ -92,6 +92,13 @@ export const contacts = pgTable("contacts", {
   currency: text("currency").default("INR").notNull(),
   notes: text("notes"),
   notificationPreference: text("notification_preference").default("email"),
+  company: text("company"),
+  address: text("address"),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  customFields: jsonb("custom_fields").$type<Record<string, any>>().default({}),
+  isFavorite: boolean("is_favorite").default(false),
+  isBlocked: boolean("is_blocked").default(false),
+  category: text("category"),
   isArchived: boolean("is_archived").default(false),
   isDeleted: boolean("is_deleted").default(false),
   deletedAt: timestamp("deleted_at"),
@@ -104,6 +111,30 @@ export const contacts = pgTable("contacts", {
   deletedIdx: index("contact_deleted_idx").on(table.isDeleted),
   userDeletedIdx: index("contact_user_deleted_idx").on(table.userId, table.isDeleted),
 }));
+
+// Contact imports table
+export const contactImports = pgTable("contact_imports", {
+  id: serial("id").primaryKey(),
+  publicId: text("public_id").unique().notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  fileName: text("file_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  fileType: text("file_type").notNull(), // 'xlsx' | 'csv' | 'vcf' | 'google' | 'outlook'
+  importedRecords: integer("imported_records").default(0).notNull(),
+  updatedRecords: integer("updated_records").default(0).notNull(),
+  skippedRecords: integer("skipped_records").default(0).notNull(),
+  failedRecords: integer("failed_records").default(0).notNull(),
+  totalRecords: integer("total_records").default(0).notNull(),
+  durationMs: integer("duration_ms").default(0).notNull(),
+  status: text("status").default("completed").notNull(), // 'completed' | 'rolled_back' | 'failed'
+  errorReport: jsonb("error_report").$type<Array<{ row: number; name?: string; error: string; raw?: any }>>(),
+  importedContactIds: jsonb("imported_contact_ids").$type<number[]>().default([]),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index("contact_import_user_idx").on(table.userId),
+  publicIdIdx: index("contact_import_public_id_idx").on(table.publicId),
+}));
+
 
 // Groups table
 export const groups = pgTable("groups", {

@@ -19,8 +19,16 @@ export default async function ContactsPage() {
       currency: contacts.currency,
       openingBalance: contacts.openingBalance,
       notes: contacts.notes,
+      company: contacts.company,
+      address: contacts.address,
+      tags: contacts.tags,
+      customFields: contacts.customFields,
+      isFavorite: contacts.isFavorite,
+      isBlocked: contacts.isBlocked,
+      category: contacts.category,
       isArchived: contacts.isArchived,
       createdAt: contacts.createdAt,
+      updatedAt: contacts.updatedAt,
       balance: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)::numeric`,
       transactionCount: sql<number>`COUNT(${transactions.id})::int`,
     })
@@ -34,6 +42,8 @@ export default async function ContactsPage() {
     ...c,
     balance: Number(c.balance) || 0,
     transactionCount: Number(c.transactionCount) || 0,
+    tags: Array.isArray(c.tags) ? c.tags : [],
+    customFields: c.customFields && typeof c.customFields === "object" ? c.customFields : {},
   }));
 
   return <ContactsClientView initialContacts={formattedContacts} />;

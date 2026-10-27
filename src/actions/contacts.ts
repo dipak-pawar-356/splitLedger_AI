@@ -57,6 +57,12 @@ export async function updateContact(
     openingBalance?: number;
     notes?: string;
     isArchived?: boolean;
+    company?: string;
+    address?: string;
+    tags?: string[];
+    isFavorite?: boolean;
+    isBlocked?: boolean;
+    category?: string;
   }
 ) {
   try {
@@ -92,6 +98,12 @@ export async function updateContact(
         ...(data.currency !== undefined && { currency: data.currency }),
         ...(data.openingBalance !== undefined && { openingBalance: data.openingBalance * 100 }),
         ...(data.notes !== undefined && { notes: data.notes || null }),
+        ...(data.company !== undefined && { company: data.company || null }),
+        ...(data.address !== undefined && { address: data.address || null }),
+        ...(data.tags !== undefined && { tags: data.tags }),
+        ...(data.isFavorite !== undefined && { isFavorite: data.isFavorite }),
+        ...(data.isBlocked !== undefined && { isBlocked: data.isBlocked }),
+        ...(data.category !== undefined && { category: data.category || null }),
         ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
         updatedAt: new Date(),
       })
