@@ -3,6 +3,19 @@ async function getXlsx() {
   return await import("xlsx");
 }
 
+export interface MappingConfidence {
+  column: string;
+  confidence: 100 | 85 | 60;
+  isExact: boolean;
+  matchType?: "exact" | "high" | "suggested";
+}
+
+export interface IntelligentMappingResult {
+  mapping: Record<string, string>;
+  confidences: Record<string, MappingConfidence>;
+  detectedNotesColumn: string | null;
+}
+
 export interface AnalyzedFileSummary {
   fileName: string;
   fileSize: number;
@@ -18,6 +31,8 @@ export interface AnalyzedFileSummary {
   suggestedMapping: Record<string, string>; // applicationField -> spreadsheetHeader
   allRawRows: Array<Record<string, any>>;
   sampleRows: Array<Record<string, any>>;
+  mappingConfidences?: Record<string, MappingConfidence>;
+  detectedNotesColumn?: string | null;
 }
 
 export const SYSTEM_FIELDS = [
@@ -163,39 +178,151 @@ export function parseOpeningBalance(val: any): { valid: boolean; amount: number 
 }
 
 /**
- * Intelligent Header Matcher
+ * Intelligent Header Matcher with Confidence Tiers
+ * - 100% Match: Exact column names or industry-standard headers
+ * - 85% Match: High-confidence synonyms / aliases
+ * - Low/Unknown: Left unmapped
  * NOTE: 'notes' is intentionally EXCLUDED from automatic mapping.
  * Test spreadsheets frequently contain assertion comments in 'Notes'.
  * Notes will only be imported if explicitly chosen by the user in the mapping step.
  */
-export function autoDetectMapping(headers: string[]): Record<string, string> {
+export function autoDetectMappingWithConfidence(headers: string[]): IntelligentMappingResult {
   const mapping: Record<string, string> = {};
+  const confidences: Record<string, MappingConfidence> = {};
+  let detectedNotesColumn: string | null = null;
+
   const lowerHeaders = headers.map((h) => ({ original: h, lower: h.toLowerCase().trim() }));
 
-  const patterns: Record<string, RegExp[]> = {
-    name: [/^name$/i, /^full\s*name$/i, /^contact\s*name$/i, /^display\s*name$/i, /^person$/i, /^contact\s*person$/i, /^client$/i],
+  // Tier 1: 100% exact match / primary aliases
+  const tier1Patterns: Record<string, RegExp[]> = {
+    name: [/^name$/i, /^full\s*name$/i, /^contact\s*name$/i, /^person\s*name$/i],
     firstName: [/^first\s*name$/i, /^firstname$/i, /^given\s*name$/i, /^first$/i],
     lastName: [/^last\s*name$/i, /^lastname$/i, /^surname$/i, /^family\s*name$/i, /^last$/i],
-    email: [/email/i, /e-mail/i, /^mail$/i, /^email\s*address$/i],
-    phone: [/phone/i, /mobile/i, /cell/i, /tel/i, /contact\s*no/i, /contact\s*number/i, /^mobile\s*number$/i, /^phone\s*number$/i],
-    company: [/company/i, /organization/i, /organisation/i, /employer/i, /business/i],
-    address: [/address/i, /street/i, /city/i, /location/i],
-    tags: [/tags/i, /^tag$/i, /labels/i, /categories/i, /group/i],
-    openingBalance: [/opening\s*balance/i, /^balance$/i, /initial\s*balance/i, /^opening\s*bal$/i, /^starting\s*balance$/i, /^net\s*balance$/i],
-    currency: [/^currency$/i, /^curr$/i],
-    // Notes is intentionally NOT auto-mapped.
+    email: [/^email$/i, /^email\s*address$/i, /^email_address$/i, /^mail$/i],
+    phone: [
+      /^phone$/i,
+      /^phone\s*number$/i,
+      /^phone_number$/i,
+      /^mobile$/i,
+      /^mobile\s*number$/i,
+      /^mobile_number$/i,
+      /^contact\s*number$/i,
+      /^contact\s*no$/i,
+      /^contact_no$/i,
+    ],
+    company: [/^company$/i, /^company\s*name$/i, /^organization$/i, /^organisation$/i],
+    address: [/^address$/i, /^street$/i, /^location$/i, /^city$/i],
+    tags: [/^tags$/i, /^tag$/i, /^labels$/i, /^categories$/i, /^group$/i],
+    openingBalance: [
+      /^opening\s*balance$/i,
+      /^opening_balance$/i,
+      /^initial\s*balance$/i,
+      /^starting\s*balance$/i,
+      /^balance$/i,
+    ],
+    currency: [/^currency$/i, /^currency\s*code$/i, /^currency_code$/i],
   };
 
-  for (const [fieldKey, regexes] of Object.entries(patterns)) {
+  // Tier 2: 85% match / secondary aliases
+  const tier2Patterns: Record<string, RegExp[]> = {
+    name: [/^display\s*name$/i, /^person$/i, /^contact\s*person$/i, /^client$/i, /^customer$/i],
+    firstName: [/^fname$/i, /^first_name$/i],
+    lastName: [/^lname$/i, /^last_name$/i],
+    email: [/e-mail/i, /^contact\s*email$/i, /^work\s*email$/i, /^personal\s*email$/i],
+    phone: [/tel/i, /telephone/i, /cell/i, /^whatsapp$/i],
+    company: [/^employer$/i, /^business$/i, /^workplace$/i, /^firm$/i],
+    address: [/^street\s*address$/i, /^full\s*address$/i, /^residence$/i],
+    tags: [/^category$/i, /^label$/i, /^groups$/i, /^segment$/i],
+    openingBalance: [/^opening\s*bal$/i, /^net\s*balance$/i, /^opening_bal$/i, /^start\s*balance$/i],
+    currency: [/^curr$/i, /^curr_code$/i, /^iso\s*currency$/i],
+  };
+
+  // Notes detection (100% or 85%, but never auto-selected into mapping)
+  const notesPatterns = [
+    /^(notes|comments|description|remarks|note|comment|remark)$/i,
+    /^(internal\s*notes|memo|memo_text)$/i,
+  ];
+  for (const { original, lower } of lowerHeaders) {
+    if (notesPatterns.some((r) => r.test(lower))) {
+      detectedNotesColumn = original;
+      const isExact = /^(notes|comments|description|remarks)$/i.test(lower);
+      confidences.notes = {
+        column: original,
+        confidence: isExact ? 100 : 85,
+        isExact,
+        matchType: isExact ? "exact" : "high",
+      };
+      break;
+    }
+  }
+
+  const assignedColumns = new Set<string>();
+
+  // First pass: Match Tier 1 (100% confidence)
+  for (const [fieldKey, regexes] of Object.entries(tier1Patterns)) {
     for (const { original, lower } of lowerHeaders) {
+      if (assignedColumns.has(original)) continue;
       if (regexes.some((r) => r.test(lower))) {
         mapping[fieldKey] = original;
+        confidences[fieldKey] = { column: original, confidence: 100, isExact: true, matchType: "exact" };
+        assignedColumns.add(original);
         break;
       }
     }
   }
 
-  return mapping;
+  // Second pass: Match Tier 2 (85% confidence) for any unmapped fields
+  for (const [fieldKey, regexes] of Object.entries(tier2Patterns)) {
+    if (mapping[fieldKey]) continue;
+    for (const { original, lower } of lowerHeaders) {
+      if (assignedColumns.has(original)) continue;
+      if (regexes.some((r) => r.test(lower))) {
+        mapping[fieldKey] = original;
+        confidences[fieldKey] = { column: original, confidence: 85, isExact: false, matchType: "high" };
+        assignedColumns.add(original);
+        break;
+      }
+    }
+  }
+
+  // Ensure notes is strictly excluded from automatic mapping to protect against test notes
+  delete mapping.notes;
+
+  return { mapping, confidences, detectedNotesColumn };
+}
+
+/**
+ * Backwards-compatible wrapper returning field -> column mapping
+ */
+export function autoDetectMapping(headers: string[]): Record<string, string> {
+  return autoDetectMappingWithConfidence(headers).mapping;
+}
+
+/**
+ * Extract 3-5 distinct, non-empty sample values for a spreadsheet column
+ */
+export function getColumnSamples(
+  rows: Array<Record<string, any>>,
+  columnName: string,
+  limit: number = 4
+): string[] {
+  if (!columnName || !rows || rows.length === 0) return [];
+  const samples: string[] = [];
+  const seen = new Set<string>();
+
+  for (const row of rows) {
+    const val = row[columnName];
+    if (val !== undefined && val !== null) {
+      const str = String(val).trim();
+      if (str.length > 0 && !seen.has(str)) {
+        seen.add(str);
+        samples.push(str);
+        if (samples.length >= limit) break;
+      }
+    }
+  }
+
+  return samples;
 }
 
 /**
@@ -307,7 +434,8 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
     }
   }
 
-  const suggestedMapping = autoDetectMapping(headers);
+  const autoAnalysis = autoDetectMappingWithConfidence(headers);
+  const suggestedMapping = autoAnalysis.mapping;
 
   // Analyze quality and potential errors
   let missingNameCount = 0;
@@ -385,6 +513,8 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
     suggestedMapping,
     allRawRows: rawData,
     sampleRows: rawData.slice(0, 10),
+    mappingConfidences: autoAnalysis.confidences,
+    detectedNotesColumn: autoAnalysis.detectedNotesColumn,
   };
 }
 

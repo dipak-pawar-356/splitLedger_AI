@@ -7,6 +7,8 @@ import {
   isValidPhone,
   parseOpeningBalance,
   autoDetectMapping,
+  autoDetectMappingWithConfidence,
+  getColumnSamples,
   validateAndPrepareImportRows,
   isTestingOrAssertionNote,
 } from "@/lib/contacts/contact-parser";
@@ -283,6 +285,79 @@ describe("Contact Import Validation & Security Engine", () => {
       for (const note of genuineNotes) {
         expect(isTestingOrAssertionNote(note)).toBe(false);
       }
+    });
+  });
+
+  describe("Intelligent Field Mapping Engine & Confidence Scoring", () => {
+    it("should match 100% confidence for exact and primary headers", () => {
+      const headers = ["Name", "Email Address", "Phone Number", "Opening Balance", "Currency Code"];
+      const result = autoDetectMappingWithConfidence(headers);
+
+      expect(result.mapping.name).toBe("Name");
+      expect(result.confidences.name?.confidence).toBe(100);
+
+      expect(result.mapping.email).toBe("Email Address");
+      expect(result.confidences.email?.confidence).toBe(100);
+
+      expect(result.mapping.phone).toBe("Phone Number");
+      expect(result.confidences.phone?.confidence).toBe(100);
+
+      expect(result.mapping.openingBalance).toBe("Opening Balance");
+      expect(result.confidences.openingBalance?.confidence).toBe(100);
+
+      expect(result.mapping.currency).toBe("Currency Code");
+      expect(result.confidences.currency?.confidence).toBe(100);
+    });
+
+    it("should match 85% confidence for secondary synonyms and aliases", () => {
+      const headers = ["Display Name", "e-mail", "Telephone", "Opening Bal", "Curr"];
+      const result = autoDetectMappingWithConfidence(headers);
+
+      expect(result.mapping.name).toBe("Display Name");
+      expect(result.confidences.name?.confidence).toBe(85);
+
+      expect(result.mapping.email).toBe("e-mail");
+      expect(result.confidences.email?.confidence).toBe(85);
+
+      expect(result.mapping.phone).toBe("Telephone");
+      expect(result.confidences.phone?.confidence).toBe(85);
+
+      expect(result.mapping.openingBalance).toBe("Opening Bal");
+      expect(result.confidences.openingBalance?.confidence).toBe(85);
+
+      expect(result.mapping.currency).toBe("Curr");
+      expect(result.confidences.currency?.confidence).toBe(85);
+    });
+
+    it("should detect notes column but keep mapping.notes empty by default", () => {
+      const headers = ["Full Name", "Email", "Phone", "Notes"];
+      const result = autoDetectMappingWithConfidence(headers);
+
+      expect(result.detectedNotesColumn).toBe("Notes");
+      expect(result.confidences.notes?.confidence).toBe(100);
+      expect(result.mapping.notes).toBeUndefined(); // Protected from automatic mapping!
+    });
+  });
+
+  describe("Column Sample Extraction (getColumnSamples)", () => {
+    it("should return up to 4 distinct, non-empty sample strings", () => {
+      const rows = [
+        { Name: "Aarav Kulkarni", Email: "aarav@example.com" },
+        { Name: "Aarav Kulkarni", Email: "aarav.dup@example.com" }, // duplicate name
+        { Name: "", Email: "empty@example.com" },
+        { Name: "Sneha Deshmukh", Email: "sneha@example.com" },
+        { Name: "Rohan Patil", Email: "rohan@example.com" },
+        { Name: "Ananya Iyer", Email: "ananya@example.com" },
+      ];
+
+      const samples = getColumnSamples(rows, "Name", 3);
+      expect(samples).toEqual(["Aarav Kulkarni", "Sneha Deshmukh", "Rohan Patil"]);
+      expect(samples.length).toBe(3);
+    });
+
+    it("should return empty array for non-existent column or empty rows", () => {
+      expect(getColumnSamples([], "Name")).toEqual([]);
+      expect(getColumnSamples([{ Other: "val" }], "Name")).toEqual([]);
     });
   });
 });

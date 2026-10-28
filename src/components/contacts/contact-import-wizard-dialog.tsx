@@ -48,18 +48,29 @@ import {
   Phone,
   HelpCircle,
   FileDown,
+  User,
+  MapPin,
+  Tag,
+  Coins,
+  DollarSign,
+  RotateCcw,
+  Ban,
+  ShieldAlert,
 } from "lucide-react";
 import {
   analyzeContactFile,
   SYSTEM_FIELDS,
   validateAndPrepareImportRows,
+  getColumnSamples,
   type AnalyzedFileSummary,
   type ValidatedImportRow,
   type ValidationSummary,
+  type MappingConfidence,
   generateContactCsvTemplate,
   generateContactXlsxTemplateBlob,
   generateContactVcfTemplate,
 } from "@/lib/contacts/contact-parser";
+import { MappingColumnDropdown } from "./mapping-column-dropdown";
 import {
   importContactsAction,
   getExistingContactsForImportPreviewAction,
@@ -68,6 +79,33 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+
+function getFieldIcon(key: string) {
+  switch (key) {
+    case "name":
+    case "firstName":
+    case "lastName":
+      return <User className="h-4 w-4 text-primary" />;
+    case "email":
+      return <Mail className="h-4 w-4 text-blue-500" />;
+    case "phone":
+      return <Phone className="h-4 w-4 text-emerald-500" />;
+    case "company":
+      return <Building2 className="h-4 w-4 text-amber-500" />;
+    case "address":
+      return <MapPin className="h-4 w-4 text-purple-500" />;
+    case "tags":
+      return <Tag className="h-4 w-4 text-indigo-500" />;
+    case "openingBalance":
+      return <Coins className="h-4 w-4 text-emerald-500" />;
+    case "currency":
+      return <DollarSign className="h-4 w-4 text-teal-500" />;
+    case "notes":
+      return <FileText className="h-4 w-4 text-slate-400" />;
+    default:
+      return <FileSpreadsheet className="h-4 w-4 text-primary" />;
+  }
+}
 
 interface ContactImportWizardDialogProps {
   open: boolean;
@@ -93,6 +131,7 @@ export function ContactImportWizardDialog({
 
   // Mapping state: applicationField -> spreadsheetColumn
   const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [userOverriddenFields, setUserOverriddenFields] = useState<Set<string>>(new Set());
 
   // Duplicate Strategy state: default for conflicted rows
   const [defaultStrategy, setDefaultStrategy] = useState<"merge" | "update" | "skip">("merge");
@@ -109,6 +148,94 @@ export function ContactImportWizardDialog({
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [isImporting, setIsImporting] = useState(false);
 
+  // Pre-calculate sample values map across all detected headers (O(1) lookup)
+  const columnSamplesMap = useMemo(() => {
+    if (!analysis) return new Map<string, string[]>();
+    const map = new Map<string, string[]>();
+    for (const h of analysis.detectedHeaders) {
+      map.set(h, getColumnSamples(analysis.allRawRows, h, 4));
+    }
+    return map;
+  }, [analysis]);
+
+  // Track duplicate mappings: which column is mapped to multiple fields
+  const duplicateColumnsMap = useMemo(() => {
+    const colToFields = new Map<string, string[]>();
+    for (const [fieldKey, col] of Object.entries(mapping)) {
+      if (!col) continue;
+      const list = colToFields.get(col) || [];
+      list.push(fieldKey);
+      colToFields.set(col, list);
+    }
+    const dupes = new Map<string, string[]>();
+    for (const [col, fields] of colToFields.entries()) {
+      if (fields.length > 1) {
+        dupes.set(col, fields);
+      }
+    }
+    return dupes;
+  }, [mapping]);
+
+  const isNameMapped = Boolean(
+    (mapping.name && mapping.name.trim()) || (mapping.firstName && mapping.firstName.trim())
+  );
+
+  const hasEmailOrPhone = Boolean(
+    (mapping.email && mapping.email.trim()) || (mapping.phone && mapping.phone.trim())
+  );
+
+  const mappedCount = useMemo(() => {
+    return Object.values(mapping).filter((c) => Boolean(c && c.trim())).length;
+  }, [mapping]);
+
+  // Handle single column mapping change
+  const handleColumnSelect = (fieldKey: string, column: string) => {
+    setMapping((prev) => ({
+      ...prev,
+      [fieldKey]: column,
+    }));
+    setUserOverriddenFields((prev) => new Set(prev).add(fieldKey));
+
+    if (fieldKey === "notes" && column) {
+      toast.info(`Notes mapped to '${column}'. Values will be stored as contact descriptions.`);
+    }
+  };
+
+  // Re-apply auto-detection
+  const handleAutoMapAll = () => {
+    if (!analysis) return;
+    const initialMapping: Record<string, string> = { ...analysis.suggestedMapping };
+    initialMapping.notes = ""; // Notes always unmapped by default
+    setMapping(initialMapping);
+    setUserOverriddenFields(new Set());
+    toast.success("Auto-mapped all fields with high confidence!");
+  };
+
+  // Clear all mappings
+  const handleClearAllMappings = () => {
+    const cleared: Record<string, string> = {};
+    SYSTEM_FIELDS.forEach((f) => {
+      cleared[f.key] = "";
+    });
+    setMapping(cleared);
+    setUserOverriddenFields(new Set(SYSTEM_FIELDS.map((f) => f.key)));
+    toast.info("All column mappings cleared.");
+  };
+
+  // Explicitly map detected notes column
+  const handleMapNotes = (column: string) => {
+    setMapping((prev) => ({ ...prev, notes: column }));
+    setUserOverriddenFields((prev) => new Set(prev).add("notes"));
+    toast.warning(`Notes mapped to '${column}'. Verify it contains real descriptions.`);
+  };
+
+  // Unmap notes
+  const handleUnmapNotes = () => {
+    setMapping((prev) => ({ ...prev, notes: "" }));
+    setUserOverriddenFields((prev) => new Set(prev).add("notes"));
+    toast.success("Notes column unmapped.");
+  };
+
   // Reset wizard on dialog close
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen && isImporting) {
@@ -124,6 +251,7 @@ export function ContactImportWizardDialog({
       setImportResult(null);
       setImportProgress(0);
       setPreviewRows([]);
+      setUserOverriddenFields(new Set());
     }
     onOpenChange(isOpen);
   };
@@ -144,6 +272,7 @@ export function ContactImportWizardDialog({
       const initialMapping: Record<string, string> = { ...summary.suggestedMapping };
       if (!initialMapping.notes) initialMapping.notes = ""; // Force unmapped default
       setMapping(initialMapping);
+      setUserOverriddenFields(new Set());
 
       setAnalysisStage("Checking against existing contact records...");
       // 2. Fetch existing contacts for duplicate resolution
@@ -170,8 +299,17 @@ export function ContactImportWizardDialog({
     if (!analysis) return;
 
     // Validate required field (name or firstName)
-    if (!mapping.name && !mapping.firstName) {
-      toast.error("Please map either 'Full Name' or 'First Name' to proceed.");
+    if (!isNameMapped) {
+      toast.error("Required: Please map either 'Full Name' or 'First Name' to proceed.");
+      return;
+    }
+
+    // Validate duplicate column mappings
+    if (duplicateColumnsMap.size > 0) {
+      const duplicateCols = Array.from(duplicateColumnsMap.keys());
+      toast.error(
+        `Duplicate mapping detected: Column '${duplicateCols[0]}' is mapped to multiple fields. Each column must be mapped uniquely.`
+      );
       return;
     }
 
@@ -585,123 +723,408 @@ export function ContactImportWizardDialog({
           )}
 
           {/* ========================================================================= */}
-          {/* STEP 3: COLUMN MAPPING */}
+          {/* STEP 2: ENTERPRISE FIELD MAPPING ENGINE */}
           {/* ========================================================================= */}
           {step === "mapping" && analysis && (
-            <div className="space-y-5">
-              {/* File Info Banner */}
-              <div className="p-4 rounded-2xl bg-primary/[0.04] border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+            <div className="space-y-4">
+              {/* File Overview Card */}
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-primary/[0.04] border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0 shadow-xs">
                     <FileSpreadsheet className="h-5 w-5" />
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      <span>{analysis.fileName}</span>
-                      <Badge variant="secondary" className="text-[10px]">
+                  <div className="min-w-0">
+                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 truncate">
+                      <span className="truncate">{analysis.fileName}</span>
+                      <Badge variant="secondary" className="text-[10px] font-bold shrink-0">
                         {analysis.totalRows} Rows Detected
                       </Badge>
+                      <Badge variant="outline" className="text-[10px] font-mono uppercase shrink-0 text-slate-500">
+                        {analysis.fileType}
+                      </Badge>
                     </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      Verify auto-detected columns below. Unmapped columns will be ignored.
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Intelligently map spreadsheet columns to contact attributes. Unmapped columns are safely ignored.
                     </p>
                   </div>
                 </div>
 
                 {analysis.formulaInjectionsFound > 0 && (
-                  <Badge variant="outline" className="text-amber-700 dark:text-amber-300 border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-[10px] gap-1 py-1 px-2.5">
+                  <Badge variant="outline" className="text-amber-700 dark:text-amber-300 border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-[10px] gap-1 py-1 px-2.5 shrink-0 self-start sm:self-auto font-bold">
                     <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
                     <span>{analysis.formulaInjectionsFound} Formula Prefixes Auto-Sanitized</span>
                   </Badge>
                 )}
               </div>
 
-              {/* Notes handling notice */}
-              <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
-                <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <p className="font-bold">Notice regarding spreadsheet notes & test descriptions</p>
-                  <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
-                    The <strong>Notes / Description</strong> field is unmapped by default. If your file contains test assertions or developer notes, leaving it unmapped ensures test comments are not stored in your permanent contacts. You can view test comments during the Preview step!
-                  </p>
+              {/* Sticky Mapping Summary Panel */}
+              <div className="sticky top-0 z-10 p-3.5 sm:p-4 rounded-2xl bg-slate-900/95 text-white dark:bg-slate-100/95 dark:text-slate-900 shadow-xl border border-slate-700/60 dark:border-slate-300 backdrop-blur-md flex flex-col lg:flex-row lg:items-center justify-between gap-3 animate-in fade-in-50">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap text-xs">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <span className="text-slate-400 dark:text-slate-500">Rows:</span>
+                    <span className="font-mono text-sm">{analysis.totalRows}</span>
+                  </div>
+                  <div className="h-3 w-px bg-slate-700 dark:bg-slate-300" />
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <span className="text-slate-400 dark:text-slate-500">Mapped:</span>
+                    <span className="font-mono text-sm">{mappedCount}/{SYSTEM_FIELDS.length}</span>
+                  </div>
+                  <div className="h-3 w-px bg-slate-700 dark:bg-slate-300" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 dark:text-slate-500 font-bold">Name:</span>
+                    {isNameMapped ? (
+                      <Badge className="bg-emerald-500/20 text-emerald-300 dark:text-emerald-700 text-[10px] py-0 px-1.5 border-0 font-bold">
+                        ✓ Mapped
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-rose-500/20 text-rose-300 dark:text-rose-700 text-[10px] py-0 px-1.5 border-0 font-bold">
+                        ✖ Missing
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="h-3 w-px bg-slate-700 dark:bg-slate-300" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 dark:text-slate-500 font-bold">Channels:</span>
+                    {hasEmailOrPhone ? (
+                      <Badge className="bg-emerald-500/20 text-emerald-300 dark:text-emerald-700 text-[10px] py-0 px-1.5 border-0 font-bold">
+                        {mapping.email && mapping.phone ? "✓ Email & Phone" : mapping.email ? "✓ Email" : "✓ Phone"}
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-amber-500/20 text-amber-300 dark:text-amber-700 text-[10px] py-0 px-1.5 border-0 font-bold">
+                        ⚠ No Email/Phone
+                      </Badge>
+                    )}
+                  </div>
+                  {duplicateColumnsMap.size > 0 && (
+                    <>
+                      <div className="h-3 w-px bg-slate-700 dark:bg-slate-300" />
+                      <Badge className="bg-rose-500/20 text-rose-300 dark:text-rose-700 text-[10px] py-0 px-1.5 border-0 font-bold animate-pulse">
+                        ⚠ {duplicateColumnsMap.size} Duplicate Mapping(s)
+                      </Badge>
+                    </>
+                  )}
+                </div>
+
+                {/* Quick Auto-Map & Clear Actions */}
+                <div className="flex items-center gap-2 self-end lg:self-auto shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleAutoMapAll}
+                    className="text-xs font-bold gap-1.5 h-8 px-2.5 text-white dark:text-slate-900 hover:bg-white/10 dark:hover:bg-black/10 rounded-xl transition-all"
+                    title="Re-run intelligent auto-detection on all columns"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Auto-Map All</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleClearAllMappings}
+                    className="text-xs font-bold gap-1.5 h-8 px-2.5 text-slate-400 hover:text-white dark:text-slate-600 dark:hover:text-slate-900 hover:bg-white/10 dark:hover:bg-black/10 rounded-xl transition-all"
+                    title="Set all columns to [ Do Not Map ]"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Reset All</span>
+                  </Button>
                 </div>
               </div>
 
-              {/* Mapping Table */}
-              <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold">
-                        <th className="py-2.5 px-4 w-1/3">Target Contact Field</th>
-                        <th className="py-2.5 px-4 w-1/3">Spreadsheet Column</th>
-                        <th className="py-2.5 px-4 w-1/3">Sample Value from File</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                      {SYSTEM_FIELDS.map((field) => {
-                        const currentMapped = mapping[field.key] || "";
-                        const samples = currentMapped ? getSampleValuesForColumn(currentMapped) : [];
+              {/* QA & Test Notes Protection Banner */}
+              {analysis.detectedNotesColumn && (
+                mapping.notes ? (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/15 dark:bg-amber-950/30 border border-amber-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in-50">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <h5 className="font-bold text-amber-900 dark:text-amber-100">
+                          ⚠️ Notes Column Explicitly Mapped to "{mapping.notes}"
+                        </h5>
+                        <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
+                          Values from column "{mapping.notes}" will be stored as permanent contact descriptions. Please verify this column contains genuine descriptions rather than QA benchmark notes.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleUnmapNotes}
+                      className="rounded-xl text-xs h-7 px-3 border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-semibold shrink-0"
+                    >
+                      Revert to [ Do Not Map ]
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/[0.08] dark:bg-amber-950/20 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <h5 className="font-bold text-amber-900 dark:text-amber-200">
+                          Spreadsheet Notes Column Protected ("{analysis.detectedNotesColumn}")
+                        </h5>
+                        <p className="text-[11px] text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                          This spreadsheet contains a notes column with test assertions (e.g. "Valid contact - baseline", "CSV Injection Test"). It is left unmapped by default so test comments do not become contact descriptions. You can inspect test notes in the Preview step!
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleMapNotes(analysis.detectedNotesColumn!)}
+                      className="rounded-xl text-xs h-7 px-3 border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-semibold shrink-0"
+                    >
+                      Map Column Anyway
+                    </Button>
+                  </div>
+                )
+              )}
 
-                        return (
-                          <tr key={field.key} className="hover:bg-slate-50/40 dark:hover:bg-slate-900/20 transition-colors">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-bold text-slate-900 dark:text-slate-100">
-                                  {field.label}
-                                </span>
-                                {field.required ? (
-                                  <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[9px] py-0 px-1 border-0">
-                                    Required
-                                  </Badge>
-                                ) : (
-                                  <span className="text-[10px] text-slate-400">Optional</span>
+              {/* Desktop Table View (>= 768px) */}
+              <div className="hidden md:block rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-xs bg-card">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold">
+                      <th className="py-3 px-4 w-[28%]">Target Contact Field</th>
+                      <th className="py-3 px-4 w-[32%]">Spreadsheet Column</th>
+                      <th className="py-3 px-4 w-[26%]">Live Samples from File</th>
+                      <th className="py-3 px-4 w-[14%] text-right">Mapping Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {SYSTEM_FIELDS.map((field) => {
+                      const currentMapped = mapping[field.key] || "";
+                      const samples = currentMapped ? columnSamplesMap.get(currentMapped) || [] : [];
+                      const isOverridden = userOverriddenFields.has(field.key);
+                      const confidence = analysis.mappingConfidences?.[field.key];
+                      const isDupe = Boolean(currentMapped && duplicateColumnsMap.has(currentMapped));
+                      const dupeFieldKeys = isDupe ? duplicateColumnsMap.get(currentMapped)! : [];
+                      const otherDupeLabels = dupeFieldKeys
+                        .filter((k) => k !== field.key)
+                        .map((k) => SYSTEM_FIELDS.find((f) => f.key === k)?.label || k);
+                      const isRequired = field.key === "name" && !isNameMapped;
+
+                      return (
+                        <tr
+                          key={field.key}
+                          className={`transition-all duration-150 ${
+                            isDupe
+                              ? "bg-amber-500/[0.04] dark:bg-amber-950/20"
+                              : isRequired
+                              ? "bg-rose-500/[0.03] dark:bg-rose-950/20"
+                              : currentMapped
+                              ? "bg-primary/[0.015] hover:bg-slate-50/70 dark:hover:bg-slate-900/40"
+                              : "hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                          }`}
+                        >
+                          {/* Target Field */}
+                          <td className="py-3.5 px-4 align-top">
+                            <div className="flex items-start gap-2.5">
+                              <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0 mt-0.5">
+                                {getFieldIcon(field.key)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-extrabold text-slate-900 dark:text-slate-100 text-xs">
+                                    {field.label}
+                                  </span>
+                                  {field.required ? (
+                                    <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[9px] py-0 px-1 border-0 font-bold">
+                                      Required
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 font-medium">Optional</span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                                  {field.description}
+                                </p>
+                                {isDupe && (
+                                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold block mt-1">
+                                    ⚠️ Column "{currentMapped}" is also mapped to {otherDupeLabels.join(", ")}
+                                  </span>
+                                )}
+                                {isRequired && (
+                                  <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold block mt-1">
+                                    ✖ Full Name or First Name must be mapped to proceed
+                                  </span>
                                 )}
                               </div>
-                              <p className="text-[10px] text-slate-400 mt-0.5">{field.description}</p>
-                            </td>
+                            </div>
+                          </td>
 
-                            <td className="py-3 px-4">
-                              <Select
-                                value={currentMapped || "__none__"}
-                                onValueChange={(val) => {
-                                  setMapping((prev) => ({
-                                    ...prev,
-                                    [field.key]: val === "__none__" ? "" : val,
-                                  }));
-                                }}
-                              >
-                                <SelectTrigger className="h-8 text-xs rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 font-medium">
-                                  <SelectValue placeholder="[ Do Not Map ]" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl max-h-56">
-                                  <SelectItem value="__none__" className="text-xs text-slate-400 font-medium">
-                                    [ Do Not Map / Ignore ]
-                                  </SelectItem>
-                                  {analysis.detectedHeaders.map((header) => (
-                                    <SelectItem key={header} value={header} className="text-xs font-medium">
-                                      {header}
-                                    </SelectItem>
+                          {/* Dropdown Selector */}
+                          <td className="py-3.5 px-4 align-top">
+                            <MappingColumnDropdown
+                              fieldKey={field.key}
+                              fieldLabel={field.label}
+                              currentValue={currentMapped}
+                              detectedHeaders={analysis.detectedHeaders}
+                              suggestedColumn={analysis.suggestedMapping[field.key]}
+                              confidence={confidence}
+                              isUserOverridden={isOverridden}
+                              duplicateWithFields={otherDupeLabels}
+                              columnSamplesMap={columnSamplesMap}
+                              onSelect={(col) => handleColumnSelect(field.key, col)}
+                            />
+                          </td>
+
+                          {/* Live Samples from File */}
+                          <td className="py-3.5 px-4 align-top">
+                            {currentMapped ? (
+                              samples.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 max-w-sm">
+                                  {samples.map((s, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-lg text-[10px] font-mono truncate max-w-[150px] inline-block border border-slate-200/60 dark:border-slate-700/60"
+                                      title={s}
+                                    >
+                                      {s}
+                                    </span>
                                   ))}
-                                </SelectContent>
-                              </Select>
-                            </td>
-
-                            <td className="py-3 px-4 text-slate-600 dark:text-slate-400 font-mono text-[11px] truncate max-w-xs">
-                              {samples.length > 0 ? (
-                                <span className="truncate block" title={samples.join(" | ")}>
-                                  {samples[0]} {samples.length > 1 && <span className="text-slate-400 text-[10px] font-sans">({samples.length} items)</span>}
-                                </span>
+                                </div>
                               ) : (
-                                <span className="text-slate-400 italic font-sans text-[10px]">No sample data</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                                <span className="text-slate-400 italic text-[11px]">No sample data in this column</span>
+                              )
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">[ Do Not Map ] — field will be ignored</span>
+                            )}
+                          </td>
+
+                          {/* Mapping Status Badge */}
+                          <td className="py-3.5 px-4 align-top text-right">
+                            {isDupe ? (
+                              <Badge variant="outline" className="text-[10px] border-amber-300 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold">
+                                Duplicate
+                              </Badge>
+                            ) : isRequired ? (
+                              <Badge variant="outline" className="text-[10px] border-rose-300 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold">
+                                Missing
+                              </Badge>
+                            ) : currentMapped ? (
+                              isOverridden ? (
+                                <Badge variant="outline" className="text-[10px] border-blue-300 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold">
+                                  ✓ User Selected
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold">
+                                  ✓ Auto Mapped ({confidence?.confidence || 100}%)
+                                </Badge>
+                              )
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] border-slate-200 dark:border-slate-800 text-slate-400 font-medium">
+                                Ignored
+                              </Badge>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Stacked Cards View (< 768px) */}
+              <div className="block md:hidden space-y-3">
+                {SYSTEM_FIELDS.map((field) => {
+                  const currentMapped = mapping[field.key] || "";
+                  const samples = currentMapped ? columnSamplesMap.get(currentMapped) || [] : [];
+                  const isOverridden = userOverriddenFields.has(field.key);
+                  const confidence = analysis.mappingConfidences?.[field.key];
+                  const isDupe = Boolean(currentMapped && duplicateColumnsMap.has(currentMapped));
+                  const dupeFieldKeys = isDupe ? duplicateColumnsMap.get(currentMapped)! : [];
+                  const otherDupeLabels = dupeFieldKeys
+                    .filter((k) => k !== field.key)
+                    .map((k) => SYSTEM_FIELDS.find((f) => f.key === k)?.label || k);
+                  const isRequired = field.key === "name" && !isNameMapped;
+
+                  return (
+                    <div
+                      key={field.key}
+                      className={`p-3.5 rounded-2xl border space-y-2.5 transition-all duration-150 ${
+                        isDupe
+                          ? "border-amber-400 bg-amber-500/[0.04] dark:bg-amber-950/20"
+                          : isRequired
+                          ? "border-rose-400 bg-rose-500/[0.03] dark:bg-rose-950/20"
+                          : currentMapped
+                          ? "border-slate-200 dark:border-slate-800 bg-card hover:border-primary/40 shadow-xs"
+                          : "border-slate-200/80 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/30"
+                      }`}
+                    >
+                      {/* Card Header */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0">
+                            {getFieldIcon(field.key)}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 dark:text-slate-100 text-xs block truncate">
+                              {field.label}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block truncate">
+                              {field.description}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 flex items-center gap-1">
+                          {field.required ? (
+                            <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[9px] py-0 px-1 border-0 font-bold">
+                              Required
+                            </Badge>
+                          ) : (
+                            <span className="text-[9px] text-slate-400 font-medium">Optional</span>
+                          )}
+                          {isDupe ? (
+                            <Badge variant="outline" className="text-[9px] border-amber-300 text-amber-700 dark:text-amber-300 font-bold">
+                              Duplicate
+                            </Badge>
+                          ) : isRequired ? (
+                            <Badge variant="outline" className="text-[9px] border-rose-300 text-rose-600 dark:text-rose-400 font-bold">
+                              Missing
+                            </Badge>
+                          ) : currentMapped ? (
+                            <Badge variant="outline" className="text-[9px] border-emerald-300 text-emerald-700 dark:text-emerald-300 font-bold">
+                              Mapped
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {/* Dropdown Selector */}
+                      <MappingColumnDropdown
+                        fieldKey={field.key}
+                        fieldLabel={field.label}
+                        currentValue={currentMapped}
+                        detectedHeaders={analysis.detectedHeaders}
+                        suggestedColumn={analysis.suggestedMapping[field.key]}
+                        confidence={confidence}
+                        isUserOverridden={isOverridden}
+                        duplicateWithFields={otherDupeLabels}
+                        columnSamplesMap={columnSamplesMap}
+                        onSelect={(col) => handleColumnSelect(field.key, col)}
+                      />
+
+                      {/* Live Samples from File */}
+                      {currentMapped && samples.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {samples.slice(0, 3).map((s, idx) => (
+                            <span
+                              key={idx}
+                              className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-lg text-[10px] font-mono truncate max-w-[140px] inline-block border border-slate-200/60 dark:border-slate-700/60"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
