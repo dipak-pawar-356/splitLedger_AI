@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   ContactTransactionMenu,
   type ContactTransactionItem,
@@ -32,6 +32,8 @@ import {
   Clock,
   Ban,
   PlusCircle,
+  LayoutDashboard,
+  Layers,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
@@ -56,12 +58,23 @@ export function ContactTransactionHistory({
   onSuccess,
 }: ContactTransactionHistoryProps) {
   // Filters & State
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [timeFilter, setTimeFilter] = useState<"all" | "today" | "week" | "month">("all");
   const [typeFilter, setTypeFilter] = useState<"all" | "income" | "expense" | "adjustment">("all");
+  const [syncFilter, setSyncFilter] = useState<"all" | "synced" | "unsynced">("all");
   const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "amount_desc" | "amount_asc">("date_desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
+
+  // Debounce search input (~250ms) without page reload
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchInput);
+      setCurrentPage(1);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   // 1. Calculate chronological running balance for every transaction
   const transactionsWithRunningBalance = useMemo(() => {
@@ -105,6 +118,9 @@ export function ContactTransactionHistory({
     startOfWeek.setHours(0, 0, 0, 0);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    const query = debouncedQuery.toLowerCase().trim();
+    const cleanNumericQuery = query.replace(/[₹,\s\+\-]/g, "");
+
     return transactionsWithRunningBalance.filter((tx) => {
       const txDate = new Date(tx.date);
 
@@ -124,30 +140,84 @@ export function ContactTransactionHistory({
         }
       }
 
+      // Sync Filter
+      if (syncFilter === "synced" && !tx.isSyncedToDashboard) return false;
+      if (syncFilter === "unsynced" && tx.isSyncedToDashboard) return false;
+
       // Search Query
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const matchesTitle = (tx.title || "").toLowerCase().includes(query);
-        const matchesDesc = (tx.description || "").toLowerCase().includes(query);
-        const matchesNotes = (tx.notes || "").toLowerCase().includes(query);
-        const matchesCategory = (tx.categoryName || "").toLowerCase().includes(query);
-        const matchesMethod = (tx.paymentMethod || "").toLowerCase().includes(query);
-        const matchesAmount = (tx.amount / 100).toString().includes(query);
-        if (
-          !matchesTitle &&
-          !matchesDesc &&
-          !matchesNotes &&
-          !matchesCategory &&
-          !matchesMethod &&
-          !matchesAmount
-        ) {
+      if (query) {
+        const titleStr = (tx.title || "").toLowerCase();
+        const descStr = (tx.description || "").toLowerCase();
+        const notesStr = (tx.notes || "").toLowerCase();
+        const catStr = (tx.categoryName || "").toLowerCase();
+        const methodStr = (tx.paymentMethod || "").toLowerCase();
+        const typeStr = tx.type.toLowerCase();
+        const statusStr = (tx.status || "completed").toLowerCase();
+        const idStr = (tx.publicId || "").toLowerCase();
+        const contactStr = contactName.toLowerCase();
+        const creatorStr = (tx.createdByName || "").toLowerCase();
+
+        // Amount representations
+        const amountNum = tx.amount / 100;
+        const amountStr = amountNum.toString();
+        const amountFormatted = formatCurrency(amountNum, tx.currency).toLowerCase();
+        const signedAmountStr = `${tx.isPositive ? "+" : "-"}${amountNum}`;
+        const decimalAmountStr = amountNum.toFixed(2);
+
+        // Running balance representations
+        const runNum = tx.runningBalancePaise / 100;
+        const runStr = runNum.toString();
+        const runFormatted = formatCurrency(runNum, tx.currency).toLowerCase();
+
+        // Date representations
+        const formattedDateStr = formatDate(tx.date).toLowerCase();
+        const monthShort = txDate.toLocaleString("default", { month: "short" }).toLowerCase();
+        const monthLong = txDate.toLocaleString("default", { month: "long" }).toLowerCase();
+        const yearStr = txDate.getFullYear().toString();
+
+        const matchesKeyword =
+          titleStr.includes(query) ||
+          descStr.includes(query) ||
+          notesStr.includes(query) ||
+          catStr.includes(query) ||
+          methodStr.includes(query) ||
+          typeStr.includes(query) ||
+          statusStr.includes(query) ||
+          idStr.includes(query) ||
+          contactStr.includes(query) ||
+          creatorStr.includes(query) ||
+          formattedDateStr.includes(query) ||
+          monthShort.includes(query) ||
+          monthLong.includes(query) ||
+          yearStr.includes(query) ||
+          amountStr.includes(query) ||
+          amountFormatted.includes(query) ||
+          signedAmountStr.includes(query) ||
+          decimalAmountStr.includes(query) ||
+          runStr.includes(query) ||
+          runFormatted.includes(query);
+
+        // Also check if user typed "credit", "debit", "loan", "lent", "repaid", etc.
+        const matchesCredit =
+          query.includes("credit") && (tx.isPositive || JSON.stringify(tx.tags || "").includes("credit"));
+        const matchesDebit =
+          query.includes("debit") && (!tx.isPositive || JSON.stringify(tx.tags || "").includes("debit"));
+
+        // Clean numeric match (e.g. searching '300' matches 300, 300.00, 3000)
+        const matchesNumeric =
+          cleanNumericQuery.length > 0 &&
+          (amountStr.includes(cleanNumericQuery) ||
+            decimalAmountStr.includes(cleanNumericQuery) ||
+            runStr.includes(cleanNumericQuery));
+
+        if (!matchesKeyword && !matchesCredit && !matchesDebit && !matchesNumeric) {
           return false;
         }
       }
 
       return true;
     });
-  }, [transactionsWithRunningBalance, timeFilter, typeFilter, searchQuery]);
+  }, [transactionsWithRunningBalance, timeFilter, typeFilter, syncFilter, debouncedQuery, contactName]);
 
   // 3. Sort filtered transactions for display
   const sortedTransactions = useMemo(() => {
@@ -180,18 +250,15 @@ export function ContactTransactionHistory({
   return (
     <div className="space-y-4">
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-        {/* Search */}
+      <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+        {/* Search Input */}
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
-            placeholder="Search transactions, notes, categories, amounts..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="pl-9 h-10 rounded-2xl text-xs bg-card border-slate-200/80 dark:border-slate-800"
+            placeholder="Search amount (₹300), type (credit), category, notes, date, ID..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="pl-9 h-10 rounded-2xl text-xs bg-card border-slate-200/80 dark:border-slate-800 focus-visible:ring-primary/20 transition-all"
           />
         </div>
 
@@ -214,7 +281,7 @@ export function ContactTransactionHistory({
                   setTimeFilter(tab.id);
                   setCurrentPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-xl font-semibold transition-all duration-200 ${
+                className={`px-2.5 py-1.5 rounded-xl font-semibold transition-all duration-200 ${
                   timeFilter === tab.id
                     ? "bg-card text-primary shadow-xs"
                     : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
@@ -224,6 +291,30 @@ export function ContactTransactionHistory({
               </button>
             ))}
           </div>
+
+          {/* Sync Status Filter */}
+          <Select
+            value={syncFilter}
+            onValueChange={(val: any) => {
+              setSyncFilter(val);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="h-9 rounded-xl text-xs font-semibold w-36 bg-card border-slate-200/80 dark:border-slate-800">
+              <SelectValue placeholder="Dashboard Sync" />
+            </SelectTrigger>
+            <SelectContent className="rounded-2xl">
+              <SelectItem value="all" className="text-xs">
+                All Sync States
+              </SelectItem>
+              <SelectItem value="synced" className="text-xs">
+                Synced to Dashboard
+              </SelectItem>
+              <SelectItem value="unsynced" className="text-xs">
+                Not Added to Dashboard
+              </SelectItem>
+            </SelectContent>
+          </Select>
 
           {/* Type Filter Select */}
           <Select
@@ -281,9 +372,8 @@ export function ContactTransactionHistory({
         </div>
       </div>
 
-      {/* Transactions Table & Mobile Cards */}
+      {/* Transactions Table View */}
       <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden shadow-xs">
-        {/* Desktop / Tablet Table View */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
@@ -294,6 +384,7 @@ export function ContactTransactionHistory({
                 <th className="py-3.5 px-4">Description</th>
                 <th className="py-3.5 px-4 text-right">Amount</th>
                 <th className="py-3.5 px-4 text-right">Running Balance</th>
+                <th className="py-3.5 px-3 text-center">Dashboard Sync</th>
                 <th className="py-3.5 px-3 text-center">Status</th>
                 <th className="py-3.5 px-3">Created By</th>
                 <th className="py-3.5 px-3 text-right">Actions</th>
@@ -409,6 +500,27 @@ export function ContactTransactionHistory({
                       </span>
                     </td>
 
+                    {/* Synchronization Badge (Requirement 5) */}
+                    <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                      {tx.isSyncedToDashboard ? (
+                        <span
+                          title="This transaction currently affects dashboard totals."
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 dark:bg-emerald-950/40 cursor-help transition-all duration-150 hover:scale-105"
+                        >
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                          <span>Synced</span>
+                        </span>
+                      ) : (
+                        <span
+                          title="Stored in contact ledger only. Click menu to add to dashboard."
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-slate-300 dark:border-slate-700 text-slate-500 bg-slate-100/80 dark:bg-slate-800/80 cursor-help transition-all duration-150 hover:scale-105"
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                          <span>Not Added</span>
+                        </span>
+                      )}
+                    </td>
+
                     {/* Status */}
                     <td className="py-3.5 px-3 text-center whitespace-nowrap">
                       <Badge
@@ -455,12 +567,12 @@ export function ContactTransactionHistory({
             </div>
             <div className="space-y-1 max-w-sm mx-auto">
               <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">
-                {searchQuery || timeFilter !== "all" || typeFilter !== "all"
+                {debouncedQuery || timeFilter !== "all" || typeFilter !== "all" || syncFilter !== "all"
                   ? "No matching transactions found"
                   : "No transactions recorded yet"}
               </h4>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {searchQuery || timeFilter !== "all" || typeFilter !== "all"
+                {debouncedQuery || timeFilter !== "all" || typeFilter !== "all" || syncFilter !== "all"
                   ? "Try clearing filters or adjusting your search keywords."
                   : "Start building the financial history by adding a balance or recording an expense."}
               </p>
@@ -545,4 +657,3 @@ export function ContactTransactionHistory({
     </div>
   );
 }
-

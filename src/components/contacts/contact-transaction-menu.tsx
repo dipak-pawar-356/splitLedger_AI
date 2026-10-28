@@ -8,6 +8,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
   MoreVertical,
@@ -18,11 +26,17 @@ import {
   Download,
   Trash2,
   Loader2,
+  LayoutDashboard,
+  MinusCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { EditTransactionDialog } from "@/components/dialogs/edit-transaction-dialog";
 import { TransactionDeleteDialog } from "@/components/dialogs/transaction-delete-dialog";
-import { createTransaction } from "@/actions/transactions";
+import {
+  createTransaction,
+  syncTransactionToDashboard,
+  removeTransactionFromDashboard,
+} from "@/actions/transactions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -45,6 +59,8 @@ export interface ContactTransactionItem {
   paymentMethod?: string | null;
   createdByName?: string | null;
   tags?: any;
+  isSyncedToDashboard?: boolean;
+  syncedAt?: Date | string | null;
 }
 
 interface ContactTransactionMenuProps {
@@ -65,7 +81,45 @@ export function ContactTransactionMenu({
   const router = useRouter();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isConfirmRemoveOpen, setIsConfirmRemoveOpen] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Sync to Dashboard
+  const handleSyncToDashboard = async () => {
+    setIsSyncing(true);
+    try {
+      await syncTransactionToDashboard(transaction.publicId);
+      toast.success("Transaction added to Dashboard! Totals and reports recalculated.");
+      onSuccess?.();
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to add transaction to dashboard");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Remove from Dashboard
+  const handleRemoveFromDashboard = async () => {
+    setIsSyncing(true);
+    try {
+      await removeTransactionFromDashboard(transaction.publicId);
+      setIsConfirmRemoveOpen(false);
+      toast.success("Transaction removed from Dashboard", {
+        action: {
+          label: "Undo",
+          onClick: () => handleSyncToDashboard(),
+        },
+      });
+      onSuccess?.();
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to remove transaction from dashboard");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Duplicate handler
   const handleDuplicate = async () => {
@@ -85,6 +139,7 @@ export function ContactTransactionMenu({
         receiptUrl: transaction.receiptUrl || undefined,
         paymentMethod: transaction.paymentMethod || undefined,
         status: "completed",
+        isSyncedToDashboard: false,
       });
       toast.success("Transaction duplicated successfully!");
       onSuccess?.();
@@ -110,6 +165,7 @@ Date:         ${formatDate(transaction.date)}
 Type:         ${transaction.type.toUpperCase()}
 Amount:       ${formatCurrency(transaction.amount / 100, transaction.currency)}
 Status:       ${transaction.status || "Completed"}
+Dashboard:    ${transaction.isSyncedToDashboard ? "Synced to Dashboard" : "Not Added to Dashboard"}
 Description:  ${transaction.description}
 ${transaction.categoryName ? `Category:     ${transaction.categoryName}\n` : ""}${
         transaction.notes ? `Notes:        ${transaction.notes}\n` : ""
@@ -134,7 +190,7 @@ Generated from SplitLedger AI Ledger
             className="h-8 w-8 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             title="Transaction options"
           >
-            {isDuplicating ? (
+            {isDuplicating || isSyncing ? (
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
             ) : (
               <MoreVertical className="h-4 w-4" />
@@ -144,7 +200,7 @@ Generated from SplitLedger AI Ledger
 
         <DropdownMenuContent
           align="end"
-          className="w-48 rounded-2xl p-1.5 shadow-xl bg-card border border-slate-200/80 dark:border-slate-800"
+          className="w-52 rounded-2xl p-1.5 shadow-xl bg-card border border-slate-200/80 dark:border-slate-800"
         >
           {/* View Details */}
           <DropdownMenuItem asChild>
@@ -177,6 +233,29 @@ Generated from SplitLedger AI Ledger
             </DropdownMenuItem>
           )}
 
+          {/* Financial Synchronization Section */}
+          <DropdownMenuSeparator />
+          {!transaction.isSyncedToDashboard ? (
+            <DropdownMenuItem
+              onClick={handleSyncToDashboard}
+              disabled={isSyncing}
+              className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5 text-emerald-600 dark:text-emerald-400 focus:text-emerald-700"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              <span>Add to Dashboard</span>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={() => setIsConfirmRemoveOpen(true)}
+              disabled={isSyncing}
+              className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5 text-amber-600 dark:text-amber-400 focus:text-amber-700"
+            >
+              <MinusCircle className="h-4 w-4" />
+              <span>Remove from Dashboard</span>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+
           {/* Duplicate Transaction */}
           <DropdownMenuItem
             onClick={handleDuplicate}
@@ -208,6 +287,41 @@ Generated from SplitLedger AI Ledger
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Confirmation Dialog before removing synchronization */}
+      <Dialog open={isConfirmRemoveOpen} onOpenChange={setIsConfirmRemoveOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800 shadow-2xl">
+          <DialogHeader className="space-y-2">
+            <div className="p-3 bg-amber-500/10 text-amber-600 rounded-2xl w-12 h-12 flex items-center justify-center">
+              <MinusCircle className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-lg font-bold">Remove this transaction from Dashboard?</DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 leading-relaxed">
+              This will immediately update dashboard balances, reports and AI calculations.
+              The transaction will remain inside Contact History.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="pt-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsConfirmRemoveOpen(false)}
+              className="rounded-xl text-xs font-semibold h-10"
+              disabled={isSyncing}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleRemoveFromDashboard}
+              disabled={isSyncing}
+              className="rounded-xl text-xs font-bold h-10 bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {isSyncing ? "Removing..." : "Remove"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Transaction Dialog */}
       {isEditDialogOpen && (
@@ -249,4 +363,3 @@ Generated from SplitLedger AI Ledger
     </>
   );
 }
-

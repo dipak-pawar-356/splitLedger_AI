@@ -173,6 +173,10 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS deleted_by INTEGER`;
       await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1`;
       await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS parent_transaction_id INTEGER`;
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS is_synced_to_dashboard BOOLEAN DEFAULT false NOT NULL`;
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS synced_at TIMESTAMP`;
+      await sqlClient`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS synced_by INTEGER`;
+      await sqlClient`CREATE INDEX IF NOT EXISTS transaction_synced_idx ON transactions(is_synced_to_dashboard)`;
 
       await sqlClient`ALTER TABLE settlements ADD COLUMN IF NOT EXISTS public_id TEXT`;
       await sqlClient`ALTER TABLE settlements ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false`;

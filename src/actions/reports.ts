@@ -351,6 +351,7 @@ export async function getReportDashboardSummary() {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             sql`${transactions.type} IN ('paid', 'borrowed')`
           )
         )
@@ -368,6 +369,7 @@ export async function getReportDashboardSummary() {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             sql`${transactions.type} IN ('paid', 'borrowed')`
           )
         )
@@ -969,6 +971,10 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
       ),
     ];
 
+    if (!options.contactId) {
+      conditions.push(or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)));
+    }
+
     if (startDate) conditions.push(gte(transactions.date, startDate));
     if (endDate) conditions.push(lte(transactions.date, endDate));
 
@@ -1233,6 +1239,7 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
     const currentConditions: any[] = [
       eq(transactions.isDeleted, false),
       baseScope,
+      or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
     ];
     if (startDate) currentConditions.push(gte(transactions.date, startDate));
     if (endDate) currentConditions.push(lte(transactions.date, endDate));
@@ -1243,6 +1250,7 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
     const prevConditions: any[] = [
       eq(transactions.isDeleted, false),
       baseScope,
+      or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
     ];
     if (prevStartDate) prevConditions.push(gte(transactions.date, prevStartDate));
     if (prevEndDate) prevConditions.push(lte(transactions.date, prevEndDate));

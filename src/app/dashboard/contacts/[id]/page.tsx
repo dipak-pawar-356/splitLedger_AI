@@ -62,6 +62,8 @@ export default async function ContactDetailPage({
           paymentMethod: transactions.paymentMethod,
           createdByName: users.name,
           tags: transactions.tags,
+          isSyncedToDashboard: transactions.isSyncedToDashboard,
+          syncedAt: transactions.syncedAt,
         })
         .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
@@ -97,6 +99,8 @@ export default async function ContactDetailPage({
           paymentMethod: transactions.paymentMethod,
           createdByName: sql<string | null>`NULL`,
           tags: transactions.tags,
+          isSyncedToDashboard: transactions.isSyncedToDashboard,
+          syncedAt: transactions.syncedAt,
         })
         .from(transactions)
         .where(

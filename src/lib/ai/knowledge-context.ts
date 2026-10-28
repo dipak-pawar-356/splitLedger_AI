@@ -21,7 +21,7 @@ import {
   auditLogs,
   contacts,
 } from "@/lib/db/schema/schema";
-import { eq, and, desc, sql, or, gte } from "drizzle-orm";
+import { eq, and, desc, sql, or, gte, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   validateTransactions,
@@ -281,7 +281,13 @@ export async function getFinancialKnowledgeContext(
           .from(transactions)
           .leftJoin(categories, eq(transactions.categoryId, categories.id))
           .leftJoin(groups, eq(transactions.groupId, groups.id))
-          .where(and(eq(transactions.userId, userId), eq(transactions.isDeleted, false)))
+          .where(
+            and(
+              eq(transactions.userId, userId),
+              eq(transactions.isDeleted, false),
+              or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
+            )
+          )
           .orderBy(desc(transactions.date))
           .limit(300)
           .catch(() => [] as any[]),

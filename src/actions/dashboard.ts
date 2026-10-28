@@ -100,6 +100,8 @@ export interface DashboardData {
     phone?: string | null;
     avatar?: string | null;
     balance: number; // in rupees
+    syncedTxCount?: number;
+    lastSyncedAt?: Date | null;
   }>;
   recentActivity: Array<{
     id: number;
@@ -185,7 +187,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         .where(eq(profiles.userId, user.id))
         .limit(1),
 
-      // 2. Current Month Income & Expenses
+      // 2. Current Month Income & Expenses (Only non-contact or synced contact transactions)
       db
         .select({
           income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
@@ -197,6 +199,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, startOfMonth),
             lte(transactions.date, endOfMonth)
           )
@@ -213,6 +216,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, startOfLastMonth),
             lte(transactions.date, endOfLastMonth)
           )
@@ -229,7 +233,8 @@ export async function getDashboardData(): Promise<DashboardData> {
         .where(
           and(
             eq(transactions.userId, user.id),
-            eq(transactions.isDeleted, false)
+            eq(transactions.isDeleted, false),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
           )
         ),
 
@@ -246,7 +251,8 @@ export async function getDashboardData(): Promise<DashboardData> {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            sql`${transactions.groupId} IS NULL`
+            sql`${transactions.groupId} IS NULL`,
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
           )
         ),
 
@@ -351,7 +357,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           )
         ),
 
-      // 12. Top Contacts with running balance
+      // 12. Synchronized Contacts for Dashboard (Only user-confirmed synced contact transactions)
       db
         .select({
           id: contacts.id,
@@ -360,21 +366,30 @@ export async function getDashboardData(): Promise<DashboardData> {
           email: contacts.email,
           phone: contacts.phone,
           avatar: contacts.avatar,
-          balance: sql<number>`COALESCE(${contacts.openingBalance}, 0) + COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)`,
+          balance: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)`,
+          syncedTxCount: sql<number>`COUNT(${transactions.id})`,
+          lastSyncedAt: sql<Date | null>`MAX(${transactions.syncedAt})`,
         })
         .from(contacts)
-        .leftJoin(transactions, and(eq(transactions.contactId, contacts.id), eq(transactions.isDeleted, false)))
+        .innerJoin(
+          transactions,
+          and(
+            eq(transactions.contactId, contacts.id),
+            eq(transactions.isDeleted, false),
+            eq(transactions.isSyncedToDashboard, true)
+          )
+        )
         .where(
           and(
             eq(contacts.userId, user.id),
             eq(contacts.isDeleted, false)
           )
         )
-        .groupBy(contacts.id, contacts.publicId, contacts.name, contacts.email, contacts.phone, contacts.avatar, contacts.openingBalance)
-        .orderBy(sql`ABS(COALESCE(${contacts.openingBalance}, 0) + COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)) DESC`)
+        .groupBy(contacts.id, contacts.publicId, contacts.name, contacts.email, contacts.phone, contacts.avatar)
+        .orderBy(sql`ABS(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END)) DESC`)
         .limit(15),
 
-      // 13. Recent Transactions (Latest 8 with paymentMethod)
+      // 13. Recent Transactions (Latest 8 with paymentMethod - synced or non-contact only)
       db
         .select({
           id: transactions.id,
@@ -399,7 +414,8 @@ export async function getDashboardData(): Promise<DashboardData> {
         .where(
           and(
             eq(transactions.userId, user.id),
-            eq(transactions.isDeleted, false)
+            eq(transactions.isDeleted, false),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
           )
         )
         .orderBy(desc(transactions.date))
@@ -444,7 +460,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           )
         ),
 
-      // 16. Historical 6 Months for Charts
+      // 16. Historical 6 Months for Charts (synced or non-contact only)
       db
         .select({
           monthKey: sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM')`,
@@ -456,13 +472,14 @@ export async function getDashboardData(): Promise<DashboardData> {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, new Date(now.getFullYear(), now.getMonth() - 5, 1))
           )
         )
         .groupBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`)
         .orderBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`),
 
-      // 17. Category Breakdown for current month
+      // 17. Category Breakdown for current month (synced or non-contact only)
       db
         .select({
           name: sql<string>`COALESCE(${categories.name}, 'General')`,
@@ -475,6 +492,7 @@ export async function getDashboardData(): Promise<DashboardData> {
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
             sql`${transactions.type} IN ('paid', 'borrowed')`,
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, startOfMonth),
             lte(transactions.date, endOfMonth)
           )
@@ -844,6 +862,8 @@ export async function getDashboardData(): Promise<DashboardData> {
         phone: c.phone,
         avatar: c.avatar,
         balance: (c.balance || 0) / 100,
+        syncedTxCount: Number(c.syncedTxCount) || 0,
+        lastSyncedAt: c.lastSyncedAt ? new Date(c.lastSyncedAt) : null,
       })),
       recentActivity: recentActivityQuery.map((a) => ({
         id: a.id,

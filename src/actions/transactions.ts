@@ -59,6 +59,7 @@ export interface CreateTransactionInput {
   paidByContact?: number | null;
   splitMethod?: "equal" | "exact" | "percentage" | "shares";
   splits?: SplitInput[];
+  isSyncedToDashboard?: boolean;
 }
 
 export interface UpdateTransactionInput {
@@ -82,6 +83,7 @@ export interface UpdateTransactionInput {
   splitMethod?: "equal" | "exact" | "percentage" | "shares";
   reason?: string;
   splits?: SplitInput[];
+  isSyncedToDashboard?: boolean;
 }
 
 // -------------------------------------------------------------
@@ -198,6 +200,9 @@ export async function createTransaction(data: CreateTransactionInput) {
     const title = data.title?.trim() || data.description.trim();
     const txDate = data.date ? new Date(data.date) : new Date();
 
+    const isContactTx = Boolean(data.contactId);
+    const isSynced = data.isSyncedToDashboard !== undefined ? Boolean(data.isSyncedToDashboard) : !isContactTx;
+
     // 1. Insert Transaction
     const [transaction] = await db
       .insert(transactions)
@@ -223,6 +228,9 @@ export async function createTransaction(data: CreateTransactionInput) {
         createdBy: user.id,
         paidBy: data.paidBy || user.id,
         paidByContact: data.paidByContact || null,
+        isSyncedToDashboard: isSynced,
+        syncedAt: isSynced ? new Date() : null,
+        syncedBy: isSynced ? user.id : null,
         version: 1,
         isDeleted: false,
       })
@@ -1203,5 +1211,164 @@ export async function getTransactions(options?: { limit?: number; groupId?: numb
     return await query;
   } catch (error) {
     throw new DatabaseError("Failed to fetch transactions", { originalError: error });
+  }
+}
+
+// -------------------------------------------------------------
+// DASHBOARD SYNCHRONIZATION ACTIONS
+// -------------------------------------------------------------
+
+export async function syncTransactionToDashboard(publicIdOrId: string | number) {
+  try {
+    const user = await requireAuth();
+    const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
+
+    return await withDbRetry(async () => {
+      const [tx] = await db
+        .select()
+        .from(transactions)
+        .where(
+          and(
+            isNumeric ? eq(transactions.id, Number(publicIdOrId)) : eq(transactions.publicId, String(publicIdOrId)),
+            eq(transactions.userId, user.id),
+            eq(transactions.isDeleted, false)
+          )
+        )
+        .limit(1);
+
+      if (!tx) {
+        throw new NotFoundError("Transaction");
+      }
+
+      const now = new Date();
+      await db
+        .update(transactions)
+        .set({
+          isSyncedToDashboard: true,
+          syncedAt: now,
+          syncedBy: user.id,
+          updatedAt: now,
+        })
+        .where(eq(transactions.id, tx.id));
+
+      appCache.invalidateTags([`user:${user.id}`, "dashboard", "contacts", "reports", "analytics"]);
+      safeRevalidatePath("/dashboard");
+      safeRevalidatePath("/dashboard/contacts");
+      if (tx.contactId) {
+        safeRevalidatePath(`/dashboard/contacts/${tx.contactId}`);
+      }
+      safeRevalidatePath("/dashboard/reports");
+      safeRevalidatePath("/dashboard/analytics");
+
+      return { success: true, isSynced: true };
+    });
+  } catch (err: any) {
+    if (err instanceof NotFoundError || err instanceof ValidationError) throw err;
+    throw new DatabaseError("Failed to synchronize transaction to dashboard", { originalError: err });
+  }
+}
+
+export async function removeTransactionFromDashboard(publicIdOrId: string | number) {
+  try {
+    const user = await requireAuth();
+    const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
+
+    return await withDbRetry(async () => {
+      const [tx] = await db
+        .select()
+        .from(transactions)
+        .where(
+          and(
+            isNumeric ? eq(transactions.id, Number(publicIdOrId)) : eq(transactions.publicId, String(publicIdOrId)),
+            eq(transactions.userId, user.id),
+            eq(transactions.isDeleted, false)
+          )
+        )
+        .limit(1);
+
+      if (!tx) {
+        throw new NotFoundError("Transaction");
+      }
+
+      const now = new Date();
+      await db
+        .update(transactions)
+        .set({
+          isSyncedToDashboard: false,
+          syncedAt: null,
+          syncedBy: null,
+          updatedAt: now,
+        })
+        .where(eq(transactions.id, tx.id));
+
+      appCache.invalidateTags([`user:${user.id}`, "dashboard", "contacts", "reports", "analytics"]);
+      safeRevalidatePath("/dashboard");
+      safeRevalidatePath("/dashboard/contacts");
+      if (tx.contactId) {
+        safeRevalidatePath(`/dashboard/contacts/${tx.contactId}`);
+      }
+      safeRevalidatePath("/dashboard/reports");
+      safeRevalidatePath("/dashboard/analytics");
+
+      return { success: true, isSynced: false };
+    });
+  } catch (err: any) {
+    if (err instanceof NotFoundError || err instanceof ValidationError) throw err;
+    throw new DatabaseError("Failed to remove transaction from dashboard", { originalError: err });
+  }
+}
+
+export async function removeContactFromDashboard(contactPublicIdOrId: string | number) {
+  try {
+    const user = await requireAuth();
+    const isNumeric = typeof contactPublicIdOrId === "number" || /^\d+$/.test(String(contactPublicIdOrId));
+
+    return await withDbRetry(async () => {
+      const [c] = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(
+          and(
+            isNumeric ? eq(contacts.id, Number(contactPublicIdOrId)) : eq(contacts.publicId, String(contactPublicIdOrId)),
+            eq(contacts.userId, user.id),
+            eq(contacts.isDeleted, false)
+          )
+        )
+        .limit(1);
+
+      if (!c) {
+        throw new NotFoundError("Contact");
+      }
+
+      const now = new Date();
+      await db
+        .update(transactions)
+        .set({
+          isSyncedToDashboard: false,
+          syncedAt: null,
+          syncedBy: null,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(transactions.contactId, c.id),
+            eq(transactions.userId, user.id),
+            eq(transactions.isSyncedToDashboard, true),
+            eq(transactions.isDeleted, false)
+          )
+        );
+
+      appCache.invalidateTags([`user:${user.id}`, "dashboard", "contacts", "reports", "analytics"]);
+      safeRevalidatePath("/dashboard");
+      safeRevalidatePath("/dashboard/contacts");
+      safeRevalidatePath(`/dashboard/contacts/${contactPublicIdOrId}`);
+      safeRevalidatePath("/dashboard/reports");
+      safeRevalidatePath("/dashboard/analytics");
+
+      return { success: true };
+    });
+  } catch (err: any) {
+    if (err instanceof NotFoundError) throw err;
+    throw new DatabaseError("Failed to remove contact from dashboard", { originalError: err });
   }
 }

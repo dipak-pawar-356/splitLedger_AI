@@ -12,7 +12,7 @@ import {
   profiles,
   budgets
 } from "@/lib/db/schema/schema";
-import { eq, desc, and, sql, gte, lte, or } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, or, isNull } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { DatabaseError } from "@/lib/errors";
 import { getBudgetsWithProgress, BudgetProgress } from "@/actions/budgets";
@@ -168,6 +168,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, startOfCurrentMonth)
           )
         ),
@@ -187,6 +188,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, startOfLastMonth),
             lte(transactions.date, endOfLastMonth)
           )
@@ -206,6 +208,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, new Date(now.getFullYear(), now.getMonth() - 5, 1))
           )
         )

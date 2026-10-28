@@ -12,7 +12,7 @@ import {
   users,
   auditLogs
 } from "@/lib/db/schema/schema";
-import { eq, desc, and, sql, gte, lte, or, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, or, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { DatabaseError } from "@/lib/errors";
@@ -252,7 +252,7 @@ export async function getComprehensiveAnalytics(
       previousPeriodLabel = "Last Month";
     }
 
-    // Base conditions
+    // Base conditions (Only synced contact transactions or non-contact transactions)
     const baseCurrentConditions = [
       eq(transactions.isDeleted, false),
       or(
@@ -260,6 +260,7 @@ export async function getComprehensiveAnalytics(
         eq(transactions.createdBy, user.id),
         sql`${transactions.groupId} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
       ),
+      or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
       gte(transactions.date, startDate),
       lte(transactions.date, endDate),
     ];
@@ -271,6 +272,7 @@ export async function getComprehensiveAnalytics(
         eq(transactions.createdBy, user.id),
         sql`${transactions.groupId} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
       ),
+      or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
       gte(transactions.date, prevStartDate),
       lte(transactions.date, prevEndDate),
     ];
@@ -350,6 +352,7 @@ export async function getComprehensiveAnalytics(
               eq(transactions.createdBy, user.id),
               sql`${transactions.groupId} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
             ),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, new Date(now.getFullYear(), now.getMonth() - 11, 1))
           )
         )
