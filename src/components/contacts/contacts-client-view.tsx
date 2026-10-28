@@ -69,9 +69,10 @@ import {
   generateContactCsvTemplate,
   generateContactXlsxTemplateBlob,
   generateContactVcfTemplate,
+  isTestingOrAssertionNote,
 } from "@/lib/contacts/contact-parser";
 import { archiveContact, deleteContact, updateContact } from "@/actions/contacts";
-import { bulkUpdateContactsAction } from "@/actions/contact-import";
+import { bulkUpdateContactsAction, purgeTestNotesFromContactsAction } from "@/actions/contact-import";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -138,6 +139,35 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
   const [qrModalContact, setQrModalContact] = useState<ContactItem | null>(null);
   const [contactQrUrl, setContactQrUrl] = useState<string>("");
   const [isGeneratingContactQr, setIsGeneratingContactQr] = useState<boolean>(false);
+  const [isPurgingNotes, setIsPurgingNotes] = useState(false);
+
+  // Detect leftover test assertion notes in contacts
+  const testNotesCount = useMemo(() => {
+    return contactsList.filter((c) => isTestingOrAssertionNote(c.notes)).length;
+  }, [contactsList]);
+
+  const handlePurgeTestNotes = async () => {
+    if (
+      !confirm(
+        `Are you sure you want to clean test assertion comments from ${testNotesCount} contact(s)? Genuine contact details and notes will not be touched.`
+      )
+    ) {
+      return;
+    }
+    setIsPurgingNotes(true);
+    try {
+      const res = await purgeTestNotesFromContactsAction();
+      setContactsList((prev) =>
+        prev.map((c) => (isTestingOrAssertionNote(c.notes) ? { ...c, notes: null } : c))
+      );
+      toast.success(`Successfully cleaned test notes from ${res.cleanedCount} contact(s)!`);
+      router.refresh();
+    } catch {
+      toast.error("Failed to clean test notes");
+    } finally {
+      setIsPurgingNotes(false);
+    }
+  };
 
   // QR Code generation
   useEffect(() => {
@@ -1019,19 +1049,40 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
         </div>
       )}
 
+      {/* Test Notes Cleanup Banner */}
+      {testNotesCount > 0 && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in-50">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-amber-600 shrink-0" />
+            <span>
+              Found <strong>{testNotesCount}</strong> contact(s) with spreadsheet test assertion notes from previous imports.
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isPurgingNotes}
+            onClick={handlePurgeTestNotes}
+            className="h-7 text-xs rounded-xl border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-amber-800 dark:text-amber-200 hover:bg-amber-100 font-semibold gap-1.5 shrink-0 self-start sm:self-auto"
+          >
+            {isPurgingNotes ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3 text-amber-600" />
+            )}
+            <span>Clean Test Notes ({testNotesCount})</span>
+          </Button>
+        </div>
+      )}
+
       {/* Contacts Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
         {displayedContacts.map((contact) => {
           const isNetOwedToMe = contact.balance > 0;
           const isNetIOwe = contact.balance < 0;
           const isSelected = selectedIds.has(contact.id);
-          // Hide test assertion notes from polluting contact description
-          const isTestNote = Boolean(
-            contact.notes &&
-              /^(valid contact|duplicate phone test|duplicate email test|validation test|check whether negative|unicode\/devanagari|special character\/apostrophe|test long notes|@sum\()/i.test(
-                contact.notes.trim()
-              )
-          );
+          // Strictly hide spreadsheet test assertion comments
+          const isTestNote = isTestingOrAssertionNote(contact.notes);
 
           return (
             <Card

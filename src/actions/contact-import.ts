@@ -15,6 +15,7 @@ import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
 import { ensureContactsSchema } from "@/lib/db/auto-migrate";
+import { isTestingOrAssertionNote } from "@/lib/contacts/contact-parser";
 
 /**
  * Formula Injection Protection (CWE-1236 / CSV Injection):
@@ -159,6 +160,7 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
         address: contacts.address,
         tags: contacts.tags,
         notes: contacts.notes,
+        openingBalance: contacts.openingBalance,
         customFields: contacts.customFields,
       })
       .from(contacts)
@@ -289,6 +291,9 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
               company: sanitizedCompany || existingMatch.company,
               address: sanitizedAddress || existingMatch.address,
               ...(sanitizedNotes !== null && { notes: sanitizedNotes }),
+              ...(raw.openingBalance !== undefined && !isNaN(Number(raw.openingBalance)) && {
+                openingBalance: openingBalancePaise,
+              }),
               tags: tagsArray.length > 0 ? tagsArray : existingMatch.tags || [],
               updatedAt: new Date(),
             })
@@ -315,6 +320,9 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
               address: existingMatch.address || sanitizedAddress,
               // Only supplement notes if existing contact had none and new row provided explicit notes
               notes: existingMatch.notes || sanitizedNotes || null,
+              ...(existingMatch.openingBalance === 0 && openingBalancePaise !== 0 && {
+                openingBalance: openingBalancePaise,
+              }),
               tags: mergedTags,
               updatedAt: new Date(),
             })
@@ -802,4 +810,35 @@ export async function getDuplicateContactsAction() {
   }
 
   return clusters;
+}
+
+/**
+ * FEATURE: Purge spreadsheet test assertion strings from existing contact descriptions
+ * Cleans out leftover test notes (e.g. "Valid contact - baseline", "=SUM(1,1)", etc.) from existing records
+ */
+export async function purgeTestNotesFromContactsAction(): Promise<{ cleanedCount: number }> {
+  const user = await requireAuth();
+
+  const userContacts = await withDbRetry(async () => {
+    return await db
+      .select({ id: contacts.id, notes: contacts.notes })
+      .from(contacts)
+      .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)));
+  });
+
+  let cleanedCount = 0;
+  for (const c of userContacts) {
+    if (c.notes && isTestingOrAssertionNote(c.notes)) {
+      await withDbRetry(async () => {
+        await db
+          .update(contacts)
+          .set({ notes: null, updatedAt: new Date() })
+          .where(eq(contacts.id, c.id));
+      });
+      cleanedCount++;
+    }
+  }
+
+  revalidatePath("/dashboard/contacts");
+  return { cleanedCount };
 }

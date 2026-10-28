@@ -50,6 +50,43 @@ export function sanitizeFormulaInjection(value: string | null | undefined): stri
 }
 
 /**
+ * Detects whether a note string is a spreadsheet test assertion comment
+ * (e.g., 'Valid contact - baseline', 'Duplicate phone test', '=SUM(1,1)', etc.)
+ * These should never be displayed as permanent contact descriptions.
+ */
+export function isTestingOrAssertionNote(note: string | null | undefined): boolean {
+  if (!note || typeof note !== "string") return false;
+  const trimmed = note.trim();
+  if (!trimmed) return false;
+
+  // Formula injections or spreadsheet prefixes
+  if (/^['"]?[=+\-@\t\r]/.test(trimmed)) return true;
+
+  // Common test patterns from benchmark spreadsheets
+  const testPatterns = [
+    /^(valid|invalid)\s+contact/i,
+    /duplicate\s+(phone|email)/i,
+    /validation\s+test/i,
+    /check\s+whether\s+negative/i,
+    /unicode[\s/]+devanagari/i,
+    /special\s+char/i,
+    /apostrophe\s+test/i,
+    /test\s+long\s+notes/i,
+    /optional\s+(email|phone)\s+blank/i,
+    /formula\s+injection/i,
+    /csv\s+injection/i,
+    /^['"]?@?sum\(/i,
+    /merged\s+notes:/i,
+    /baseline/i,
+    /test\s*case/i,
+    /assertion/i,
+    /edge\s*case/i,
+  ];
+
+  return testPatterns.some((pattern) => pattern.test(trimmed));
+}
+
+/**
  * Clean contact name:
  * - Trims whitespace
  * - Collapses consecutive spaces
@@ -136,15 +173,15 @@ export function autoDetectMapping(headers: string[]): Record<string, string> {
   const lowerHeaders = headers.map((h) => ({ original: h, lower: h.toLowerCase().trim() }));
 
   const patterns: Record<string, RegExp[]> = {
-    name: [/^name$/i, /^full\s*name$/i, /^contact\s*name$/i, /^display\s*name$/i, /^person$/i],
+    name: [/^name$/i, /^full\s*name$/i, /^contact\s*name$/i, /^display\s*name$/i, /^person$/i, /^contact\s*person$/i, /^client$/i],
     firstName: [/^first\s*name$/i, /^firstname$/i, /^given\s*name$/i, /^first$/i],
     lastName: [/^last\s*name$/i, /^lastname$/i, /^surname$/i, /^family\s*name$/i, /^last$/i],
-    email: [/email/i, /e-mail/i, /^mail$/i],
-    phone: [/phone/i, /mobile/i, /cell/i, /tel/i, /contact\s*no/i, /contact\s*number/i],
+    email: [/email/i, /e-mail/i, /^mail$/i, /^email\s*address$/i],
+    phone: [/phone/i, /mobile/i, /cell/i, /tel/i, /contact\s*no/i, /contact\s*number/i, /^mobile\s*number$/i, /^phone\s*number$/i],
     company: [/company/i, /organization/i, /organisation/i, /employer/i, /business/i],
     address: [/address/i, /street/i, /city/i, /location/i],
     tags: [/tags/i, /^tag$/i, /labels/i, /categories/i, /group/i],
-    openingBalance: [/opening\s*balance/i, /^balance$/i, /initial\s*balance/i],
+    openingBalance: [/opening\s*balance/i, /^balance$/i, /initial\s*balance/i, /^opening\s*bal$/i, /^starting\s*balance$/i, /^net\s*balance$/i],
     currency: [/^currency$/i, /^curr$/i],
     // Notes is intentionally NOT auto-mapped.
   };

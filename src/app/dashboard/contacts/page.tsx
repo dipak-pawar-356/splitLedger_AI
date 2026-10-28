@@ -51,7 +51,26 @@ export default async function ContactsPage() {
           .from(contacts)
           .leftJoin(transactions, eq(transactions.contactId, contacts.id))
           .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)))
-          .groupBy(contacts.id, contacts.publicId)
+          .groupBy(
+            contacts.id,
+            contacts.publicId,
+            contacts.name,
+            contacts.email,
+            contacts.phone,
+            contacts.currency,
+            contacts.openingBalance,
+            contacts.notes,
+            contacts.company,
+            contacts.address,
+            contacts.tags,
+            contacts.customFields,
+            contacts.isFavorite,
+            contacts.isBlocked,
+            contacts.category,
+            contacts.isArchived,
+            contacts.createdAt,
+            contacts.updatedAt
+          )
           .orderBy(desc(contacts.createdAt));
       });
     } catch (primaryErr) {
@@ -76,26 +95,41 @@ export default async function ContactsPage() {
           .from(contacts)
           .leftJoin(transactions, eq(transactions.contactId, contacts.id))
           .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)))
-          .groupBy(contacts.id, contacts.publicId)
+          .groupBy(
+            contacts.id,
+            contacts.publicId,
+            contacts.name,
+            contacts.email,
+            contacts.phone,
+            contacts.currency,
+            contacts.openingBalance,
+            contacts.notes,
+            contacts.isArchived,
+            contacts.createdAt
+          )
           .orderBy(desc(contacts.createdAt));
       });
     }
 
-    const formattedContacts: ContactItem[] = (userContacts || []).map((c) => ({
-      ...c,
-      company: c.company || null,
-      address: c.address || null,
-      category: c.category || null,
-      isFavorite: Boolean(c.isFavorite),
-      isBlocked: Boolean(c.isBlocked),
-      isArchived: Boolean(c.isArchived),
-      balance: Number(c.balance) || 0,
-      transactionCount: Number(c.transactionCount) || 0,
-      tags: Array.isArray(c.tags) ? c.tags : [],
-      customFields: c.customFields && typeof c.customFields === "object" ? c.customFields : {},
-      createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
-      updatedAt: c.updatedAt ? new Date(c.updatedAt) : null,
-    }));
+    const formattedContacts: ContactItem[] = (userContacts || []).map((c) => {
+      const openingPaise = Number(c.openingBalance) || 0;
+      const txPaise = Number(c.balance) || 0;
+      return {
+        ...c,
+        company: c.company || null,
+        address: c.address || null,
+        category: c.category || null,
+        isFavorite: Boolean(c.isFavorite),
+        isBlocked: Boolean(c.isBlocked),
+        isArchived: Boolean(c.isArchived),
+        balance: openingPaise + txPaise,
+        transactionCount: Number(c.transactionCount) || 0,
+        tags: Array.isArray(c.tags) ? c.tags : [],
+        customFields: c.customFields && typeof c.customFields === "object" ? c.customFields : {},
+        createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
+        updatedAt: c.updatedAt ? new Date(c.updatedAt) : null,
+      };
+    });
 
     return <ContactsClientView initialContacts={formattedContacts} />;
   } catch (err: any) {

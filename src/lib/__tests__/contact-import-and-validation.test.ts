@@ -8,6 +8,7 @@ import {
   parseOpeningBalance,
   autoDetectMapping,
   validateAndPrepareImportRows,
+  isTestingOrAssertionNote,
 } from "@/lib/contacts/contact-parser";
 
 describe("Contact Import Validation & Security Engine", () => {
@@ -237,6 +238,51 @@ describe("Contact Import Validation & Security Engine", () => {
       const row6 = result.rows[5];
       expect(row6.name).toBe("स्नेहा देशमुख");
       expect(row6.status).toBe("valid");
+    });
+  });
+
+  describe("Spreadsheet Test Notes Detection (isTestingOrAssertionNote)", () => {
+    it("should detect all benchmark test notes from import spreadsheets", () => {
+      const benchmarkTestNotes = [
+        "Valid contact - baseline",
+        "Valid contact - positive balance",
+        "Valid contact - negative balance",
+        "Valid contact - Marathi surname",
+        "Valid contact - multiword name",
+        "Valid contact - decimal balance",
+        "Valid contact - phone and email",
+        "Unicode/Devanagari name test",
+        "Duplicate email test - conflicts with Aarav Kulkarni",
+        "Duplicate phone test - conflicts with Aarav Kulkarni",
+        "Validation test - invalid email",
+        "Optional email blank - should be allowed if app rules permit",
+        "Optional phone blank - should be allowed if app rules permit",
+        "Validation test - required name missing",
+        "Validation test - phone may be too short",
+        "Check whether negative opening balances are supported",
+        "Special character/apostrophe test",
+        "Test long notes and text-length validation. Test long notes and text-length validation.",
+        "@SUM(1,1)",
+        "'=SUM(1,1)",
+        "Valid contact - baseline --- Merged Notes: Duplicate phone test - conflicts with Aarav Kulkarni",
+      ];
+
+      for (const note of benchmarkTestNotes) {
+        expect(isTestingOrAssertionNote(note), `Failed for note: "${note}"`).toBe(true);
+      }
+    });
+
+    it("should NOT flag genuine contact descriptions", () => {
+      const genuineNotes = [
+        "Prefers communication via WhatsApp after 4 PM",
+        "Key supplier for paper and packaging materials",
+        "Met at Bangalore FinTech Conference 2026",
+        "Payment terms: net 30 days",
+      ];
+
+      for (const note of genuineNotes) {
+        expect(isTestingOrAssertionNote(note)).toBe(false);
+      }
     });
   });
 });
