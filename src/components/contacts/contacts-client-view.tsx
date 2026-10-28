@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import QRCode from "qrcode";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +40,6 @@ import {
   Edit2,
   Trash2,
   RotateCcw,
-  QrCode,
   Copy,
   Share2,
   Download,
@@ -63,7 +61,7 @@ import {
   Sparkles,
   SlidersHorizontal,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { ContactDialog } from "@/components/dialogs/contact-dialog";
 import { ContactImportWizardDialog } from "@/components/contacts/contact-import-wizard-dialog";
 import { ContactImportHistoryDialog } from "@/components/contacts/contact-import-history-dialog";
@@ -144,9 +142,6 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
   const [isImportHistoryOpen, setIsImportHistoryOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<ContactItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [qrModalContact, setQrModalContact] = useState<ContactItem | null>(null);
-  const [contactQrUrl, setContactQrUrl] = useState<string>("");
-  const [isGeneratingContactQr, setIsGeneratingContactQr] = useState<boolean>(false);
   const [isPurgingNotes, setIsPurgingNotes] = useState(false);
 
   // Detect leftover test assertion notes in contacts
@@ -176,38 +171,6 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
       setIsPurgingNotes(false);
     }
   };
-
-  // QR Code generation
-  useEffect(() => {
-    if (qrModalContact?.publicId) {
-      setIsGeneratingContactQr(true);
-      const origin =
-        typeof window !== "undefined" && window.location.origin
-          ? window.location.origin
-          : "https://splitledger.ai";
-      const accessUrl = `${origin}/dashboard/contacts/${qrModalContact.publicId}`;
-      QRCode.toDataURL(accessUrl, {
-        width: 350,
-        margin: 2,
-        color: {
-          dark: "#0f172a",
-          light: "#ffffff",
-        },
-        errorCorrectionLevel: "H",
-      })
-        .then((url) => {
-          setContactQrUrl(url);
-          setIsGeneratingContactQr(false);
-        })
-        .catch((err) => {
-          console.error("Contact QR generation error:", err);
-          setIsGeneratingContactQr(false);
-        });
-    } else {
-      setContactQrUrl("");
-      setIsGeneratingContactQr(false);
-    }
-  }, [qrModalContact]);
 
   // Synchronize when initialContacts changes
   useEffect(() => {
@@ -1631,18 +1594,25 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                   </div>
 
                   {/* Avatar Initial with smooth hover lift */}
-                  <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent border border-primary/25 flex items-center justify-center shrink-0 font-extrabold text-primary group-hover:scale-105 group-hover:rotate-1 transition-all duration-300 shadow-xs">
+                  <Link
+                    href={`/dashboard/contacts/${contact.publicId}`}
+                    className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent border border-primary/25 flex items-center justify-center shrink-0 font-extrabold text-primary group-hover:scale-105 group-hover:rotate-1 transition-all duration-300 shadow-xs cursor-pointer"
+                    title={`View ${contact.name}'s Financial Profile`}
+                  >
                     <span className="text-base font-black">
                       {contact.name.charAt(0).toUpperCase()}
                     </span>
-                  </div>
+                  </Link>
 
                   {/* Name and Info */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 truncate group-hover:text-primary transition-colors tracking-tight">
+                      <Link
+                        href={`/dashboard/contacts/${contact.publicId}`}
+                        className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 truncate hover:text-primary transition-colors tracking-tight"
+                      >
                         {contact.name}
-                      </h2>
+                      </Link>
                       {/* Favorite Button */}
                       <button
                         type="button"
@@ -1731,15 +1701,8 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                         className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5"
                       >
                         <ArrowUpRight className="h-4 w-4 text-primary" />
-                        <span>View Ledger</span>
+                        <span>View Financial Profile</span>
                       </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setQrModalContact(contact)}
-                      className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5"
-                    >
-                      <QrCode className="h-4 w-4 text-emerald-600" />
-                      <span>Digital Pass & QR</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => handleEditClick(contact)}
@@ -1803,7 +1766,21 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                 }`}
               >
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500 font-medium">Net Balance</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-500 font-medium">Net Balance</span>
+                    <Badge
+                      variant="outline"
+                      className={`text-[9px] px-1.5 py-0 font-bold uppercase tracking-wider ${
+                        isNetOwedToMe
+                          ? "border-emerald-500/30 text-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40"
+                          : isNetIOwe
+                          ? "border-rose-500/30 text-rose-600 bg-rose-50/50 dark:bg-rose-950/40"
+                          : "border-slate-300 text-slate-500 bg-slate-100 dark:bg-slate-800"
+                      }`}
+                    >
+                      {isNetOwedToMe ? "They Owe You" : isNetIOwe ? "You Owe" : "Settled"}
+                    </Badge>
+                  </div>
                   <span
                     className={`font-black font-mono text-sm tracking-tight ${
                       isNetOwedToMe
@@ -1825,10 +1802,19 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                   </span>
                 </div>
 
+                {contact.openingBalance ? (
+                  <div className="flex justify-between items-center text-[11px] text-slate-500">
+                    <span>Opening Balance</span>
+                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
+                      {formatCurrency(contact.openingBalance / 100, contact.currency)}
+                    </span>
+                  </div>
+                ) : null}
+
                 <div className="flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Currency</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300">
-                    {contact.currency}
+                  <span>Last Activity</span>
+                  <span className="text-slate-600 dark:text-slate-400">
+                    {formatDate(contact.updatedAt || contact.createdAt)}
                   </span>
                 </div>
               </div>
@@ -1852,7 +1838,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                     className="w-full rounded-xl text-xs h-8 gap-1.5 font-bold hover:border-primary/50 hover:text-primary transition-all truncate"
                   >
                     <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
-                    <span>Ledger</span>
+                    <span>View Profile</span>
                   </Button>
                 </Link>
                 <Button
@@ -1863,15 +1849,6 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                 >
                   <Edit2 className="h-3 w-3" />
                   <span>Edit</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setQrModalContact(contact)}
-                  className="rounded-xl text-xs h-8 px-2.5 font-semibold hover:border-emerald-500/50 hover:text-emerald-600 transition-all shrink-0"
-                  title="View Digital Pass & QR"
-                >
-                  <QrCode className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </Card>
@@ -1995,107 +1972,6 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
           }}
         />
       )}
-
-      {/* Digital Pass & QR Modal */}
-      <Dialog open={!!qrModalContact} onOpenChange={(open) => !open && setQrModalContact(null)}>
-        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-card border border-slate-200/80 dark:border-slate-800 text-center">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center justify-center gap-1.5">
-              <QrCode className="h-4 w-4 text-primary" />
-              <span>Contact Pass & QR Code</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              {qrModalContact?.name}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4 flex flex-col items-center space-y-4">
-            <div className="p-4 rounded-3xl bg-white border border-slate-200 shadow-md flex items-center justify-center min-h-[200px] min-w-[200px]">
-              {isGeneratingContactQr ? (
-                <div className="h-48 w-48 flex flex-col items-center justify-center gap-2">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <span className="text-xs text-slate-500 font-semibold">Generating Pass...</span>
-                </div>
-              ) : contactQrUrl ? (
-                <img
-                  src={contactQrUrl}
-                  alt={`Real QR code for ${qrModalContact?.name}`}
-                  className="h-48 w-48 object-contain rounded-xl"
-                />
-              ) : (
-                <div className="h-48 w-48 flex items-center justify-center text-slate-400 text-xs">
-                  Generating QR...
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                Permanent Public Identifier
-              </span>
-              <p className="font-mono text-base font-black text-slate-900 dark:text-slate-100 tracking-wider">
-                {qrModalContact?.publicId}
-              </p>
-              <p className="text-xs text-slate-500">
-                {qrModalContact?.email || qrModalContact?.phone || "Personal Connection"} • {qrModalContact?.currency} Ledger
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 w-full pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 rounded-xl text-xs font-bold gap-1.5"
-                onClick={() => {
-                  if (qrModalContact) {
-                    navigator.clipboard.writeText(qrModalContact.publicId);
-                    toast.success("Contact ID copied!");
-                  }
-                }}
-              >
-                <Copy className="h-3.5 w-3.5" />
-                <span>Copy ID</span>
-              </Button>
-              <Button
-                size="sm"
-                className="flex-1 rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground"
-                onClick={() => {
-                  if (qrModalContact) {
-                    const origin =
-                      typeof window !== "undefined" && window.location.origin
-                        ? window.location.origin
-                        : "https://splitledger.ai";
-                    navigator.clipboard.writeText(
-                      `${origin}/dashboard/contacts/${qrModalContact.publicId}`
-                    );
-                    toast.success("Contact link copied!");
-                  }
-                }}
-              >
-                <Share2 className="h-3.5 w-3.5" />
-                <span>Copy Link</span>
-              </Button>
-              {contactQrUrl && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl text-xs font-bold gap-1.5 shrink-0"
-                  onClick={() => {
-                    const a = document.createElement("a");
-                    a.href = contactQrUrl;
-                    a.download = `${qrModalContact?.publicId || "contact"}-qr.png`;
-                    a.click();
-                    toast.success("Downloaded Contact QR image");
-                  }}
-                  title="Download Contact QR PNG"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

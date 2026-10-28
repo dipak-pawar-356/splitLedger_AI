@@ -7,6 +7,7 @@ import { DashboardFinancialInsights } from "@/components/dashboard/dashboard-fin
 import { DashboardPendingTasks } from "@/components/dashboard/dashboard-pending-tasks";
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
 import { DashboardRecentActivity } from "@/components/dashboard/dashboard-recent-activity";
+import { DashboardContactsWidget } from "@/components/dashboard/dashboard-contacts-widget";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -175,6 +176,9 @@ async function DashboardContent() {
           <DashboardRecentActivity activities={data.recentActivity} />
         </div>
       </div>
+
+      {/* Top Contacts by Balance Widget */}
+      <DashboardContactsWidget contacts={data.topContacts || []} />
     </div>
   );
 }

@@ -45,11 +45,11 @@ export default async function ContactsPage() {
             isArchived: contacts.isArchived,
             createdAt: contacts.createdAt,
             updatedAt: contacts.updatedAt,
-            balance: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)::numeric`,
+            balance: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.id} IS NULL THEN 0 WHEN ${transactions.type} IN ('received', 'lent') THEN ${transactions.amount} WHEN ${transactions.type} = 'adjustment' AND (${transactions.tags}::text LIKE '%"credit"%' OR ${transactions.tags}::text LIKE '%"increase"%') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)::numeric`,
             transactionCount: sql<number>`COUNT(${transactions.id})::int`,
           })
           .from(contacts)
-          .leftJoin(transactions, eq(transactions.contactId, contacts.id))
+          .leftJoin(transactions, and(eq(transactions.contactId, contacts.id), eq(transactions.isDeleted, false)))
           .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)))
           .groupBy(
             contacts.id,
@@ -89,11 +89,11 @@ export default async function ContactsPage() {
             notes: contacts.notes,
             isArchived: contacts.isArchived,
             createdAt: contacts.createdAt,
-            balance: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)::numeric`,
+            balance: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.id} IS NULL THEN 0 WHEN ${transactions.type} IN ('received', 'lent') THEN ${transactions.amount} WHEN ${transactions.type} = 'adjustment' AND (${transactions.tags}::text LIKE '%"credit"%' OR ${transactions.tags}::text LIKE '%"increase"%') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)::numeric`,
             transactionCount: sql<number>`COUNT(${transactions.id})::int`,
           })
           .from(contacts)
-          .leftJoin(transactions, eq(transactions.contactId, contacts.id))
+          .leftJoin(transactions, and(eq(transactions.contactId, contacts.id), eq(transactions.isDeleted, false)))
           .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)))
           .groupBy(
             contacts.id,

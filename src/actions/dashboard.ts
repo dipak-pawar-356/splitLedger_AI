@@ -360,7 +360,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           email: contacts.email,
           phone: contacts.phone,
           avatar: contacts.avatar,
-          balance: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)`,
+          balance: sql<number>`COALESCE(${contacts.openingBalance}, 0) + COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)`,
         })
         .from(contacts)
         .leftJoin(transactions, and(eq(transactions.contactId, contacts.id), eq(transactions.isDeleted, false)))
@@ -370,9 +370,9 @@ export async function getDashboardData(): Promise<DashboardData> {
             eq(contacts.isDeleted, false)
           )
         )
-        .groupBy(contacts.id, contacts.publicId, contacts.name, contacts.email, contacts.phone, contacts.avatar)
-        .orderBy(sql`ABS(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END)) DESC`)
-        .limit(5),
+        .groupBy(contacts.id, contacts.publicId, contacts.name, contacts.email, contacts.phone, contacts.avatar, contacts.openingBalance)
+        .orderBy(sql`ABS(COALESCE(${contacts.openingBalance}, 0) + COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)) DESC`)
+        .limit(15),
 
       // 13. Recent Transactions (Latest 8 with paymentMethod)
       db

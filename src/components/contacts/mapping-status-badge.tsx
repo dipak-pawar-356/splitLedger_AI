@@ -131,3 +131,4 @@ export const MappingStatusBadge = React.memo(function MappingStatusBadge({
       );
   }
 });
+

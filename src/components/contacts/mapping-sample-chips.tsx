@@ -131,3 +131,4 @@ export const MappingSampleChips = React.memo(function MappingSampleChips({
     </div>
   );
 });
+
