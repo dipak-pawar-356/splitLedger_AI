@@ -1,6 +1,7 @@
 "use server";
 
-import { db } from "@/lib/db";
+import { db, withDbRetry } from "@/lib/db";
+import { ensureDatabaseSchema } from "@/lib/db/auto-migrate";
 import { 
   transactions, 
   contacts, 
@@ -158,26 +159,34 @@ export async function getDashboardData(): Promise<DashboardData> {
           const settleToUser = alias(users, "settle_to_user");
           const settleFromUser = alias(users, "settle_from_user");
 
+          // Ensure database schema is up-to-date
+          try {
+            await ensureDatabaseSchema();
+          } catch (schemaErr) {
+            console.warn("Dashboard auto-migrate check warning:", schemaErr);
+          }
+
           // Parallel Batch Queries
-    const [
-      userProfile,
-      currentMonthIncomeExp,
-      lastMonthIncomeExp,
-      allTimeIncomeExp,
-      allTimePersonalStats,
-      allTimeGroupStats,
-      activeGroupsRaw,
-      userGroupMemberships,
-      pendingSettlementsQuery,
-      unreadNotifsQuery,
-      invitationsQuery,
-      contactsQuery,
-      recentTxQuery,
-      recentActivityQuery,
-      activeBudgetsQuery,
-      sixMonthMonthlyTotals,
-      categorySpendingRaw,
-    ] = await Promise.all([
+          const [
+            userProfile,
+            currentMonthIncomeExp,
+            lastMonthIncomeExp,
+            allTimeIncomeExp,
+            allTimePersonalStats,
+            allTimeGroupStats,
+            activeGroupsRaw,
+            userGroupMemberships,
+            pendingSettlementsQuery,
+            unreadNotifsQuery,
+            invitationsQuery,
+            contactsQuery,
+            recentTxQuery,
+            recentActivityQuery,
+            activeBudgetsQuery,
+            sixMonthMonthlyTotals,
+            categorySpendingRaw,
+          ] = await withDbRetry(async () => {
+            return await Promise.all([
       // 1. User Profile & Extended Settings
       db
         .select({
@@ -387,7 +396,11 @@ export async function getDashboardData(): Promise<DashboardData> {
         )
         .groupBy(contacts.id, contacts.publicId, contacts.name, contacts.email, contacts.phone, contacts.avatar)
         .orderBy(sql`ABS(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END)) DESC`)
-        .limit(15),
+        .limit(15)
+        .catch((err) => {
+          console.warn("Synchronized contacts query fallback:", err);
+          return [] as any[];
+        }),
 
       // 13. Recent Transactions (Latest 8 with paymentMethod - synced or non-contact only)
       db
@@ -501,6 +514,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         .orderBy(sql`SUM(${transactions.amount}) DESC`)
         .limit(6),
     ]);
+  });
 
     // Calculate Settlement Engine Receivables & Payables across groups
     let calculatedReceivable = 0;
@@ -508,7 +522,8 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     const activeGroupIds = activeGroupsRaw.map((g) => g.id);
     if (activeGroupIds.length > 0) {
-      const [allGroupExpenses, allGroupSplits] = await Promise.all([
+      const [allGroupExpenses, allGroupSplits] = await withDbRetry(async () => {
+        return await Promise.all([
         db
           .select({
             id: transactions.id,
@@ -545,6 +560,7 @@ export async function getDashboardData(): Promise<DashboardData> {
             )
           ),
       ]);
+    });
 
       const expensesByGroup = new Map<number, typeof allGroupExpenses>();
       allGroupExpenses.forEach((e) => {
