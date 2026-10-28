@@ -246,7 +246,7 @@ export function MappingColumnDropdown({
                       </div>
                       {columnSamplesMap.get(suggestedColumn)?.[0] && (
                         <span className="text-[10px] text-slate-400 font-mono block truncate mt-0.5">
-                          e.g. "{columnSamplesMap.get(suggestedColumn)![0]}"
+                          e.g. &ldquo;{columnSamplesMap.get(suggestedColumn)![0]}&rdquo;
                         </span>
                       )}
                     </div>
@@ -265,7 +265,7 @@ export function MappingColumnDropdown({
 
               {filteredHeaders.length === 0 ? (
                 <div className="py-4 text-center text-xs text-slate-400 italic">
-                  No columns match "{searchQuery}"
+                  No columns match &ldquo;{searchQuery}&rdquo;
                 </div>
               ) : (
                 filteredHeaders.map((header) => {
@@ -289,7 +289,7 @@ export function MappingColumnDropdown({
                         </span>
                         {samples.length > 0 ? (
                           <span className="text-[10px] text-slate-400 font-mono block truncate mt-0.5">
-                            e.g. "{samples[0]}"
+                            e.g. &ldquo;{samples[0]}&rdquo;
                           </span>
                         ) : (
                           <span className="text-[10px] text-slate-400 italic block mt-0.5">

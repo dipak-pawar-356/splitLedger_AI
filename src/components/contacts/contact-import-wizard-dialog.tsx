@@ -867,10 +867,10 @@ export function ContactImportWizardDialog({
                       <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div>
                         <h5 className="font-bold text-amber-900 dark:text-amber-100">
-                          ⚠️ Notes Column Explicitly Mapped to "{mapping.notes}"
+                          ⚠️ Notes Column Explicitly Mapped to &ldquo;{mapping.notes}&rdquo;
                         </h5>
                         <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5 leading-relaxed">
-                          Values from column "{mapping.notes}" will be stored as permanent contact descriptions. Please verify this column contains genuine descriptions rather than QA benchmark notes.
+                          Values from column &ldquo;{mapping.notes}&rdquo; will be stored as permanent contact descriptions. Please verify this column contains genuine descriptions rather than QA benchmark notes.
                         </p>
                       </div>
                     </div>
@@ -890,10 +890,10 @@ export function ContactImportWizardDialog({
                       <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                       <div>
                         <h5 className="font-bold text-amber-900 dark:text-amber-200">
-                          Spreadsheet Notes Column Protected ("{analysis.detectedNotesColumn}")
+                          Spreadsheet Notes Column Protected (&ldquo;{analysis.detectedNotesColumn}&rdquo;)
                         </h5>
                         <p className="text-[11px] text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
-                          This spreadsheet contains a notes column with test assertions (e.g. "Valid contact - baseline", "CSV Injection Test"). It is left unmapped by default so test comments do not become contact descriptions. You can inspect test notes in the Preview step!
+                          This spreadsheet contains a notes column with test assertions (e.g. &ldquo;Valid contact - baseline&rdquo;, &ldquo;CSV Injection Test&rdquo;). It is left unmapped by default so test comments do not become contact descriptions. You can inspect test notes in the Preview step!
                         </p>
                       </div>
                     </div>
@@ -971,7 +971,7 @@ export function ContactImportWizardDialog({
                                 </p>
                                 {isDupe && (
                                   <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold block mt-1">
-                                    ⚠️ Column "{currentMapped}" is also mapped to {otherDupeLabels.join(", ")}
+                                    ⚠️ Column &ldquo;{currentMapped}&rdquo; is also mapped to {otherDupeLabels.join(", ")}
                                   </span>
                                 )}
                                 {isRequired && (
