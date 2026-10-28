@@ -178,6 +178,211 @@ export function parseOpeningBalance(val: any): { valid: boolean; amount: number 
 }
 
 /**
+ * Detect whether a row is a secondary table header (e.g. "Test Item,Details" or "Key,Value")
+ * placed below or separately from the main contacts table.
+ */
+export function isSecondaryTableHeader(row: Record<string, any>): boolean {
+  if (!row || typeof row !== "object") return false;
+  const vals = Object.values(row)
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean);
+  if (vals.length < 2) return false;
+
+  const first = vals[0].toLowerCase();
+  const second = vals[1].toLowerCase();
+
+  const isFirstHeader =
+    /^(test\s*items?|metadata|summary|parameters?|keys?|properties?|test\s*cases?|instructions?|legend|disclaimer|doc\s*items?)$/i.test(
+      first
+    );
+  const isSecondHeader =
+    /^(details|values?|descriptions?|comments?|types?|status|results?|notes?)$/i.test(
+      second
+    );
+
+  return isFirstHeader && isSecondHeader;
+}
+
+/**
+ * Detect whether a row is documentation, metadata, helper text, or test assertion notes
+ * rather than a real contact record.
+ *
+ * Documentation examples from test spreadsheets:
+ * - "Purpose,Synthetic data for testing..."
+ * - "Total rows,20"
+ * - "Expected basic valid examples,Rows 1-8..."
+ * - "Duplicate email,Row 9 duplicates row 1 email"
+ * - "Duplicate phone,Row 10 duplicates row 1 phone"
+ * - "Invalid email,Row 11"
+ * - "Missing required name,Row 14"
+ * - "Invalid/short phone,Row 15"
+ * - "Unicode name,Row 8"
+ * - "Formula/CSV injection safety,Rows 19-20..."
+ * - "Optional fields,Rows 12-13..."
+ * - "Opening balance,Includes zero..."
+ * - "Recommended test sequence,Upload → analyze..."
+ * - "Safety note,Do not use this file..."
+ */
+export function isDocumentationOrHelperRow(
+  row: Record<string, any>,
+  mapping?: Record<string, string>
+): boolean {
+  if (!row || typeof row !== "object") return true;
+
+  const entries = Object.entries(row).map(([k, v]) => ({
+    key: k,
+    val: String(v ?? "").trim(),
+  }));
+
+  const nonEmptyVals = entries.map((e) => e.val).filter(Boolean);
+  if (nonEmptyVals.length === 0) return true; // Completely empty row
+
+  // Formatting-only rows (e.g. "----", "====", "***", "###")
+  if (nonEmptyVals.every((v) => /^[-=_*#\s|]+$/.test(v))) return true;
+
+  // Secondary table header
+  if (isSecondaryTableHeader(row)) return true;
+
+  const firstVal = nonEmptyVals[0] || "";
+  const firstValLower = firstVal.toLowerCase();
+
+  // Known metadata / documentation / instructions keywords
+  const docKeywords = [
+    /^purpose$/i,
+    /^total\s*(rows?|contacts?|records?|count)$/i,
+    /^expected\s*(test\s*cases?|.*valid\s*examples?|results?)$/i,
+    /^recommended\s*test\s*sequence$/i,
+    /^safety\s*notes?$/i,
+    /^safety\s*notice$/i,
+    /^instructions?$/i,
+    /^legend$/i,
+    /^disclaimer$/i,
+    /^summary$/i,
+    /^(generated\s*at|exported\s*on|report\s*generated)$/i,
+    /^about$/i,
+    /^documentation$/i,
+    /^overview$/i,
+    /^template\s*info$/i,
+    /^author$/i,
+    /^version$/i,
+    /^changelog$/i,
+    /^notice$/i,
+    /^test\s*items?$/i,
+  ];
+
+  if (docKeywords.some((r) => r.test(firstValLower))) {
+    return true;
+  }
+
+  // Row starts with prefix like "Purpose:", "Notes:", "Instructions:", "Disclaimer:", "Warning:"
+  if (/^(purpose:|instructions?:|disclaimer:|summary:|warning:|safety\s*note[s]?:|total\s*rows?:)/i.test(firstVal)) {
+    return true;
+  }
+
+  // Check helper labels used in test spreadsheets
+  // e.g. "Duplicate email", "Duplicate phone", "Invalid email", "Invalid phone", "Missing required name", "Invalid/short phone", "Unicode name", "Formula/CSV injection safety", "Optional fields", "Opening balance"
+  const docLabels = [
+    /^duplicate\s+(email|phone)$/i,
+    /^invalid\s+(email|phone)(\s*contact)?$/i,
+    /^missing\s+required\s+name$/i,
+    /^invalid\/short\s+phone$/i,
+    /^unicode\s+name$/i,
+    /^formula\/csv\s+injection(\s*safety)?$/i,
+    /^optional\s+fields$/i,
+    /^opening\s+balance$/i,
+  ];
+
+  if (docLabels.some((r) => r.test(firstValLower))) {
+    // If it has NO real email and NO real phone, it's documentation!
+    const hasAnyRealEmail = nonEmptyVals.some((v) => isValidEmail(v) && v.includes("@"));
+    const hasAnyRealPhone = nonEmptyVals.some((v) => {
+      const digits = v.replace(/[^0-9]/g, "");
+      return digits.length >= 6 && digits.length <= 15 && /^[+0-9\s()-]+$/.test(v);
+    });
+
+    if (!hasAnyRealEmail && !hasAnyRealPhone) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Validates that a row has at least one primary contact field (Name, Email, or Phone).
+ * Helper and documentation rows without any valid contact field are rejected.
+ */
+export function hasContactIndicators(
+  row: Record<string, any>,
+  mapping?: Record<string, string>
+): boolean {
+  if (!row || typeof row !== "object") return false;
+
+  let rawName = "";
+  let rawEmail = "";
+  let rawPhone = "";
+
+  if (mapping) {
+    if (mapping.name && row[mapping.name]) rawName = String(row[mapping.name]).trim();
+    if (mapping.email && row[mapping.email]) rawEmail = String(row[mapping.email]).trim();
+    if (mapping.phone && row[mapping.phone]) rawPhone = String(row[mapping.phone]).trim();
+  }
+
+  // Fallback: look for standard keys
+  if (!rawName) {
+    for (const [k, v] of Object.entries(row)) {
+      if (/^(name|full\s*name|contact\s*name|person)$/i.test(k) && v) {
+        rawName = String(v).trim();
+        break;
+      }
+    }
+  }
+  if (!rawEmail) {
+    for (const [k, v] of Object.entries(row)) {
+      if (/^(email|e-mail|mail)$/i.test(k) && v) {
+        rawEmail = String(v).trim();
+        break;
+      }
+    }
+  }
+  if (!rawPhone) {
+    for (const [k, v] of Object.entries(row)) {
+      if (/^(phone|mobile|tel|contact\s*no|cell)$/i.test(k) && v) {
+        rawPhone = String(v).trim();
+        break;
+      }
+    }
+  }
+
+  // Check 1: Valid Name
+  const hasValidName = Boolean(
+    rawName &&
+    rawName.length > 0 &&
+    rawName.length <= 100 &&
+    !isDocumentationOrHelperRow({ Name: rawName }) &&
+    !/^(details|synthetic\s*data|upload\s*→|do\s*not\s*use)/i.test(rawName)
+  );
+
+  // Check 2: Valid Email
+  const hasValidEmail = Boolean(
+    rawEmail &&
+    rawEmail.includes("@") &&
+    isValidEmail(rawEmail)
+  );
+
+  // Check 3: Valid Phone
+  const phoneDigits = rawPhone ? rawPhone.replace(/[^0-9]/g, "") : "";
+  const hasValidPhone = Boolean(
+    rawPhone &&
+    phoneDigits.length >= 6 &&
+    phoneDigits.length <= 15 &&
+    /^[+0-9\s()-]+$/.test(rawPhone)
+  );
+
+  return hasValidName || hasValidEmail || hasValidPhone;
+}
+
+/**
  * Intelligent Header Matcher with Confidence Tiers
  * - 100% Match: Exact column names or industry-standard headers
  * - 85% Match: High-confidence synonyms / aliases
@@ -405,30 +610,59 @@ export async function analyzeContactFile(file: File): Promise<AnalyzedFileSummar
 
   if (fileType === "vcf") {
     const text = await file.text();
-    rawData = parseVCardContent(text);
+    const rawParsed = parseVCardContent(text);
+    rawData = rawParsed.filter((r) => !isDocumentationOrHelperRow(r) && hasContactIndicators(r));
     headers = Array.from(new Set(rawData.flatMap((r) => Object.keys(r))));
   } else {
     const arrayBuffer = await file.arrayBuffer();
     const XLSX = await getXlsx();
     const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
 
-    // Step 1: Parse all worksheets, combining non-empty rows
-    for (const sheetName of workbook.SheetNames) {
+    // Step 1: Filter worksheets (skip documentation, instructions, readme sheets)
+    const documentationSheetPatterns =
+      /^(instructions|readme|read\s*me|metadata|template\s*info|test\s*cases|summary|changelog|notes|help|faq|guidelines)$/i;
+    const candidateSheets = workbook.SheetNames.filter(
+      (s) => !documentationSheetPatterns.test(s.trim())
+    );
+    const targetSheets =
+      candidateSheets.length > 0 ? candidateSheets : workbook.SheetNames.slice(0, 1);
+
+    for (const sheetName of targetSheets) {
       const worksheet = workbook.Sheets[sheetName];
       if (!worksheet) continue;
       const sheetRows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: "" });
+      const rowProps = worksheet["!rows"] || [];
 
-      // Ignore completely empty rows
-      const nonEmptyRows = sheetRows.filter((r) =>
-        Object.values(r).some((val) => String(val || "").trim().length > 0)
-      );
+      let inSecondaryTable = false;
 
-      if (nonEmptyRows.length > 0) {
-        rawData.push(...nonEmptyRows);
-        for (const r of nonEmptyRows) {
-          for (const key of Object.keys(r)) {
-            if (!headers.includes(key)) headers.push(key);
-          }
+      for (let rIdx = 0; rIdx < sheetRows.length; rIdx++) {
+        // Ignore hidden rows
+        const excelRowIndex = rIdx + 1;
+        if (rowProps[excelRowIndex]?.hidden) {
+          continue;
+        }
+
+        const row = sheetRows[rIdx];
+
+        // Check if a secondary table header is encountered (e.g. "Test Item,Details")
+        if (isSecondaryTableHeader(row)) {
+          inSecondaryTable = true;
+          continue;
+        }
+
+        // Ignore secondary table rows and helper/documentation rows
+        if (inSecondaryTable || isDocumentationOrHelperRow(row)) {
+          continue;
+        }
+
+        // Must have at least one primary contact indicator
+        if (!hasContactIndicators(row)) {
+          continue;
+        }
+
+        rawData.push(row);
+        for (const key of Object.keys(row)) {
+          if (!headers.includes(key)) headers.push(key);
         }
       }
     }
@@ -541,12 +775,14 @@ export interface ValidatedImportRow {
   validationWarnings: string[];
   conflictReason?: string | null;
   matchedContact?: {
-    id: number;
-    publicId: string;
+    id: number | string;
+    publicId?: string;
     name: string;
     email: string | null;
     phone: string | null;
     company?: string | null;
+    isWithinFile?: boolean;
+    rowNumber?: number;
   } | null;
 }
 
@@ -586,9 +822,15 @@ export function validateAndPrepareImportRows(
     if (c.name) existingByName.set(c.name.trim().toLowerCase(), c);
   }
 
-  // Also track duplicates within the file itself
-  const fileSeenEmails = new Map<string, number>();
-  const fileSeenPhones = new Map<string, number>();
+  // Also track contacts within the file itself for duplicate resolution
+  const fileContactsByEmail = new Map<
+    string,
+    { rowNumber: number; name: string; email: string | null; phone: string | null; company: string | null }
+  >();
+  const fileContactsByPhone = new Map<
+    string,
+    { rowNumber: number; name: string; email: string | null; phone: string | null; company: string | null }
+  >();
 
   const rows: ValidatedImportRow[] = [];
   let newCount = 0;
@@ -599,13 +841,14 @@ export function validateAndPrepareImportRows(
 
   for (let i = 0; i < rawRows.length; i++) {
     const raw = rawRows[i];
-    const rowNumber = i + 1;
+
+    // Ignore completely empty rows, formatting-only rows, and documentation/helper rows
+    if (isDocumentationOrHelperRow(raw, mapping)) continue;
+    if (!hasContactIndicators(raw, mapping)) continue;
+
+    const rowNumber = rows.length + 1;
     const errors: string[] = [];
     const warnings: string[] = [];
-
-    // Ignore completely empty rows
-    const hasValues = Object.values(raw).some((v) => String(v || "").trim().length > 0);
-    if (!hasValues) continue;
 
     // 1. Resolve Name
     let rawName = "";
@@ -701,11 +944,10 @@ export function validateAndPrepareImportRows(
     }
 
     // 9. Determine Status & Conflict Resolution
-    const isInvalid = errors.length > 0;
-    let status: "valid" | "warning" | "invalid" = isInvalid ? "invalid" : warnings.length > 0 ? "warning" : "valid";
-
     let conflictReason: string | null = null;
     let matchedContact: (typeof existingContacts)[0] | null = null;
+
+    const isInvalid = errors.length > 0;
 
     if (!isInvalid) {
       const normEmail = sanitizedEmail ? sanitizedEmail.toLowerCase() : "";
@@ -726,18 +968,49 @@ export function validateAndPrepareImportRows(
 
       // Check within-file duplicates
       if (!matchedContact) {
-        if (normEmail && fileSeenEmails.has(normEmail)) {
-          conflictReason = `Duplicate email within file (Row ${fileSeenEmails.get(normEmail)})`;
+        const earlierByEmail = normEmail ? fileContactsByEmail.get(normEmail) : null;
+        const earlierByPhone = normPhone ? fileContactsByPhone.get(normPhone) : null;
+        const earlierContact = earlierByEmail || earlierByPhone;
+
+        if (earlierContact) {
+          const isEmailDupe = Boolean(earlierByEmail);
+          conflictReason = isEmailDupe
+            ? `Duplicate email within file (conflicts with Row ${earlierContact.rowNumber} '${earlierContact.name}')`
+            : `Duplicate phone within file (conflicts with Row ${earlierContact.rowNumber} '${earlierContact.name}')`;
           warnings.push(conflictReason);
-        } else if (normPhone && fileSeenPhones.has(normPhone)) {
-          conflictReason = `Duplicate phone within file (Row ${fileSeenPhones.get(normPhone)})`;
-          warnings.push(conflictReason);
+
+          matchedContact = {
+            id: `file-row-${earlierContact.rowNumber}` as any,
+            publicId: `file-row-${earlierContact.rowNumber}`,
+            name: earlierContact.name,
+            email: earlierContact.email,
+            phone: earlierContact.phone,
+            company: earlierContact.company,
+            isWithinFile: true,
+            rowNumber: earlierContact.rowNumber,
+          } as any;
         }
       }
 
-      if (normEmail) fileSeenEmails.set(normEmail, rowNumber);
-      if (normPhone) fileSeenPhones.set(normPhone, rowNumber);
+      // If this contact is not a duplicate of an earlier contact in the file, register it
+      if (!matchedContact) {
+        const fileRecord = {
+          rowNumber,
+          name: sanitizedName,
+          email: sanitizedEmail,
+          phone: sanitizedPhone,
+          company,
+        };
+        if (normEmail) fileContactsByEmail.set(normEmail, fileRecord);
+        if (normPhone) fileContactsByPhone.set(normPhone, fileRecord);
+      }
     }
+
+    let status: "valid" | "warning" | "invalid" = isInvalid
+      ? "invalid"
+      : matchedContact || warnings.length > 0
+      ? "warning"
+      : "valid";
 
     // 10. Determine Decision & User Action
     let decision: "new" | "update" | "merge" | "skip" | "invalid" = "new";
@@ -790,11 +1063,13 @@ export function validateAndPrepareImportRows(
       matchedContact: matchedContact
         ? {
             id: matchedContact.id,
-            publicId: matchedContact.publicId,
+            publicId: matchedContact.publicId || "",
             name: matchedContact.name,
             email: matchedContact.email,
             phone: matchedContact.phone,
             company: matchedContact.company,
+            isWithinFile: (matchedContact as any).isWithinFile,
+            rowNumber: (matchedContact as any).rowNumber,
           }
         : null,
     });

@@ -67,7 +67,7 @@ export interface ParsedContactRecord {
   openingBalance?: number;
   currency?: string;
   action?: "new" | "update" | "merge" | "skip";
-  existingContactId?: number | null;
+  existingContactId?: number | string | null;
   customFields?: Record<string, any> | null;
 }
 
@@ -266,11 +266,16 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
       const normName = sanitizedName.toLowerCase();
 
       // Check if user specifically linked an existing contact ID or matched
-      const existingMatch = raw.existingContactId
-        ? byId.get(raw.existingContactId)
-        : (normEmail ? byEmail.get(normEmail) : null) ||
-          (normPhone ? byPhone.get(normPhone) : null) ||
-          byName.get(normName);
+      const numContactId =
+        typeof raw.existingContactId === "number"
+          ? raw.existingContactId
+          : Number(raw.existingContactId);
+      const existingMatch =
+        !isNaN(numContactId) && numContactId > 0 && byId.has(numContactId)
+          ? byId.get(numContactId)
+          : (normEmail ? byEmail.get(normEmail) : null) ||
+            (normPhone ? byPhone.get(normPhone) : null) ||
+            byName.get(normName);
 
       // Determine explicit user action or fallback to strategy
       const chosenAction = raw.action || (existingMatch ? duplicateStrategy : "new");

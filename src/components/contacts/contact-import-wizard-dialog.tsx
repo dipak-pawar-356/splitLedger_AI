@@ -258,13 +258,30 @@ export function ContactImportWizardDialog({
 
   // Step 1: File selection & upload
   const handleFileChosen = async (file: File) => {
+    // 1. Immediately reset all previous state to prevent stale data between uploads
     setError(null);
     setSelectedFile(file);
+    setAnalysis(null);
+    setMapping({});
+    setUserOverriddenFields(new Set());
+    setDefaultStrategy("merge");
+    setExistingContacts([]);
+    setPreviewRows([]);
+    setPreviewFilter("all");
+    setPreviewSearch("");
+    setImportResult(null);
+    setImportProgress(0);
+    setIsImporting(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
     setStep("analyzing");
     setAnalysisStage("Scanning worksheets & extracting headers...");
 
     try {
-      // 1. Analyze uploaded file
+      // 1. Analyze uploaded file afresh
       const summary = await analyzeContactFile(file);
       setAnalysis(summary);
 
@@ -355,7 +372,10 @@ export function ContactImportWizardDialog({
       if (previewFilter === "ready" && (r.status === "invalid" || r.userAction === "skip")) {
         return false;
       }
-      if (previewFilter === "conflicts" && !r.matchedContact) {
+      if (
+        previewFilter === "conflicts" &&
+        !(r.status === "warning" || Boolean(r.conflictReason) || Boolean(r.matchedContact))
+      ) {
         return false;
       }
       if (previewFilter === "invalid" && r.status !== "invalid") {
@@ -412,6 +432,13 @@ export function ContactImportWizardDialog({
   // Valid rows ready for actual import
   const rowsReadyToImportCount = useMemo(() => {
     return previewRows.filter((r) => r.status !== "invalid" && r.userAction !== "skip").length;
+  }, [previewRows]);
+
+  // Total conflicting rows count
+  const conflictRowsCount = useMemo(() => {
+    return previewRows.filter(
+      (r) => r.status === "warning" || Boolean(r.conflictReason) || Boolean(r.matchedContact)
+    ).length;
   }, [previewRows]);
 
   // Step 4 -> 5: Run Import
@@ -1197,7 +1224,7 @@ export function ContactImportWizardDialog({
                         : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100"
                     }`}
                   >
-                    Conflicts ({previewMetrics.mergeCount + previewMetrics.updateCount})
+                    Conflicts ({conflictRowsCount})
                   </button>
                   {previewMetrics.invalidCount > 0 && (
                     <button

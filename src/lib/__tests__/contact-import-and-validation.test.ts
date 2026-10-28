@@ -11,6 +11,9 @@ import {
   getColumnSamples,
   validateAndPrepareImportRows,
   isTestingOrAssertionNote,
+  isDocumentationOrHelperRow,
+  isSecondaryTableHeader,
+  hasContactIndicators,
 } from "@/lib/contacts/contact-parser";
 
 describe("Contact Import Validation & Security Engine", () => {
@@ -358,6 +361,201 @@ describe("Contact Import Validation & Security Engine", () => {
     it("should return empty array for non-existent column or empty rows", () => {
       expect(getColumnSamples([], "Name")).toEqual([]);
       expect(getColumnSamples([{ Other: "val" }], "Name")).toEqual([]);
+    });
+  });
+
+  describe("Documentation, Helper & Secondary Table Filtering", () => {
+    it("should detect secondary table headers like 'Test Item,Details'", () => {
+      expect(isSecondaryTableHeader({ Name: "Test Item", Email: "Details" })).toBe(true);
+      expect(isSecondaryTableHeader({ Key: "Metadata", Value: "Value" })).toBe(true);
+      expect(isSecondaryTableHeader({ Name: "Aarav Kulkarni", Email: "aarav@example.com" })).toBe(false);
+    });
+
+    it("should detect documentation and helper rows from test sheets", () => {
+      const docRows = [
+        { Name: "Purpose", Email: "Synthetic data for testing SplitLedger AI contact import. Not real people." },
+        { Name: "Total rows", Email: "20" },
+        { Name: "Expected basic valid examples", Email: "Rows 1-8, subject to application validation rules" },
+        { Name: "Duplicate email", Email: "Row 9 duplicates row 1 email" },
+        { Name: "Duplicate phone", Email: "Row 10 duplicates row 1 phone" },
+        { Name: "Invalid email", Email: "Row 11" },
+        { Name: "Missing required name", Email: "Row 14" },
+        { Name: "Invalid/short phone", Email: "Row 15" },
+        { Name: "Unicode name", Email: "Row 8" },
+        { Name: "Formula/CSV injection safety", Email: "Rows 19-20; ensure treated as plain text and never executed" },
+        { Name: "Optional fields", Email: "Rows 12-13 test blank email/phone handling" },
+        { Name: "Opening balance", Email: "Includes zero, positive, decimal and negative examples; confirm product rules" },
+        { Name: "Recommended test sequence", Email: "Upload → analyze → map fields → review validation → inspect duplicates" },
+        { Name: "Safety note", Email: "Do not use this file as actual financial/contact data." },
+        { Name: "----------------", Email: "----------------" }, // Formatting row
+        { Name: "", Email: "" }, // Empty row
+      ];
+
+      for (const row of docRows) {
+        expect(isDocumentationOrHelperRow(row), `Failed for row: ${JSON.stringify(row)}`).toBe(true);
+        expect(hasContactIndicators(row), `Should not have contact indicators: ${JSON.stringify(row)}`).toBe(false);
+      }
+    });
+
+    it("should NOT filter out genuine contacts, including edge cases", () => {
+      const realContacts = [
+        { Name: "Aarav Kulkarni", Email: "aarav.kulkarni@example.com", Phone: "+919876540101" },
+        { Name: "Test Duplicate Email", Email: "aarav.kulkarni@example.com", Phone: "+919876540109" },
+        { Name: "Invalid Email Contact", Email: "not-an-email", Phone: "+919876540110" },
+        { Name: "Missing Email Contact", Email: "", Phone: "+919876540111" },
+        { Name: "Missing Phone Contact", Email: "no.phone@example.com", Phone: "" },
+        { Name: "", Email: "missing.name@example.com", Phone: "+919876540112" },
+        { Name: "Formula Injection Test", Email: "formula.test@example.com", Phone: "+919876540116" },
+        { Name: "CSV Injection Test", Email: "csv.test@example.com", Phone: "+919876540117" },
+        { Name: "Special Chars O'Neil", Email: "oneil.test@example.com", Phone: "+919876540114" },
+        { Name: "काव्या पाटील", Email: "kavya.patil@example.com", Phone: "+919876540108" },
+      ];
+
+      for (const contact of realContacts) {
+        expect(isDocumentationOrHelperRow(contact), `Incorrectly flagged: ${contact.Name}`).toBe(false);
+        expect(hasContactIndicators(contact), `Missing contact indicators: ${contact.Name}`).toBe(true);
+      }
+    });
+  });
+
+  describe("Benchmark 34-Row Test Spreadsheet Import & Duplicate Linking", () => {
+    it("should process exactly 20 contacts (17 valid, 3 invalid, 2 duplicate warnings) and ignore 14 documentation rows", () => {
+      // 20 Contacts + 14 Documentation Rows = 34 data rows from user spreadsheet
+      const rawSpreadsheetRows = [
+        // 1-8 Valid baseline contacts
+        { Name: "Aarav Kulkarni", Email: "aarav.kulkarni@example.com", Phone: "+919876540101", Currency: "INR", "Opening Balance (₹)": "0", Notes: "Valid contact - baseline" },
+        { Name: "Priya Sharma", Email: "priya.sharma@example.com", Phone: "+919876540102", Currency: "INR", "Opening Balance (₹)": "1250.5", Notes: "Valid contact - positive balance" },
+        { Name: "Rohan Patil", Email: "rohan.patil@example.com", Phone: "+919876540103", Currency: "INR", "Opening Balance (₹)": "-450", Notes: "Valid contact - negative balance" },
+        { Name: "Sneha Deshmukh", Email: "sneha.deshmukh@example.com", Phone: "+919876540104", Currency: "INR", "Opening Balance (₹)": "300", Notes: "Valid contact - Marathi surname" },
+        { Name: "Mohammed Khan", Email: "mohammed.khan@example.com", Phone: "+919876540105", Currency: "INR", "Opening Balance (₹)": "0", Notes: "Valid contact - multiword name" },
+        { Name: "Ananya Iyer", Email: "ananya.iyer@example.com", Phone: "+919876540106", Currency: "INR", "Opening Balance (₹)": "899.99", Notes: "Valid contact - decimal balance" },
+        { Name: "Vikram Singh", Email: "vikram.singh@example.com", Phone: "+919876540107", Currency: "INR", "Opening Balance (₹)": "150", Notes: "Valid contact - phone and email" },
+        { Name: "काव्या पाटील", Email: "kavya.patil@example.com", Phone: "+919876540108", Currency: "INR", "Opening Balance (₹)": "0", Notes: "Unicode/Devanagari name test" },
+
+        // 9-10 Within-file duplicates (conflicts with Aarav Kulkarni)
+        { Name: "Test Duplicate Email", Email: "aarav.kulkarni@example.com", Phone: "+919876540109", Currency: "INR", "Opening Balance (₹)": "50", Notes: "Duplicate email test - conflicts with Aarav Kulkarni" },
+        { Name: "Test Duplicate Phone", Email: "duplicate.phone@example.com", Phone: "+919876540101", Currency: "INR", "Opening Balance (₹)": "75", Notes: "Duplicate phone test - conflicts with Aarav Kulkarni" },
+
+        // 11 Invalid email
+        { Name: "Invalid Email Contact", Email: "not-an-email", Phone: "+919876540110", Currency: "INR", "Opening Balance (₹)": "0", Notes: "Validation test - invalid email" },
+
+        // 12-13 Optional fields (blank email / phone)
+        { Name: "Missing Email Contact", Email: "", Phone: "+919876540111", Currency: "INR", "Opening Balance (₹)": "0", Notes: "Optional email blank - should be allowed if app rules permit" },
+        { Name: "Missing Phone Contact", Email: "no.phone@example.com", Phone: "", Currency: "INR", "Opening Balance (₹)": "0", Notes: "Optional phone blank - should be allowed if app rules permit" },
+
+        // 14 Missing required name
+        { Name: "", Email: "missing.name@example.com", Phone: "+919876540112", Currency: "INR", "Opening Balance (₹)": "0", Notes: "Validation test - required name missing" },
+
+        // 15 Invalid phone (too short)
+        { Name: "Invalid Phone Contact", Email: "invalid.phone@example.com", Phone: "12345", Currency: "INR", "Opening Balance (₹)": "0", Notes: "Validation test - phone may be too short" },
+
+        // 16-18 Negative balance, special characters, long notes
+        { Name: "Negative Opening Balance", Email: "negative.balance@example.com", Phone: "+919876540113", Currency: "INR", "Opening Balance (₹)": "-125.75", Notes: "Check whether negative opening balances are supported" },
+        { Name: "Special Chars O'Neil", Email: "oneil.test@example.com", Phone: "+919876540114", Currency: "INR", "Opening Balance (₹)": "25", Notes: "Special character/apostrophe test" },
+        { Name: "Long Notes Contact", Email: "long.notes@example.com", Phone: "+919876540115", Currency: "INR", "Opening Balance (₹)": "10", Notes: "Test long notes and text-length validation." },
+
+        // 19-20 Formula and CSV injection safety
+        { Name: "Formula Injection Test", Email: "formula.test@example.com", Phone: "+919876540116", Currency: "INR", "Opening Balance (₹)": "0", Notes: "" },
+        { Name: "CSV Injection Test", Email: "csv.test@example.com", Phone: "+919876540117", Currency: "INR", "Opening Balance (₹)": "0", Notes: "@SUM(1,1)" },
+
+        // 21-35 Documentation & helper rows (MUST BE IGNORED)
+        { Name: "Test Item", Email: "Details" },
+        { Name: "Purpose", Email: "Synthetic data for testing SplitLedger AI contact import. Not real people." },
+        { Name: "Total rows", Email: "20" },
+        { Name: "Expected basic valid examples", Email: "Rows 1-8, subject to application validation rules" },
+        { Name: "Duplicate email", Email: "Row 9 duplicates row 1 email" },
+        { Name: "Duplicate phone", Email: "Row 10 duplicates row 1 phone" },
+        { Name: "Invalid email", Email: "Row 11" },
+        { Name: "Missing required name", Email: "Row 14" },
+        { Name: "Invalid/short phone", Email: "Row 15" },
+        { Name: "Unicode name", Email: "Row 8" },
+        { Name: "Formula/CSV injection safety", Email: "Rows 19-20; ensure treated as plain text and never executed" },
+        { Name: "Optional fields", Email: "Rows 12-13 test blank email/phone handling" },
+        { Name: "Opening balance", Email: "Includes zero, positive, decimal and negative examples; confirm product rules" },
+        { Name: "Recommended test sequence", Email: "Upload → analyze → map fields → review validation → inspect duplicates" },
+        { Name: "Safety note", Email: "Do not use this file as actual financial/contact data." },
+      ];
+
+      const mapping = {
+        name: "Name",
+        email: "Email",
+        phone: "Phone",
+        currency: "Currency",
+        openingBalance: "Opening Balance (₹)",
+        notes: "", // Protected default
+      };
+
+      const result = validateAndPrepareImportRows(
+        rawSpreadsheetRows,
+        mapping,
+        [], // No existing DB contacts
+        "merge" // Default strategy
+      );
+
+      // 1. Total Contact Count MUST equal 20 (14 documentation rows ignored!)
+      expect(result.rows.length).toBe(20);
+      expect(result.summary.totalRows).toBe(20);
+
+      // 2. Exactly 3 records are invalid
+      expect(result.summary.invalidCount).toBe(3);
+
+      const invalidRows = result.rows.filter((r) => r.status === "invalid");
+      expect(invalidRows.length).toBe(3);
+      expect(invalidRows.some((r) => r.name === "Invalid Email Contact")).toBe(true);
+      expect(invalidRows.some((r) => r.name === "" && r.email === "missing.name@example.com")).toBe(true);
+      expect(invalidRows.some((r) => r.name === "Invalid Phone Contact")).toBe(true);
+
+      // 3. Exactly 17 records are valid
+      const validRows = result.rows.filter((r) => r.status !== "invalid");
+      expect(validRows.length).toBe(17);
+
+      // 4. Exactly 2 duplicate warnings (conflicts with Aarav Kulkarni)
+      const warningRows = result.rows.filter((r) => r.status === "warning");
+      expect(warningRows.length).toBe(2);
+
+      const dupeEmailRow = result.rows.find((r) => r.name === "Test Duplicate Email");
+      expect(dupeEmailRow?.status).toBe("warning");
+      expect(dupeEmailRow?.conflictReason).toContain("conflicts with Row 1 'Aarav Kulkarni'");
+      expect(dupeEmailRow?.matchedContact?.name).toBe("Aarav Kulkarni");
+      expect(dupeEmailRow?.decision).toBe("merge");
+      expect(dupeEmailRow?.userAction).toBe("merge");
+
+      const dupePhoneRow = result.rows.find((r) => r.name === "Test Duplicate Phone");
+      expect(dupePhoneRow?.status).toBe("warning");
+      expect(dupePhoneRow?.conflictReason).toContain("conflicts with Row 1 'Aarav Kulkarni'");
+      expect(dupePhoneRow?.matchedContact?.name).toBe("Aarav Kulkarni");
+      expect(dupePhoneRow?.decision).toBe("merge");
+      expect(dupePhoneRow?.userAction).toBe("merge");
+
+      // 5. Injection safety: Formula and CSV injection rows are valid after sanitization
+      const formulaRow = result.rows.find((r) => r.name === "Formula Injection Test");
+      expect(formulaRow?.status).toBe("valid");
+
+      const csvRow = result.rows.find((r) => r.name === "CSV Injection Test");
+      expect(csvRow?.status).toBe("valid");
+
+      // 6. Optional fields: Missing Email and Missing Phone are valid
+      const missingEmailRow = result.rows.find((r) => r.name === "Missing Email Contact");
+      expect(missingEmailRow?.status).toBe("valid");
+
+      const missingPhoneRow = result.rows.find((r) => r.name === "Missing Phone Contact");
+      expect(missingPhoneRow?.status).toBe("valid");
+
+      // 7. Negative opening balance parsed correctly
+      const negativeRow = result.rows.find((r) => r.name === "Negative Opening Balance");
+      expect(negativeRow?.status).toBe("valid");
+      expect(negativeRow?.openingBalance).toBe(-125.75);
+
+      // 8. Unicode / Marathi name preserved
+      const unicodeRow = result.rows.find((r) => r.name === "काव्या पाटील");
+      expect(unicodeRow?.status).toBe("valid");
+      expect(unicodeRow?.name).toBe("काव्या पाटील");
+
+      // 9. None of the documentation rows exist in the output
+      const docLabels = ["Purpose", "Total rows", "Test Item", "Expected basic valid examples", "Safety note"];
+      for (const label of docLabels) {
+        expect(result.rows.some((r) => r.name === label)).toBe(false);
+      }
     });
   });
 });
