@@ -20,10 +20,14 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Plus,
   Search,
+  Filter,
+  ChevronDown,
+  Coins,
   Archive,
   Mail,
   Phone,
@@ -116,13 +120,14 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
     | "all"
     | "owed_to_you"
     | "you_owe"
+    | "has_balance"
+    | "settled"
     | "with_transactions"
     | "favorites"
     | "recently_added"
     | "recently_updated"
     | "has_email"
     | "has_phone"
-    | "has_balance"
     | "incomplete"
   >("all");
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
@@ -239,6 +244,10 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
       result = result.filter((c) => (c.balance || 0) > 0);
     } else if (activeFilterTab === "you_owe") {
       result = result.filter((c) => (c.balance || 0) < 0);
+    } else if (activeFilterTab === "has_balance") {
+      result = result.filter((c) => (c.balance || 0) !== 0);
+    } else if (activeFilterTab === "settled") {
+      result = result.filter((c) => (c.balance || 0) === 0);
     } else if (activeFilterTab === "with_transactions") {
       result = result.filter((c) => (c.transactionCount || 0) > 0);
     } else if (activeFilterTab === "favorites") {
@@ -255,8 +264,6 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
       result = result.filter((c) => Boolean(c.email && c.email.trim()));
     } else if (activeFilterTab === "has_phone") {
       result = result.filter((c) => Boolean(c.phone && c.phone.trim()));
-    } else if (activeFilterTab === "has_balance") {
-      result = result.filter((c) => (c.balance || 0) !== 0);
     } else if (activeFilterTab === "incomplete") {
       result = result.filter((c) => !c.email || !c.phone);
     }
@@ -345,6 +352,51 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
     () => activeContacts.filter((c) => Boolean(c.isFavorite)).length,
     [activeContacts]
   );
+  const hasBalanceCount = useMemo(
+    () => activeContacts.filter((c) => (c.balance || 0) !== 0).length,
+    [activeContacts]
+  );
+  const settledCount = useMemo(
+    () => activeContacts.filter((c) => (c.balance || 0) === 0).length,
+    [activeContacts]
+  );
+
+  const getFilterLabel = (tab: string) => {
+    switch (tab) {
+      case "owed_to_you":
+        return "Owed to You";
+      case "you_owe":
+        return "You Owe";
+      case "has_balance":
+        return "Has Balance";
+      case "settled":
+        return "Settled (₹0)";
+      case "with_transactions":
+        return "With Transactions";
+      case "favorites":
+        return "Favorites";
+      case "recently_added":
+        return "Recently Added";
+      case "recently_updated":
+        return "Recently Updated";
+      case "has_email":
+        return "Has Email";
+      case "has_phone":
+        return "Has Phone";
+      case "incomplete":
+        return "Incomplete";
+      default:
+        return "All Contacts";
+    }
+  };
+
+  const sortOrderLabels: Record<string, string> = {
+    default: "Sort: Default",
+    desc: "Balance: High to Low",
+    asc: "Balance: Low to High",
+    name_asc: "Name: A → Z",
+    name_desc: "Name: Z → A",
+  };
 
   // Selected contacts objects
   const selectedContactsList = useMemo(() => {
@@ -839,13 +891,261 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Filter Dropdown Selection */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant={activeFilterTab !== "all" ? "default" : "outline"}
+                  size="sm"
+                  className={`rounded-xl text-xs gap-1.5 h-9 font-semibold transition-all cursor-pointer ${
+                    activeFilterTab === "owed_to_you"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 shadow-xs"
+                      : activeFilterTab === "you_owe"
+                      ? "bg-rose-600 hover:bg-rose-700 text-white border-rose-500 shadow-xs"
+                      : activeFilterTab !== "all"
+                      ? "bg-primary text-white shadow-xs"
+                      : "border-slate-200/80 dark:border-slate-800 hover:border-slate-400 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  <Filter className="h-3.5 w-3.5" />
+                  <span>Filter: {getFilterLabel(activeFilterTab)}</span>
+                  <ChevronDown className="h-3 w-3 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64 rounded-2xl p-1.5 shadow-xl max-h-96 overflow-y-auto">
+                <DropdownMenuLabel className="text-[10px] uppercase font-bold tracking-wider text-slate-400 px-2 py-1">
+                  Amounts & Balances
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("owed_to_you");
+                    toast.info("Filtered: Showing contacts who owe you (receivables)");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl flex items-center justify-between ${
+                    activeFilterTab === "owed_to_you" ? "bg-emerald-50 dark:bg-emerald-950/40 font-bold" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold">
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    <span>Owed to You (Receivables)</span>
+                  </div>
+                  {owedToYouCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                      {owedToYouCount}
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("you_owe");
+                    toast.info("Filtered: Showing contacts you owe (payables)");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl flex items-center justify-between ${
+                    activeFilterTab === "you_owe" ? "bg-rose-50 dark:bg-rose-950/40 font-bold" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 font-semibold">
+                    <TrendingDown className="h-3.5 w-3.5" />
+                    <span>You Owe (Payables)</span>
+                  </div>
+                  {youOweCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
+                      {youOweCount}
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("has_balance");
+                    toast.info("Filtered: Showing contacts with non-zero balance");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl flex items-center justify-between ${
+                    activeFilterTab === "has_balance" ? "bg-slate-100 dark:bg-slate-800 font-bold" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <Coins className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Has Balance (Non-Zero)</span>
+                  </div>
+                  {hasBalanceCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] font-bold">
+                      {hasBalanceCount}
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("settled");
+                    toast.info("Filtered: Showing settled contacts (₹0 balance)");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl flex items-center justify-between ${
+                    activeFilterTab === "settled" ? "bg-slate-100 dark:bg-slate-800 font-bold" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Settled / Zero Balance (₹0)</span>
+                  </div>
+                  {settledCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] font-bold">
+                      {settledCount}
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator className="my-1" />
+                <DropdownMenuLabel className="text-[10px] uppercase font-bold tracking-wider text-slate-400 px-2 py-1">
+                  General & Activity
+                </DropdownMenuLabel>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("all");
+                    toast.info("Showing all contacts");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl flex items-center justify-between ${
+                    activeFilterTab === "all" ? "bg-slate-100 dark:bg-slate-800 font-bold" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <Users className="h-3.5 w-3.5 text-slate-500" />
+                    <span>All Contacts</span>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px] font-bold">
+                    {totalContactsCount}
+                  </Badge>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("with_transactions");
+                    toast.info("Filtered: Showing contacts with transactions");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl flex items-center justify-between ${
+                    activeFilterTab === "with_transactions" ? "bg-blue-50 dark:bg-blue-950/40 font-bold" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                    <span>With Transactions</span>
+                  </div>
+                  {withTransactionsCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                      {withTransactionsCount}
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("favorites");
+                    toast.info("Filtered: Showing favorite contacts");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl flex items-center justify-between ${
+                    activeFilterTab === "favorites" ? "bg-amber-50 dark:bg-amber-950/40 font-bold" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-amber-500">
+                    <Star className="h-3.5 w-3.5 fill-amber-500" />
+                    <span>Favorites</span>
+                  </div>
+                  {favoritesCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] font-bold">
+                      {favoritesCount}
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("recently_added");
+                    toast.info("Filtered: Showing recently added contacts");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl ${
+                    activeFilterTab === "recently_added" ? "bg-slate-100 dark:bg-slate-800 font-bold" : ""
+                  }`}
+                >
+                  <span>Recently Added (7 days)</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("recently_updated");
+                    toast.info("Filtered: Showing recently updated contacts");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl ${
+                    activeFilterTab === "recently_updated" ? "bg-slate-100 dark:bg-slate-800 font-bold" : ""
+                  }`}
+                >
+                  <span>Recently Updated (7 days)</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator className="my-1" />
+                <DropdownMenuLabel className="text-[10px] uppercase font-bold tracking-wider text-slate-400 px-2 py-1">
+                  Profile Completeness
+                </DropdownMenuLabel>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("has_email");
+                    toast.info("Filtered: Showing contacts with email");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl ${
+                    activeFilterTab === "has_email" ? "bg-slate-100 dark:bg-slate-800 font-bold" : ""
+                  }`}
+                >
+                  <span>Has Email</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("has_phone");
+                    toast.info("Filtered: Showing contacts with phone");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl ${
+                    activeFilterTab === "has_phone" ? "bg-slate-100 dark:bg-slate-800 font-bold" : ""
+                  }`}
+                >
+                  <span>Has Phone</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={() => {
+                    setShowArchived(false);
+                    setActiveFilterTab("incomplete");
+                    toast.info("Filtered: Showing incomplete contacts");
+                  }}
+                  className={`cursor-pointer text-xs rounded-xl text-rose-500 font-semibold ${
+                    activeFilterTab === "incomplete" ? "bg-rose-50 dark:bg-rose-950/40 font-bold" : ""
+                  }`}
+                >
+                  <span>Incomplete (Missing Email/Phone)</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Archived Toggle Button */}
             <Button
               type="button"
               variant={showArchived ? "default" : "outline"}
               size="sm"
               onClick={() => setShowArchived(!showArchived)}
-              className={`rounded-xl text-xs gap-1.5 h-9 font-semibold transition-all ${
+              className={`rounded-xl text-xs gap-1.5 h-9 font-semibold transition-all cursor-pointer ${
                 showArchived
                   ? "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-sm"
                   : "border-slate-200/80 dark:border-slate-800 hover:border-slate-400 text-slate-700 dark:text-slate-300"
@@ -865,37 +1165,57 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
               )}
             </Button>
 
-            {/* Sort Toggle */}
-            <Button
-              type="button"
-              variant={sortOrder !== "default" ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => {
-                if (sortOrder === "default") setSortOrder("desc");
-                else if (sortOrder === "desc") setSortOrder("asc");
-                else if (sortOrder === "asc") setSortOrder("name_asc");
-                else if (sortOrder === "name_asc") setSortOrder("name_desc");
-                else setSortOrder("default");
-              }}
-              className="rounded-xl text-xs gap-1.5 h-9 font-semibold transition-all border-slate-200/80 dark:border-slate-800"
-            >
-              <ArrowUpDown className="h-3.5 w-3.5" />
-              <span>
-                {sortOrder === "desc"
-                  ? "Balance: High to Low"
-                  : sortOrder === "asc"
-                  ? "Balance: Low to High"
-                  : sortOrder === "name_asc"
-                  ? "Name: A → Z"
-                  : sortOrder === "name_desc"
-                  ? "Name: Z → A"
-                  : "Sort"}
-              </span>
-            </Button>
+            {/* Sort Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant={sortOrder !== "default" ? "secondary" : "outline"}
+                  size="sm"
+                  className="rounded-xl text-xs gap-1.5 h-9 font-semibold transition-all border-slate-200/80 dark:border-slate-800 cursor-pointer"
+                >
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  <span>{sortOrderLabels[sortOrder]}</span>
+                  <ChevronDown className="h-3 w-3 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5 shadow-xl">
+                <DropdownMenuItem
+                  onClick={() => setSortOrder("default")}
+                  className={`cursor-pointer text-xs rounded-xl ${sortOrder === "default" ? "font-bold bg-slate-100 dark:bg-slate-800" : ""}`}
+                >
+                  Default Order
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setSortOrder("desc")}
+                  className={`cursor-pointer text-xs rounded-xl ${sortOrder === "desc" ? "font-bold bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400" : ""}`}
+                >
+                  Balance: High to Low (Owed)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setSortOrder("asc")}
+                  className={`cursor-pointer text-xs rounded-xl ${sortOrder === "asc" ? "font-bold bg-slate-100 dark:bg-slate-800 text-rose-600 dark:text-rose-400" : ""}`}
+                >
+                  Balance: Low to High (You Owe)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setSortOrder("name_asc")}
+                  className={`cursor-pointer text-xs rounded-xl ${sortOrder === "name_asc" ? "font-bold bg-slate-100 dark:bg-slate-800" : ""}`}
+                >
+                  Name: A → Z
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setSortOrder("name_desc")}
+                  className={`cursor-pointer text-xs rounded-xl ${sortOrder === "name_desc" ? "font-bold bg-slate-100 dark:bg-slate-800" : ""}`}
+                >
+                  Name: Z → A
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-        {/* Quick Filter Pills Row */}
+        {/* Quick Filter Pills Row (matching default layout with contextual active pills) */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 text-xs">
           <Button
             type="button"
@@ -915,95 +1235,91 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
             </Badge>
           </Button>
 
-          {/* Owed to You Quick Filter */}
-          <Button
-            type="button"
-            variant={activeFilterTab === "owed_to_you" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveFilterTab(activeFilterTab === "owed_to_you" ? "all" : "owed_to_you")}
-            className={`rounded-xl text-[11px] h-7 px-3 font-semibold gap-1.5 shrink-0 transition-all cursor-pointer ${
-              activeFilterTab === "owed_to_you"
-                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-            }`}
-          >
-            <TrendingUp className="h-3 w-3" />
-            <span>Owed to You</span>
-            {owedToYouCount > 0 && (
-              <Badge
-                variant="secondary"
-                className={`ml-0.5 px-1.5 py-0 text-[10px] font-bold ${
-                  activeFilterTab === "owed_to_you"
-                    ? "bg-white/20 text-white"
-                    : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"
-                }`}
-              >
-                {owedToYouCount}
-              </Badge>
-            )}
-          </Button>
+          {/* Contextual Active Pill if Owed to You is selected */}
+          {activeFilterTab === "owed_to_you" && (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setActiveFilterTab("all")}
+              className="rounded-xl text-[11px] h-7 px-3 font-semibold gap-1.5 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer animate-in fade-in-50"
+            >
+              <TrendingUp className="h-3 w-3" />
+              <span>Owed to You</span>
+              {owedToYouCount > 0 && (
+                <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-[10px] font-bold bg-white/20 text-white">
+                  {owedToYouCount}
+                </Badge>
+              )}
+              <X className="h-3 w-3 ml-0.5 opacity-70" />
+            </Button>
+          )}
 
-          {/* You Owe Quick Filter */}
-          <Button
-            type="button"
-            variant={activeFilterTab === "you_owe" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveFilterTab(activeFilterTab === "you_owe" ? "all" : "you_owe")}
-            className={`rounded-xl text-[11px] h-7 px-3 font-semibold gap-1.5 shrink-0 transition-all cursor-pointer ${
-              activeFilterTab === "you_owe"
-                ? "bg-rose-600 hover:bg-rose-700 text-white shadow-xs"
-                : "text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-            }`}
-          >
-            <TrendingDown className="h-3 w-3" />
-            <span>You Owe</span>
-            {youOweCount > 0 && (
-              <Badge
-                variant="secondary"
-                className={`ml-0.5 px-1.5 py-0 text-[10px] font-bold ${
-                  activeFilterTab === "you_owe"
-                    ? "bg-white/20 text-white"
-                    : "bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300"
-                }`}
-              >
-                {youOweCount}
-              </Badge>
-            )}
-          </Button>
+          {/* Contextual Active Pill if You Owe is selected */}
+          {activeFilterTab === "you_owe" && (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setActiveFilterTab("all")}
+              className="rounded-xl text-[11px] h-7 px-3 font-semibold gap-1.5 shrink-0 bg-rose-600 hover:bg-rose-700 text-white shadow-xs cursor-pointer animate-in fade-in-50"
+            >
+              <TrendingDown className="h-3 w-3" />
+              <span>You Owe</span>
+              {youOweCount > 0 && (
+                <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-[10px] font-bold bg-white/20 text-white">
+                  {youOweCount}
+                </Badge>
+              )}
+              <X className="h-3 w-3 ml-0.5 opacity-70" />
+            </Button>
+          )}
 
-          {/* With Transactions Quick Filter */}
-          <Button
-            type="button"
-            variant={activeFilterTab === "with_transactions" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveFilterTab(activeFilterTab === "with_transactions" ? "all" : "with_transactions")}
-            className={`rounded-xl text-[11px] h-7 px-3 font-semibold gap-1 shrink-0 transition-all cursor-pointer ${
-              activeFilterTab === "with_transactions"
-                ? "bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
-                : "text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40"
-            }`}
-          >
-            <ArrowUpRight className="h-3 w-3" />
-            <span>With Transactions</span>
-            {withTransactionsCount > 0 && (
-              <Badge
-                variant="secondary"
-                className={`ml-0.5 px-1.5 py-0 text-[10px] font-bold ${
-                  activeFilterTab === "with_transactions"
-                    ? "bg-white/20 text-white"
-                    : "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300"
-                }`}
-              >
-                {withTransactionsCount}
-              </Badge>
-            )}
-          </Button>
+          {/* Contextual Active Pill if With Transactions is selected */}
+          {activeFilterTab === "with_transactions" && (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setActiveFilterTab("all")}
+              className="rounded-xl text-[11px] h-7 px-3 font-semibold gap-1.5 shrink-0 bg-blue-600 hover:bg-blue-700 text-white shadow-xs cursor-pointer animate-in fade-in-50"
+            >
+              <ArrowUpRight className="h-3 w-3" />
+              <span>With Transactions</span>
+              {withTransactionsCount > 0 && (
+                <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-[10px] font-bold bg-white/20 text-white">
+                  {withTransactionsCount}
+                </Badge>
+              )}
+              <X className="h-3 w-3 ml-0.5 opacity-70" />
+            </Button>
+          )}
+
+          {/* Contextual Active Pill if Settled is selected */}
+          {activeFilterTab === "settled" && (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => setActiveFilterTab("all")}
+              className="rounded-xl text-[11px] h-7 px-3 font-semibold gap-1.5 shrink-0 bg-slate-700 hover:bg-slate-800 text-white shadow-xs cursor-pointer animate-in fade-in-50"
+            >
+              <CheckCircle2 className="h-3 w-3" />
+              <span>Settled (₹0)</span>
+              {settledCount > 0 && (
+                <Badge variant="secondary" className="ml-0.5 px-1.5 py-0 text-[10px] font-bold bg-white/20 text-white">
+                  {settledCount}
+                </Badge>
+              )}
+              <X className="h-3 w-3 ml-0.5 opacity-70" />
+            </Button>
+          )}
 
           <Button
             type="button"
             variant={activeFilterTab === "favorites" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setActiveFilterTab("favorites")}
+            onClick={() => setActiveFilterTab(activeFilterTab === "favorites" ? "all" : "favorites")}
             className="rounded-xl text-[11px] h-7 px-3 font-semibold gap-1 shrink-0 cursor-pointer"
           >
             <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
@@ -1024,7 +1340,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
             type="button"
             variant={activeFilterTab === "recently_added" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setActiveFilterTab("recently_added")}
+            onClick={() => setActiveFilterTab(activeFilterTab === "recently_added" ? "all" : "recently_added")}
             className="rounded-xl text-[11px] h-7 px-3 font-semibold shrink-0 cursor-pointer"
           >
             Recently Added
@@ -1034,7 +1350,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
             type="button"
             variant={activeFilterTab === "recently_updated" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setActiveFilterTab("recently_updated")}
+            onClick={() => setActiveFilterTab(activeFilterTab === "recently_updated" ? "all" : "recently_updated")}
             className="rounded-xl text-[11px] h-7 px-3 font-semibold shrink-0 cursor-pointer"
           >
             Recently Updated
@@ -1044,7 +1360,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
             type="button"
             variant={activeFilterTab === "has_email" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setActiveFilterTab("has_email")}
+            onClick={() => setActiveFilterTab(activeFilterTab === "has_email" ? "all" : "has_email")}
             className="rounded-xl text-[11px] h-7 px-3 font-semibold shrink-0 cursor-pointer"
           >
             Has Email
@@ -1054,7 +1370,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
             type="button"
             variant={activeFilterTab === "has_phone" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setActiveFilterTab("has_phone")}
+            onClick={() => setActiveFilterTab(activeFilterTab === "has_phone" ? "all" : "has_phone")}
             className="rounded-xl text-[11px] h-7 px-3 font-semibold shrink-0 cursor-pointer"
           >
             Has Phone
@@ -1064,7 +1380,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
             type="button"
             variant={activeFilterTab === "has_balance" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setActiveFilterTab("has_balance")}
+            onClick={() => setActiveFilterTab(activeFilterTab === "has_balance" ? "all" : "has_balance")}
             className="rounded-xl text-[11px] h-7 px-3 font-semibold shrink-0 cursor-pointer"
           >
             Has Balance
@@ -1074,7 +1390,7 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
             type="button"
             variant={activeFilterTab === "incomplete" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setActiveFilterTab("incomplete")}
+            onClick={() => setActiveFilterTab(activeFilterTab === "incomplete" ? "all" : "incomplete")}
             className="rounded-xl text-[11px] h-7 px-3 font-semibold text-rose-600 dark:text-rose-400 shrink-0 cursor-pointer"
           >
             Incomplete
@@ -1112,6 +1428,41 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
           )}
         </div>
       </div>
+
+      {/* Active Filter Status Bar */}
+      {activeFilterTab !== "all" && (
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs animate-in fade-in-50">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-slate-500 font-medium">Filtered by:</span>
+            <Badge
+              className={`font-bold px-2 py-0.5 rounded-lg ${
+                activeFilterTab === "owed_to_you"
+                  ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800"
+                  : activeFilterTab === "you_owe"
+                  ? "bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800"
+                  : "bg-primary/10 text-primary border border-primary/20"
+              }`}
+            >
+              {getFilterLabel(activeFilterTab)}
+            </Badge>
+            <span className="text-slate-600 dark:text-slate-400 font-medium">
+              Showing {displayedContacts.length} of {activeContacts.length} contacts
+              {activeFilterTab === "owed_to_you" && ` • Total Receivables: ${formatCurrency(totalOwedToYou, "INR")}`}
+              {activeFilterTab === "you_owe" && ` • Total Payables: ${formatCurrency(totalYouOwe, "INR")}`}
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveFilterTab("all")}
+            className="text-xs h-6 px-2 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 font-semibold gap-1 cursor-pointer"
+          >
+            <span>Clear Filter</span>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
 
       {/* Sticky Bulk Action Bar (when contacts are selected or bulk mode is on) */}
       {(selectedIds.size > 0 || bulkSelectionMode) && (
