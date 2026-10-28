@@ -80,30 +80,64 @@ import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
-function getFieldIcon(key: string) {
+function getFieldMeta(key: string) {
   switch (key) {
     case "name":
+      return {
+        icon: <User className="h-4 w-4" />,
+        bg: "bg-blue-500/10 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
+      };
     case "firstName":
     case "lastName":
-      return <User className="h-4 w-4 text-primary" />;
+      return {
+        icon: <User className="h-4 w-4" />,
+        bg: "bg-indigo-500/10 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+      };
     case "email":
-      return <Mail className="h-4 w-4 text-blue-500" />;
+      return {
+        icon: <Mail className="h-4 w-4" />,
+        bg: "bg-sky-500/10 dark:bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/20",
+      };
     case "phone":
-      return <Phone className="h-4 w-4 text-emerald-500" />;
+      return {
+        icon: <Phone className="h-4 w-4" />,
+        bg: "bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+      };
     case "company":
-      return <Building2 className="h-4 w-4 text-amber-500" />;
+      return {
+        icon: <Building2 className="h-4 w-4" />,
+        bg: "bg-amber-500/10 dark:bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20",
+      };
     case "address":
-      return <MapPin className="h-4 w-4 text-purple-500" />;
+      return {
+        icon: <MapPin className="h-4 w-4" />,
+        bg: "bg-purple-500/10 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/20",
+      };
     case "tags":
-      return <Tag className="h-4 w-4 text-indigo-500" />;
+      return {
+        icon: <Tag className="h-4 w-4" />,
+        bg: "bg-pink-500/10 dark:bg-pink-500/15 text-pink-600 dark:text-pink-400 border-pink-500/20",
+      };
     case "openingBalance":
-      return <Coins className="h-4 w-4 text-emerald-500" />;
+      return {
+        icon: <Coins className="h-4 w-4" />,
+        bg: "bg-teal-500/10 dark:bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/20",
+      };
     case "currency":
-      return <DollarSign className="h-4 w-4 text-teal-500" />;
+      return {
+        icon: <DollarSign className="h-4 w-4" />,
+        bg: "bg-cyan-500/10 dark:bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/20",
+      };
     case "notes":
-      return <FileText className="h-4 w-4 text-slate-400" />;
+      return {
+        icon: <FileText className="h-4 w-4" />,
+        bg: "bg-slate-500/10 dark:bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/20",
+      };
     default:
-      return <FileSpreadsheet className="h-4 w-4 text-primary" />;
+      return {
+        icon: <FileSpreadsheet className="h-4 w-4" />,
+        bg: "bg-primary/10 text-primary border-primary/20",
+      };
   }
 }
 
@@ -596,17 +630,17 @@ export function ContactImportWizardDialog({
             </div>
 
             {/* Stepper Pill Indicator */}
-            <div className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-              <span className={`px-2 py-0.5 rounded-lg transition-colors ${step === "source" ? "bg-primary text-primary-foreground font-bold" : "text-slate-500"}`}>
+            <div className="hidden sm:flex items-center gap-1 text-xs font-semibold bg-slate-100/90 dark:bg-slate-900/90 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-800 backdrop-blur-md shadow-2xs">
+              <span className={`px-2.5 py-1 rounded-xl transition-all duration-200 ${step === "source" ? "bg-primary text-primary-foreground font-bold shadow-xs" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}>
                 1. Upload
               </span>
-              <span className={`px-2 py-0.5 rounded-lg transition-colors ${step === "mapping" ? "bg-primary text-primary-foreground font-bold" : "text-slate-500"}`}>
+              <span className={`px-2.5 py-1 rounded-xl transition-all duration-200 ${step === "mapping" ? "bg-primary text-primary-foreground font-bold shadow-xs" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}>
                 2. Mapping
               </span>
-              <span className={`px-2 py-0.5 rounded-lg transition-colors ${step === "preview" ? "bg-primary text-primary-foreground font-bold" : "text-slate-500"}`}>
+              <span className={`px-2.5 py-1 rounded-xl transition-all duration-200 ${step === "preview" ? "bg-primary text-primary-foreground font-bold shadow-xs" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}>
                 3. Preview
               </span>
-              <span className={`px-2 py-0.5 rounded-lg transition-colors ${step === "complete" ? "bg-emerald-600 text-white font-bold" : "text-slate-500"}`}>
+              <span className={`px-2.5 py-1 rounded-xl transition-all duration-200 ${step === "complete" ? "bg-emerald-600 text-white font-bold shadow-xs" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}>
                 4. Done
               </span>
             </div>
@@ -785,47 +819,53 @@ export function ContactImportWizardDialog({
               </div>
 
               {/* Sticky Mapping Summary Panel */}
-              <div className="sticky top-0 z-10 p-3.5 sm:p-4 rounded-2xl bg-slate-900/95 text-white dark:bg-slate-100/95 dark:text-slate-900 shadow-xl border border-slate-700/60 dark:border-slate-300 backdrop-blur-md flex flex-col lg:flex-row lg:items-center justify-between gap-3 animate-in fade-in-50">
+              <div className="sticky top-0 z-10 p-3 sm:p-3.5 rounded-2xl bg-slate-900/95 text-white dark:bg-slate-900/95 dark:text-white shadow-xl border border-slate-800 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in-50">
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap text-xs">
                   <div className="flex items-center gap-1.5 font-bold">
-                    <span className="text-slate-400 dark:text-slate-500">Rows:</span>
-                    <span className="font-mono text-sm">{analysis.totalRows}</span>
+                    <span className="text-slate-400">Rows:</span>
+                    <span className="font-mono text-sm text-slate-100">{analysis.totalRows}</span>
                   </div>
-                  <div className="h-3 w-px bg-slate-700 dark:bg-slate-300" />
+                  <div className="h-3 w-px bg-slate-700" />
                   <div className="flex items-center gap-1.5 font-bold">
-                    <span className="text-slate-400 dark:text-slate-500">Mapped:</span>
-                    <span className="font-mono text-sm">{mappedCount}/{SYSTEM_FIELDS.length}</span>
+                    <span className="text-slate-400">Mapped:</span>
+                    <span className="font-mono text-sm text-slate-100">{mappedCount}/{SYSTEM_FIELDS.length}</span>
+                    <div className="w-12 sm:w-16 h-1.5 rounded-full bg-slate-800 overflow-hidden ml-1 hidden sm:block">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-300"
+                        style={{ width: `${Math.round((mappedCount / SYSTEM_FIELDS.length) * 100)}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-3 w-px bg-slate-700 dark:bg-slate-300" />
+                  <div className="h-3 w-px bg-slate-700" />
                   <div className="flex items-center gap-1.5">
-                    <span className="text-slate-400 dark:text-slate-500 font-bold">Name:</span>
+                    <span className="text-slate-400 font-bold">Name:</span>
                     {isNameMapped ? (
-                      <Badge className="bg-emerald-500/20 text-emerald-300 dark:text-emerald-700 text-[10px] py-0 px-1.5 border-0 font-bold">
+                      <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px] py-0 px-1.5 border-0 font-bold">
                         ✓ Mapped
                       </Badge>
                     ) : (
-                      <Badge className="bg-rose-500/20 text-rose-300 dark:text-rose-700 text-[10px] py-0 px-1.5 border-0 font-bold">
+                      <Badge className="bg-rose-500/20 text-rose-300 text-[10px] py-0 px-1.5 border-0 font-bold">
                         ✖ Missing
                       </Badge>
                     )}
                   </div>
-                  <div className="h-3 w-px bg-slate-700 dark:bg-slate-300" />
+                  <div className="h-3 w-px bg-slate-700" />
                   <div className="flex items-center gap-1.5">
-                    <span className="text-slate-400 dark:text-slate-500 font-bold">Channels:</span>
+                    <span className="text-slate-400 font-bold">Channels:</span>
                     {hasEmailOrPhone ? (
-                      <Badge className="bg-emerald-500/20 text-emerald-300 dark:text-emerald-700 text-[10px] py-0 px-1.5 border-0 font-bold">
+                      <Badge className="bg-emerald-500/20 text-emerald-300 text-[10px] py-0 px-1.5 border-0 font-bold">
                         {mapping.email && mapping.phone ? "✓ Email & Phone" : mapping.email ? "✓ Email" : "✓ Phone"}
                       </Badge>
                     ) : (
-                      <Badge className="bg-amber-500/20 text-amber-300 dark:text-amber-700 text-[10px] py-0 px-1.5 border-0 font-bold">
+                      <Badge className="bg-amber-500/20 text-amber-300 text-[10px] py-0 px-1.5 border-0 font-bold">
                         ⚠ No Email/Phone
                       </Badge>
                     )}
                   </div>
                   {duplicateColumnsMap.size > 0 && (
                     <>
-                      <div className="h-3 w-px bg-slate-700 dark:bg-slate-300" />
-                      <Badge className="bg-rose-500/20 text-rose-300 dark:text-rose-700 text-[10px] py-0 px-1.5 border-0 font-bold animate-pulse">
+                      <div className="h-3 w-px bg-slate-700" />
+                      <Badge className="bg-rose-500/20 text-rose-300 text-[10px] py-0 px-1.5 border-0 font-bold animate-pulse">
                         ⚠ {duplicateColumnsMap.size} Duplicate Mapping(s)
                       </Badge>
                     </>
@@ -833,16 +873,16 @@ export function ContactImportWizardDialog({
                 </div>
 
                 {/* Quick Auto-Map & Clear Actions */}
-                <div className="flex items-center gap-2 self-end lg:self-auto shrink-0">
+                <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
                   <Button
                     type="button"
                     size="sm"
                     variant="ghost"
                     onClick={handleAutoMapAll}
-                    className="text-xs font-bold gap-1.5 h-8 px-2.5 text-white dark:text-slate-900 hover:bg-white/10 dark:hover:bg-black/10 rounded-xl transition-all"
+                    className="group text-xs font-bold gap-1.5 h-8 px-2.5 text-slate-100 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
                     title="Re-run intelligent auto-detection on all columns"
                   >
-                    <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                    <Sparkles className="h-3.5 w-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
                     <span>Auto-Map All</span>
                   </Button>
                   <Button
@@ -850,10 +890,10 @@ export function ContactImportWizardDialog({
                     size="sm"
                     variant="ghost"
                     onClick={handleClearAllMappings}
-                    className="text-xs font-bold gap-1.5 h-8 px-2.5 text-slate-400 hover:text-white dark:text-slate-600 dark:hover:text-slate-900 hover:bg-white/10 dark:hover:bg-black/10 rounded-xl transition-all"
+                    className="group text-xs font-bold gap-1.5 h-8 px-2.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-all cursor-pointer"
                     title="Set all columns to [ Do Not Map ]"
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
+                    <RotateCcw className="h-3.5 w-3.5 group-hover:-rotate-45 transition-transform" />
                     <span>Reset All</span>
                   </Button>
                 </div>
@@ -879,7 +919,7 @@ export function ContactImportWizardDialog({
                       size="sm"
                       variant="outline"
                       onClick={handleUnmapNotes}
-                      className="rounded-xl text-xs h-7 px-3 border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-semibold shrink-0"
+                      className="rounded-xl text-xs h-7 px-3 border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-semibold shrink-0 cursor-pointer"
                     >
                       Revert to [ Do Not Map ]
                     </Button>
@@ -902,7 +942,7 @@ export function ContactImportWizardDialog({
                       size="sm"
                       variant="outline"
                       onClick={() => handleMapNotes(analysis.detectedNotesColumn!)}
-                      className="rounded-xl text-xs h-7 px-3 border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-semibold shrink-0"
+                      className="rounded-xl text-xs h-7 px-3 border-amber-400 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 font-semibold shrink-0 cursor-pointer"
                     >
                       Map Column Anyway
                     </Button>
@@ -911,13 +951,13 @@ export function ContactImportWizardDialog({
               )}
 
               {/* Desktop Table View (>= 768px) */}
-              <div className="hidden md:block rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden shadow-xs bg-card">
+              <div className="hidden md:block rounded-2xl border border-slate-200/90 dark:border-slate-800/80 overflow-hidden shadow-xs bg-card/60 backdrop-blur-sm">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold">
+                    <tr className="bg-slate-100/60 dark:bg-slate-900/60 border-b border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-bold">
                       <th className="py-3 px-4 w-[28%]">Target Contact Field</th>
-                      <th className="py-3 px-4 w-[32%]">Spreadsheet Column</th>
-                      <th className="py-3 px-4 w-[26%]">Live Samples from File</th>
+                      <th className="py-3 px-4 w-[30%]">Spreadsheet Column</th>
+                      <th className="py-3 px-4 w-[28%]">Sample Value from File</th>
                       <th className="py-3 px-4 w-[14%] text-right">Mapping Status</th>
                     </tr>
                   </thead>
@@ -933,25 +973,26 @@ export function ContactImportWizardDialog({
                         .filter((k) => k !== field.key)
                         .map((k) => SYSTEM_FIELDS.find((f) => f.key === k)?.label || k);
                       const isRequired = field.key === "name" && !isNameMapped;
+                      const meta = getFieldMeta(field.key);
 
                       return (
                         <tr
                           key={field.key}
-                          className={`transition-all duration-150 ${
+                          className={`group transition-all duration-200 ${
                             isDupe
                               ? "bg-amber-500/[0.04] dark:bg-amber-950/20"
                               : isRequired
                               ? "bg-rose-500/[0.03] dark:bg-rose-950/20"
                               : currentMapped
-                              ? "bg-primary/[0.015] hover:bg-slate-50/70 dark:hover:bg-slate-900/40"
-                              : "hover:bg-slate-50/40 dark:hover:bg-slate-900/20"
+                              ? "bg-primary/[0.015] hover:bg-slate-100/40 dark:hover:bg-slate-800/40"
+                              : "hover:bg-slate-50/60 dark:hover:bg-slate-900/40"
                           }`}
                         >
                           {/* Target Field */}
                           <td className="py-3.5 px-4 align-top">
                             <div className="flex items-start gap-2.5">
-                              <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0 mt-0.5">
-                                {getFieldIcon(field.key)}
+                              <div className={`p-2 rounded-xl border shrink-0 mt-0.5 shadow-2xs transition-transform duration-200 group-hover:scale-105 ${meta.bg}`}>
+                                {meta.icon}
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -959,7 +1000,7 @@ export function ContactImportWizardDialog({
                                     {field.label}
                                   </span>
                                   {field.required ? (
-                                    <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[9px] py-0 px-1 border-0 font-bold">
+                                    <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[9px] py-0 px-1 border border-rose-500/20 font-bold">
                                       Required
                                     </Badge>
                                   ) : (
@@ -1004,15 +1045,20 @@ export function ContactImportWizardDialog({
                             {currentMapped ? (
                               samples.length > 0 ? (
                                 <div className="flex flex-wrap gap-1 max-w-sm">
-                                  {samples.map((s, idx) => (
+                                  {samples.slice(0, 4).map((s, idx) => (
                                     <span
                                       key={idx}
-                                      className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-lg text-[10px] font-mono truncate max-w-[150px] inline-block border border-slate-200/60 dark:border-slate-700/60"
+                                      className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-lg text-[10px] font-mono truncate max-w-[150px] inline-block border border-slate-200/60 dark:border-slate-700/60 shadow-2xs"
                                       title={s}
                                     >
                                       {s}
                                     </span>
                                   ))}
+                                  {samples.length > 4 && (
+                                    <span className="text-[9px] font-semibold text-slate-400 self-center px-1">
+                                      +{samples.length - 4} more
+                                    </span>
+                                  )}
                                 </div>
                               ) : (
                                 <span className="text-slate-400 italic text-[11px]">No sample data in this column</span>
@@ -1029,7 +1075,7 @@ export function ContactImportWizardDialog({
                                 Duplicate
                               </Badge>
                             ) : isRequired ? (
-                              <Badge variant="outline" className="text-[10px] border-rose-300 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold">
+                              <Badge variant="outline" className="text-[10px] border-rose-300 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold animate-pulse">
                                 Missing
                               </Badge>
                             ) : currentMapped ? (
@@ -1038,7 +1084,7 @@ export function ContactImportWizardDialog({
                                   ✓ User Selected
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="text-[10px] border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold">
+                                <Badge variant="outline" className="text-[10px] border-emerald-400/80 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold shadow-2xs">
                                   ✓ Auto Mapped ({confidence?.confidence || 100}%)
                                 </Badge>
                               )
@@ -1068,15 +1114,16 @@ export function ContactImportWizardDialog({
                     .filter((k) => k !== field.key)
                     .map((k) => SYSTEM_FIELDS.find((f) => f.key === k)?.label || k);
                   const isRequired = field.key === "name" && !isNameMapped;
+                  const meta = getFieldMeta(field.key);
 
                   return (
                     <div
                       key={field.key}
-                      className={`p-3.5 rounded-2xl border space-y-2.5 transition-all duration-150 ${
+                      className={`p-3.5 rounded-2xl border space-y-2.5 transition-all duration-200 ${
                         isDupe
-                          ? "border-amber-400 bg-amber-500/[0.04] dark:bg-amber-950/20"
+                          ? "border-amber-400 bg-amber-500/[0.04] dark:bg-amber-950/20 shadow-xs"
                           : isRequired
-                          ? "border-rose-400 bg-rose-500/[0.03] dark:bg-rose-950/20"
+                          ? "border-rose-400 bg-rose-500/[0.03] dark:bg-rose-950/20 shadow-xs"
                           : currentMapped
                           ? "border-slate-200 dark:border-slate-800 bg-card hover:border-primary/40 shadow-xs"
                           : "border-slate-200/80 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/30"
@@ -1084,9 +1131,9 @@ export function ContactImportWizardDialog({
                     >
                       {/* Card Header */}
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0">
-                            {getFieldIcon(field.key)}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`p-2 rounded-xl border shrink-0 ${meta.bg}`}>
+                            {meta.icon}
                           </div>
                           <div className="min-w-0">
                             <span className="font-bold text-slate-900 dark:text-slate-100 text-xs block truncate">
@@ -1100,7 +1147,7 @@ export function ContactImportWizardDialog({
 
                         <div className="shrink-0 flex items-center gap-1">
                           {field.required ? (
-                            <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[9px] py-0 px-1 border-0 font-bold">
+                            <Badge className="bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[9px] py-0 px-1 border border-rose-500/20 font-bold">
                               Required
                             </Badge>
                           ) : (
@@ -1569,7 +1616,7 @@ export function ContactImportWizardDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => setStep("source")}
-                  className="rounded-xl text-xs font-semibold gap-1.5"
+                  className="rounded-xl text-xs font-semibold gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                   <span>Back</span>
@@ -1577,10 +1624,10 @@ export function ContactImportWizardDialog({
                 <Button
                   size="sm"
                   onClick={handleProceedToPreview}
-                  className="rounded-xl text-xs font-bold gap-1.5 bg-primary text-primary-foreground shadow-xs"
+                  className="rounded-xl text-xs font-bold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-primary/25 hover:shadow-lg transition-all cursor-pointer group"
                 >
                   <span>Preview & Resolve Conflicts</span>
-                  <ChevronRight className="h-3.5 w-3.5" />
+                  <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </Button>
               </>
             )}
