@@ -12,7 +12,7 @@ export const contactSchema = z.object({
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   phone: z.string().regex(phoneRegex, "Invalid phone number format").optional().or(z.literal("")),
   currency: z.string().regex(currencyRegex, "Invalid currency code (use 3-letter ISO code)").default("INR"),
-  openingBalance: z.number().min(0, "Opening balance must be positive").default(0),
+  openingBalance: z.number().default(0),
   notes: z.string().max(500, "Notes must be less than 500 characters").optional().or(z.literal("")),
 });
 

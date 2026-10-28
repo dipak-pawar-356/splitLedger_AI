@@ -32,7 +32,7 @@ export async function createContact(data: {
         email: data.email || null,
         phone: data.phone || null,
         currency: data.currency || "INR",
-        openingBalance: (data.openingBalance || 0) * 100,
+        openingBalance: Math.round((data.openingBalance || 0) * 100),
         notes: data.notes || null,
       })
       .returning();
@@ -96,7 +96,7 @@ export async function updateContact(
         ...(data.email !== undefined && { email: data.email || null }),
         ...(data.phone !== undefined && { phone: data.phone || null }),
         ...(data.currency !== undefined && { currency: data.currency }),
-        ...(data.openingBalance !== undefined && { openingBalance: data.openingBalance * 100 }),
+        ...(data.openingBalance !== undefined && { openingBalance: Math.round(data.openingBalance * 100) }),
         ...(data.notes !== undefined && { notes: data.notes || null }),
         ...(data.company !== undefined && { company: data.company || null }),
         ...(data.address !== undefined && { address: data.address || null }),
