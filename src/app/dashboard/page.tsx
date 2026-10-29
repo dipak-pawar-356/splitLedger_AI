@@ -1,7 +1,10 @@
 import { Suspense } from "react";
-import { getDashboardData } from "@/actions/dashboard";
+import { getDashboardData, type DashboardOptions } from "@/actions/dashboard";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { DashboardDateFilter } from "@/components/dashboard/dashboard-date-filter";
 import { DashboardSummaryCards } from "@/components/dashboard/dashboard-summary-cards";
+import { ContactFinancialOverview } from "@/components/dashboard/contact-financial-overview";
+import { MonthlyFinancialAnalytics } from "@/components/dashboard/monthly-financial-analytics";
 import { DashboardQuickActions } from "@/components/dashboard/dashboard-quick-actions";
 import { DashboardFinancialInsights } from "@/components/dashboard/dashboard-financial-insights";
 import { DashboardPendingTasks } from "@/components/dashboard/dashboard-pending-tasks";
@@ -28,24 +31,45 @@ import { TransactionDialog } from "@/components/dialogs/transaction-dialog";
 
 export const dynamic = "force-dynamic";
 
-async function DashboardContent() {
-  const data = await getDashboardData();
+interface DashboardPageProps {
+  searchParams?: Promise<{
+    period?: string;
+    startDate?: string;
+    endDate?: string;
+  }>;
+}
+
+async function DashboardContent({ options }: { options?: DashboardOptions }) {
+  const data = await getDashboardData(options);
 
   return (
     <div className="space-y-8 pb-12">
       {/* 1. Welcome Header (Avatar, Name, Verified, Profile Completion %, Current Date, Greeting) */}
       <DashboardHeader user={data.user} />
 
-      {/* 2. Quick Financial Summary (Strictly 8 Cards) */}
+      {/* Date Range Filter Bar (Current Month, Last Month, This Week, Today, Year, All Time, Custom) */}
+      <DashboardDateFilter activePeriod={data.activePeriod} />
+
+      {/* 2. Quick Financial Summary (Reordered Rows 1 & 2 per Accounting Standards) */}
       <DashboardSummaryCards
         summary={data.summary}
         trends={data.trends}
       />
 
-      {/* 3. Quick Actions (Strictly 6 direct actions, no duplicate invite modal) */}
+      {/* 3. Contact Financial Overview (Section for All Counterparty Balances & Sync Statistics) */}
+      {data.contactOverview && (
+        <ContactFinancialOverview overview={data.contactOverview} />
+      )}
+
+      {/* 4. Contact Financial Analytics (Time-series run-rates, daily peaks, cash flow velocity) */}
+      {data.monthlyAnalytics && (
+        <MonthlyFinancialAnalytics analytics={data.monthlyAnalytics} />
+      )}
+
+      {/* 5. Quick Actions (Strictly direct shortcuts) */}
       <DashboardQuickActions />
 
-      {/* 6 & 7: Pending Tasks & Financial Insights Grid */}
+      {/* 6 & 7: Pending Tasks & AI Financial Insights Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <DashboardFinancialInsights insights={data.financialInsights} />
         <DashboardPendingTasks tasks={data.pendingTasks} />
@@ -54,7 +78,7 @@ async function DashboardContent() {
       {/* 8. Charts: Income vs Expense, Category Breakdown, Cashflow Trend */}
       <DashboardCharts charts={data.charts} />
 
-      {/* 4 & 5: Recent Transactions & Streamlined Recent Activity Feed */}
+      {/* Recent Transactions & Streamlined Recent Activity Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Columns: Latest 8 Transactions */}
         <div className="lg:col-span-2">
@@ -70,7 +94,7 @@ async function DashboardContent() {
                       Recent Transactions
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      Latest 8 active expenses, income & settlement entries
+                      Latest active expenses, income & contact entries
                     </CardDescription>
                   </div>
                 </div>
@@ -171,7 +195,7 @@ async function DashboardContent() {
           </Card>
         </div>
 
-        {/* Right 1 Column: Streamlined Recent Activity Feed (10 records) */}
+        {/* Right 1 Column: Streamlined Recent Activity Feed */}
         <div className="lg:col-span-1">
           <DashboardRecentActivity activities={data.recentActivity} />
         </div>
@@ -183,10 +207,17 @@ async function DashboardContent() {
   );
 }
 
-export default function DashboardPage() {
+export default async function DashboardPage(props: DashboardPageProps) {
+  const searchParams = props.searchParams ? await props.searchParams : {};
+  const options: DashboardOptions = {
+    period: searchParams.period as any,
+    startDate: searchParams.startDate,
+    endDate: searchParams.endDate,
+  };
+
   return (
     <Suspense fallback={<DashboardSkeleton />}>
-      <DashboardContent />
+      <DashboardContent options={options} />
     </Suspense>
   );
 }

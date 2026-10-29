@@ -252,6 +252,7 @@ export const transactions = pgTable("transactions", {
   deletedBy: integer("deleted_by").references(() => users.id, { onDelete: "set null" }),
   // Dashboard synchronization tracking (contact transactions must be confirmed to affect dashboard)
   isSyncedToDashboard: boolean("is_synced_to_dashboard").default(false).notNull(),
+  dashboardStatus: text("dashboard_status").default("not_reflected").notNull(),
   syncedAt: timestamp("synced_at"),
   syncedBy: integer("synced_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -262,6 +263,7 @@ export const transactions = pgTable("transactions", {
   groupIdx: index("transaction_group_idx").on(table.groupId),
   dateIdx: index("transaction_date_idx").on(table.date),
   syncedIdx: index("transaction_synced_idx").on(table.isSyncedToDashboard),
+  dashboardStatusIdx: index("transaction_dashboard_status_idx").on(table.dashboardStatus),
   createdByIdx: index("transaction_created_by_idx").on(table.createdBy),
   updatedByIdx: index("transaction_updated_by_idx").on(table.updatedBy),
   parentIdx: index("transaction_parent_idx").on(table.parentTransactionId),

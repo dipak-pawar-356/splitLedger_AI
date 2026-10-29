@@ -500,20 +500,28 @@ export function ContactTransactionHistory({
                       </span>
                     </td>
 
-                    {/* Synchronization Badge (Requirement 5) */}
+                    {/* Synchronization Badge (Requirement 7) */}
                     <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                      {tx.isSyncedToDashboard ? (
+                      {tx.dashboardStatus === "reflected" || tx.isSyncedToDashboard ? (
                         <span
-                          title="This transaction currently affects dashboard totals."
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 dark:bg-emerald-950/40 cursor-help transition-all duration-150 hover:scale-105"
+                          title="This transaction is included in Dashboard Financial Summary."
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 dark:bg-emerald-950/40 cursor-help transition-all duration-150 hover:scale-105"
                         >
                           <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                          <span>Synced</span>
+                          <span>✓ Added to Dashboard</span>
+                        </span>
+                      ) : tx.dashboardStatus === "pending" ? (
+                        <span
+                          title="Transaction reflection pending confirmation."
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold border border-amber-500/30 text-amber-600 bg-amber-500/10 dark:bg-amber-950/40 cursor-help transition-all duration-150 hover:scale-105"
+                        >
+                          <Clock className="h-3 w-3 text-amber-600" />
+                          <span>Pending</span>
                         </span>
                       ) : (
                         <span
                           title="Stored in contact ledger only. Click menu to add to dashboard."
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-slate-300 dark:border-slate-700 text-slate-500 bg-slate-100/80 dark:bg-slate-800/80 cursor-help transition-all duration-150 hover:scale-105"
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold border border-slate-300 dark:border-slate-700 text-slate-500 bg-slate-100/80 dark:bg-slate-800/80 cursor-help transition-all duration-150 hover:scale-105"
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
                           <span>Not Added</span>

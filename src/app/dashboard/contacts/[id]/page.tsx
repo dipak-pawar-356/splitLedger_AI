@@ -63,6 +63,7 @@ export default async function ContactDetailPage({
           createdByName: users.name,
           tags: transactions.tags,
           isSyncedToDashboard: transactions.isSyncedToDashboard,
+          dashboardStatus: transactions.dashboardStatus,
           syncedAt: transactions.syncedAt,
         })
         .from(transactions)
@@ -100,6 +101,7 @@ export default async function ContactDetailPage({
           createdByName: sql<string | null>`NULL`,
           tags: transactions.tags,
           isSyncedToDashboard: transactions.isSyncedToDashboard,
+          dashboardStatus: transactions.dashboardStatus,
           syncedAt: transactions.syncedAt,
         })
         .from(transactions)

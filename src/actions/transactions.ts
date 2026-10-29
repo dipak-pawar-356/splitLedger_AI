@@ -229,6 +229,7 @@ export async function createTransaction(data: CreateTransactionInput) {
         paidBy: data.paidBy || user.id,
         paidByContact: data.paidByContact || null,
         isSyncedToDashboard: isSynced,
+        dashboardStatus: isSynced ? "reflected" : "not_reflected",
         syncedAt: isSynced ? new Date() : null,
         syncedBy: isSynced ? user.id : null,
         version: 1,
@@ -1245,6 +1246,7 @@ export async function syncTransactionToDashboard(publicIdOrId: string | number) 
         .update(transactions)
         .set({
           isSyncedToDashboard: true,
+          dashboardStatus: "reflected",
           syncedAt: now,
           syncedBy: user.id,
           updatedAt: now,
@@ -1295,6 +1297,7 @@ export async function removeTransactionFromDashboard(publicIdOrId: string | numb
         .update(transactions)
         .set({
           isSyncedToDashboard: false,
+          dashboardStatus: "not_reflected",
           syncedAt: null,
           syncedBy: null,
           updatedAt: now,
@@ -1345,6 +1348,7 @@ export async function removeContactFromDashboard(contactPublicIdOrId: string | n
         .update(transactions)
         .set({
           isSyncedToDashboard: false,
+          dashboardStatus: "not_reflected",
           syncedAt: null,
           syncedBy: null,
           updatedAt: now,

@@ -158,6 +158,42 @@ export function ContactProfileView({
   const outstandingPaise = Math.abs(currentNetBalancePaise);
   const monthlyNetPaise = monthlyReceivedPaise - monthlyPaidPaise;
 
+  // Dashboard Synchronization Metrics (Requirement 13)
+  let reflectedIncomePaise = 0;
+  let reflectedExpensePaise = 0;
+  let reflectedTxCount = 0;
+  let pendingTxCount = 0;
+  let lastDashboardSyncDate: Date | null = null;
+
+  transactions.forEach((tx) => {
+    const isReflected = tx.isSyncedToDashboard === true || tx.dashboardStatus === "reflected";
+    const isPositive =
+      tx.type === "received" ||
+      tx.type === "lent" ||
+      tx.type === "repaid" ||
+      (tx.type === "adjustment" &&
+        (JSON.stringify(tx.tags || "").includes("credit") ||
+          JSON.stringify(tx.tags || "").includes("increase")));
+
+    if (isReflected) {
+      reflectedTxCount += 1;
+      const txDate = new Date(tx.date);
+      if (!lastDashboardSyncDate || txDate > lastDashboardSyncDate) {
+        lastDashboardSyncDate = txDate;
+      }
+      if (isPositive) {
+        reflectedIncomePaise += tx.amount;
+      } else {
+        reflectedExpensePaise += tx.amount;
+      }
+    } else {
+      pendingTxCount += 1;
+    }
+  });
+
+  const dashboardReflectedAmountPaise = reflectedIncomePaise - reflectedExpensePaise;
+  const pendingAmountPaise = currentNetBalancePaise - dashboardReflectedAmountPaise;
+
   // Settlement status text
   const settlementStatus = isSettled
     ? "Settled"
@@ -492,6 +528,128 @@ export function ContactProfileView({
           </CardContent>
         </Card>
       </div>
+
+      {/* Requirement 13: Contact Detail Synchronization Card */}
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs overflow-hidden">
+        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <Scale className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Dashboard Synchronization Status
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Audited live breakdown of reflected vs pending balances in dashboard summaries
+                </CardDescription>
+              </div>
+            </div>
+
+            <Badge
+              variant="outline"
+              className={`text-xs px-2.5 py-1 font-bold rounded-xl ${
+                reflectedTxCount > 0 && pendingTxCount === 0
+                  ? "border-emerald-500/30 text-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40"
+                  : reflectedTxCount > 0
+                  ? "border-amber-500/30 text-amber-600 bg-amber-50/50 dark:bg-amber-950/40"
+                  : "border-slate-300 text-slate-500 bg-slate-100 dark:bg-slate-800"
+              }`}
+            >
+              {reflectedTxCount > 0 && pendingTxCount === 0
+                ? "✓ Fully Reflected in Dashboard"
+                : reflectedTxCount > 0
+                ? "⚠ Partially Reflected"
+                : "○ Not Reflected in Dashboard"}
+            </Badge>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-center">
+            {/* 1. Current Balance */}
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                Current Balance
+              </span>
+              <span className={`text-sm font-black font-mono block ${isNetOwedToMe ? "text-emerald-600" : isNetIOwe ? "text-rose-600" : "text-slate-700 dark:text-slate-200"}`}>
+                {isNetOwedToMe ? "+" : ""}{formatCurrency(currentNetBalancePaise / 100, contact.currency)}
+              </span>
+            </div>
+
+            {/* 2. Dashboard Reflected Amount */}
+            <div className="p-3 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block mb-1">
+                Reflected Amount
+              </span>
+              <span className="text-sm font-black font-mono text-blue-600 dark:text-blue-400 block">
+                {formatCurrency(dashboardReflectedAmountPaise / 100, contact.currency)}
+              </span>
+            </div>
+
+            {/* 3. Pending Amount */}
+            <div className="p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 block mb-1">
+                Pending Amount
+              </span>
+              <span className="text-sm font-black font-mono text-amber-600 dark:text-amber-400 block">
+                {formatCurrency(pendingAmountPaise / 100, contact.currency)}
+              </span>
+            </div>
+
+            {/* 4. Income */}
+            <div className="p-3 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block mb-1">
+                Reflected Income
+              </span>
+              <span className="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 block">
+                +{formatCurrency(reflectedIncomePaise / 100, contact.currency)}
+              </span>
+            </div>
+
+            {/* 5. Expense */}
+            <div className="p-3 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 block mb-1">
+                Reflected Expense
+              </span>
+              <span className="text-sm font-black font-mono text-rose-600 dark:text-rose-400 block">
+                -{formatCurrency(reflectedExpensePaise / 100, contact.currency)}
+              </span>
+            </div>
+
+            {/* 6. Outstanding Balance */}
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                Outstanding
+              </span>
+              <span className="text-sm font-black font-mono text-slate-800 dark:text-slate-200 block">
+                {formatCurrency(outstandingPaise / 100, contact.currency)}
+              </span>
+            </div>
+
+            {/* 7. Last Dashboard Sync */}
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                Last Sync Date
+              </span>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block truncate" title={lastDashboardSyncDate ? formatDate(lastDashboardSyncDate) : "Never"}>
+                {lastDashboardSyncDate ? formatDate(lastDashboardSyncDate) : "Never"}
+              </span>
+            </div>
+
+            {/* 8. Number of Reflected Transactions */}
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                Reflected / Total
+              </span>
+              <span className="text-xs font-black font-mono text-primary block">
+                {reflectedTxCount} / {transactions.length}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 4. Secondary Metrics Row: Monthly Summary, Opening Balance, Lifetime Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

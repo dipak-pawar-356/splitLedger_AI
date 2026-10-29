@@ -24,6 +24,59 @@ import { DatabaseError } from "@/lib/errors";
 import { calculateGroupSettlements } from "@/lib/settlements/calculator";
 import { appCache } from "@/lib/cache";
 import { logger } from "@/lib/logger";
+import { formatCurrency } from "@/lib/utils";
+
+export interface DashboardOptions {
+  period?: "current_month" | "last_month" | "this_week" | "today" | "year" | "all_time" | "custom";
+  startDate?: string | Date;
+  endDate?: string | Date;
+}
+
+export interface ContactFinancialOverviewData {
+  totalContacts: number;
+  contactsOweYou: number; // in rupees
+  youOweContacts: number; // in rupees
+  monthlyReceived: number; // in rupees
+  monthlyPaid: number; // in rupees
+  recentContactActivity: Array<{
+    id: number;
+    publicId: string;
+    contactName: string;
+    title: string;
+    amount: number; // in rupees
+    type: string;
+    date: Date;
+    status: string;
+  }>;
+  largestOutstandingBalance: {
+    contactName: string;
+    amount: number; // in rupees
+    status: "They Owe You" | "You Owe" | "Settled";
+  } | null;
+  topPayingContact: {
+    contactName: string;
+    amount: number; // in rupees
+  } | null;
+  topOwingContact: {
+    contactName: string;
+    amount: number; // in rupees
+  } | null;
+  averageTransactionSize: number; // in rupees
+}
+
+export interface MonthlyFinancialAnalyticsData {
+  totalContactIncome: number;
+  totalContactExpense: number;
+  netMonthlyBalance: number;
+  highestIncomeDay: { day: string; amount: number } | null;
+  highestExpenseDay: { day: string; amount: number } | null;
+  averageDailyIncome: number;
+  averageDailyExpense: number;
+  monthlyCashFlow: Array<{ month: string; income: number; expense: number; net: number }>;
+  incomeTrend: number;
+  expenseTrend: number;
+  savingsTrend: number;
+}
 
 export interface DashboardData {
   user: {
@@ -37,22 +90,27 @@ export interface DashboardData {
     profileCompletion: number;
   };
   summary: {
-    totalReceivable: number; // in rupees
-    totalPayable: number; // in rupees
-    netBalance: number; // in rupees
-    monthlySpending: number; // in rupees
-    monthlyIncome: number; // in rupees
-    savings: number; // in rupees
+    totalReceivable: number; // in rupees (Row 1, Card 2)
+    totalPayable: number; // in rupees (Row 1, Card 3)
+    netBalance: number; // in rupees (Row 1, Card 1)
+    monthlyContactIncome: number; // in rupees (Row 1, Card 4)
+    monthlyContactExpense: number; // in rupees (Row 2, Card 1)
+    savings: number; // in rupees (Row 2, Card 2)
+    monthlySpending: number; // alias
+    monthlyIncome: number; // alias
     totalTransactions: number;
-    pendingSettlementsAmount: number; // in rupees
+    pendingSettlementsAmount: number; // in rupees (Row 2, Card 3)
     pendingSettlementsCount: number;
-    myGroupsCount: number;
+    myGroupsCount: number; // (Row 2, Card 4)
   };
   trends: {
     spendingTrend: number; // percentage vs last month
     incomeTrend: number; // percentage vs last month
     balanceTrend: number;
   };
+  activePeriod: string;
+  contactOverview: ContactFinancialOverviewData;
+  monthlyAnalytics: MonthlyFinancialAnalyticsData;
   groupStats: {
     totalGroups: number;
     totalGroupExpenses: number; // in rupees
@@ -139,23 +197,96 @@ export interface DashboardData {
 }
 
 /**
+ * Standardized Date Window Calculation Helper for Dashboard Periods
+ */
+function calculateDashboardDateWindows(
+  period: string = "current_month",
+  customStart?: string | Date,
+  customEnd?: string | Date
+) {
+  const now = new Date();
+  let startDate: Date;
+  let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  let prevStartDate: Date;
+  let prevEndDate: Date;
+
+  switch (period) {
+    case "today": {
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      prevStartDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+      prevEndDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      break;
+    }
+    case "this_week": {
+      const day = now.getDay() || 7;
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      prevStartDate = new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+      prevEndDate = new Date(startDate.getTime() - 1);
+      break;
+    }
+    case "last_month": {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      prevStartDate = new Date(now.getFullYear(), now.getMonth() - 2, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59, 999);
+      break;
+    }
+    case "year": {
+      startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+      prevStartDate = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+      break;
+    }
+    case "all_time": {
+      startDate = new Date(2000, 0, 1);
+      endDate = new Date(2099, 11, 31);
+      prevStartDate = new Date(1990, 0, 1);
+      prevEndDate = new Date(1999, 11, 31);
+      break;
+    }
+    case "custom": {
+      startDate = customStart ? new Date(customStart) : new Date(now.getFullYear(), now.getMonth(), 1);
+      endDate = customEnd ? new Date(customEnd) : now;
+      const duration = Math.max(1, endDate.getTime() - startDate.getTime());
+      prevStartDate = new Date(startDate.getTime() - duration);
+      prevEndDate = new Date(startDate.getTime() - 1);
+      break;
+    }
+    case "current_month":
+    default: {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      prevStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      break;
+    }
+  }
+
+  return { startDate, endDate, prevStartDate, prevEndDate };
+}
+
+/**
  * Get aggregated dashboard data with single-pass parallel query execution.
  * Guarantees <500ms execution time, strict user isolation, and live calculations.
  */
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getDashboardData(options?: DashboardOptions): Promise<DashboardData> {
   try {
     const user = await requireAuth();
+    const period = options?.period || "current_month";
+    const { startDate, endDate, prevStartDate, prevEndDate } = calculateDashboardDateWindows(
+      period,
+      options?.startDate,
+      options?.endDate
+    );
 
-    return await logger.withTiming(`dashboard:user:${user.id}`, async () => {
+    return await logger.withTiming(`dashboard:user:${user.id}:${period}`, async () => {
       return await appCache.getOrSet(
-        `dashboard:user:${user.id}`,
+        `dashboard:user:${user.id}:${period}:${options?.startDate || ""}:${options?.endDate || ""}`,
         async () => {
           const now = new Date();
-          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-          const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-          const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-
           const settleToUser = alias(users, "settle_to_user");
           const settleFromUser = alias(users, "settle_from_user");
 
@@ -169,8 +300,8 @@ export async function getDashboardData(): Promise<DashboardData> {
           // Parallel Batch Queries
           const [
             userProfile,
-            currentMonthIncomeExp,
-            lastMonthIncomeExp,
+            contactPeriodSummary,
+            contactPrevPeriodSummary,
             allTimeIncomeExp,
             allTimePersonalStats,
             allTimeGroupStats,
@@ -185,6 +316,9 @@ export async function getDashboardData(): Promise<DashboardData> {
             activeBudgetsQuery,
             sixMonthMonthlyTotals,
             categorySpendingRaw,
+            totalContactsCount,
+            recentContactActivityQuery,
+            contactDailySeries,
           ] = await withDbRetry(async () => {
             return await Promise.all([
       // 1. User Profile & Extended Settings
@@ -196,11 +330,11 @@ export async function getDashboardData(): Promise<DashboardData> {
         .where(eq(profiles.userId, user.id))
         .limit(1),
 
-      // 2. Current Month Income & Expenses (Only non-contact or synced contact transactions)
+      // 2. Reflected Contact Transactions in Current Period (Monthly Contact Income & Expense)
       db
         .select({
-          income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
-          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          contactIncome: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          contactExpense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
           count: sql<number>`COUNT(*)`,
         })
         .from(transactions)
@@ -208,26 +342,28 @@ export async function getDashboardData(): Promise<DashboardData> {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
-            gte(transactions.date, startOfMonth),
-            lte(transactions.date, endOfMonth)
+            sql`${transactions.contactId} IS NOT NULL`,
+            or(eq(transactions.isSyncedToDashboard, true), eq(transactions.dashboardStatus, 'reflected')),
+            gte(transactions.date, startDate),
+            lte(transactions.date, endDate)
           )
         ),
 
-      // 3. Last Month Income & Expenses (for trend indicators)
+      // 3. Reflected Contact Transactions in Prior Period (for trends)
       db
         .select({
-          income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
-          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          contactIncome: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          contactExpense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
         .where(
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
-            gte(transactions.date, startOfLastMonth),
-            lte(transactions.date, endOfLastMonth)
+            sql`${transactions.contactId} IS NOT NULL`,
+            or(eq(transactions.isSyncedToDashboard, true), eq(transactions.dashboardStatus, 'reflected')),
+            gte(transactions.date, prevStartDate),
+            lte(transactions.date, prevEndDate)
           )
         ),
 
@@ -376,6 +512,8 @@ export async function getDashboardData(): Promise<DashboardData> {
           phone: contacts.phone,
           avatar: contacts.avatar,
           balance: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)`,
+          totalReceived: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          totalPaid: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
           syncedTxCount: sql<number>`COUNT(${transactions.id})`,
           lastSyncedAt: sql<Date | null>`MAX(${transactions.syncedAt})`,
         })
@@ -385,7 +523,7 @@ export async function getDashboardData(): Promise<DashboardData> {
           and(
             eq(transactions.contactId, contacts.id),
             eq(transactions.isDeleted, false),
-            eq(transactions.isSyncedToDashboard, true)
+            or(eq(transactions.isSyncedToDashboard, true), eq(transactions.dashboardStatus, 'reflected'))
           )
         )
         .where(
@@ -396,7 +534,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         )
         .groupBy(contacts.id, contacts.publicId, contacts.name, contacts.email, contacts.phone, contacts.avatar)
         .orderBy(sql`ABS(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END)) DESC`)
-        .limit(15)
+        .limit(25)
         .catch((err) => {
           console.warn("Synchronized contacts query fallback:", err);
           return [] as any[];
@@ -492,7 +630,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         .groupBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`)
         .orderBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`),
 
-      // 17. Category Breakdown for current month (synced or non-contact only)
+      // 17. Category Breakdown for active period (synced or non-contact only)
       db
         .select({
           name: sql<string>`COALESCE(${categories.name}, 'General')`,
@@ -506,13 +644,69 @@ export async function getDashboardData(): Promise<DashboardData> {
             eq(transactions.isDeleted, false),
             sql`${transactions.type} IN ('paid', 'borrowed')`,
             or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
-            gte(transactions.date, startOfMonth),
-            lte(transactions.date, endOfMonth)
+            gte(transactions.date, startDate),
+            lte(transactions.date, endDate)
           )
         )
         .groupBy(categories.name)
         .orderBy(sql`SUM(${transactions.amount}) DESC`)
         .limit(6),
+
+      // 18. Total Active Contacts
+      db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(contacts)
+        .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false))),
+
+      // 19. Recent Reflected Contact Transactions
+      db
+        .select({
+          id: transactions.id,
+          publicId: transactions.publicId,
+          title: transactions.title,
+          description: transactions.description,
+          type: transactions.type,
+          amount: transactions.amount,
+          date: transactions.date,
+          status: transactions.status,
+          contactId: transactions.contactId,
+          contactName: contacts.name,
+        })
+        .from(transactions)
+        .innerJoin(contacts, eq(transactions.contactId, contacts.id))
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.isDeleted, false),
+            sql`${transactions.contactId} IS NOT NULL`,
+            or(eq(transactions.isSyncedToDashboard, true), eq(transactions.dashboardStatus, 'reflected'))
+          )
+        )
+        .orderBy(desc(transactions.date))
+        .limit(6)
+        .catch(() => [] as any[]),
+
+      // 20. Contact Daily Series for Current Period Analytics
+      db
+        .select({
+          day: sql<string>`TO_CHAR(${transactions.date}, 'YYYY-MM-DD')`,
+          income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.isDeleted, false),
+            sql`${transactions.contactId} IS NOT NULL`,
+            or(eq(transactions.isSyncedToDashboard, true), eq(transactions.dashboardStatus, 'reflected')),
+            gte(transactions.date, startDate),
+            lte(transactions.date, endDate)
+          )
+        )
+        .groupBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM-DD')`)
+        .orderBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM-DD')`)
+        .catch(() => [] as any[]),
     ]);
   });
 
@@ -625,25 +819,110 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     const totalReceivableRupees = (calculatedReceivable + directPendingReceivable) / 100;
     const totalPayableRupees = (calculatedPayable + directPendingPayable) / 100;
-    const netBalanceRupees = totalReceivableRupees - totalPayableRupees;
 
-    // Monthly Figures
-    const monthlySpendingRupees = (currentMonthIncomeExp[0]?.expense || 0) / 100;
-    const monthlyIncomeRupees = (currentMonthIncomeExp[0]?.income || 0) / 100;
-    const lastMonthSpendingRupees = (lastMonthIncomeExp[0]?.expense || 0) / 100;
-    const lastMonthIncomeRupees = (lastMonthIncomeExp[0]?.income || 0) / 100;
+    // Reflected Contact Figures for the Active Period
+    const monthlyContactIncome = (contactPeriodSummary[0]?.contactIncome || 0) / 100;
+    const monthlyContactExpense = (contactPeriodSummary[0]?.contactExpense || 0) / 100;
+    const prevContactIncome = (contactPrevPeriodSummary[0]?.contactIncome || 0) / 100;
+    const prevContactExpense = (contactPrevPeriodSummary[0]?.contactExpense || 0) / 100;
 
-    const spendingTrend = lastMonthSpendingRupees > 0
-      ? Math.round(((monthlySpendingRupees - lastMonthSpendingRupees) / lastMonthSpendingRupees) * 100)
+    const contactSavings = monthlyContactIncome - monthlyContactExpense;
+    const prevContactSavings = prevContactIncome - prevContactExpense;
+
+    const incomeTrend = prevContactIncome > 0
+      ? Math.round(((monthlyContactIncome - prevContactIncome) / prevContactIncome) * 100)
       : 0;
 
-    const incomeTrend = lastMonthIncomeRupees > 0
-      ? Math.round(((monthlyIncomeRupees - lastMonthIncomeRupees) / lastMonthIncomeRupees) * 100)
+    const spendingTrend = prevContactExpense > 0
+      ? Math.round(((monthlyContactExpense - prevContactExpense) / prevContactExpense) * 100)
       : 0;
 
-    const balanceTrend = lastMonthSpendingRupees > 0
-      ? Math.round(((monthlyIncomeRupees - monthlySpendingRupees) - (lastMonthIncomeRupees - lastMonthSpendingRupees)))
+    const balanceTrend = prevContactSavings !== 0
+      ? Math.round(((contactSavings - prevContactSavings) / Math.abs(prevContactSavings)) * 100)
       : 0;
+
+    // Contact Receivables and Payables (from reflected transactions only)
+    const contactsReceivablePaise = contactsQuery.reduce((acc, c) => acc + (Number(c.balance) > 0 ? Number(c.balance) : 0), 0);
+    const contactsPayablePaise = contactsQuery.reduce((acc, c) => acc + (Number(c.balance) < 0 ? Math.abs(Number(c.balance)) : 0), 0);
+
+    const overallReceivableRupees = totalReceivableRupees + (contactsReceivablePaise / 100);
+    const overallPayableRupees = totalPayableRupees + (contactsPayablePaise / 100);
+    const netBalanceRupees = overallReceivableRupees - overallPayableRupees;
+
+    // Contact Financial Overview Data (Requirement 10)
+    const owingContacts = [...contactsQuery]
+      .filter((c) => Number(c.balance) > 0)
+      .sort((a, b) => Number(b.balance) - Number(a.balance));
+    const topOwingContact = owingContacts.length > 0 ? {
+      contactName: owingContacts[0].name,
+      amount: Number(owingContacts[0].balance) / 100,
+    } : null;
+
+    const payingContacts = [...contactsQuery]
+      .filter((c) => Number(c.totalReceived) > 0)
+      .sort((a, b) => Number(b.totalReceived) - Number(a.totalReceived));
+    const topPayingContact = payingContacts.length > 0 ? {
+      contactName: payingContacts[0].name,
+      amount: Number(payingContacts[0].totalReceived) / 100,
+    } : null;
+
+    const sortedByAbsBalance = [...contactsQuery].sort((a, b) => Math.abs(Number(b.balance)) - Math.abs(Number(a.balance)));
+    const largestOutstandingBalance = sortedByAbsBalance.length > 0 && Math.abs(Number(sortedByAbsBalance[0].balance)) > 0 ? {
+      contactName: sortedByAbsBalance[0].name,
+      amount: Math.abs(Number(sortedByAbsBalance[0].balance)) / 100,
+      status: (Number(sortedByAbsBalance[0].balance) > 0 ? "They Owe You" : "You Owe") as "They Owe You" | "You Owe",
+    } : null;
+
+    const totalReflectedTxCount = contactsQuery.reduce((acc, c) => acc + Number(c.syncedTxCount || 0), 0);
+    const totalReflectedTxVolumePaise = contactsQuery.reduce((acc, c) => acc + Number(c.totalReceived || 0) + Number(c.totalPaid || 0), 0);
+    const averageTransactionSize = totalReflectedTxCount > 0 ? (totalReflectedTxVolumePaise / totalReflectedTxCount) / 100 : 0;
+
+    const contactOverview: ContactFinancialOverviewData = {
+      totalContacts: Number(totalContactsCount[0]?.count || 0),
+      contactsOweYou: contactsReceivablePaise / 100,
+      youOweContacts: contactsPayablePaise / 100,
+      monthlyReceived: monthlyContactIncome,
+      monthlyPaid: monthlyContactExpense,
+      recentContactActivity: recentContactActivityQuery.map((t) => ({
+        id: t.id,
+        publicId: t.publicId,
+        contactName: t.contactName,
+        title: t.title || t.description,
+        amount: t.amount / 100,
+        type: t.type,
+        date: t.date,
+        status: t.status,
+      })),
+      largestOutstandingBalance,
+      topPayingContact,
+      topOwingContact,
+      averageTransactionSize: Number(averageTransactionSize.toFixed(2)),
+    };
+
+    // Monthly Contact Financial Analytics (Requirement 11)
+    const msDiff = Math.max(1, endDate.getTime() - startDate.getTime());
+    const daysInPeriod = Math.max(1, Math.round(msDiff / (1000 * 60 * 60 * 24)));
+
+    let highestIncomeDay: { day: string; amount: number } | null = null;
+    let highestExpenseDay: { day: string; amount: number } | null = null;
+    let maxIncome = 0;
+    let maxExpense = 0;
+
+    contactDailySeries.forEach((d) => {
+      const inc = Number(d.income) / 100;
+      const exp = Number(d.expense) / 100;
+      if (inc > maxIncome) {
+        maxIncome = inc;
+        highestIncomeDay = { day: d.day, amount: inc };
+      }
+      if (exp > maxExpense) {
+        maxExpense = exp;
+        highestExpenseDay = { day: d.day, amount: exp };
+      }
+    });
+
+    const averageDailyIncome = daysInPeriod > 0 ? (monthlyContactIncome / daysInPeriod) : 0;
+    const averageDailyExpense = daysInPeriod > 0 ? (monthlyContactExpense / daysInPeriod) : 0;
 
     // Group Statistics
     const uniqueGroupMembersSet = new Set(
@@ -678,8 +957,8 @@ export async function getDashboardData(): Promise<DashboardData> {
       balance: 0,
     }));
 
-    // Monthly Savings
-    const savingsRupees = monthlyIncomeRupees - monthlySpendingRupees;
+    // Monthly Savings (Contact-derived)
+    const savingsRupees = contactSavings;
 
     // Charts: 6-month Historical Income vs Expense and Cashflow Trend
     const monthFormatter = new Intl.DateTimeFormat("en-IN", { month: "short" });
@@ -773,50 +1052,70 @@ export async function getDashboardData(): Promise<DashboardData> {
       }
     });
 
-    // Financial Insights
-    let headline = "Financial activity is normal this month.";
-    if (spendingTrend < 0) {
-      headline = `Spending decreased by ${Math.abs(spendingTrend)}% compared to last month.`;
-    } else if (spendingTrend > 0) {
-      headline = `Spending increased by ${spendingTrend}% compared to last month.`;
+    // AI Financial Analysis based strictly on live reflected contact data (Requirement 12)
+    const contactsWhoPaidCount = contactsQuery.filter((c) => Number(c.totalReceived) > 0).length;
+    const contactsWhoWerePaidCount = contactsQuery.filter((c) => Number(c.totalPaid) > 0).length;
+    const netContactProfit = monthlyContactIncome - monthlyContactExpense;
+
+    let headline = "Contact financial activity is steady.";
+    if (monthlyContactIncome > monthlyContactExpense && monthlyContactIncome > 0) {
+      headline = `Positive cashflow: Contact income (${formatCurrency(monthlyContactIncome)}) exceeds expenses.`;
+    } else if (monthlyContactExpense > monthlyContactIncome) {
+      headline = `Net deficit: Contact expenses (${formatCurrency(monthlyContactExpense)}) exceed received payments.`;
     }
 
     const keyFindings: string[] = [];
-    if (netBalanceRupees > 0) {
-      keyFindings.push(`You are owed ₹${netBalanceRupees.toFixed(2)} net across all groups and contacts.`);
-    } else if (netBalanceRupees < 0) {
-      keyFindings.push(`You have a net obligation of ₹${Math.abs(netBalanceRupees).toFixed(2)} to settle.`);
+    if (monthlyContactIncome > 0) {
+      keyFindings.push(`You received ${formatCurrency(monthlyContactIncome)} from ${contactsWhoPaidCount} contact${contactsWhoPaidCount === 1 ? "" : "s"} this period.`);
     } else {
-      keyFindings.push("Your group and personal balances are fully settled.");
+      keyFindings.push("No contact income received yet in this period.");
     }
 
-    if (savingsRupees > 0) {
-      keyFindings.push(`Positive monthly net cashflow of +₹${savingsRupees.toFixed(2)}.`);
-    } else if (savingsRupees < 0) {
-      keyFindings.push(`Current monthly expenses exceed income by ₹${Math.abs(savingsRupees).toFixed(2)}.`);
+    if (prevContactIncome > 0) {
+      if (incomeTrend > 0) {
+        keyFindings.push(`Contact income increased by ${incomeTrend}% compared to last period.`);
+      } else if (incomeTrend < 0) {
+        keyFindings.push(`Contact income decreased by ${Math.abs(incomeTrend)}% compared to last period.`);
+      } else {
+        keyFindings.push("Contact income is unchanged compared to last period.");
+      }
     }
 
-    if (categoryBreakdownChart.length > 0) {
-      keyFindings.push(`Top spending category is ${categoryBreakdownChart[0].name} (${categoryBreakdownChart[0].percentage}% of monthly total).`);
+    if (monthlyContactExpense > 0) {
+      keyFindings.push(`You paid ${formatCurrency(monthlyContactExpense)} to ${contactsWhoWerePaidCount} contact${contactsWhoWerePaidCount === 1 ? "" : "s"} this period.`);
     }
 
-    if (pendingCount > 0) {
-      keyFindings.push(`${pendingCount} pending settlements require confirmation.`);
+    if (averageTransactionSize > 0) {
+      keyFindings.push(`Average contact payment size was ${formatCurrency(averageTransactionSize)}.`);
     }
 
-    let recommendation = "Keep tracking expenses daily to maintain healthy cashflow.";
-    if (totalPayableRupees > 0) {
-      recommendation = `Consider settling your ₹${totalPayableRupees.toFixed(2)} outstanding debts to keep peer accounts clean.`;
-    } else if (savingsRupees > 0) {
-      recommendation = `Great job saving ₹${savingsRupees.toFixed(2)} this month. Keep it up!`;
+    if (netContactProfit > 0) {
+      keyFindings.push(`Net contact profit is +${formatCurrency(netContactProfit)}.`);
+    } else if (netContactProfit < 0) {
+      keyFindings.push(`Net contact loss is -${formatCurrency(Math.abs(netContactProfit))}.`);
+    } else {
+      keyFindings.push("Net contact balance is ₹0.00.");
     }
 
-    let healthScore = 70;
-    if (netBalanceRupees >= 0) healthScore += 10;
-    if (savingsRupees > 0) healthScore += 10;
-    if (spendingTrend < 0) healthScore += 5;
-    if (totalPayableRupees > totalReceivableRupees * 2 && totalPayableRupees > 500) healthScore -= 15;
-    healthScore = Math.max(25, Math.min(98, healthScore));
+    if (overallReceivableRupees > 0 || overallPayableRupees > 0) {
+      keyFindings.push(`Overall ledger: ${formatCurrency(overallReceivableRupees)} receivable vs ${formatCurrency(overallPayableRupees)} payable.`);
+    }
+
+    let recommendation = "Maintain balanced settlements by reviewing outstanding contact balances weekly.";
+    if (contactsReceivablePaise > 0) {
+      recommendation = `Send gentle payment reminders to collect ${formatCurrency(contactsReceivablePaise / 100)} in pending contact receivables.`;
+    } else if (contactsPayablePaise > 0) {
+      recommendation = `You have ${formatCurrency(contactsPayablePaise / 100)} in pending contact obligations to settle.`;
+    } else if (contactSavings > 0) {
+      recommendation = `Great job generating a net surplus of +${formatCurrency(contactSavings)} from contact ledger settlements!`;
+    }
+
+    let healthScore = 75;
+    if (netContactProfit > 0) healthScore += 10;
+    if (incomeTrend > 0) healthScore += 5;
+    if (overallReceivableRupees >= overallPayableRupees) healthScore += 5;
+    if (overallPayableRupees > overallReceivableRupees * 2 && overallPayableRupees > 1000) healthScore -= 15;
+    healthScore = Math.max(30, Math.min(99, healthScore));
 
     const financialInsights = {
       score: healthScore,
@@ -837,13 +1136,15 @@ export async function getDashboardData(): Promise<DashboardData> {
         profileCompletion: Math.min(100, completionScore),
       },
       summary: {
-        totalReceivable: totalReceivableRupees,
-        totalPayable: totalPayableRupees,
+        totalReceivable: overallReceivableRupees,
+        totalPayable: overallPayableRupees,
         netBalance: netBalanceRupees,
-        monthlySpending: monthlySpendingRupees,
-        monthlyIncome: monthlyIncomeRupees,
-        savings: savingsRupees,
-        totalTransactions: Number(allTimeIncomeExp[0]?.totalCount || 0),
+        monthlyContactIncome,
+        monthlyContactExpense,
+        savings: contactSavings,
+        monthlySpending: monthlyContactExpense,
+        monthlyIncome: monthlyContactIncome,
+        totalTransactions: Number(allTimeIncomeExp[0]?.totalCount || 0) + totalReflectedTxCount,
         pendingSettlementsAmount: (userPendingReceivableTotal + userPendingPayableTotal) / 100,
         pendingSettlementsCount: pendingCount,
         myGroupsCount: activeGroupsRaw.length,
@@ -852,6 +1153,26 @@ export async function getDashboardData(): Promise<DashboardData> {
         spendingTrend,
         incomeTrend,
         balanceTrend,
+      },
+      activePeriod: period,
+      contactOverview,
+      monthlyAnalytics: {
+        totalContactIncome: monthlyContactIncome,
+        totalContactExpense: monthlyContactExpense,
+        netMonthlyBalance: Number((monthlyContactIncome - monthlyContactExpense).toFixed(2)),
+        highestIncomeDay,
+        highestExpenseDay,
+        averageDailyIncome: Number(averageDailyIncome.toFixed(2)),
+        averageDailyExpense: Number(averageDailyExpense.toFixed(2)),
+        monthlyCashFlow: incomeVsExpenseChart.map((c) => ({
+          month: c.month,
+          income: c.income,
+          expense: c.expense,
+          net: Number((c.income - c.expense).toFixed(2)),
+        })),
+        incomeTrend,
+        expenseTrend: spendingTrend,
+        savingsTrend: contactSavings >= 0 ? 10 : -10,
       },
       groupStats: {
         totalGroups: activeGroupsRaw.length,

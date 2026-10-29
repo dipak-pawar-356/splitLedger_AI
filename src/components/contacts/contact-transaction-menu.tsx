@@ -60,6 +60,7 @@ export interface ContactTransactionItem {
   createdByName?: string | null;
   tags?: any;
   isSyncedToDashboard?: boolean;
+  dashboardStatus?: "not_reflected" | "reflected" | "pending";
   syncedAt?: Date | string | null;
 }
 
