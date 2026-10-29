@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +61,7 @@ import {
   Square,
   Sparkles,
   SlidersHorizontal,
+  AlertTriangle,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ContactDialog } from "@/components/dialogs/contact-dialog";
@@ -155,7 +156,23 @@ export function ContactsClientView({
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkSelectionMode, setBulkSelectionMode] = useState(false);
+  const [lastSelectedId, setLastSelectedId] = useState<number | null>(null);
   const [isBulkPending, setIsBulkPending] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const touchTimerRef = useRef<{ id: number; timer: NodeJS.Timeout; startX: number; startY: number } | null>(null);
+
+  // Keyboard Escape to dismiss bulk selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && (selectedIds.size > 0 || bulkSelectionMode)) {
+        setSelectedIds(new Set());
+        setBulkSelectionMode(false);
+        setLastSelectedId(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIds.size, bulkSelectionMode]);
 
   // Modal dialog states
   const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
@@ -405,10 +422,142 @@ export function ContactsClientView({
   };
 
   const handleSelectAllDisplayed = () => {
-    if (selectedIds.size === displayedContacts.length) {
+    if (selectedIds.size === displayedContacts.length && displayedContacts.length > 0) {
       setSelectedIds(new Set());
+      setLastSelectedId(null);
     } else {
       setSelectedIds(new Set(displayedContacts.map((c) => c.id)));
+      setBulkSelectionMode(true);
+    }
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedIds(new Set());
+    setBulkSelectionMode(false);
+    setLastSelectedId(null);
+  };
+
+  const handleInvertSelection = () => {
+    const next = new Set<number>();
+    displayedContacts.forEach((c) => {
+      if (!selectedIds.has(c.id)) {
+        next.add(c.id);
+      }
+    });
+    setSelectedIds(next);
+    setBulkSelectionMode(next.size > 0);
+  };
+
+  const handleSelectWithBalance = () => {
+    const next = new Set<number>();
+    displayedContacts.forEach((c) => {
+      if ((c.balance || 0) !== 0) {
+        next.add(c.id);
+      }
+    });
+    setSelectedIds(next);
+    setBulkSelectionMode(next.size > 0);
+  };
+
+  const handleSelectSettled = () => {
+    const next = new Set<number>();
+    displayedContacts.forEach((c) => {
+      if ((c.balance || 0) === 0) {
+        next.add(c.id);
+      }
+    });
+    setSelectedIds(next);
+    setBulkSelectionMode(next.size > 0);
+  };
+
+  // Selected contacts summary for safety modal
+  const selectedSummary = useMemo(() => {
+    const list = contactsList.filter((c) => selectedIds.has(c.id));
+    const countWithBalance = list.filter((c) => (c.balance || 0) !== 0).length;
+    const totalBalanceSum = list.reduce((sum, c) => sum + Math.abs(c.balance || 0), 0);
+    return {
+      count: list.length,
+      countWithBalance,
+      totalBalanceSum,
+    };
+  }, [contactsList, selectedIds]);
+
+  // Touch gesture handlers for mobile photo-gallery multiselect
+  const handleTouchStart = (contactId: number, e: React.TouchEvent) => {
+    if (bulkSelectionMode || selectedIds.size > 0) return;
+    const touch = e.touches[0];
+    const timer = setTimeout(() => {
+      if (typeof window !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(40);
+        } catch {
+          // ignore if vibration unsupported
+        }
+      }
+      setBulkSelectionMode(true);
+      setSelectedIds(new Set([contactId]));
+      setLastSelectedId(contactId);
+      touchTimerRef.current = null;
+    }, 400);
+
+    touchTimerRef.current = {
+      id: contactId,
+      timer,
+      startX: touch.clientX,
+      startY: touch.clientY,
+    };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchTimerRef.current) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - touchTimerRef.current.startX);
+    const dy = Math.abs(touch.clientY - touchTimerRef.current.startY);
+    if (dx > 10 || dy > 10) {
+      clearTimeout(touchTimerRef.current.timer);
+      touchTimerRef.current = null;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current.timer);
+      touchTimerRef.current = null;
+    }
+  };
+
+  // Card click interceptor for desktop Ctrl/Cmd + click and Shift + click range selection
+  const handleContactCardClick = (e: React.MouseEvent, contact: ContactItem) => {
+    const isCtrl = e.ctrlKey || e.metaKey;
+    const isShift = e.shiftKey;
+
+    if (bulkSelectionMode || selectedIds.size > 0 || isCtrl || isShift) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (isShift && lastSelectedId !== null) {
+        const lastIdx = displayedContacts.findIndex((c) => c.id === lastSelectedId);
+        const currentIdx = displayedContacts.findIndex((c) => c.id === contact.id);
+        if (lastIdx !== -1 && currentIdx !== -1) {
+          const start = Math.min(lastIdx, currentIdx);
+          const end = Math.max(lastIdx, currentIdx);
+          const rangeIds = displayedContacts.slice(start, end + 1).map((c) => c.id);
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            rangeIds.forEach((id) => next.add(id));
+            return next;
+          });
+          setBulkSelectionMode(true);
+          setLastSelectedId(contact.id);
+          return;
+        }
+      }
+
+      toggleSelectContact(contact.id);
+      setLastSelectedId(contact.id);
+      if (!bulkSelectionMode && !selectedIds.has(contact.id)) {
+        setBulkSelectionMode(true);
+      }
     }
   };
 
@@ -464,14 +613,22 @@ export function ContactsClientView({
   };
 
   // Bulk Operations
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmBulkDelete = async () => {
     const count = selectedIds.size;
-    if (!confirm(`Are you sure you want to delete ${count} contact(s)?`)) return;
+    if (count === 0) return;
     setIsBulkPending(true);
+    setIsDeleteDialogOpen(false);
     try {
       await bulkUpdateContactsAction(Array.from(selectedIds), { type: "delete" });
       toast.success(`Deleted ${count} contact(s).`);
       setSelectedIds(new Set());
+      setBulkSelectionMode(false);
+      setLastSelectedId(null);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Bulk delete failed");
@@ -1276,6 +1433,62 @@ export function ContactsClientView({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Multi-Selection Control & Dropdown Options */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant={selectedIds.size > 0 || bulkSelectionMode ? "default" : "outline"}
+                  size="sm"
+                  className={`rounded-xl text-xs gap-1.5 h-9 font-semibold transition-all cursor-pointer ${
+                    selectedIds.size > 0
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "border-slate-200/80 dark:border-slate-800 hover:border-slate-400 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  <span>{selectedIds.size > 0 ? `${selectedIds.size} Selected` : "Select"}</span>
+                  <ChevronDown className="h-3 w-3 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-xl">
+                <DropdownMenuItem
+                  onClick={handleSelectAllDisplayed}
+                  className="cursor-pointer text-xs rounded-xl flex items-center justify-between"
+                >
+                  <span>Select All Visible</span>
+                  <span className="text-[10px] text-slate-400 font-mono">({displayedContacts.length})</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleDeselectAll}
+                  disabled={selectedIds.size === 0}
+                  className="cursor-pointer text-xs rounded-xl flex items-center justify-between"
+                >
+                  <span>Deselect All</span>
+                  <span className="text-[10px] text-slate-400 font-mono">Esc</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleInvertSelection}
+                  className="cursor-pointer text-xs rounded-xl"
+                >
+                  <span>Invert Selection</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleSelectWithBalance}
+                  className="cursor-pointer text-xs rounded-xl"
+                >
+                  <span>Select with Balances (≠ ₹0)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleSelectSettled}
+                  className="cursor-pointer text-xs rounded-xl"
+                >
+                  <span>Select Settled (₹0)</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -1528,16 +1741,16 @@ export function ContactsClientView({
         </div>
       )}
 
-      {/* Sticky Bulk Action Bar (when contacts are selected or bulk mode is on) */}
+      {/* Desktop Sticky Bulk Action Bar */}
       {(selectedIds.size > 0 || bulkSelectionMode) && (
-        <div className="sticky top-4 z-20 p-3.5 rounded-2xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xl border border-slate-700/60 dark:border-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in-50 slide-in-from-top-2">
+        <div className="hidden sm:flex sticky top-4 z-20 p-3.5 rounded-2xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xl border border-slate-700/60 dark:border-slate-300 sm:items-center justify-between gap-3 animate-in fade-in-50 slide-in-from-top-2">
           <div className="flex items-center gap-3">
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={handleSelectAllDisplayed}
-              className="text-xs font-bold gap-1.5 h-8 px-2 text-white dark:text-slate-900 hover:bg-white/10"
+              className="text-xs font-bold gap-1.5 h-8 px-2 text-white dark:text-slate-900 hover:bg-white/10 cursor-pointer"
             >
               {selectedIds.size === displayedContacts.length && displayedContacts.length > 0 ? (
                 <>
@@ -1563,7 +1776,7 @@ export function ContactsClientView({
               size="sm"
               disabled={selectedIds.size === 0 || isBulkPending}
               onClick={() => setIsExportDialogOpen(true)}
-              className="rounded-xl text-xs h-8 gap-1 font-semibold"
+              className="rounded-xl text-xs h-8 gap-1 font-semibold cursor-pointer"
             >
               <Download className="h-3.5 w-3.5" />
               <span>Export</span>
@@ -1575,7 +1788,7 @@ export function ContactsClientView({
               size="sm"
               disabled={selectedIds.size === 0 || isBulkPending}
               onClick={handleBulkAddTag}
-              className="rounded-xl text-xs h-8 gap-1 font-semibold"
+              className="rounded-xl text-xs h-8 gap-1 font-semibold cursor-pointer"
             >
               <Tag className="h-3.5 w-3.5" />
               <span>Add Tag</span>
@@ -1587,7 +1800,7 @@ export function ContactsClientView({
               size="sm"
               disabled={selectedIds.size === 0 || isBulkPending}
               onClick={handleBulkUpdateCompany}
-              className="rounded-xl text-xs h-8 gap-1 font-semibold"
+              className="rounded-xl text-xs h-8 gap-1 font-semibold cursor-pointer"
             >
               <Building2 className="h-3.5 w-3.5" />
               <span>Company</span>
@@ -1599,7 +1812,7 @@ export function ContactsClientView({
               size="sm"
               disabled={selectedIds.size === 0 || isBulkPending}
               onClick={() => handleBulkArchive(!showArchived)}
-              className="rounded-xl text-xs h-8 gap-1 font-semibold"
+              className="rounded-xl text-xs h-8 gap-1 font-semibold cursor-pointer"
             >
               <Archive className="h-3.5 w-3.5" />
               <span>{showArchived ? "Restore" : "Archive"}</span>
@@ -1611,7 +1824,7 @@ export function ContactsClientView({
               size="sm"
               disabled={selectedIds.size === 0 || isBulkPending}
               onClick={handleBulkDelete}
-              className="rounded-xl text-xs h-8 gap-1 font-semibold"
+              className="rounded-xl text-xs h-8 gap-1 font-semibold cursor-pointer"
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span>Delete</span>
@@ -1621,13 +1834,53 @@ export function ContactsClientView({
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => {
-                setSelectedIds(new Set());
-                setBulkSelectionMode(false);
-              }}
-              className="rounded-xl text-xs h-8 text-white/80 dark:text-slate-600 hover:text-white"
+              onClick={handleDeselectAll}
+              className="rounded-xl text-xs h-8 text-white/80 dark:text-slate-600 hover:text-white cursor-pointer"
             >
               <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Floating Action Toolbar (Thumb zone) */}
+      {(selectedIds.size > 0 || bulkSelectionMode) && (
+        <div className="fixed bottom-4 left-3 right-3 sm:hidden z-40 p-3 rounded-2xl bg-slate-900/95 text-white dark:bg-slate-950/95 dark:text-slate-100 backdrop-blur-md border border-slate-700/60 shadow-2xl flex items-center justify-between gap-2 animate-in fade-in-50 slide-in-from-bottom-2">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDeselectAll}
+              className="h-8 w-8 p-0 rounded-xl text-white/80 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            <Badge className="bg-white/20 text-white text-xs px-2 py-0.5">
+              {selectedIds.size} Selected
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleSelectAllDisplayed}
+              className="text-xs h-8 px-2 font-semibold text-white/90"
+            >
+              {selectedIds.size === displayedContacts.length && displayedContacts.length > 0 ? "None" : "All"}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={selectedIds.size === 0 || isBulkPending}
+              onClick={handleBulkDelete}
+              className="h-8 px-3 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white gap-1"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete ({selectedIds.size})</span>
             </Button>
           </div>
         </div>
@@ -1674,31 +1927,42 @@ export function ContactsClientView({
             <Link
               key={contact.id}
               href={`/dashboard/contacts/${contact.publicId}`}
-              className="block group focus:outline-none"
+              onClick={(e) => handleContactCardClick(e, contact)}
+              onTouchStart={(e) => handleTouchStart(contact.id, e)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className="block group focus:outline-none select-none"
             >
               <Card
                 className={`rounded-3xl border bg-card p-5 space-y-4 shadow-xs relative overflow-hidden transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-xl group-hover:shadow-primary/5 cursor-pointer ${
                   isSelected
-                    ? "border-primary/70 ring-2 ring-primary/25 bg-primary/[0.03]"
+                    ? "border-primary/80 ring-2 ring-primary/30 bg-primary/[0.04]"
                     : "border-slate-200/80 dark:border-slate-800/90 hover:border-primary/40 dark:hover:border-primary/50"
                 }`}
               >
                 {/* 1. Avatar, Name & Status */}
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    {/* Bulk Selection Checkbox if in bulk mode */}
-                    {bulkSelectionMode && (
-                      <div
-                        className="cursor-pointer"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          toggleSelectContact(contact.id);
-                        }}
-                      >
-                        <Checkbox checked={isSelected} className="rounded-md h-4 w-4" />
-                      </div>
-                    )}
+                    {/* Bulk Selection Checkbox */}
+                    <div
+                      className={`cursor-pointer p-0.5 rounded-lg transition-all duration-200 ${
+                        bulkSelectionMode || selectedIds.size > 0 || isSelected
+                          ? "opacity-100 scale-100"
+                          : "opacity-0 sm:group-hover:opacity-100 scale-95 sm:group-hover:scale-100"
+                      }`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleSelectContact(contact.id);
+                        setLastSelectedId(contact.id);
+                        if (!bulkSelectionMode) setBulkSelectionMode(true);
+                      }}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        className="rounded-md h-4 w-4 border-slate-400 dark:border-slate-600 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                      />
+                    </div>
 
                     {/* Avatar */}
                     <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent border border-primary/25 flex items-center justify-center shrink-0 font-extrabold text-primary group-hover:scale-105 transition-transform shadow-xs">
@@ -1902,6 +2166,67 @@ export function ContactsClientView({
           }}
         />
       )}
+
+      {/* Bulk Delete Safety Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 bg-slate-900 text-white border border-slate-800 shadow-2xl">
+          <DialogHeader className="space-y-2">
+            <div className="h-12 w-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mb-1">
+              <Trash2 className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-xl font-black text-white">
+              Delete {selectedSummary.count} Contact{selectedSummary.count === 1 ? "" : "s"}?
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs leading-relaxed">
+              This will remove the selected contact profile{selectedSummary.count === 1 ? "" : "s"} from your contact workspace.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedSummary.countWithBalance > 0 && (
+            <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-rose-200">
+                <AlertTriangle className="h-4 w-4 text-rose-400 shrink-0" />
+                <span>Outstanding Balance Warning</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-rose-200/90">
+                {selectedSummary.countWithBalance} of the selected contacts have outstanding balances totaling{" "}
+                <strong>{formatCurrency(selectedSummary.totalBalanceSum / 100, "INR")}</strong>.
+                Historical transactions and ledger audits remain saved in reports, but active contact cards will be deleted.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2.5 pt-4">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              className="rounded-xl text-xs h-9 px-4 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isBulkPending}
+              onClick={handleConfirmBulkDelete}
+              className="rounded-xl text-xs h-9 px-4 font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/20 cursor-pointer"
+            >
+              {isBulkPending ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  <span>Confirm Delete ({selectedSummary.count})</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
