@@ -15,9 +15,11 @@ import {
   profiles,
   auditLogs,
   categories,
-  budgets
+  budgets,
+  notes,
+  noteChecklists,
 } from "@/lib/db/schema/schema";
-import { eq, and, desc, sql, gte, lte, or, inArray, isNull } from "drizzle-orm";
+import { eq, and, desc, asc, sql, gte, lte, or, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { DatabaseError } from "@/lib/errors";
@@ -177,7 +179,7 @@ export interface DashboardData {
     id: string;
     title: string;
     subtitle: string;
-    type: "settlement" | "budget" | "reminder" | "payment";
+    type: "settlement" | "budget" | "reminder" | "payment" | "note";
     amount?: number;
     href: string;
     priority: "high" | "medium" | "low";
@@ -319,6 +321,8 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
             totalContactsCount,
             recentContactActivityQuery,
             contactDailySeries,
+            pinnedNotesQuery,
+            pinnedChecklistsQuery,
           ] = await withDbRetry(async () => {
             return await Promise.all([
       // 1. User Profile & Extended Settings
@@ -502,7 +506,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           )
         ),
 
-      // 12. Synchronized Contacts for Dashboard (Only user-confirmed synced contact transactions)
+      // 12. Contacts with Balances for Dashboard (opening balance + active ledger transactions)
       db
         .select({
           id: contacts.id,
@@ -511,19 +515,19 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           email: contacts.email,
           phone: contacts.phone,
           avatar: contacts.avatar,
-          balance: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)`,
-          totalReceived: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          openingBalance: contacts.openingBalance,
+          balance: sql<number>`COALESCE(${contacts.openingBalance}, 0) + COALESCE(SUM(CASE WHEN ${transactions.id} IS NULL THEN 0 WHEN ${transactions.type} IN ('received', 'lent') THEN ${transactions.amount} WHEN ${transactions.type} = 'adjustment' AND (${transactions.tags}::text LIKE '%credit%' OR ${transactions.tags}::text LIKE '%increase%') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)`,
+          totalReceived: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent') THEN ${transactions.amount} ELSE 0 END), 0)`,
           totalPaid: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
           syncedTxCount: sql<number>`COUNT(${transactions.id})`,
           lastSyncedAt: sql<Date | null>`MAX(${transactions.syncedAt})`,
         })
         .from(contacts)
-        .innerJoin(
+        .leftJoin(
           transactions,
           and(
             eq(transactions.contactId, contacts.id),
-            eq(transactions.isDeleted, false),
-            or(eq(transactions.isSyncedToDashboard, true), eq(transactions.dashboardStatus, 'reflected'))
+            eq(transactions.isDeleted, false)
           )
         )
         .where(
@@ -532,9 +536,9 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
             eq(contacts.isDeleted, false)
           )
         )
-        .groupBy(contacts.id, contacts.publicId, contacts.name, contacts.email, contacts.phone, contacts.avatar)
-        .orderBy(sql`ABS(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE -${transactions.amount} END)) DESC`)
-        .limit(25)
+        .groupBy(contacts.id, contacts.publicId, contacts.name, contacts.email, contacts.phone, contacts.avatar, contacts.openingBalance)
+        .orderBy(sql`ABS(COALESCE(${contacts.openingBalance}, 0) + COALESCE(SUM(CASE WHEN ${transactions.id} IS NULL THEN 0 WHEN ${transactions.type} IN ('received', 'lent') THEN ${transactions.amount} WHEN ${transactions.type} = 'adjustment' AND (${transactions.tags}::text LIKE '%credit%' OR ${transactions.tags}::text LIKE '%increase%') THEN ${transactions.amount} ELSE -${transactions.amount} END), 0)) DESC`)
+        .limit(50)
         .catch((err) => {
           console.warn("Synchronized contacts query fallback:", err);
           return [] as any[];
@@ -706,6 +710,56 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         )
         .groupBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM-DD')`)
         .orderBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM-DD')`)
+        .catch(() => [] as any[]),
+
+      // 21. Pinned Notes for Dashboard Tasks
+      db
+        .select({
+          id: notes.id,
+          publicId: notes.publicId,
+          title: notes.title,
+          content: notes.plainText,
+          updatedAt: notes.updatedAt,
+        })
+        .from(notes)
+        .where(
+          and(
+            eq(notes.userId, user.id),
+            eq(notes.isPinned, true),
+            eq(notes.isDeleted, false),
+            eq(notes.isArchived, false)
+          )
+        )
+        .orderBy(desc(notes.updatedAt))
+        .limit(5)
+        .catch(() => [] as any[]),
+
+      // 22. Uncompleted Tasks & Checklists from Notes Section
+      db
+        .select({
+          id: noteChecklists.id,
+          publicId: noteChecklists.publicId,
+          title: noteChecklists.title,
+          status: noteChecklists.status,
+          priority: noteChecklists.priority,
+          dueDate: noteChecklists.dueDate,
+          noteId: noteChecklists.noteId,
+          notePublicId: notes.publicId,
+          noteTitle: notes.title,
+          isPinned: notes.isPinned,
+        })
+        .from(noteChecklists)
+        .innerJoin(notes, eq(noteChecklists.noteId, notes.id))
+        .where(
+          and(
+            eq(notes.userId, user.id),
+            eq(notes.isDeleted, false),
+            eq(notes.isArchived, false),
+            eq(noteChecklists.isCompleted, false)
+          )
+        )
+        .orderBy(desc(notes.isPinned), asc(noteChecklists.dueDate))
+        .limit(10)
         .catch(() => [] as any[]),
     ]);
   });
@@ -1005,9 +1059,10 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
       };
     });
 
-    // Pending Tasks (Settlements, Budget Alerts, Reminders)
+    // Pending Tasks (Settlements, Contacts, Pinned Notes Tasks, Budget Alerts)
     const pendingTasks: DashboardData["pendingTasks"] = [];
 
+    // 1. Group & Peer Pending Settlements
     pendingSettlementsQuery.forEach((s) => {
       if (s.fromUserId === user.id) {
         pendingTasks.push({
@@ -1032,6 +1087,67 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
       }
     });
 
+    // 2. Contact Pending Settlements & Balances
+    const activeOwingContacts = [...contactsQuery]
+      .filter((c) => Number(c.balance) !== 0)
+      .sort((a, b) => Math.abs(Number(b.balance)) - Math.abs(Number(a.balance)));
+
+    activeOwingContacts.forEach((c) => {
+      const balPaise = Number(c.balance);
+      if (balPaise > 0) {
+        pendingTasks.push({
+          id: `contact-receive-${c.id}`,
+          title: `Receive ₹${(balPaise / 100).toFixed(2)} from ${c.name}`,
+          subtitle: "Awaiting contact payment",
+          type: "settlement",
+          amount: balPaise / 100,
+          href: `/dashboard/contacts/${c.publicId}`,
+          priority: "medium",
+        });
+      } else if (balPaise < 0) {
+        pendingTasks.push({
+          id: `contact-pay-${c.id}`,
+          title: `Pay ₹${(Math.abs(balPaise) / 100).toFixed(2)} to ${c.name}`,
+          subtitle: "Pending contact obligation",
+          type: "settlement",
+          amount: Math.abs(balPaise) / 100,
+          href: `/dashboard/contacts/${c.publicId}`,
+          priority: "high",
+        });
+      }
+    });
+
+    // 3. Pinned Tasks & Notes from Notes Section
+    const processedNoteIds = new Set<number>();
+
+    // Checklist tasks from pinned notes or user notes
+    pinnedChecklistsQuery.forEach((chk) => {
+      processedNoteIds.add(chk.noteId);
+      pendingTasks.push({
+        id: `note-chk-${chk.id}`,
+        title: chk.title,
+        subtitle: `Pinned Task • ${chk.noteTitle}`,
+        type: "note",
+        href: `/dashboard/notes?status=pinned`,
+        priority: chk.priority === "urgent" || chk.priority === "high" ? "high" : "medium",
+      });
+    });
+
+    // Pinned notes themselves that don't have separate checklists
+    pinnedNotesQuery.forEach((pn) => {
+      if (!processedNoteIds.has(pn.id)) {
+        pendingTasks.push({
+          id: `pinned-note-${pn.id}`,
+          title: pn.title || "Pinned Task",
+          subtitle: "Pinned Task in Notes",
+          type: "note",
+          href: `/dashboard/notes?status=pinned`,
+          priority: "high",
+        });
+      }
+    });
+
+    // 4. Active Budget Alerts
     activeBudgetsQuery.forEach((b) => {
       const spent = categorySpendingRaw.find((c) => c.name === b.categoryName);
       const spentAmount = spent ? Number(spent.amount) : 0;
@@ -1051,6 +1167,12 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         }
       }
     });
+
+    // Total Pending Settlements combining group settlements and contact pending balances
+    const contactsPendingPaise = contactsReceivablePaise + contactsPayablePaise;
+    const totalPendingSettlementsPaise = userPendingReceivableTotal + userPendingPayableTotal + contactsPendingPaise;
+    const totalPendingCount = pendingCount + activeOwingContacts.length;
+    const pendingSettlementsRupees = totalPendingSettlementsPaise / 100;
 
     // 3–5 Concise Financial Insights (Requirement 2 & Acceptance Criteria)
     let headline = netBalanceRupees >= 0
@@ -1074,11 +1196,10 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
     }
 
     // 3. Pending Settlements
-    const pendingSettlementsRupees = (userPendingReceivableTotal + userPendingPayableTotal) / 100;
     if (pendingSettlementsRupees > 0) {
-      keyFindings.push(`${formatCurrency(pendingSettlementsRupees)} pending settlement.`);
+      keyFindings.push(`${formatCurrency(pendingSettlementsRupees)} pending settlement across groups & contacts.`);
     } else {
-      keyFindings.push("All peer settlements are cleared and balanced.");
+      keyFindings.push("All peer and contact settlements are cleared.");
     }
 
     // 4. Income vs Expense Comparison
@@ -1133,8 +1254,8 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         monthlySpending: monthlyContactExpense,
         monthlyIncome: monthlyContactIncome,
         totalTransactions: Number(allTimeIncomeExp[0]?.totalCount || 0) + totalReflectedTxCount,
-        pendingSettlementsAmount: (userPendingReceivableTotal + userPendingPayableTotal) / 100,
-        pendingSettlementsCount: pendingCount,
+        pendingSettlementsAmount: totalPendingSettlementsPaise / 100,
+        pendingSettlementsCount: totalPendingCount,
         myGroupsCount: activeGroupsRaw.length,
       },
       trends: {

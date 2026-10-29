@@ -9,7 +9,8 @@ import {
   ArrowRight, 
   Clock, 
   IndianRupee, 
-  CheckCheck
+  CheckCheck,
+  Pin,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -17,7 +18,7 @@ interface PendingTask {
   id: string;
   title: string;
   subtitle: string;
-  type: "settlement" | "budget" | "reminder" | "payment";
+  type: "settlement" | "budget" | "reminder" | "payment" | "note";
   amount?: number;
   href: string;
   priority: "high" | "medium" | "low";
@@ -36,12 +37,21 @@ export function DashboardPendingTasks({ tasks }: DashboardPendingTasksProps) {
         return <AlertTriangle className="h-4 w-4 text-amber-500" />;
       case "reminder":
         return <Bell className="h-4 w-4 text-blue-500" />;
+      case "note":
+        return <Pin className="h-4 w-4 text-sky-400" />;
       default:
         return <Clock className="h-4 w-4 text-primary" />;
     }
   };
 
-  const getPriorityBadge = (priority: string) => {
+  const getPriorityBadge = (priority: string, type?: string) => {
+    if (type === "note") {
+      return (
+        <Badge className="bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 text-[10px] font-bold">
+          Pinned
+        </Badge>
+      );
+    }
     switch (priority) {
       case "high":
         return (
@@ -82,7 +92,7 @@ export function DashboardPendingTasks({ tasks }: DashboardPendingTasksProps) {
                 </Badge>
               </div>
               <CardDescription className="text-xs">
-                Settlement confirmations, debts, and budget alerts
+                Settlement confirmations, contact balances, and pinned tasks
               </CardDescription>
             </div>
           </div>
@@ -113,7 +123,7 @@ export function DashboardPendingTasks({ tasks }: DashboardPendingTasksProps) {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {getPriorityBadge(task.priority)}
+                  {getPriorityBadge(task.priority, task.type)}
                   <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </div>
               </Link>
