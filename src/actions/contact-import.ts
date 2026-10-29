@@ -6,6 +6,7 @@ import {
   contactImports,
   transactions,
   groupMembers,
+  settlements,
   auditLogs,
   users,
 } from "@/lib/db/schema/schema";
@@ -16,6 +17,7 @@ import { ValidationError, NotFoundError, DatabaseError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
 import { ensureContactsSchema } from "@/lib/db/auto-migrate";
 import { isTestingOrAssertionNote } from "@/lib/contacts/contact-parser";
+import { appCache } from "@/lib/cache";
 
 /**
  * Formula Injection Protection (CWE-1236 / CSV Injection):
@@ -423,7 +425,13 @@ export async function importContactsAction(options: ImportOptions): Promise<Impo
     console.warn("Non-critical error logging import audit:", auditErr);
   }
 
+  appCache.clear();
+  revalidatePath("/dashboard");
   revalidatePath("/dashboard/contacts");
+  revalidatePath("/dashboard/transactions");
+  revalidatePath("/dashboard/reports");
+  revalidatePath("/dashboard/activity");
+  revalidatePath("/dashboard/analytics");
 
   return {
     success: true,
@@ -530,7 +538,13 @@ export async function rollbackContactImportAction(importPublicId: string) {
     changes: { rolledBackCount: idsToRevert.length },
   });
 
+  appCache.clear();
+  revalidatePath("/dashboard");
   revalidatePath("/dashboard/contacts");
+  revalidatePath("/dashboard/transactions");
+  revalidatePath("/dashboard/reports");
+  revalidatePath("/dashboard/activity");
+  revalidatePath("/dashboard/analytics");
 
   return { success: true, rolledBackCount: idsToRevert.length };
 }
@@ -570,6 +584,7 @@ export async function bulkUpdateContactsAction(
   const targetIds = existing.map((c) => c.id);
 
   if (operation.type === "delete") {
+    // 1. Soft delete the contacts
     await db
       .update(contacts)
       .set({
@@ -579,6 +594,46 @@ export async function bulkUpdateContactsAction(
         updatedAt: new Date(),
       })
       .where(inArray(contacts.id, targetIds));
+
+    // 2. Soft delete all transactions associated with these contacts
+    await db
+      .update(transactions)
+      .set({
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          inArray(transactions.contactId, targetIds),
+          eq(transactions.isDeleted, false)
+        )
+      );
+
+    // 3. Soft delete settlements associated with these contacts
+    await db
+      .update(settlements)
+      .set({
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(settlements.isDeleted, false),
+          or(
+            inArray(settlements.fromContactId, targetIds),
+            inArray(settlements.toContactId, targetIds)
+          )
+        )
+      );
+
+    // 4. Clean up group memberships for these contacts
+    await db
+      .delete(groupMembers)
+      .where(inArray(groupMembers.contactId, targetIds));
 
     await db.insert(auditLogs).values({
       userId: user.id,
@@ -726,7 +781,13 @@ export async function bulkUpdateContactsAction(
     });
   }
 
+  appCache.clear();
+  revalidatePath("/dashboard");
   revalidatePath("/dashboard/contacts");
+  revalidatePath("/dashboard/transactions");
+  revalidatePath("/dashboard/reports");
+  revalidatePath("/dashboard/activity");
+  revalidatePath("/dashboard/analytics");
   return { success: true, updatedCount: targetIds.length };
 }
 
@@ -844,6 +905,12 @@ export async function purgeTestNotesFromContactsAction(): Promise<{ cleanedCount
     }
   }
 
+  appCache.clear();
+  revalidatePath("/dashboard");
   revalidatePath("/dashboard/contacts");
+  revalidatePath("/dashboard/transactions");
+  revalidatePath("/dashboard/reports");
+  revalidatePath("/dashboard/activity");
+  revalidatePath("/dashboard/analytics");
   return { cleanedCount };
 }

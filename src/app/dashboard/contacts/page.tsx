@@ -131,6 +131,21 @@ export default async function ContactsPage() {
       };
     });
 
+    // Clean up any lingering orphaned transactions for deleted contacts
+    try {
+      await withDbRetry(async () => {
+        await db.execute(sql`
+          UPDATE transactions 
+          SET is_deleted = true, deleted_at = NOW(), updated_at = NOW() 
+          WHERE is_deleted = false 
+            AND contact_id IS NOT NULL 
+            AND contact_id IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = true)
+        `);
+      });
+    } catch (cleanupErr) {
+      console.warn("Cleanup orphaned transactions non-fatal:", cleanupErr);
+    }
+
     // Compute monthly contact transactions and recent contact activities for the Contact Workspace
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -140,6 +155,7 @@ export default async function ContactsPage() {
         db
           .select({ count: sql<number>`COUNT(*)::int` })
           .from(transactions)
+          .innerJoin(contacts, and(eq(transactions.contactId, contacts.id), eq(contacts.isDeleted, false)))
           .where(
             and(
               eq(transactions.userId, user.id),
@@ -166,7 +182,7 @@ export default async function ContactsPage() {
             contactPublicId: contacts.publicId,
           })
           .from(transactions)
-          .innerJoin(contacts, eq(transactions.contactId, contacts.id))
+          .innerJoin(contacts, and(eq(transactions.contactId, contacts.id), eq(contacts.isDeleted, false)))
           .where(
             and(
               eq(transactions.userId, user.id),
@@ -179,13 +195,14 @@ export default async function ContactsPage() {
       ).catch(() => [] as any[]),
     ]);
 
-    const monthlyTransactionsCount = Number(monthlyTxQuery[0]?.count || 0);
+    const monthlyTransactionsCount = formattedContacts.length > 0 ? Number(monthlyTxQuery[0]?.count || 0) : 0;
+    const finalRecentActivity = formattedContacts.length > 0 ? (recentActivityRows || []) : [];
 
     return (
       <ContactsClientView
         initialContacts={formattedContacts}
         monthlyTransactionsCount={monthlyTransactionsCount}
-        recentContactActivity={recentActivityRows || []}
+        recentContactActivity={finalRecentActivity}
       />
     );
   } catch (err: any) {

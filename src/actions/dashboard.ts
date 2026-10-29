@@ -342,6 +342,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           count: sql<number>`COUNT(*)`,
         })
         .from(transactions)
+        .innerJoin(contacts, and(eq(transactions.contactId, contacts.id), eq(contacts.isDeleted, false)))
         .where(
           and(
             eq(transactions.userId, user.id),
@@ -360,6 +361,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           contactExpense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
+        .innerJoin(contacts, and(eq(transactions.contactId, contacts.id), eq(contacts.isDeleted, false)))
         .where(
           and(
             eq(transactions.userId, user.id),
@@ -379,11 +381,15 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           totalCount: sql<number>`COUNT(*)`,
         })
         .from(transactions)
+        .leftJoin(contacts, eq(transactions.contactId, contacts.id))
         .where(
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
+            or(
+              isNull(transactions.contactId),
+              and(eq(transactions.isSyncedToDashboard, true), eq(contacts.isDeleted, false))
+            )
           )
         ),
 
@@ -396,12 +402,16 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           pendingPayments: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'borrowed' AND ${transactions.status} != 'completed' THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
+        .leftJoin(contacts, eq(transactions.contactId, contacts.id))
         .where(
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
             sql`${transactions.groupId} IS NULL`,
-            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
+            or(
+              isNull(transactions.contactId),
+              and(eq(transactions.isSyncedToDashboard, true), eq(contacts.isDeleted, false))
+            )
           )
         ),
 
@@ -570,7 +580,10 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
+            or(
+              isNull(transactions.contactId),
+              and(eq(transactions.isSyncedToDashboard, true), eq(contacts.isDeleted, false))
+            )
           )
         )
         .orderBy(desc(transactions.date))
@@ -677,7 +690,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           contactName: contacts.name,
         })
         .from(transactions)
-        .innerJoin(contacts, eq(transactions.contactId, contacts.id))
+        .innerJoin(contacts, and(eq(transactions.contactId, contacts.id), eq(contacts.isDeleted, false)))
         .where(
           and(
             eq(transactions.userId, user.id),
@@ -698,6 +711,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
+        .innerJoin(contacts, and(eq(transactions.contactId, contacts.id), eq(contacts.isDeleted, false)))
         .where(
           and(
             eq(transactions.userId, user.id),

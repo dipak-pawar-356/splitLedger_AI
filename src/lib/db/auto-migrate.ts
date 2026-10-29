@@ -54,6 +54,30 @@ export async function ensureContactsSchema(): Promise<void> {
         sqlClient`CREATE INDEX IF NOT EXISTS contact_public_id_idx ON contacts(public_id)`,
         sqlClient`CREATE INDEX IF NOT EXISTS contact_deleted_idx ON contacts(is_deleted)`,
         sqlClient`CREATE INDEX IF NOT EXISTS contact_user_deleted_idx ON contacts(user_id, is_deleted)`,
+        // Reconcile and soft-delete orphaned transactions for deleted contacts
+        sqlClient`
+          UPDATE transactions 
+          SET is_deleted = true, deleted_at = NOW(), updated_at = NOW() 
+          WHERE is_deleted = false 
+            AND contact_id IS NOT NULL 
+            AND contact_id IN (SELECT id FROM contacts WHERE is_deleted = true)
+        `,
+        // Reconcile and soft-delete orphaned settlements for deleted contacts
+        sqlClient`
+          UPDATE settlements 
+          SET is_deleted = true, deleted_at = NOW(), updated_at = NOW() 
+          WHERE is_deleted = false 
+            AND (
+              (from_contact_id IS NOT NULL AND from_contact_id IN (SELECT id FROM contacts WHERE is_deleted = true))
+              OR (to_contact_id IS NOT NULL AND to_contact_id IN (SELECT id FROM contacts WHERE is_deleted = true))
+            )
+        `,
+        // Clean up group memberships for deleted contacts
+        sqlClient`
+          DELETE FROM group_members 
+          WHERE contact_id IS NOT NULL 
+            AND contact_id IN (SELECT id FROM contacts WHERE is_deleted = true)
+        `,
       ];
 
       for (const stmt of statements) {

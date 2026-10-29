@@ -127,11 +127,13 @@ interface ContactsClientViewProps {
 
 export function ContactsClientView({
   initialContacts,
-  monthlyTransactionsCount,
+  monthlyTransactionsCount = 0,
   recentContactActivity = [],
 }: ContactsClientViewProps) {
   const router = useRouter();
   const [contactsList, setContactsList] = useState<ContactItem[]>(initialContacts);
+  const [contactActivities, setContactActivities] = useState<RecentContactActivityItem[]>(recentContactActivity);
+  const [monthlyTxCount, setMonthlyTxCount] = useState<number>(monthlyTransactionsCount || 0);
   const [searchQuery, setSearchQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [sortOrder, setSortOrder] = useState<"default" | "desc" | "asc" | "name_asc" | "name_desc">("default");
@@ -214,7 +216,19 @@ export function ContactsClientView({
   // Synchronize when initialContacts changes
   useEffect(() => {
     setContactsList(initialContacts);
+    if (!initialContacts || initialContacts.length === 0) {
+      setContactActivities([]);
+      setMonthlyTxCount(0);
+    }
   }, [initialContacts]);
+
+  useEffect(() => {
+    setContactActivities(recentContactActivity || []);
+  }, [recentContactActivity]);
+
+  useEffect(() => {
+    setMonthlyTxCount(monthlyTransactionsCount || 0);
+  }, [monthlyTransactionsCount]);
 
   // Active vs Archived counts
   const activeContacts = useMemo(
@@ -601,13 +615,25 @@ export function ContactsClientView({
   // Delete contact
   const handleDelete = async (contact: ContactItem) => {
     if (!confirm(`Are you sure you want to delete ${contact.name}?`)) return;
-    setContactsList((prev) => prev.filter((c) => c.id !== contact.id));
+    setContactsList((prev) => {
+      const remaining = prev.filter((c) => c.id !== contact.id);
+      if (remaining.length === 0) {
+        setContactActivities([]);
+        setMonthlyTxCount(0);
+      }
+      return remaining;
+    });
+    setContactActivities((prev) =>
+      prev.filter((a) => a.contactId !== contact.id && a.contactPublicId !== contact.publicId)
+    );
     try {
       await deleteContact(contact.id);
-      toast.success(`${contact.name} deleted.`);
+      toast.success(`${contact.name} and related activities removed.`);
       router.refresh();
     } catch {
       setContactsList(initialContacts);
+      setContactActivities(recentContactActivity || []);
+      setMonthlyTxCount(monthlyTransactionsCount || 0);
       toast.error("Failed to delete contact.");
     }
   };
@@ -621,16 +647,34 @@ export function ContactsClientView({
   const handleConfirmBulkDelete = async () => {
     const count = selectedIds.size;
     if (count === 0) return;
+    const deletedSet = new Set(selectedIds);
     setIsBulkPending(true);
     setIsDeleteDialogOpen(false);
+
+    // Optimistic UI updates
+    setContactsList((prev) => {
+      const remaining = prev.filter((c) => !deletedSet.has(c.id));
+      if (remaining.length === 0) {
+        setContactActivities([]);
+        setMonthlyTxCount(0);
+      }
+      return remaining;
+    });
+    setContactActivities((prev) =>
+      prev.filter((a) => !a.contactId || !deletedSet.has(a.contactId))
+    );
+
     try {
       await bulkUpdateContactsAction(Array.from(selectedIds), { type: "delete" });
-      toast.success(`Deleted ${count} contact(s).`);
+      toast.success(`Deleted ${count} contact(s) and related activities.`);
       setSelectedIds(new Set());
       setBulkSelectionMode(false);
       setLastSelectedId(null);
       router.refresh();
     } catch (err) {
+      setContactsList(initialContacts);
+      setContactActivities(recentContactActivity || []);
+      setMonthlyTxCount(monthlyTransactionsCount || 0);
       toast.error(err instanceof Error ? err.message : "Bulk delete failed");
     } finally {
       setIsBulkPending(false);
@@ -1005,7 +1049,7 @@ export function ContactsClientView({
             </div>
           </div>
           <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight">
-            {monthlyTransactionsCount ?? totalTransactionsCount}
+            {contactsList.length === 0 ? 0 : (monthlyTxCount ?? totalTransactionsCount)}
           </div>
           <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
             Recorded this month
@@ -1032,7 +1076,7 @@ export function ContactsClientView({
       </div>
 
       {/* Recent Contact Activity (Requirement 5) */}
-      {recentContactActivity && recentContactActivity.length > 0 && (
+      {contactActivities && contactActivities.length > 0 && contactsList.length > 0 && (
         <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1046,7 +1090,7 @@ export function ContactsClientView({
             </span>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
-            {recentContactActivity.map((activity) => {
+            {contactActivities.map((activity) => {
               const isPositive = activity.type === "received" || activity.type === "lent" || activity.type === "repaid";
               return (
                 <Link

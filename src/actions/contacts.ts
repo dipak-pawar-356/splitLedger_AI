@@ -1,12 +1,13 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { contacts } from "@/lib/db/schema/schema";
-import { eq, and } from "drizzle-orm";
+import { contacts, transactions, settlements, groupMembers } from "@/lib/db/schema/schema";
+import { eq, and, or } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
+import { appCache } from "@/lib/cache";
 
 export async function createContact(data: {
   name: string;
@@ -190,7 +191,7 @@ export async function deleteContact(publicIdOrId: string | number) {
       throw new ValidationError("Contact is already deleted");
     }
 
-    // Soft delete the contact
+    // 1. Soft delete the contact
     await db
       .update(contacts)
       .set({
@@ -201,7 +202,47 @@ export async function deleteContact(publicIdOrId: string | number) {
       })
       .where(eq(contacts.id, existingContact.id));
 
-    // Create audit log entry for the deletion
+    // 2. Soft delete all transactions associated with this contact
+    await db
+      .update(transactions)
+      .set({
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(transactions.contactId, existingContact.id),
+          eq(transactions.isDeleted, false)
+        )
+      );
+
+    // 3. Soft delete all settlements associated with this contact
+    await db
+      .update(settlements)
+      .set({
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: user.id,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(settlements.isDeleted, false),
+          or(
+            eq(settlements.fromContactId, existingContact.id),
+            eq(settlements.toContactId, existingContact.id)
+          )
+        )
+      );
+
+    // 4. Clean up group memberships associated with this contact
+    await db
+      .delete(groupMembers)
+      .where(eq(groupMembers.contactId, existingContact.id));
+
+    // 5. Create audit log entry for the deletion
     const { auditLogs } = await import("@/lib/db/schema/schema");
     await db.insert(auditLogs).values({
       userId: user.id,
@@ -215,7 +256,14 @@ export async function deleteContact(publicIdOrId: string | number) {
       },
     });
 
+    // 6. Purge cache and revalidate all relevant paths to recalculate dashboard
+    appCache.clear();
+    revalidatePath("/dashboard");
     revalidatePath("/dashboard/contacts");
+    revalidatePath("/dashboard/transactions");
+    revalidatePath("/dashboard/reports");
+    revalidatePath("/dashboard/activity");
+    revalidatePath("/dashboard/analytics");
     revalidatePath(`/dashboard/contacts/${existingContact.publicId}`);
     return { success: true };
   } catch (error) {
