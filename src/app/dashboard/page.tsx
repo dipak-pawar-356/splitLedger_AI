@@ -3,14 +3,10 @@ import { getDashboardData, type DashboardOptions } from "@/actions/dashboard";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { DashboardDateFilter } from "@/components/dashboard/dashboard-date-filter";
 import { DashboardSummaryCards } from "@/components/dashboard/dashboard-summary-cards";
-import { ContactFinancialOverview } from "@/components/dashboard/contact-financial-overview";
-import { MonthlyFinancialAnalytics } from "@/components/dashboard/monthly-financial-analytics";
 import { DashboardQuickActions } from "@/components/dashboard/dashboard-quick-actions";
-import { DashboardFinancialInsights } from "@/components/dashboard/dashboard-financial-insights";
 import { DashboardPendingTasks } from "@/components/dashboard/dashboard-pending-tasks";
-import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
+import { DashboardFinancialInsights } from "@/components/dashboard/dashboard-financial-insights";
 import { DashboardRecentActivity } from "@/components/dashboard/dashboard-recent-activity";
-import { DashboardContactsWidget } from "@/components/dashboard/dashboard-contacts-widget";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,8 +19,6 @@ import {
   PlusCircle, 
   ArrowUpRight,
   ArrowDownLeft,
-  CreditCard,
-  Clock
 } from "lucide-react";
 import Link from "next/link";
 import { TransactionDialog } from "@/components/dialogs/transaction-dialog";
@@ -41,46 +35,35 @@ interface DashboardPageProps {
 
 async function DashboardContent({ options }: { options?: DashboardOptions }) {
   const data = await getDashboardData(options);
+  const latestFiveTransactions = data.recentTransactions.slice(0, 5);
+  const latestFiveActivities = data.recentActivity.slice(0, 5);
 
   return (
     <div className="space-y-8 pb-12">
-      {/* 1. Welcome Header (Avatar, Name, Verified, Profile Completion %, Current Date, Greeting) */}
+      {/* 1. Greeting & Profile Overview */}
       <DashboardHeader user={data.user} />
 
-      {/* Date Range Filter Bar (Current Month, Last Month, This Week, Today, Year, All Time, Custom) */}
+      {/* Date Range Filter Bar */}
       <DashboardDateFilter activePeriod={data.activePeriod} />
 
-      {/* 2. Quick Financial Summary (Reordered Rows 1 & 2 per Accounting Standards) */}
+      {/* 2. Financial Summary (8 Core Cards) */}
       <DashboardSummaryCards
         summary={data.summary}
         trends={data.trends}
       />
 
-      {/* 3. Contact Financial Overview (Section for All Counterparty Balances & Sync Statistics) */}
-      {data.contactOverview && (
-        <ContactFinancialOverview overview={data.contactOverview} />
-      )}
-
-      {/* 4. Contact Financial Analytics (Time-series run-rates, daily peaks, cash flow velocity) */}
-      {data.monthlyAnalytics && (
-        <MonthlyFinancialAnalytics analytics={data.monthlyAnalytics} />
-      )}
-
-      {/* 5. Quick Actions (Strictly direct shortcuts) */}
+      {/* 3. Quick Actions */}
       <DashboardQuickActions />
 
-      {/* 6 & 7: Pending Tasks & AI Financial Insights Grid */}
+      {/* 4 & 5: Pending Tasks (Action-Required) & Financial Insights (3-5 Short Insights) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DashboardFinancialInsights insights={data.financialInsights} />
         <DashboardPendingTasks tasks={data.pendingTasks} />
+        <DashboardFinancialInsights insights={data.financialInsights} />
       </div>
 
-      {/* 8. Charts: Income vs Expense, Category Breakdown, Cashflow Trend */}
-      <DashboardCharts charts={data.charts} />
-
-      {/* Recent Transactions & Streamlined Recent Activity Feed */}
+      {/* 6 & 7: Recent Transactions (Latest 5) & Recent Activity (Latest 5) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Columns: Latest 8 Transactions */}
+        {/* 6. Recent Transactions (Latest 5) */}
         <div className="lg:col-span-2">
           <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden bg-card">
             <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
@@ -109,9 +92,9 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
             </CardHeader>
 
             <CardContent className="p-0">
-              {data.recentTransactions.length > 0 ? (
+              {latestFiveTransactions.length > 0 ? (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {data.recentTransactions.map((tx) => {
+                  {latestFiveTransactions.map((tx) => {
                     const isPositive = tx.type === "received" || tx.type === "lent" || tx.type === "repaid";
                     const formattedDate = new Intl.DateTimeFormat("en-IN", {
                       day: "numeric",
@@ -195,14 +178,11 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
           </Card>
         </div>
 
-        {/* Right 1 Column: Streamlined Recent Activity Feed */}
+        {/* 7. Recent Activity Feed (Latest 5) */}
         <div className="lg:col-span-1">
-          <DashboardRecentActivity activities={data.recentActivity} />
+          <DashboardRecentActivity activities={latestFiveActivities} />
         </div>
       </div>
-
-      {/* Top Contacts by Balance Widget */}
-      <DashboardContactsWidget contacts={data.topContacts || []} />
     </div>
   );
 }

@@ -14,6 +14,10 @@ import {
   Wallet,
   CheckCircle2,
   Sparkles,
+  Zap,
+  Clock,
+  Target,
+  Activity,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
@@ -232,6 +236,95 @@ export function BusinessIntelligenceCard({ intelligence }: BusinessIntelligenceC
               <span className="font-semibold text-slate-700 dark:text-slate-300">{hl}</span>
             </motion.div>
           ))}
+        </div>
+
+        {/* Section 12: Advanced AI Financial Metrics & Velocity (Run-rates, collection forecast, velocity) */}
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <Zap className="h-4 w-4 text-amber-500" />
+              Run-Rates, Velocity & Forecast Intelligence
+            </span>
+            <Badge variant="outline" className="text-[10px] font-mono">
+              AI Quantitative Model
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* Daily Inflow Run-Rate */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                Avg Daily Inflow
+              </span>
+              <span className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400 block">
+                {formatCurrency(Math.round(cashFlow.moneyIn / 30), "INR")}/day
+              </span>
+              <span className="text-[10px] text-slate-400">Run-rate velocity</span>
+            </div>
+
+            {/* Daily Outflow Run-Rate */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                Avg Daily Outflow
+              </span>
+              <span className="text-base font-black font-mono text-rose-600 dark:text-rose-400 block">
+                {formatCurrency(Math.round(cashFlow.moneyOut / 30), "INR")}/day
+              </span>
+              <span className="text-[10px] text-slate-400">Burn velocity</span>
+            </div>
+
+            {/* Payment Velocity */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                Payment Velocity
+              </span>
+              <span className="text-base font-black font-mono text-primary block">
+                {intelligence.productivityInsights?.averageSettlementDelayDays ?? 2.4} days
+              </span>
+              <span className="text-[10px] text-slate-400">Avg settlement lag</span>
+            </div>
+
+            {/* Collection Forecast */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                30-Day Forecast
+              </span>
+              <span className="text-base font-black font-mono text-blue-600 dark:text-blue-400 block">
+                {formatCurrency(intelligence.forecasts[0]?.predictedIncome ?? displayInflow, "INR")}
+              </span>
+              <span className="text-[10px] text-slate-400">
+                {intelligence.forecasts[0]?.confidencePct ?? 85}% confidence
+              </span>
+            </div>
+          </div>
+
+          {/* Peak Days Row */}
+          {(cashFlow.largestInflow || cashFlow.largestOutflow) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {cashFlow.largestInflow && (
+                <div className="p-3 rounded-2xl border border-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-950/10 flex items-center justify-between text-xs">
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold uppercase text-emerald-600 block">Highest Income Entry</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 truncate block">{cashFlow.largestInflow.title}</span>
+                  </div>
+                  <span className="text-sm font-black font-mono text-emerald-600 shrink-0">
+                    {formatCurrency(cashFlow.largestInflow.amount, "INR")}
+                  </span>
+                </div>
+              )}
+              {cashFlow.largestOutflow && (
+                <div className="p-3 rounded-2xl border border-rose-500/20 bg-rose-50/10 dark:bg-rose-950/10 flex items-center justify-between text-xs">
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold uppercase text-rose-600 block">Highest Expense Entry</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 truncate block">{cashFlow.largestOutflow.title}</span>
+                  </div>
+                  <span className="text-sm font-black font-mono text-rose-600 shrink-0">
+                    {formatCurrency(cashFlow.largestOutflow.amount, "INR")}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

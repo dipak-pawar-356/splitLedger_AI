@@ -240,3 +240,4 @@ export function ContactFinancialOverview({ overview }: ContactFinancialOverviewP
     </Card>
   );
 }
+

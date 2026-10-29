@@ -214,3 +214,4 @@ export function MonthlyFinancialAnalytics({ analytics }: MonthlyFinancialAnalyti
     </Card>
   );
 }
+

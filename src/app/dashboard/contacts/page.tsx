@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { contacts, transactions } from "@/lib/db/schema/schema";
-import { eq, desc, sql, and } from "drizzle-orm";
+import { eq, desc, sql, and, gte } from "drizzle-orm";
 import { ContactsClientView, type ContactItem } from "@/components/contacts/contacts-client-view";
 import { ensureContactsSchema } from "@/lib/db/auto-migrate";
 import { Button } from "@/components/ui/button";
@@ -131,7 +131,63 @@ export default async function ContactsPage() {
       };
     });
 
-    return <ContactsClientView initialContacts={formattedContacts} />;
+    // Compute monthly contact transactions and recent contact activities for the Contact Workspace
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [monthlyTxQuery, recentActivityRows] = await Promise.all([
+      withDbRetry(async () =>
+        db
+          .select({ count: sql<number>`COUNT(*)::int` })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.userId, user.id),
+              eq(transactions.isDeleted, false),
+              sql`${transactions.contactId} IS NOT NULL`,
+              gte(transactions.date, startOfMonth)
+            )
+          )
+      ).catch(() => [{ count: 0 }]),
+      withDbRetry(async () =>
+        db
+          .select({
+            id: transactions.id,
+            publicId: transactions.publicId,
+            title: transactions.title,
+            description: transactions.description,
+            type: transactions.type,
+            amount: transactions.amount,
+            currency: transactions.currency,
+            date: transactions.date,
+            status: transactions.status,
+            contactId: transactions.contactId,
+            contactName: contacts.name,
+            contactPublicId: contacts.publicId,
+          })
+          .from(transactions)
+          .innerJoin(contacts, eq(transactions.contactId, contacts.id))
+          .where(
+            and(
+              eq(transactions.userId, user.id),
+              eq(transactions.isDeleted, false),
+              sql`${transactions.contactId} IS NOT NULL`
+            )
+          )
+          .orderBy(desc(transactions.date))
+          .limit(6)
+      ).catch(() => [] as any[]),
+    ]);
+
+    const monthlyTransactionsCount = Number(monthlyTxQuery[0]?.count || 0);
+
+    return (
+      <ContactsClientView
+        initialContacts={formattedContacts}
+        monthlyTransactionsCount={monthlyTransactionsCount}
+        recentContactActivity={recentActivityRows || []}
+      />
+    );
   } catch (err: any) {
     console.error("ContactsPage render error:", err);
     return (

@@ -27,6 +27,7 @@ import {
   Filter,
   ChevronDown,
   Coins,
+  Scale,
   Archive,
   Mail,
   Phone,
@@ -102,11 +103,32 @@ export interface ContactItem {
   category?: string | null;
 }
 
-interface ContactsClientViewProps {
-  initialContacts: ContactItem[];
+export interface RecentContactActivityItem {
+  id: number;
+  publicId: string;
+  title?: string | null;
+  description: string;
+  type: string;
+  amount: number;
+  currency: string;
+  date: Date | string;
+  status: string;
+  contactId: number | null;
+  contactName: string;
+  contactPublicId: string;
 }
 
-export function ContactsClientView({ initialContacts }: ContactsClientViewProps) {
+interface ContactsClientViewProps {
+  initialContacts: ContactItem[];
+  monthlyTransactionsCount?: number;
+  recentContactActivity?: RecentContactActivityItem[];
+}
+
+export function ContactsClientView({
+  initialContacts,
+  monthlyTransactionsCount,
+  recentContactActivity = [],
+}: ContactsClientViewProps) {
   const router = useRouter();
   const [contactsList, setContactsList] = useState<ContactItem[]>(initialContacts);
   const [searchQuery, setSearchQuery] = useState("");
@@ -297,6 +319,11 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
     () => activeContacts.reduce((sum, c) => sum + (c.transactionCount || 0), 0),
     [activeContacts]
   );
+  const currentNetBalance = useMemo(
+    () => totalOwedToYou - totalYouOwe,
+    [totalOwedToYou, totalYouOwe]
+  );
+  const runningBalance = currentNetBalance;
 
   // Badge counts for quick filter tabs
   const owedToYouCount = useMemo(
@@ -690,9 +717,9 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
         </div>
       </div>
 
-      {/* 4 Stat Overview Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Contacts Card */}
+      {/* 5 Core Contact Workspace Stat Cards (Requirement 5) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* 1. Current Balance */}
         <Card
           onClick={() => {
             setShowArchived(false);
@@ -701,34 +728,34 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
             setSearchQuery("");
             toast.info("Showing all active contacts");
           }}
-          className={`rounded-3xl border p-4 sm:p-5 shadow-xs cursor-pointer relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg ${
-            !showArchived && activeFilterTab === "all"
-              ? "bg-gradient-to-br from-primary/10 via-card to-background border-primary/50 shadow-primary/10 ring-2 ring-primary/20"
-              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-primary/40"
+          className={`rounded-3xl border p-4 shadow-xs cursor-pointer relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg ${
+            currentNetBalance >= 0
+              ? "bg-gradient-to-br from-emerald-500/10 via-card to-background border-emerald-500/30"
+              : "bg-gradient-to-br from-rose-500/10 via-card to-background border-rose-500/30"
           }`}
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">
-              Total Contacts
+              Current Balance
             </span>
-            <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-300">
-              <Contact className="h-4 w-4" />
+            <div className={`p-2 rounded-xl text-white ${currentNetBalance >= 0 ? "bg-emerald-600" : "bg-rose-600"}`}>
+              <Coins className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight group-hover:text-primary transition-colors">
-            {totalContactsCount}
+          <div className={`text-xl sm:text-2xl font-black mt-2 tracking-tight ${currentNetBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+            {currentNetBalance >= 0 ? "+" : ""}{formatCurrency(currentNetBalance, "INR")}
           </div>
           <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
-            Active network connections
+            {currentNetBalance >= 0 ? "Net surplus from contacts" : "Net obligations to contacts"}
           </p>
         </Card>
 
-        {/* Total Owed to You Card */}
+        {/* 2. Amount Owed (They Owe You) */}
         <Card
-          className={`rounded-3xl border p-4 sm:p-5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg cursor-pointer ${
+          className={`rounded-3xl border p-4 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg cursor-pointer ${
             !showArchived && activeFilterTab === "owed_to_you"
               ? "bg-gradient-to-br from-emerald-500/15 via-card to-background border-emerald-500/70 shadow-emerald-500/15 ring-2 ring-emerald-500/40"
-              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-emerald-400 dark:hover:border-emerald-500/60 hover:bg-emerald-50/30 dark:hover:bg-emerald-950/20 hover:shadow-emerald-500/10"
+              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-emerald-400"
           }`}
           onClick={() => {
             setShowArchived(false);
@@ -744,26 +771,26 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-600 dark:text-emerald-400">
-              Total Owed to You
+              Amount Owed
             </span>
-            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-2 tracking-tight">
+          <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-2 tracking-tight">
             {formatCurrency(totalOwedToYou, "INR")}
           </div>
           <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
-            Net receivables from contacts
+            They Owe You ({owedToYouCount} contacts)
           </p>
         </Card>
 
-        {/* Total You Owe Card */}
+        {/* 3. Amount You Owe */}
         <Card
-          className={`rounded-3xl border p-4 sm:p-5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg cursor-pointer ${
+          className={`rounded-3xl border p-4 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg cursor-pointer ${
             !showArchived && activeFilterTab === "you_owe"
               ? "bg-gradient-to-br from-rose-500/15 via-card to-background border-rose-500/70 shadow-rose-500/15 ring-2 ring-rose-500/40"
-              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-rose-400 dark:hover:border-rose-500/60 hover:bg-rose-50/30 dark:hover:bg-rose-950/20 hover:shadow-rose-500/10"
+              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-rose-400"
           }`}
           onClick={() => {
             setShowArchived(false);
@@ -779,26 +806,26 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px] text-rose-600 dark:text-rose-400">
-              Total You Owe
+              Amount You Owe
             </span>
-            <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 group-hover:scale-110 group-hover:bg-rose-600 group-hover:text-white transition-all duration-300">
+            <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform">
               <TrendingDown className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 mt-2 tracking-tight">
+          <div className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-2 tracking-tight">
             {formatCurrency(totalYouOwe, "INR")}
           </div>
           <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
-            Net payables to contacts
+            You Owe ({youOweCount} contacts)
           </p>
         </Card>
 
-        {/* Total Transactions Card */}
+        {/* 4. Monthly Transactions */}
         <Card
-          className={`rounded-3xl border p-4 sm:p-5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg cursor-pointer ${
+          className={`rounded-3xl border p-4 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg cursor-pointer ${
             !showArchived && activeFilterTab === "with_transactions"
-              ? "bg-gradient-to-br from-blue-500/15 via-card to-background border-blue-500/70 shadow-blue-500/15 ring-2 ring-blue-500/40"
-              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-blue-400 dark:hover:border-blue-500/60 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 hover:shadow-blue-500/10"
+              ? "bg-gradient-to-br from-blue-500/15 via-card to-background border-blue-500/70 ring-2 ring-blue-500/40"
+              : "bg-card border-slate-200/80 dark:border-slate-800/90 hover:border-blue-400"
           }`}
           onClick={() => {
             setShowArchived(false);
@@ -808,26 +835,100 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
               toast.info("Showing all contacts");
             } else {
               setActiveFilterTab("with_transactions");
-              toast.info(`Filtered: Showing ${withTransactionsCount} contact${withTransactionsCount === 1 ? "" : "s"} with recorded transactions`);
+              toast.info(`Filtered: Showing ${withTransactionsCount} contacts with transactions`);
             }
           }}
         >
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px] text-blue-600 dark:text-blue-400">
-              Total Transactions
+              Monthly Transactions
             </span>
-            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
               <ArrowUpRight className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight group-hover:text-blue-600 transition-colors">
-            {totalTransactionsCount}
+          <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-2 tracking-tight">
+            {monthlyTransactionsCount ?? totalTransactionsCount}
           </div>
           <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
-            Lifetime entries recorded
+            Recorded this month
+          </p>
+        </Card>
+
+        {/* 5. Running Balance */}
+        <Card className="rounded-3xl border p-4 shadow-xs relative overflow-hidden transition-all duration-300 bg-card border-slate-200/80 dark:border-slate-800/90">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-purple-600 dark:text-purple-400">
+              Running Balance
+            </span>
+            <div className="p-2 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400">
+              <Scale className="h-4 w-4" />
+            </div>
+          </div>
+          <div className={`text-xl sm:text-2xl font-black mt-2 tracking-tight ${runningBalance >= 0 ? "text-purple-600 dark:text-purple-400" : "text-rose-600 dark:text-rose-400"}`}>
+            {runningBalance >= 0 ? "+" : ""}{formatCurrency(runningBalance, "INR")}
+          </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1 font-medium">
+            Cumulative net network ledger
           </p>
         </Card>
       </div>
+
+      {/* Recent Contact Activity (Requirement 5) */}
+      {recentContactActivity && recentContactActivity.length > 0 && (
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <History className="h-4 w-4 text-primary" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                Recent Contact Activity
+              </h3>
+            </div>
+            <span className="text-[11px] text-slate-400 font-medium">
+              Latest counterparty ledger updates
+            </span>
+          </div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+            {recentContactActivity.map((activity) => {
+              const isPositive = activity.type === "received" || activity.type === "lent" || activity.type === "repaid";
+              return (
+                <Link
+                  key={activity.id}
+                  href={`/dashboard/contacts/${activity.contactPublicId}`}
+                  className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition-colors group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-8 w-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                      {activity.contactName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors truncate">
+                          {activity.contactName}
+                        </span>
+                        <span className="text-[11px] text-slate-400 truncate">
+                          • {activity.title || activity.description}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {formatDate(activity.date)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className={`text-xs font-black font-mono block ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                      {isPositive ? "+" : "-"}{formatCurrency(activity.amount / 100, activity.currency)}
+                    </span>
+                    <span className="text-[10px] uppercase font-mono text-slate-400 capitalize">
+                      {activity.status}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Filter & Search Toolbar */}
       <div className="p-4 rounded-3xl border border-slate-200/80 dark:border-slate-800/90 bg-card shadow-xs space-y-3">
@@ -1564,225 +1665,86 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
           const isNetOwedToMe = contact.balance > 0;
           const isNetIOwe = contact.balance < 0;
           const isSelected = selectedIds.has(contact.id);
-          // Strictly hide spreadsheet test assertion comments
-          const isTestNote = isTestingOrAssertionNote(contact.notes);
+
+          const theyOweYouAmount = isNetOwedToMe ? contact.balance / 100 : 0;
+          const youOweThemAmount = isNetIOwe ? Math.abs(contact.balance) / 100 : 0;
+          const lastUpdatedDate = contact.updatedAt || contact.createdAt;
 
           return (
-            <Card
+            <Link
               key={contact.id}
-              className={`rounded-3xl border bg-card p-5 space-y-3.5 shadow-xs relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/5 ${
-                isSelected
-                  ? "border-primary/70 ring-2 ring-primary/25 bg-primary/[0.03]"
-                  : "border-slate-200/80 dark:border-slate-800/90 hover:border-primary/40 dark:hover:border-primary/50"
-              }`}
+              href={`/dashboard/contacts/${contact.publicId}`}
+              className="block group focus:outline-none"
             >
-              {/* Card Top Row: Checkbox, Avatar, Name & Actions */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  {/* Selection Checkbox */}
-                  <div
-                    className="pt-1 cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSelectContact(contact.id);
-                    }}
-                  >
-                    <Checkbox
-                      checked={isSelected}
-                      className="rounded-md h-4 w-4 transition-transform group-hover:scale-105"
-                    />
-                  </div>
-
-                  {/* Avatar Initial with smooth hover lift */}
-                  <Link
-                    href={`/dashboard/contacts/${contact.publicId}`}
-                    className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent border border-primary/25 flex items-center justify-center shrink-0 font-extrabold text-primary group-hover:scale-105 group-hover:rotate-1 transition-all duration-300 shadow-xs cursor-pointer"
-                    title={`View ${contact.name}'s Financial Profile`}
-                  >
-                    <span className="text-base font-black">
-                      {contact.name.charAt(0).toUpperCase()}
-                    </span>
-                  </Link>
-
-                  {/* Name and Info */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Link
-                        href={`/dashboard/contacts/${contact.publicId}`}
-                        className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 truncate hover:text-primary transition-colors tracking-tight"
-                      >
-                        {contact.name}
-                      </Link>
-                      {/* Favorite Button */}
-                      <button
-                        type="button"
+              <Card
+                className={`rounded-3xl border bg-card p-5 space-y-4 shadow-xs relative overflow-hidden transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-xl group-hover:shadow-primary/5 cursor-pointer ${
+                  isSelected
+                    ? "border-primary/70 ring-2 ring-primary/25 bg-primary/[0.03]"
+                    : "border-slate-200/80 dark:border-slate-800/90 hover:border-primary/40 dark:hover:border-primary/50"
+                }`}
+              >
+                {/* 1. Avatar, Name & Status */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Bulk Selection Checkbox if in bulk mode */}
+                    {bulkSelectionMode && (
+                      <div
+                        className="cursor-pointer"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
-                          handleToggleFavorite(contact);
+                          toggleSelectContact(contact.id);
                         }}
-                        className="text-slate-300 hover:text-amber-500 hover:scale-110 transition-all p-0.5"
-                        title={contact.isFavorite ? "Remove favorite" : "Mark favorite"}
                       >
-                        <Star
-                          className={`h-3.5 w-3.5 ${
-                            contact.isFavorite
-                              ? "text-amber-500 fill-amber-500"
-                              : "text-slate-300 dark:text-slate-600"
-                          }`}
-                        />
-                      </button>
-                      {contact.isArchived && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 uppercase text-slate-400 shrink-0 font-bold">
-                          Archived
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Company */}
-                    {contact.company && (
-                      <div className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300 font-medium truncate mt-0.5">
-                        <Building2 className="h-3 w-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{contact.company}</span>
+                        <Checkbox checked={isSelected} className="rounded-md h-4 w-4" />
                       </div>
                     )}
 
-                    {/* Public ID Pill */}
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-md font-semibold tracking-wide">
-                        {contact.publicId}
+                    {/* Avatar */}
+                    <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-primary/20 via-primary/10 to-transparent border border-primary/25 flex items-center justify-center shrink-0 font-extrabold text-primary group-hover:scale-105 transition-transform shadow-xs">
+                      <span className="text-base font-black">
+                        {contact.name.charAt(0).toUpperCase()}
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(contact.publicId);
-                          toast.success(`Copied: ${contact.publicId}`);
-                        }}
-                        title="Copy Public ID"
-                        className="text-slate-400 hover:text-primary transition-colors p-0.5"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </button>
                     </div>
 
-                    {/* Email and Phone */}
-                    <div className="flex flex-col gap-0.5 mt-1">
-                      {contact.email && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate">
-                          <Mail className="h-3 w-3 shrink-0 text-slate-400" />
-                          <span className="truncate font-mono text-[11px]">{contact.email}</span>
-                        </div>
-                      )}
-                      {contact.phone && (
-                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                          <Phone className="h-3 w-3 shrink-0 text-slate-400" />
-                          <span className="font-mono text-[11px]">{contact.phone}</span>
-                        </div>
-                      )}
+                    {/* Name */}
+                    <div className="min-w-0">
+                      <h4 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 truncate group-hover:text-primary transition-colors tracking-tight">
+                        {contact.name}
+                      </h4>
                     </div>
                   </div>
+
+                  {/* Status Badge */}
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] px-2.5 py-0.5 font-bold uppercase tracking-wider shrink-0 ${
+                      isNetOwedToMe
+                        ? "border-emerald-500/30 text-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40"
+                        : isNetIOwe
+                        ? "border-rose-500/30 text-rose-600 bg-rose-50/50 dark:bg-rose-950/40"
+                        : "border-slate-300 text-slate-500 bg-slate-100 dark:bg-slate-800"
+                    }`}
+                  >
+                    {isNetOwedToMe ? "They Owe You" : isNetIOwe ? "You Owe" : "Settled"}
+                  </Badge>
                 </div>
 
-                {/* More Options Dropdown */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48 rounded-2xl p-1.5 shadow-xl bg-card border border-slate-200/80 dark:border-slate-800">
-                    <DropdownMenuItem asChild>
-                      <Link
-                        href={`/dashboard/contacts/${contact.publicId}`}
-                        className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5"
-                      >
-                        <ArrowUpRight className="h-4 w-4 text-primary" />
-                        <span>View Financial Profile</span>
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleEditClick(contact)}
-                      className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5"
-                    >
-                      <Edit2 className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                      <span>Edit Contact</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleToggleArchive(contact)}
-                      className="flex items-center gap-2 cursor-pointer rounded-xl text-xs font-semibold py-1.5"
-                    >
-                      {contact.isArchived ? (
-                        <>
-                          <RotateCcw className="h-4 w-4 text-emerald-600" />
-                          <span>Restore Contact</span>
-                        </>
-                      ) : (
-                        <>
-                          <Archive className="h-4 w-4 text-amber-600" />
-                          <span>Archive Contact</span>
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => handleDelete(contact)}
-                      className="flex items-center gap-2 text-rose-600 dark:text-rose-400 cursor-pointer focus:bg-rose-50 dark:focus:bg-rose-950/40 rounded-xl text-xs font-semibold py-1.5"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Delete Contact</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              {/* Tags Display */}
-              {Array.isArray(contact.tags) && contact.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 pt-0.5">
-                  {contact.tags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="secondary"
-                      onClick={() => setSelectedTagFilter(tag)}
-                      className="text-[10px] px-2 py-0.5 rounded-lg cursor-pointer hover:bg-primary/20 hover:text-primary transition-colors font-medium"
-                    >
-                      #{tag}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              {/* Financial Balance Widget */}
-              <div
-                className={`p-3 rounded-2xl border transition-all duration-300 space-y-2 ${
-                  isNetOwedToMe
-                    ? "bg-emerald-500/[0.07] dark:bg-emerald-950/20 border-emerald-500/20 dark:border-emerald-900/40"
-                    : isNetIOwe
-                    ? "bg-rose-500/[0.07] dark:bg-rose-950/20 border-rose-500/20 dark:border-rose-900/40"
-                    : "bg-slate-50/80 dark:bg-slate-900/60 border-slate-100 dark:border-slate-800/80"
-                }`}
-              >
-                <div className="flex justify-between items-center text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-slate-500 font-medium">Net Balance</span>
-                    <Badge
-                      variant="outline"
-                      className={`text-[9px] px-1.5 py-0 font-bold uppercase tracking-wider ${
-                        isNetOwedToMe
-                          ? "border-emerald-500/30 text-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40"
-                          : isNetIOwe
-                          ? "border-rose-500/30 text-rose-600 bg-rose-50/50 dark:bg-rose-950/40"
-                          : "border-slate-300 text-slate-500 bg-slate-100 dark:bg-slate-800"
-                      }`}
-                    >
-                      {isNetOwedToMe ? "They Owe You" : isNetIOwe ? "You Owe" : "Settled"}
-                    </Badge>
-                  </div>
-                  <span
-                    className={`font-black font-mono text-sm tracking-tight ${
+                {/* 2. Current Balance */}
+                <div
+                  className={`p-3.5 rounded-2xl border transition-colors ${
+                    isNetOwedToMe
+                      ? "bg-emerald-500/[0.06] dark:bg-emerald-950/20 border-emerald-500/20 dark:border-emerald-900/40"
+                      : isNetIOwe
+                      ? "bg-rose-500/[0.06] dark:bg-rose-950/20 border-rose-500/20 dark:border-rose-900/40"
+                      : "bg-slate-50/80 dark:bg-slate-900/60 border-slate-100 dark:border-slate-800/80"
+                  }`}
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                    Current Balance
+                  </span>
+                  <div
+                    className={`text-xl font-black font-mono tracking-tight ${
                       isNetOwedToMe
                         ? "text-emerald-600 dark:text-emerald-400"
                         : isNetIOwe
@@ -1790,68 +1752,36 @@ export function ContactsClientView({ initialContacts }: ContactsClientViewProps)
                         : "text-slate-700 dark:text-slate-300"
                     }`}
                   >
-                    {isNetOwedToMe ? "+" : ""}
-                    {formatCurrency((contact.balance || 0) / 100, contact.currency)}
-                  </span>
+                    {isNetOwedToMe ? "+" : isNetIOwe ? "-" : ""}
+                    {formatCurrency(Math.abs(contact.balance) / 100, contact.currency)}
+                  </div>
                 </div>
 
-                <div className="flex justify-between items-center text-[11px] text-slate-500 pt-1 border-t border-slate-200/50 dark:border-slate-800/50">
-                  <span>Transactions</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300">
-                    {contact.transactionCount || 0}
-                  </span>
-                </div>
-
-                {contact.openingBalance ? (
-                  <div className="flex justify-between items-center text-[11px] text-slate-500">
-                    <span>Opening Balance</span>
-                    <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
-                      {formatCurrency(contact.openingBalance / 100, contact.currency)}
+                {/* 3. Split: They Owe You vs You Owe Them */}
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-medium block">They Owe You</span>
+                    <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
+                      {formatCurrency(theyOweYouAmount, contact.currency)}
                     </span>
                   </div>
-                ) : null}
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 font-medium block">You Owe Them</span>
+                    <span className="font-mono font-bold text-rose-600 dark:text-rose-400 text-xs">
+                      {formatCurrency(youOweThemAmount, contact.currency)}
+                    </span>
+                  </div>
+                </div>
 
-                <div className="flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Last Activity</span>
-                  <span className="text-slate-600 dark:text-slate-400">
-                    {formatDate(contact.updatedAt || contact.createdAt)}
+                {/* 4. Last Updated & Transaction Count */}
+                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                  <span>Updated {formatDate(lastUpdatedDate)}</span>
+                  <span className="font-semibold text-slate-600 dark:text-slate-300">
+                    {contact.transactionCount || 0} transactions
                   </span>
                 </div>
-              </div>
-
-              {/* Genuine Notes Display (Hides Test Assertions) */}
-              {contact.notes && !isTestNote && (
-                <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/80 flex items-start gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  <FileText className="h-3 w-3 shrink-0 text-slate-400 mt-0.5" />
-                  <span className="line-clamp-2 leading-relaxed" title={contact.notes}>
-                    {contact.notes}
-                  </span>
-                </div>
-              )}
-
-              {/* Action Buttons Toolbar */}
-              <div className="flex items-center gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/90">
-                <Link href={`/dashboard/contacts/${contact.publicId}`} className="flex-1 min-w-0">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full rounded-xl text-xs h-8 gap-1.5 font-bold hover:border-primary/50 hover:text-primary transition-all truncate"
-                  >
-                    <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
-                    <span>View Profile</span>
-                  </Button>
-                </Link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEditClick(contact)}
-                  className="rounded-xl text-xs h-8 gap-1 font-semibold hover:border-primary/50 hover:text-primary transition-all shrink-0"
-                >
-                  <Edit2 className="h-3 w-3" />
-                  <span>Edit</span>
-                </Button>
-              </div>
-            </Card>
+              </Card>
+            </Link>
           );
         })}
 

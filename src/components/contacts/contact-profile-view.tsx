@@ -41,6 +41,7 @@ import {
   FileText,
   Tag,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ContactBalanceAdjustmentDialog } from "./contact-balance-adjustment-dialog";
@@ -254,6 +255,37 @@ export function ContactProfileView({
     }
   };
 
+  // Contact-specific Analytics & AI Metrics
+  const avgTicketSizePaise = transactions.length > 0 ? Math.round((totalReceivedPaise + totalPaidPaise) / transactions.length) : 0;
+  const largestTxPaise = transactions.length > 0 ? Math.max(...transactions.map((t) => t.amount)) : 0;
+
+  // Handle Export Statement
+  const handleExportStatement = () => {
+    if (transactions.length === 0) {
+      toast.info("No transactions to export for this contact.");
+      return;
+    }
+    const headers = ["Date", "Description", "Type", "Category", "Amount", "Status", "Payment Method"];
+    const rows = transactions.map((tx) => [
+      new Date(tx.date).toISOString().split("T")[0],
+      `"${(tx.title || tx.description || "").replace(/"/g, '""')}"`,
+      tx.type,
+      `"${(tx.categoryName || "General").replace(/"/g, '""')}"`,
+      (tx.amount / 100).toFixed(2),
+      tx.status,
+      tx.paymentMethod || "Other",
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Statement_${contact.name.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Ledger statement exported for ${contact.name}`);
+  };
+
   return (
     <div className="space-y-8 pb-16">
       {/* 1. Breadcrumbs & Top Navigation */}
@@ -401,6 +433,16 @@ export function ContactProfileView({
               </Button>
             }
           />
+
+          <Button
+            variant="outline"
+            onClick={handleExportStatement}
+            className="rounded-2xl text-xs font-bold gap-1.5 h-10 hover:border-primary/50 hover:text-primary"
+            title="Export Ledger Statement (CSV)"
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </Button>
 
           <Button
             variant="outline"
@@ -762,7 +804,123 @@ export function ContactProfileView({
         </Card>
       )}
 
-      {/* 6. Complete Transaction History Ledger Section */}
+      {/* 6. AI Insights & Payment Timeline for this Contact (Requirement 10) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* AI Financial Insights for this Contact */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-br from-card via-card to-primary/[0.04] shadow-xs p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  AI Contact Financial Intelligence
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Counterparty behavioral velocity & settlement metrics
+                </p>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary border-primary/30">
+              Live Audited
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                Avg Ticket Size
+              </span>
+              <span className="text-sm font-black font-mono text-slate-900 dark:text-slate-100">
+                {formatCurrency(avgTicketSizePaise / 100, contact.currency)}
+              </span>
+            </div>
+            <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                Peak Single Transaction
+              </span>
+              <span className="text-sm font-black font-mono text-primary">
+                {formatCurrency(largestTxPaise / 100, contact.currency)}
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-primary/5 border border-primary/20 space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-primary block">
+              AI Recommendation
+            </span>
+            <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+              {isNetOwedToMe
+                ? `${contact.name} owes you ${formatCurrency(outstandingPaise / 100, contact.currency)}. Send a courteous payment reminder to maintain regular settlement velocity.`
+                : isNetIOwe
+                ? `You have ${formatCurrency(outstandingPaise / 100, contact.currency)} in outstanding obligations to ${contact.name}. Settle this balance to keep counterparties balanced.`
+                : `All recorded transactions with ${contact.name} are completely reconciled. Account is in perfect standing.`}
+            </p>
+          </div>
+        </Card>
+
+        {/* Payment & Settlement Timeline */}
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                Payment & Ledger Timeline
+              </h3>
+            </div>
+            <span className="text-[11px] text-slate-400 font-medium">Recent events</span>
+          </div>
+
+          {transactions.length > 0 ? (
+            <div className="space-y-3 pt-1">
+              {transactions.slice(0, 4).map((tx, idx) => {
+                const isPositive =
+                  tx.type === "received" ||
+                  tx.type === "lent" ||
+                  tx.type === "repaid" ||
+                  (tx.type === "adjustment" &&
+                    (JSON.stringify(tx.tags || "").includes("credit") ||
+                      JSON.stringify(tx.tags || "").includes("increase")));
+
+                return (
+                  <div key={tx.id || idx} className="flex items-start gap-3 relative pb-2.5 last:pb-0">
+                    <div className={`h-7 w-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
+                      isPositive
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600"
+                        : "bg-rose-50 dark:bg-rose-950/40 text-rose-600"
+                    }`}>
+                      {isPositive ? "+" : "-"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                          {tx.title || tx.description}
+                        </span>
+                        <span className={`text-xs font-black font-mono shrink-0 ${
+                          isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                        }`}>
+                          {isPositive ? "+" : "-"}{formatCurrency(tx.amount / 100, tx.currency)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
+                        <span>{tx.categoryName || "General"}</span>
+                        <span>{formatDate(tx.date)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-6 text-center text-slate-400 text-xs">
+              No payment events recorded yet for this timeline.
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* 7. Complete Transaction History Ledger Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>

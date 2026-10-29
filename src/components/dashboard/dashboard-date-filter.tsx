@@ -214,3 +214,4 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
     </>
   );
 }
+

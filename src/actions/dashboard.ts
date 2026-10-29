@@ -570,9 +570,9 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           )
         )
         .orderBy(desc(transactions.date))
-        .limit(8),
+        .limit(5),
 
-      // 14. Recent Activity Logs (Streamlined 10 records)
+      // 14. Recent Activity Logs (Strictly 5 records for dashboard)
       db
         .select({
           id: auditLogs.id,
@@ -589,7 +589,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         .leftJoin(users, eq(auditLogs.userId, users.id))
         .where(eq(auditLogs.userId, user.id))
         .orderBy(desc(auditLogs.createdAt))
-        .limit(10),
+        .limit(5),
 
       // 15. Active Budgets
       db
@@ -1052,66 +1052,54 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
       }
     });
 
-    // AI Financial Analysis based strictly on live reflected contact data (Requirement 12)
-    const contactsWhoPaidCount = contactsQuery.filter((c) => Number(c.totalReceived) > 0).length;
-    const contactsWhoWerePaidCount = contactsQuery.filter((c) => Number(c.totalPaid) > 0).length;
-    const netContactProfit = monthlyContactIncome - monthlyContactExpense;
-
-    let headline = "Contact financial activity is steady.";
-    if (monthlyContactIncome > monthlyContactExpense && monthlyContactIncome > 0) {
-      headline = `Positive cashflow: Contact income (${formatCurrency(monthlyContactIncome)}) exceeds expenses.`;
-    } else if (monthlyContactExpense > monthlyContactIncome) {
-      headline = `Net deficit: Contact expenses (${formatCurrency(monthlyContactExpense)}) exceed received payments.`;
-    }
+    // 3–5 Concise Financial Insights (Requirement 2 & Acceptance Criteria)
+    let headline = netBalanceRupees >= 0
+      ? "Net Position is positive across all accounts."
+      : "Net position reflects active obligations to settle.";
 
     const keyFindings: string[] = [];
+
+    // 1. Net Position
+    if (netBalanceRupees >= 0) {
+      keyFindings.push(`Net Position is positive (+${formatCurrency(netBalanceRupees)}).`);
+    } else {
+      keyFindings.push(`Net Position reflects -${formatCurrency(Math.abs(netBalanceRupees))} in pending obligations.`);
+    }
+
+    // 2. Monthly Contact Inflow
     if (monthlyContactIncome > 0) {
-      keyFindings.push(`You received ${formatCurrency(monthlyContactIncome)} from ${contactsWhoPaidCount} contact${contactsWhoPaidCount === 1 ? "" : "s"} this period.`);
+      keyFindings.push(`${formatCurrency(monthlyContactIncome)} received from contacts this month.`);
     } else {
-      keyFindings.push("No contact income received yet in this period.");
+      keyFindings.push("No contact payments received yet this month.");
     }
 
-    if (prevContactIncome > 0) {
-      if (incomeTrend > 0) {
-        keyFindings.push(`Contact income increased by ${incomeTrend}% compared to last period.`);
-      } else if (incomeTrend < 0) {
-        keyFindings.push(`Contact income decreased by ${Math.abs(incomeTrend)}% compared to last period.`);
-      } else {
-        keyFindings.push("Contact income is unchanged compared to last period.");
-      }
-    }
-
-    if (monthlyContactExpense > 0) {
-      keyFindings.push(`You paid ${formatCurrency(monthlyContactExpense)} to ${contactsWhoWerePaidCount} contact${contactsWhoWerePaidCount === 1 ? "" : "s"} this period.`);
-    }
-
-    if (averageTransactionSize > 0) {
-      keyFindings.push(`Average contact payment size was ${formatCurrency(averageTransactionSize)}.`);
-    }
-
-    if (netContactProfit > 0) {
-      keyFindings.push(`Net contact profit is +${formatCurrency(netContactProfit)}.`);
-    } else if (netContactProfit < 0) {
-      keyFindings.push(`Net contact loss is -${formatCurrency(Math.abs(netContactProfit))}.`);
+    // 3. Pending Settlements
+    const pendingSettlementsRupees = (userPendingReceivableTotal + userPendingPayableTotal) / 100;
+    if (pendingSettlementsRupees > 0) {
+      keyFindings.push(`${formatCurrency(pendingSettlementsRupees)} pending settlement.`);
     } else {
-      keyFindings.push("Net contact balance is ₹0.00.");
+      keyFindings.push("All peer settlements are cleared and balanced.");
     }
 
-    if (overallReceivableRupees > 0 || overallPayableRupees > 0) {
-      keyFindings.push(`Overall ledger: ${formatCurrency(overallReceivableRupees)} receivable vs ${formatCurrency(overallPayableRupees)} payable.`);
+    // 4. Income vs Expense Comparison
+    if (monthlyContactExpense > monthlyContactIncome) {
+      keyFindings.push("Current monthly expenses exceed income.");
+    } else if (monthlyContactIncome > monthlyContactExpense) {
+      keyFindings.push(`Monthly income exceeds expenses by ${formatCurrency(monthlyContactIncome - monthlyContactExpense)}.`);
     }
 
-    let recommendation = "Maintain balanced settlements by reviewing outstanding contact balances weekly.";
-    if (contactsReceivablePaise > 0) {
-      recommendation = `Send gentle payment reminders to collect ${formatCurrency(contactsReceivablePaise / 100)} in pending contact receivables.`;
-    } else if (contactsPayablePaise > 0) {
-      recommendation = `You have ${formatCurrency(contactsPayablePaise / 100)} in pending contact obligations to settle.`;
-    } else if (contactSavings > 0) {
-      recommendation = `Great job generating a net surplus of +${formatCurrency(contactSavings)} from contact ledger settlements!`;
+    // 5. Short Actionable AI Recommendation
+    let recommendation = "Maintain balanced settlements by reconciling ledgers regularly.";
+    if (pendingSettlementsRupees > 0) {
+      recommendation = `Settle ${formatCurrency(pendingSettlementsRupees)} in pending obligations to keep ledgers clear.`;
+    } else if (contactsReceivablePaise > 0) {
+      recommendation = `Send gentle reminders to collect ${formatCurrency(contactsReceivablePaise / 100)} in pending receivables.`;
+    } else if (monthlyContactExpense > monthlyContactIncome) {
+      recommendation = "Track discretionary expenses to retain a positive monthly surplus.";
     }
 
     let healthScore = 75;
-    if (netContactProfit > 0) healthScore += 10;
+    if (netBalanceRupees >= 0) healthScore += 10;
     if (incomeTrend > 0) healthScore += 5;
     if (overallReceivableRupees >= overallPayableRupees) healthScore += 5;
     if (overallPayableRupees > overallReceivableRupees * 2 && overallPayableRupees > 1000) healthScore -= 15;
@@ -1120,7 +1108,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
     const financialInsights = {
       score: healthScore,
       headline,
-      keyFindings,
+      keyFindings: keyFindings.slice(0, 4), // Exactly 3-4 findings + 1 recommendation = 3-5 insights
       recommendation,
     };
 

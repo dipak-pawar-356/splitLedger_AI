@@ -16,6 +16,9 @@ export function DashboardSkeleton() {
         <Skeleton className="h-12 w-44 rounded-2xl shrink-0" />
       </div>
 
+      {/* Date Filter Bar Skeleton */}
+      <Skeleton className="h-12 w-full rounded-2xl" />
+
       {/* 2. Summary Cards Skeleton (8 Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[...Array(8)].map((_, i) => (
@@ -37,20 +40,13 @@ export function DashboardSkeleton() {
         ))}
       </div>
 
-      {/* 6 & 7: Pending Tasks & Insights Skeleton */}
+      {/* 4 & 5: Pending Tasks & Financial Insights Skeleton */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Skeleton className="h-64 rounded-3xl" />
         <Skeleton className="h-64 rounded-3xl" />
       </div>
 
-      {/* 8. Charts Skeleton */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Skeleton className="lg:col-span-2 h-72 rounded-3xl" />
-        <Skeleton className="h-72 rounded-3xl" />
-        <Skeleton className="col-span-1 lg:col-span-3 h-60 rounded-3xl" />
-      </div>
-
-      {/* 4 & 5: Recent Transactions & Streamlined Feed Skeleton */}
+      {/* 6 & 7: Recent Transactions & Activity Skeleton */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Skeleton className="lg:col-span-2 h-80 rounded-3xl" />
         <Skeleton className="h-80 rounded-3xl" />
