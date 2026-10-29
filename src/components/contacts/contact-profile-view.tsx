@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,6 +19,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ArrowLeft,
   Mail,
   Phone,
@@ -42,8 +44,17 @@ import {
   Tag,
   Loader2,
   Sparkles,
+  ShieldCheck,
+  Activity,
+  ArrowUpRight,
+  ArrowDownLeft,
+  BarChart3,
+  ExternalLink,
+  Zap,
+  Check,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { isTestingOrAssertionNote } from "@/lib/contacts/contact-parser";
 import { ContactBalanceAdjustmentDialog } from "./contact-balance-adjustment-dialog";
 import {
   ContactTransactionHistory,
@@ -202,17 +213,74 @@ export function ContactProfileView({
     ? "Pending Collection"
     : "Pending Payment";
 
-  // Filter out test notes
+  // Filter out test notes & spreadsheet formula injections
   const isTestingNote = (text?: string | null) => {
-    if (!text) return false;
-    const lower = text.toLowerCase();
-    return (
-      lower.includes("test assertion") ||
-      lower.includes("csv injection") ||
-      lower.includes("xss-script") ||
-      lower.includes("cypress")
-    );
+    return isTestingOrAssertionNote(text);
   };
+
+  // Interactive "See More" states
+  const [isAIExpanded, setIsAIExpanded] = useState(false);
+  const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
+
+  // Chronological running balances for the timeline
+  const chronologicalTimeline = useMemo(() => {
+    const sortedOldestFirst = [...transactions].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    let runningPaise = openingPaise;
+    const computed = sortedOldestFirst.map((tx) => {
+      const isPositive =
+        tx.type === "received" ||
+        tx.type === "lent" ||
+        tx.type === "repaid" ||
+        (tx.type === "adjustment" &&
+          (JSON.stringify(tx.tags || "").includes("credit") ||
+            JSON.stringify(tx.tags || "").includes("increase")));
+
+      const delta = isPositive ? tx.amount : -tx.amount;
+      runningPaise += delta;
+
+      return {
+        ...tx,
+        isPositive,
+        runningBalancePaise: runningPaise,
+      };
+    });
+
+    return computed.reverse();
+  }, [transactions, openingPaise]);
+
+  // Total volume & percentages for cashflow breakdown
+  const totalVolumePaise = totalReceivedPaise + totalPaidPaise;
+  const inflowPercent = totalVolumePaise > 0 ? Math.round((totalReceivedPaise / totalVolumePaise) * 100) : 100;
+  const outflowPercent = totalVolumePaise > 0 ? 100 - inflowPercent : 0;
+
+  // Reliability score
+  const reliabilityScore = useMemo(() => {
+    if (transactions.length === 0) return 100;
+    const syncedCount = transactions.filter(
+      (t) => t.isSyncedToDashboard === true || t.dashboardStatus === "reflected"
+    ).length;
+    const syncRatio = syncedCount / transactions.length;
+    return Math.min(100, Math.max(75, Math.round(80 + syncRatio * 20)));
+  }, [transactions]);
+
+  // Turnover & settlement cadence
+  const cadenceText = useMemo(() => {
+    if (transactions.length === 0) return "No transactions recorded";
+    if (monthlyTxCount >= 5) return "Very High Frequency (5+ transactions/mo)";
+    if (monthlyTxCount >= 2) return "Active Regular Settlement";
+    if (transactions.length === 1) return "Initial Transaction Baseline";
+    return "Periodic / Ad-hoc Settlement";
+  }, [transactions.length, monthlyTxCount]);
+
+  // Days since last transaction
+  const daysSinceLastTx = useMemo(() => {
+    if (!lastTransactionDate) return null;
+    const diffMs = Date.now() - new Date(lastTransactionDate).getTime();
+    return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  }, [lastTransactionDate]);
 
   // Handle Edit Contact Save
   const handleSaveContact = async (e: React.FormEvent) => {
@@ -322,10 +390,10 @@ export function ContactProfileView({
       </div>
 
       {/* 2. Contact Header Profile Card */}
-      <div className="p-6 rounded-3xl bg-card border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className="p-6 rounded-3xl bg-card dark:bg-[#0B111E] border border-slate-200/80 dark:border-slate-800/80 hover:border-slate-700/80 shadow-xs hover:shadow-md transition-all duration-300 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="flex items-start sm:items-center gap-4 min-w-0">
           {/* Avatar Initial */}
-          <div className="h-16 w-16 rounded-3xl bg-gradient-to-tr from-primary/25 via-primary/10 to-transparent border border-primary/20 flex items-center justify-center shrink-0 shadow-xs font-black text-2xl text-primary">
+          <div className="h-16 w-16 rounded-3xl bg-gradient-to-tr from-sky-500/20 via-primary/15 to-transparent border border-sky-500/30 flex items-center justify-center shrink-0 shadow-xs font-black text-2xl text-sky-400 group-hover:scale-105 transition-transform duration-300">
             {contact.name.charAt(0).toUpperCase()}
           </div>
 
@@ -335,7 +403,7 @@ export function ContactProfileView({
                 {contact.name}
               </h1>
               {contact.isArchived && (
-                <Badge variant="outline" className="text-[10px] px-2 py-0 uppercase font-bold text-slate-400">
+                <Badge variant="outline" className="text-[10px] px-2 py-0 uppercase font-bold text-slate-400 border-slate-700 bg-slate-900/60">
                   Archived
                 </Badge>
               )}
@@ -343,10 +411,10 @@ export function ContactProfileView({
                 variant="outline"
                 className={`text-[10px] px-2 py-0.5 font-bold uppercase rounded-lg ${
                   isNetOwedToMe
-                    ? "border-emerald-500/30 text-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40"
+                    ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
                     : isNetIOwe
-                    ? "border-rose-500/30 text-rose-600 bg-rose-50/50 dark:bg-rose-950/40"
-                    : "border-slate-300 text-slate-500 bg-slate-100 dark:bg-slate-800"
+                    ? "border-rose-500/40 text-rose-400 bg-rose-500/10"
+                    : "border-slate-700 text-slate-400 bg-slate-800/60"
                 }`}
               >
                 {isNetOwedToMe ? "They Owe You" : isNetIOwe ? "You Owe" : "All Settled"}
@@ -388,7 +456,7 @@ export function ContactProfileView({
               setAdjustmentDefaultMode("add");
               setIsAddBalanceOpen(true);
             }}
-            className="rounded-2xl text-xs font-bold gap-1.5 h-10 bg-primary text-primary-foreground shadow-sm"
+            className="rounded-2xl text-xs font-bold gap-1.5 h-10 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
           >
             <PlusCircle className="h-4 w-4" />
             <span>Add Balance</span>
@@ -400,7 +468,7 @@ export function ContactProfileView({
               setAdjustmentDefaultMode("adjust");
               setIsAdjustBalanceOpen(true);
             }}
-            className="rounded-2xl text-xs font-bold gap-1.5 h-10 hover:border-primary/50 hover:text-primary transition-colors"
+            className="rounded-2xl text-xs font-bold gap-1.5 h-10 bg-slate-900/40 hover:bg-slate-800/80 border border-slate-700/70 hover:border-slate-600 text-slate-200 hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
           >
             <SlidersHorizontal className="h-4 w-4" />
             <span>Adjust Balance</span>
@@ -411,7 +479,7 @@ export function ContactProfileView({
             trigger={
               <Button
                 variant="outline"
-                className="rounded-2xl text-xs font-bold gap-1.5 h-10 hover:border-primary/50 hover:text-primary"
+                className="rounded-2xl text-xs font-bold gap-1.5 h-10 bg-slate-900/40 hover:bg-slate-800/80 border border-slate-700/70 hover:border-slate-600 text-slate-200 hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
               >
                 <Receipt className="h-4 w-4" />
                 <span>New Transaction</span>
@@ -426,7 +494,7 @@ export function ContactProfileView({
             trigger={
               <Button
                 variant="outline"
-                className="rounded-2xl text-xs font-bold gap-1.5 h-10 hover:border-primary/50 hover:text-primary"
+                className="rounded-2xl text-xs font-bold gap-1.5 h-10 bg-slate-900/40 hover:bg-slate-800/80 border border-slate-700/70 hover:border-slate-600 text-slate-200 hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
               >
                 <Send className="h-4 w-4" />
                 <span>Reminder</span>
@@ -437,7 +505,7 @@ export function ContactProfileView({
           <Button
             variant="outline"
             onClick={handleExportStatement}
-            className="rounded-2xl text-xs font-bold gap-1.5 h-10 hover:border-primary/50 hover:text-primary"
+            className="rounded-2xl text-xs font-bold gap-1.5 h-10 bg-slate-900/40 hover:bg-slate-800/80 border border-slate-700/70 hover:border-slate-600 text-slate-200 hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
             title="Export Ledger Statement (CSV)"
           >
             <Download className="h-4 w-4" />
@@ -448,7 +516,7 @@ export function ContactProfileView({
             variant="outline"
             size="icon"
             onClick={() => setIsEditDialogOpen(true)}
-            className="rounded-2xl h-10 w-10 text-slate-600 dark:text-slate-300 hover:text-primary"
+            className="rounded-2xl h-10 w-10 bg-slate-900/40 hover:bg-slate-800/80 border border-slate-700/70 hover:border-primary/50 text-slate-300 hover:text-primary hover:scale-[1.05] active:scale-[0.95] transition-all duration-200"
             title="Edit Contact Details"
           >
             <Edit2 className="h-4 w-4" />
@@ -458,7 +526,7 @@ export function ContactProfileView({
             variant="outline"
             size="icon"
             onClick={() => setIsDeleteDialogOpen(true)}
-            className="rounded-2xl h-10 w-10 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-900/50"
+            className="rounded-2xl h-10 w-10 bg-slate-900/40 hover:bg-rose-500/10 border border-slate-700/70 hover:border-rose-500/50 text-rose-400 hover:text-rose-300 hover:scale-[1.05] active:scale-[0.95] transition-all duration-200"
             title="Delete Contact"
           >
             <Trash2 className="h-4 w-4" />
@@ -470,49 +538,49 @@ export function ContactProfileView({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Current Net Balance */}
         <Card
-          className={`rounded-3xl border shadow-xs overflow-hidden transition-all duration-300 ${
+          className={`rounded-3xl border shadow-xs overflow-hidden transition-all duration-300 hover:-translate-y-1 ${
             isNetOwedToMe
-              ? "bg-emerald-500/[0.05] dark:bg-emerald-950/20 border-emerald-500/20 dark:border-emerald-900/40"
+              ? "bg-gradient-to-br from-emerald-500/[0.08] via-card to-card dark:from-emerald-950/25 dark:via-[#0B111E] dark:to-[#0B111E] border-emerald-500/30 hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/10"
               : isNetIOwe
-              ? "bg-rose-500/[0.05] dark:bg-rose-950/20 border-rose-500/20 dark:border-rose-900/40"
-              : "bg-card border-slate-200/80 dark:border-slate-800"
+              ? "bg-gradient-to-br from-rose-500/[0.08] via-card to-card dark:from-rose-950/25 dark:via-[#0B111E] dark:to-[#0B111E] border-rose-500/30 hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/10"
+              : "bg-card dark:bg-[#0B111E] border-slate-200/80 dark:border-slate-800/80 hover:border-slate-700 hover:shadow-lg"
           }`}
         >
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
               Current Net Balance
             </span>
-            <Scale
-              className={`h-4 w-4 ${
-                isNetOwedToMe
-                  ? "text-emerald-600"
-                  : isNetIOwe
-                  ? "text-rose-600"
-                  : "text-slate-400"
-              }`}
-            />
+            <div className={`p-2 rounded-xl ${
+              isNetOwedToMe
+                ? "bg-emerald-500/10 text-emerald-400"
+                : isNetIOwe
+                ? "bg-rose-500/10 text-rose-400"
+                : "bg-slate-500/10 text-slate-400"
+            }`}>
+              <Scale className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent className="space-y-1">
             <div
               className={`text-2xl sm:text-3xl font-black font-mono tracking-tight ${
                 isNetOwedToMe
-                  ? "text-emerald-600 dark:text-emerald-400"
+                  ? "text-emerald-500 dark:text-emerald-400"
                   : isNetIOwe
-                  ? "text-rose-600 dark:text-rose-400"
+                  ? "text-rose-500 dark:text-rose-400"
                   : "text-slate-800 dark:text-slate-200"
               }`}
             >
               {isNetOwedToMe ? "+" : ""}
               {formatCurrency(currentNetBalancePaise / 100, contact.currency)}
             </div>
-            <p className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
               <span>Status:</span>
               <span
                 className={`font-bold ${
                   isNetOwedToMe
-                    ? "text-emerald-600"
+                    ? "text-emerald-500 dark:text-emerald-400"
                     : isNetIOwe
-                    ? "text-rose-600"
+                    ? "text-rose-500 dark:text-rose-400"
                     : "text-slate-500"
                 }`}
               >
@@ -523,67 +591,73 @@ export function ContactProfileView({
         </Card>
 
         {/* Card 2: Total Received */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-br from-emerald-500/[0.04] via-card to-card dark:from-emerald-950/20 dark:via-[#0B111E] dark:to-[#0B111E] shadow-xs hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-1 transition-all duration-300">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
               Total You Received
             </span>
-            <TrendingUp className="h-4 w-4 text-emerald-600" />
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+              <TrendingUp className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent className="space-y-1">
-            <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+            <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-500 dark:text-emerald-400">
               {formatCurrency(totalReceivedPaise / 100, contact.currency)}
             </div>
-            <p className="text-xs text-slate-500 font-medium">All-time payments & credits</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">All-time payments & credits</p>
           </CardContent>
         </Card>
 
         {/* Card 3: Total Paid */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-br from-rose-500/[0.04] via-card to-card dark:from-rose-950/20 dark:via-[#0B111E] dark:to-[#0B111E] shadow-xs hover:border-rose-500/50 hover:shadow-lg hover:shadow-rose-500/10 hover:-translate-y-1 transition-all duration-300">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
               Total You Paid
             </span>
-            <TrendingDown className="h-4 w-4 text-rose-600" />
+            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400">
+              <TrendingDown className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent className="space-y-1">
-            <div className="text-2xl sm:text-3xl font-black font-mono text-rose-600 dark:text-rose-400">
+            <div className="text-2xl sm:text-3xl font-black font-mono text-rose-500 dark:text-rose-400">
               {formatCurrency(totalPaidPaise / 100, contact.currency)}
             </div>
-            <p className="text-xs text-slate-500 font-medium">All-time expenses & debits</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">All-time expenses & debits</p>
           </CardContent>
         </Card>
 
         {/* Card 4: Outstanding Balance */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-br from-sky-500/[0.04] via-card to-card dark:from-sky-950/20 dark:via-[#0B111E] dark:to-[#0B111E] shadow-xs hover:border-sky-500/50 hover:shadow-lg hover:shadow-sky-500/10 hover:-translate-y-1 transition-all duration-300">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
               Outstanding Balance
             </span>
-            <AlertCircle className="h-4 w-4 text-primary" />
+            <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400">
+              <AlertCircle className="h-4 w-4" />
+            </div>
           </CardHeader>
           <CardContent className="space-y-1">
             <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 dark:text-slate-100">
               {formatCurrency(outstandingPaise / 100, contact.currency)}
             </div>
-            <p className="text-xs text-slate-500 font-semibold">{settlementStatus}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">{settlementStatus}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Requirement 13: Contact Detail Synchronization Card */}
-      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs overflow-hidden">
-        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-card dark:bg-[#0B111E] shadow-xs hover:border-slate-700/80 hover:shadow-md transition-all duration-300 overflow-hidden">
+        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400">
                 <Scale className="h-4 w-4" />
               </div>
               <div>
                 <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100">
                   Dashboard Synchronization Status
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-slate-400">
                   Audited live breakdown of reflected vs pending balances in dashboard summaries
                 </CardDescription>
               </div>
@@ -593,10 +667,10 @@ export function ContactProfileView({
               variant="outline"
               className={`text-xs px-2.5 py-1 font-bold rounded-xl ${
                 reflectedTxCount > 0 && pendingTxCount === 0
-                  ? "border-emerald-500/30 text-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/40"
+                  ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
                   : reflectedTxCount > 0
-                  ? "border-amber-500/30 text-amber-600 bg-amber-50/50 dark:bg-amber-950/40"
-                  : "border-slate-300 text-slate-500 bg-slate-100 dark:bg-slate-800"
+                  ? "border-amber-500/40 text-amber-400 bg-amber-500/10"
+                  : "border-slate-700 text-slate-400 bg-slate-800/60"
               }`}
             >
               {reflectedTxCount > 0 && pendingTxCount === 0
@@ -611,57 +685,57 @@ export function ContactProfileView({
         <CardContent className="p-5">
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-center">
             {/* 1. Current Balance */}
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 hover:border-slate-700 hover:bg-slate-800/40 transition-all duration-200">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Current Balance
               </span>
-              <span className={`text-sm font-black font-mono block ${isNetOwedToMe ? "text-emerald-600" : isNetIOwe ? "text-rose-600" : "text-slate-700 dark:text-slate-200"}`}>
+              <span className={`text-sm font-black font-mono block ${isNetOwedToMe ? "text-emerald-500 dark:text-emerald-400" : isNetIOwe ? "text-rose-500 dark:text-rose-400" : "text-slate-700 dark:text-slate-200"}`}>
                 {isNetOwedToMe ? "+" : ""}{formatCurrency(currentNetBalancePaise / 100, contact.currency)}
               </span>
             </div>
 
             {/* 2. Dashboard Reflected Amount */}
-            <div className="p-3 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 block mb-1">
+            <div className="p-3 rounded-2xl bg-blue-50/50 dark:bg-blue-950/25 border border-blue-200/60 dark:border-blue-900/40 hover:border-blue-500/50 hover:bg-blue-950/40 transition-all duration-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400 block mb-1">
                 Reflected Amount
               </span>
-              <span className="text-sm font-black font-mono text-blue-600 dark:text-blue-400 block">
+              <span className="text-sm font-black font-mono text-blue-500 dark:text-blue-400 block">
                 {formatCurrency(dashboardReflectedAmountPaise / 100, contact.currency)}
               </span>
             </div>
 
             {/* 3. Pending Amount */}
-            <div className="p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 block mb-1">
+            <div className="p-3 rounded-2xl bg-amber-50/50 dark:bg-amber-950/25 border border-amber-200/60 dark:border-amber-900/40 hover:border-amber-500/50 hover:bg-amber-950/40 transition-all duration-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 dark:text-amber-400 block mb-1">
                 Pending Amount
               </span>
-              <span className="text-sm font-black font-mono text-amber-600 dark:text-amber-400 block">
+              <span className="text-sm font-black font-mono text-amber-500 dark:text-amber-400 block">
                 {formatCurrency(pendingAmountPaise / 100, contact.currency)}
               </span>
             </div>
 
             {/* 4. Income */}
-            <div className="p-3 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block mb-1">
+            <div className="p-3 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/25 border border-emerald-200/60 dark:border-emerald-900/40 hover:border-emerald-500/50 hover:bg-emerald-950/40 transition-all duration-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 dark:text-emerald-400 block mb-1">
                 Reflected Income
               </span>
-              <span className="text-sm font-black font-mono text-emerald-600 dark:text-emerald-400 block">
+              <span className="text-sm font-black font-mono text-emerald-500 dark:text-emerald-400 block">
                 +{formatCurrency(reflectedIncomePaise / 100, contact.currency)}
               </span>
             </div>
 
             {/* 5. Expense */}
-            <div className="p-3 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 block mb-1">
+            <div className="p-3 rounded-2xl bg-rose-50/50 dark:bg-rose-950/25 border border-rose-200/60 dark:border-rose-900/40 hover:border-rose-500/50 hover:bg-rose-950/40 transition-all duration-200">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500 dark:text-rose-400 block mb-1">
                 Reflected Expense
               </span>
-              <span className="text-sm font-black font-mono text-rose-600 dark:text-rose-400 block">
+              <span className="text-sm font-black font-mono text-rose-500 dark:text-rose-400 block">
                 -{formatCurrency(reflectedExpensePaise / 100, contact.currency)}
               </span>
             </div>
 
             {/* 6. Outstanding Balance */}
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 hover:border-slate-700 hover:bg-slate-800/40 transition-all duration-200">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Outstanding
               </span>
@@ -671,7 +745,7 @@ export function ContactProfileView({
             </div>
 
             {/* 7. Last Dashboard Sync */}
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 hover:border-slate-700 hover:bg-slate-800/40 transition-all duration-200">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Last Sync Date
               </span>
@@ -681,11 +755,11 @@ export function ContactProfileView({
             </div>
 
             {/* 8. Number of Reflected Transactions */}
-            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 hover:border-slate-700 hover:bg-slate-800/40 transition-all duration-200">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                 Reflected / Total
               </span>
-              <span className="text-xs font-black font-mono text-primary block">
+              <span className="text-xs font-black font-mono text-sky-400 block">
                 {reflectedTxCount} / {transactions.length}
               </span>
             </div>
@@ -696,37 +770,37 @@ export function ContactProfileView({
       {/* 4. Secondary Metrics Row: Monthly Summary, Opening Balance, Lifetime Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Monthly Activity Summary */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs p-5 space-y-3">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-card dark:bg-[#0B111E] shadow-xs p-5 space-y-3 hover:border-slate-700/80 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase text-slate-400 tracking-wider">
               This Month Activity
             </span>
-            <Badge variant="secondary" className="text-[10px] rounded-lg">
+            <Badge variant="secondary" className="text-[10px] rounded-lg bg-slate-800 text-slate-300 border-slate-700">
               {monthlyTxCount} entries
             </Badge>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-500 font-medium">Received this month</span>
-              <span className="font-mono font-bold text-emerald-600">
+              <span className="text-slate-400 font-medium">Received this month</span>
+              <span className="font-mono font-bold text-emerald-500 dark:text-emerald-400">
                 +{formatCurrency(monthlyReceivedPaise / 100, contact.currency)}
               </span>
             </div>
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-500 font-medium">Paid this month</span>
-              <span className="font-mono font-bold text-rose-600">
+              <span className="text-slate-400 font-medium">Paid this month</span>
+              <span className="font-mono font-bold text-rose-500 dark:text-rose-400">
                 -{formatCurrency(monthlyPaidPaise / 100, contact.currency)}
               </span>
             </div>
-            <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100 dark:border-slate-800 font-bold">
-              <span className="text-slate-700 dark:text-slate-300">Net Monthly Trend</span>
+            <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100 dark:border-slate-800/80 font-bold">
+              <span className="text-slate-300">Net Monthly Trend</span>
               <span
                 className={`font-mono ${
                   monthlyNetPaise > 0
-                    ? "text-emerald-600"
+                    ? "text-emerald-500 dark:text-emerald-400"
                     : monthlyNetPaise < 0
-                    ? "text-rose-600"
-                    : "text-slate-500"
+                    ? "text-rose-500 dark:text-rose-400"
+                    : "text-slate-400"
                 }`}
               >
                 {monthlyNetPaise > 0 ? "+" : ""}
@@ -737,26 +811,26 @@ export function ContactProfileView({
         </Card>
 
         {/* Ledger Base & Opening Balance */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs p-5 space-y-3">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-card dark:bg-[#0B111E] shadow-xs p-5 space-y-3 hover:border-slate-700/80 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
           <span className="text-xs font-bold uppercase text-slate-400 tracking-wider block">
             Ledger Baseline
           </span>
           <div className="space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-500 font-medium">Opening Balance</span>
-              <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+              <span className="text-slate-400 font-medium">Opening Balance</span>
+              <span className="font-mono font-bold text-slate-200">
                 {formatCurrency(openingPaise / 100, contact.currency)}
               </span>
             </div>
             <div className="flex justify-between items-center text-xs">
-              <span className="text-slate-500 font-medium">Lifetime Transactions</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">
+              <span className="text-slate-400 font-medium">Lifetime Transactions</span>
+              <span className="font-bold text-slate-200">
                 {transactions.length} records
               </span>
             </div>
-            <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500 font-medium">Last Transaction</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">
+            <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+              <span className="text-slate-400 font-medium">Last Transaction</span>
+              <span className="font-medium text-slate-300">
                 {lastTransactionDate ? formatDate(lastTransactionDate) : "None yet"}
               </span>
             </div>
@@ -764,26 +838,26 @@ export function ContactProfileView({
         </Card>
 
         {/* Contact Information Summary */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs p-5 space-y-3">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-card dark:bg-[#0B111E] shadow-xs p-5 space-y-3 hover:border-slate-700/80 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
           <span className="text-xs font-bold uppercase text-slate-400 tracking-wider block">
             Connection Details
           </span>
           <div className="space-y-2 text-xs">
             <div className="flex justify-between items-center">
-              <span className="text-slate-500 font-medium">Currency</span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{contact.currency}</span>
+              <span className="text-slate-400 font-medium">Currency</span>
+              <span className="font-bold text-slate-200">{contact.currency}</span>
             </div>
             {contact.address && (
               <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Address</span>
-                <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[140px]">
+                <span className="text-slate-400 font-medium">Address</span>
+                <span className="font-medium text-slate-300 truncate max-w-[140px]">
                   {contact.address}
                 </span>
               </div>
             )}
-            <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500 font-medium">Last Profile Update</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">
+            <div className="flex justify-between items-center pt-1.5 border-t border-slate-100 dark:border-slate-800/80">
+              <span className="text-slate-400 font-medium">Last Profile Update</span>
+              <span className="font-medium text-slate-300">
                 {formatDate(contact.updatedAt || contact.createdAt)}
               </span>
             </div>
@@ -791,11 +865,11 @@ export function ContactProfileView({
         </Card>
       </div>
 
-      {/* 5. Genuine Notes Section (hides automated test comments) */}
+      {/* 5. Genuine Notes Section (hides automated test comments & formula injections) */}
       {contact.notes && !isTestingNote(contact.notes) && (
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs p-5">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-card dark:bg-[#0B111E] shadow-xs p-5 hover:border-slate-700/80 hover:shadow-md transition-all duration-300">
           <div className="flex items-center gap-2 mb-2 text-slate-600 dark:text-slate-400 font-bold text-xs">
-            <FileText className="h-4 w-4 text-primary" />
+            <FileText className="h-4 w-4 text-sky-400" />
             <span>Contact Notes</span>
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
@@ -805,12 +879,12 @@ export function ContactProfileView({
       )}
 
       {/* 6. AI Insights & Payment Timeline for this Contact (Requirement 10) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* AI Financial Insights for this Contact */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-br from-card via-card to-primary/[0.04] shadow-xs p-5 space-y-4">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-gradient-to-br from-card via-card to-purple-500/[0.04] dark:from-[#0B111E] dark:via-[#0B111E] dark:to-purple-950/20 shadow-xs p-5 space-y-4 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-300">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
@@ -822,33 +896,33 @@ export function ContactProfileView({
                 </p>
               </div>
             </div>
-            <Badge variant="outline" className="text-[10px] uppercase font-bold text-primary border-primary/30">
-              Live Audited
+            <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider text-sky-400 border-sky-500/30 bg-sky-500/10 rounded-lg px-2 py-0.5">
+              LIVE AUDITED
             </Badge>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 hover:border-slate-700 hover:bg-slate-800/30 transition-all duration-200">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                Avg Ticket Size
+                AVG TICKET SIZE
               </span>
               <span className="text-sm font-black font-mono text-slate-900 dark:text-slate-100">
                 {formatCurrency(avgTicketSizePaise / 100, contact.currency)}
               </span>
             </div>
-            <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800">
+            <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 hover:border-slate-700 hover:bg-slate-800/30 transition-all duration-200">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                Peak Single Transaction
+                PEAK SINGLE TRANSACTION
               </span>
-              <span className="text-sm font-black font-mono text-primary">
+              <span className="text-sm font-black font-mono text-sky-400">
                 {formatCurrency(largestTxPaise / 100, contact.currency)}
               </span>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-primary/5 border border-primary/20 space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-primary block">
-              AI Recommendation
+          <div className="p-3.5 rounded-2xl bg-sky-500/5 dark:bg-sky-950/20 border border-sky-500/20 dark:border-sky-800/30 space-y-1 hover:border-sky-500/40 transition-all duration-200">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 block">
+              AI RECOMMENDATION
             </span>
             <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
               {isNetOwedToMe
@@ -858,13 +932,150 @@ export function ContactProfileView({
                 : `All recorded transactions with ${contact.name} are completely reconciled. Account is in perfect standing.`}
             </p>
           </div>
+
+          {/* Expanded AI Information Section */}
+          {isAIExpanded && (
+            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 space-y-3.5 animate-in fade-in-50 duration-300">
+              {/* Payment Reliability Score */}
+              <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Payment Reliability Score</span>
+                  </span>
+                  <span className="font-mono font-bold text-emerald-400">{reliabilityScore}% (Low Risk)</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                    style={{ width: `${reliabilityScore}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Cash Flow Distribution */}
+              <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-medium flex items-center gap-1.5">
+                    <BarChart3 className="h-3.5 w-3.5 text-sky-400" />
+                    <span>Cash Flow Volume Split</span>
+                  </span>
+                  <span className="font-mono text-[11px] text-slate-300">
+                    Total: {formatCurrency(totalVolumePaise / 100, contact.currency)}
+                  </span>
+                </div>
+                {totalVolumePaise > 0 ? (
+                  <div className="space-y-1.5">
+                    <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-500"
+                        style={{ width: `${inflowPercent}%` }}
+                        title={`Inbound Received: ${inflowPercent}%`}
+                      />
+                      <div
+                        className="h-full bg-rose-500 transition-all duration-500"
+                        style={{ width: `${outflowPercent}%` }}
+                        title={`Outbound Paid: ${outflowPercent}%`}
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] font-mono">
+                      <span className="text-emerald-500 dark:text-emerald-400">
+                        Received: +{formatCurrency(totalReceivedPaise / 100, contact.currency)} ({inflowPercent}%)
+                      </span>
+                      <span className="text-rose-500 dark:text-rose-400">
+                        Paid: -{formatCurrency(totalPaidPaise / 100, contact.currency)} ({outflowPercent}%)
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-500">No volume recorded to compute distribution.</p>
+                )}
+              </div>
+
+              {/* Cadence & Velocity Grid */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                    Turnover Cadence
+                  </span>
+                  <span className="text-xs font-semibold text-slate-200 block truncate" title={cadenceText}>
+                    {cadenceText}
+                  </span>
+                </div>
+                <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                    Last Settlement Event
+                  </span>
+                  <span className="text-xs font-semibold text-slate-200 block truncate">
+                    {daysSinceLastTx !== null
+                      ? daysSinceLastTx === 0
+                        ? "Today"
+                        : `${daysSinceLastTx} day${daysSinceLastTx > 1 ? "s" : ""} ago`
+                      : "Never"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Smart Actions Shortcut Grid */}
+              <div className="pt-1 flex items-center gap-2 flex-wrap">
+                <ReminderDialog
+                  contactId={contact.id}
+                  contactName={contact.name}
+                  currency={contact.currency}
+                  trigger={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl text-[11px] font-bold gap-1.5 h-8 bg-slate-900/60 border-slate-700/80 hover:border-sky-500/50 hover:text-sky-300 text-slate-300 transition-colors"
+                    >
+                      <Send className="h-3 w-3" />
+                      <span>Send Reminder</span>
+                    </Button>
+                  }
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setAdjustmentDefaultMode("adjust");
+                    setIsAdjustBalanceOpen(true);
+                  }}
+                  className="rounded-xl text-[11px] font-bold gap-1.5 h-8 bg-slate-900/60 border-slate-700/80 hover:border-sky-500/50 hover:text-sky-300 text-slate-300 transition-colors"
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  <span>Adjust Balance</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleExportStatement}
+                  className="rounded-xl text-[11px] font-bold gap-1.5 h-8 bg-slate-900/60 border-slate-700/80 hover:border-sky-500/50 hover:text-sky-300 text-slate-300 transition-colors"
+                >
+                  <Download className="h-3 w-3" />
+                  <span>Export Statement</span>
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Interactive "See More" Button */}
+          <button
+            type="button"
+            onClick={() => setIsAIExpanded((prev) => !prev)}
+            className="w-full py-2 px-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700/70 hover:border-sky-500/60 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-500 dark:hover:text-sky-300 hover:bg-sky-500/5 transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <span>{isAIExpanded ? "See Less" : "See More Intelligence & Analytics"}</span>
+            {isAIExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
         </Card>
 
         {/* Payment & Settlement Timeline */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs p-5 space-y-3">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-card dark:bg-[#0B111E] shadow-xs p-5 space-y-3 hover:border-sky-500/40 hover:shadow-lg hover:shadow-sky-500/5 transition-all duration-300">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-primary" />
+              <div className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400">
+                <Clock className="h-4 w-4" />
+              </div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 Payment & Ledger Timeline
               </h3>
@@ -872,40 +1083,69 @@ export function ContactProfileView({
             <span className="text-[11px] text-slate-400 font-medium">Recent events</span>
           </div>
 
-          {transactions.length > 0 ? (
-            <div className="space-y-3 pt-1">
-              {transactions.slice(0, 4).map((tx, idx) => {
-                const isPositive =
-                  tx.type === "received" ||
-                  tx.type === "lent" ||
-                  tx.type === "repaid" ||
-                  (tx.type === "adjustment" &&
-                    (JSON.stringify(tx.tags || "").includes("credit") ||
-                      JSON.stringify(tx.tags || "").includes("increase")));
-
+          {chronologicalTimeline.length > 0 ? (
+            <div className="space-y-2.5 pt-1">
+              {(isTimelineExpanded ? chronologicalTimeline : chronologicalTimeline.slice(0, 3)).map((tx, idx) => {
                 return (
-                  <div key={tx.id || idx} className="flex items-start gap-3 relative pb-2.5 last:pb-0">
-                    <div className={`h-7 w-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
-                      isPositive
-                        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600"
-                        : "bg-rose-50 dark:bg-rose-950/40 text-rose-600"
-                    }`}>
-                      {isPositive ? "+" : "-"}
+                  <div
+                    key={tx.id || idx}
+                    className="flex items-start gap-3 p-2 -mx-2 rounded-2xl hover:bg-slate-800/40 transition-colors duration-150"
+                  >
+                    <div
+                      className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold ${
+                        tx.isPositive
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                          : "bg-rose-500/15 text-rose-400 border border-rose-500/30"
+                      }`}
+                    >
+                      {tx.isPositive ? "+" : "-"}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
                           {tx.title || tx.description}
                         </span>
-                        <span className={`text-xs font-black font-mono shrink-0 ${
-                          isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-                        }`}>
-                          {isPositive ? "+" : "-"}{formatCurrency(tx.amount / 100, tx.currency)}
+                        <span
+                          className={`text-xs font-black font-mono shrink-0 ${
+                            tx.isPositive
+                              ? "text-emerald-500 dark:text-emerald-400"
+                              : "text-rose-500 dark:text-rose-400"
+                          }`}
+                        >
+                          {tx.isPositive ? "+" : "-"}
+                          {formatCurrency(tx.amount / 100, tx.currency)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
-                        <span>{tx.categoryName || "General"}</span>
-                        <span>{formatDate(tx.date)}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{tx.categoryName || "General"}</span>
+                          {isTimelineExpanded && tx.paymentMethod && (
+                            <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono text-[9px] border border-slate-700">
+                              {tx.paymentMethod}
+                            </span>
+                          )}
+                          {isTimelineExpanded && (
+                            <span className="text-[9px] text-slate-400 font-mono">
+                              Running: {tx.runningBalancePaise >= 0 ? "+" : ""}
+                              {formatCurrency(tx.runningBalancePaise / 100, tx.currency)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {isTimelineExpanded && (
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] px-1.5 py-0 rounded ${
+                                tx.isSyncedToDashboard || tx.dashboardStatus === "reflected"
+                                  ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+                                  : "text-amber-400 border-amber-500/30 bg-amber-500/10"
+                              }`}
+                            >
+                              {tx.isSyncedToDashboard || tx.dashboardStatus === "reflected" ? "Reflected" : "Pending"}
+                            </Badge>
+                          )}
+                          <span>{formatDate(tx.date)}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -916,6 +1156,18 @@ export function ContactProfileView({
             <div className="py-6 text-center text-slate-400 text-xs">
               No payment events recorded yet for this timeline.
             </div>
+          )}
+
+          {/* Interactive "See More" Button */}
+          {chronologicalTimeline.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsTimelineExpanded((prev) => !prev)}
+              className="w-full py-2 px-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700/70 hover:border-sky-500/60 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-500 dark:hover:text-sky-300 hover:bg-sky-500/5 transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+            >
+              <span>{isTimelineExpanded ? "See Less" : `See More Events (${chronologicalTimeline.length} total)`}</span>
+              {isTimelineExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
           )}
         </Card>
       </div>
