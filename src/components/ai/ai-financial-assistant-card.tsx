@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { askFinancialAssistant, AIAssistantResponse } from "@/actions/ai-assistant";
 import { FormattedAIAnswer, formatInlineText } from "@/components/ai/formatted-ai-answer";
+import { TransactionApprovalCardGroup } from "@/components/ai/transaction-approval-card";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -93,7 +94,11 @@ const PROMPT_LIBRARY: PromptQuery[] = [
   { id: "p27", category: "reports", icon: "👤", text: "Show my profile summary", badge: "Profile" },
 ];
 
-export function AIFinancialAssistantCard() {
+interface AIFinancialAssistantCardProps {
+  categories?: Array<{ id: number; name: string }>;
+}
+
+export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssistantCardProps = {}) {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPromptPanel, setShowPromptPanel] = useState(true);
@@ -410,6 +415,16 @@ export function AIFinancialAssistantCard() {
 
                     {/* Rich Formatted Answer (No raw asterisks!) */}
                     <FormattedAIAnswer content={msg.content} />
+
+                    {/* Conversational Transaction Approval Workflow (Explicit User Approval Required) */}
+                    {msg.response && msg.response.detectedTransactions && msg.response.detectedTransactions.length > 0 && (
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                        <TransactionApprovalCardGroup
+                          proposals={msg.response.detectedTransactions}
+                          categories={categories}
+                        />
+                      </div>
+                    )}
 
                     {/* Key Metrics Grid (if returned by server action) */}
                     {msg.response && msg.response.keyMetrics && msg.response.keyMetrics.length > 0 && (

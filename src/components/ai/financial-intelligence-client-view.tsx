@@ -310,7 +310,7 @@ export function FinancialIntelligenceClientView({
               {...tabMotionProps}
               className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
-              <AIFinancialAssistantCard />
+              <AIFinancialAssistantCard categories={categories} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <AIInsightsFeed insights={data.aiInsights} />
                 <SmartRecommendationsView

@@ -1,15 +1,24 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { transactions, groups, groupMembers, settlements, categories, users, profiles, budgets } from "@/lib/db/schema/schema";
-import { eq, and, or, desc, inArray, sql } from "drizzle-orm";
+import { transactions, groups, groupMembers, settlements, categories, users, profiles, budgets, contacts } from "@/lib/db/schema/schema";
+import { eq, and, or, desc, inArray, sql, gte } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
-import { DatabaseError } from "@/lib/errors";
+import { DatabaseError, ValidationError } from "@/lib/errors";
 import { formatCurrency } from "@/lib/utils";
 import { getFinancialKnowledgeContext, FinancialKnowledgeContext } from "@/lib/ai/knowledge-context";
 import { detectSubscriptions, DetectedSubscription } from "@/lib/ai/subscription-detector";
 import { calculateComprehensiveHealthScore, predictFutureExpenses } from "@/lib/ai/financial-health";
 import { SPLITLEDGER_MASTER_SYSTEM_PROMPT } from "@/lib/ai/prompts";
+import { createTransaction } from "@/actions/transactions";
+import { revalidatePath } from "next/cache";
+import { parseConversationalMessage, ProposedTransaction } from "@/lib/ai/nlp-transaction-parser";
+
+function safeRevalidate(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {}
+}
 
 export interface AIAssistantResponse {
   answer: string;
@@ -17,6 +26,142 @@ export interface AIAssistantResponse {
   keyMetrics: Array<{ label: string; value: string; trend?: "up" | "down" | "neutral" }>;
   actionSuggestions: Array<{ label: string; url: string }>;
   timestamp: string;
+  detectedTransactions?: ProposedTransaction[];
+}
+
+/**
+ * Check if a similar transaction already exists within the last 7 days (Duplicate Prevention)
+ */
+async function checkPossibleDuplicate(
+  userId: number,
+  amount: number,
+  title: string,
+  categoryId?: number | null,
+  contactId?: number | null
+): Promise<{ isDuplicate: boolean; existing?: { id: number; publicId?: string; title: string; amount: number; date: string } }> {
+  try {
+    const amountPaise = Math.round(amount * 100);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const candidates = await db
+      .select({
+        id: transactions.id,
+        publicId: transactions.publicId,
+        title: transactions.title,
+        description: transactions.description,
+        amount: transactions.amount,
+        categoryId: transactions.categoryId,
+        contactId: transactions.contactId,
+        date: transactions.date,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          eq(transactions.isDeleted, false),
+          eq(transactions.amount, amountPaise),
+          gte(transactions.date, sevenDaysAgo)
+        )
+      )
+      .limit(5);
+
+    if (candidates.length === 0) return { isDuplicate: false };
+
+    const lowerTitle = title.toLowerCase().trim();
+
+    for (const cand of candidates) {
+      const candTitle = (cand.title || cand.description || "").toLowerCase();
+      if (
+        candTitle.includes(lowerTitle) ||
+        lowerTitle.includes(candTitle) ||
+        (categoryId && cand.categoryId === categoryId) ||
+        (contactId && cand.contactId === contactId)
+      ) {
+        return {
+          isDuplicate: true,
+          existing: {
+            id: cand.id,
+            publicId: cand.publicId,
+            title: cand.title || cand.description || "Existing Transaction",
+            amount: Number(cand.amount) / 100,
+            date: new Date(cand.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" }),
+          },
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Duplicate check error:", err);
+  }
+  return { isDuplicate: false };
+}
+
+/**
+ * Approve and create a proposed transaction upon explicit user confirmation
+ */
+export async function approveConversationalTransaction(
+  proposal: ProposedTransaction
+): Promise<{ success: boolean; transactionId: number; publicId: string; message: string }> {
+  const user = await requireAuth();
+
+  if (!proposal.amount || proposal.amount <= 0) {
+    throw new ValidationError("Transaction amount must be greater than ₹0.");
+  }
+
+  const tx = await createTransaction({
+    title: proposal.title.trim(),
+    description: proposal.description ? proposal.description.trim() : proposal.title.trim(),
+    type: proposal.type || "paid",
+    amount: proposal.amount,
+    currency: proposal.currency || "INR",
+    date: proposal.date ? new Date(proposal.date) : new Date(),
+    categoryId: proposal.categoryId || undefined,
+    contactId: proposal.contactId || undefined,
+    groupId: proposal.groupId || undefined,
+    paymentMethod: proposal.paymentMethod || "UPI",
+    notes: proposal.notes || "Approved via SplitLedger Conversational AI Assistant",
+  });
+
+  safeRevalidate("/dashboard");
+  safeRevalidate("/dashboard/ai");
+  safeRevalidate("/dashboard/transactions");
+  safeRevalidate("/dashboard/reports");
+
+  return {
+    success: true,
+    transactionId: tx.id,
+    publicId: tx.publicId,
+    message: `Successfully created transaction "${proposal.title}" for ₹${proposal.amount.toLocaleString("en-IN")}!`,
+  };
+}
+
+/**
+ * Approve and create multiple proposed transactions in bulk
+ */
+export async function approveBatchConversationalTransactions(
+  proposals: ProposedTransaction[]
+): Promise<{ success: boolean; count: number; results: Array<{ id: number; publicId: string; title: string; amount: number }> }> {
+  await requireAuth();
+
+  const results: Array<{ id: number; publicId: string; title: string; amount: number }> = [];
+
+  for (const proposal of proposals) {
+    if (proposal.amount > 0) {
+      const res = await approveConversationalTransaction(proposal);
+      results.push({
+        id: res.transactionId,
+        publicId: res.publicId,
+        title: proposal.title,
+        amount: proposal.amount,
+      });
+    }
+  }
+
+  return {
+    success: true,
+    count: results.length,
+    results,
+  };
 }
 
 /**
@@ -43,6 +188,77 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
     const currentMonthIncome = ctx.transactions?.totalIncomeThisMonth ?? 0;
     const netSavings = ctx.transactions?.netSavingsThisMonth ?? 0;
     const savingsRate = ctx.transactions?.savingsRatePct ?? 0;
+
+    // =========================================================================
+    // 0. CHECK FOR CONVERSATIONAL TRANSACTION INTENT (Awaiting User Approval)
+    // =========================================================================
+    const [userContacts, userCategories] = await Promise.all([
+      db
+        .select({ id: contacts.id, name: contacts.name, phone: contacts.phone, email: contacts.email })
+        .from(contacts)
+        .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)))
+        .catch(() => []),
+      db
+        .select({ id: categories.id, name: categories.name, icon: categories.icon })
+        .from(categories)
+        .where(or(eq(categories.userId, user.id), eq(categories.isDefault, true)))
+        .catch(() => []),
+    ]);
+
+    const parseRes = parseConversationalMessage(question, {
+      categories: userCategories,
+      contacts: userContacts,
+      groups: ctx.groups?.all?.map((g: any) => ({ id: g.id, name: g.name })) || [],
+    });
+
+    if (parseRes.hasTransactions && parseRes.transactions.length > 0) {
+      const enriched: ProposedTransaction[] = [];
+      for (const t of parseRes.transactions) {
+        const dup = await checkPossibleDuplicate(user.id, t.amount, t.title, t.categoryId, t.contactId);
+        enriched.push({
+          ...t,
+          isPossibleDuplicate: dup.isDuplicate,
+          duplicateInfo: dup.existing,
+        });
+      }
+
+      const txCount = enriched.length;
+      const totalAmt = enriched.reduce((s, x) => s + x.amount, 0);
+
+      const answer = txCount === 1
+        ? `I detected a ${enriched[0].type === "received" ? "income receipt" : enriched[0].type === "lent" ? "peer payment" : "new expense"} of **₹${enriched[0].amount.toLocaleString("en-IN")}** for **${enriched[0].title}**. No transaction has been logged yet—please review the approval card below and tap **Approve & Create** to add it to your ledger.`
+        : `I detected **${txCount} transactions** in your message totalling **₹${totalAmt.toLocaleString("en-IN")}**. No transactions have been saved yet—please review the approval cards below. You can edit, approve individually, or approve all at once.`;
+
+      return {
+        answer,
+        insights: [
+          `Category classified as "${enriched[0].categoryName}"`,
+          `Transaction scheduled for ${enriched[0].formattedDate}`,
+          enriched[0].contactName ? `Assigned to contact ${enriched[0].contactName}` : "Personal expense ledger",
+        ],
+        keyMetrics: [
+          { label: "Proposed Amount", value: `₹${totalAmt.toLocaleString("en-IN")}` },
+          { label: "Detected Items", value: `${txCount} item${txCount > 1 ? "s" : ""}` },
+          { label: "Approval Status", value: "Awaiting User Approval" },
+        ],
+        actionSuggestions: [
+          { label: "View Ledger", url: "/dashboard/transactions" },
+          { label: "Monthly Budget", url: "/dashboard/ai" },
+        ],
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        detectedTransactions: enriched,
+      };
+    }
+
+    if (parseRes.isIncomplete && parseRes.clarificationMessage) {
+      return {
+        answer: parseRes.clarificationMessage,
+        insights: ["Please specify the amount in ₹ (e.g., 'Bought chips for ₹20' or 'Spent ₹500 on petrol')."],
+        keyMetrics: [{ label: "Input Status", value: "Missing Amount" }],
+        actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+    }
 
     // Helper to filter transactions by keyword in category or title
     const filterByKeywords = (keywords: string[]) => {
