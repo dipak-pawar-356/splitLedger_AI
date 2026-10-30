@@ -7,7 +7,7 @@ import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } from "@/lib/errors";
 import { generateGroupId, generateAuditId, formatCurrency, isDbIntegerId } from "@/lib/utils";
-import { executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
+import { executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
 
 function buildGroupIdentifierCondition(idOrPublicId: string | number) {
   const strId = String(idOrPublicId).trim();
@@ -82,6 +82,7 @@ export async function createGroup(data: CreateGroupInput) {
       userId: user.id,
       isAdmin: true,
       isGuest: false,
+      membershipStatus: "active",
       joinedAt: new Date(),
     });
 
@@ -99,8 +100,7 @@ export async function createGroup(data: CreateGroupInput) {
       },
     });
 
-    revalidatePath("/dashboard/groups");
-    revalidatePath("/dashboard");
+    await revalidateGroupHierarchy(group.id);
     return group;
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -277,14 +277,7 @@ export async function updateGroup(
       },
     });
 
-    revalidatePath("/dashboard/groups");
-    revalidatePath(`/dashboard/groups/${existingGroup.publicId}`);
-    revalidatePath(`/dashboard/groups/${existingGroup.id}`);
-    revalidatePath(`/dashboard/groups/${existingGroup.id}/settlements`);
-    revalidatePath(`/dashboard/groups/${existingGroup.id}/expenses`);
-    revalidatePath("/dashboard/settlements");
-    revalidatePath("/dashboard/reports");
-    revalidatePath("/dashboard");
+    await revalidateGroupHierarchy(existingGroup.id);
     return updatedGroup;
   } catch (error) {
     if (error instanceof ValidationError || error instanceof NotFoundError || error instanceof AuthorizationError) {
@@ -349,8 +342,7 @@ export async function archiveGroup(publicIdOrId: string | number) {
       changes: { isActive: false, archived: true },
     });
 
-    revalidatePath("/dashboard/groups");
-    revalidatePath(`/dashboard/groups/${existingGroup.publicId}`);
+    await revalidateGroupHierarchy(existingGroup.id);
     return archived;
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof AuthorizationError) {
@@ -414,8 +406,7 @@ export async function restoreGroup(publicIdOrId: string | number) {
       changes: { isActive: true, restored: true },
     });
 
-    revalidatePath("/dashboard/groups");
-    revalidatePath(`/dashboard/groups/${existingGroup.publicId}`);
+    await revalidateGroupHierarchy(existingGroup.id);
     return restored;
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof AuthorizationError) {
@@ -498,8 +489,7 @@ export async function deleteGroup(publicIdOrId: string | number, confirmationNam
       },
     });
 
-    revalidatePath("/dashboard/groups");
-    revalidatePath("/dashboard");
+    await revalidateGroupHierarchy(existingGroup.id);
     return { success: true };
   } catch (error) {
     if (error instanceof ValidationError || error instanceof NotFoundError || error instanceof AuthorizationError) {
@@ -572,8 +562,7 @@ export async function leaveGroup(publicIdOrId: string | number) {
       },
     });
 
-    revalidatePath("/dashboard/groups");
-    revalidatePath("/dashboard");
+    await revalidateGroupHierarchy(existingGroup.id);
     return { success: true };
   } catch (error) {
     if (error instanceof ValidationError || error instanceof NotFoundError) {
@@ -658,8 +647,7 @@ export async function transferGroupOwnership(publicIdOrId: string | number, newO
       },
     });
 
-    revalidatePath("/dashboard/groups");
-    revalidatePath(`/dashboard/groups/${existingGroup.publicId}`);
+    await revalidateGroupHierarchy(existingGroup.id);
     return { success: true };
   } catch (error) {
     if (error instanceof ValidationError || error instanceof NotFoundError || error instanceof AuthorizationError) {

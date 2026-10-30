@@ -21,7 +21,7 @@ import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } fro
 import { generateTransactionId, generateVersionId, generateAuditId } from "@/lib/utils";
 import { appCache } from "@/lib/cache";
 import { logger } from "@/lib/logger";
-import { executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
+import { executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
 
 function safeRevalidatePath(path: string, type?: "layout" | "page") {
   try {
@@ -329,8 +329,6 @@ export async function createTransaction(data: CreateTransactionInput) {
       safeRevalidatePath("/dashboard/contacts");
     }
     if (transaction.groupId) {
-      safeRevalidatePath(`/dashboard/groups/${transaction.groupId}`);
-      safeRevalidatePath("/dashboard/groups");
       try {
         await executeAtomicGroupRecalculation({
           groupId: transaction.groupId,
@@ -340,6 +338,7 @@ export async function createTransaction(data: CreateTransactionInput) {
       } catch (recalcErr) {
         logger.error("Failed to recalculate group after adding expense", { error: recalcErr, metadata: { groupId: transaction.groupId } });
       }
+      await revalidateGroupHierarchy(transaction.groupId);
     }
     safeRevalidatePath("/dashboard/reports");
     safeRevalidatePath("/dashboard/analytics");
@@ -629,8 +628,6 @@ export async function updateTransaction(
       safeRevalidatePath("/dashboard/contacts");
     }
     if (updatedTransaction.groupId) {
-      safeRevalidatePath(`/dashboard/groups/${updatedTransaction.groupId}`);
-      safeRevalidatePath("/dashboard/groups");
       try {
         await executeAtomicGroupRecalculation({
           groupId: updatedTransaction.groupId,
@@ -640,6 +637,7 @@ export async function updateTransaction(
       } catch (recalcErr) {
         logger.error("Failed to recalculate group after editing expense", { error: recalcErr, metadata: { groupId: updatedTransaction.groupId } });
       }
+      await revalidateGroupHierarchy(updatedTransaction.groupId);
     }
     safeRevalidatePath("/dashboard/reports");
     safeRevalidatePath("/dashboard/analytics");
@@ -729,8 +727,6 @@ export async function deleteTransaction(publicIdOrId: string | number, reason?: 
     safeRevalidatePath(`/dashboard/transactions/${existingTransaction.publicId}`);
     safeRevalidatePath("/dashboard/ledger");
     if (existingTransaction.groupId) {
-      safeRevalidatePath(`/dashboard/groups/${existingTransaction.groupId}`);
-      safeRevalidatePath("/dashboard/groups");
       try {
         await executeAtomicGroupRecalculation({
           groupId: existingTransaction.groupId,
@@ -740,6 +736,7 @@ export async function deleteTransaction(publicIdOrId: string | number, reason?: 
       } catch (recalcErr) {
         logger.error("Failed to recalculate group after deleting expense", { error: recalcErr, metadata: { groupId: existingTransaction.groupId } });
       }
+      await revalidateGroupHierarchy(existingTransaction.groupId);
     }
     if (existingTransaction.contactId) {
       safeRevalidatePath(`/dashboard/contacts/${existingTransaction.contactId}`);
@@ -830,8 +827,6 @@ export async function restoreTransaction(publicIdOrId: string | number) {
     safeRevalidatePath(`/dashboard/transactions/${existingTransaction.publicId}`);
     safeRevalidatePath("/dashboard/ledger");
     if (existingTransaction.groupId) {
-      safeRevalidatePath(`/dashboard/groups/${existingTransaction.groupId}`);
-      safeRevalidatePath("/dashboard/groups");
       try {
         await executeAtomicGroupRecalculation({
           groupId: existingTransaction.groupId,
@@ -841,6 +836,7 @@ export async function restoreTransaction(publicIdOrId: string | number) {
       } catch (recalcErr) {
         logger.error("Failed to recalculate group after restoring expense", { error: recalcErr, metadata: { groupId: existingTransaction.groupId } });
       }
+      await revalidateGroupHierarchy(existingTransaction.groupId);
     }
     if (existingTransaction.contactId) {
       safeRevalidatePath(`/dashboard/contacts/${existingTransaction.contactId}`);

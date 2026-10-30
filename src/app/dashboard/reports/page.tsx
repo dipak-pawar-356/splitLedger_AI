@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { categories, groups, contacts } from "@/lib/db/schema/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, sql } from "drizzle-orm";
 import { 
   getComprehensiveReport, 
   getReportAnalytics
@@ -56,7 +56,16 @@ export default async function ReportsPage({
     db
       .select({ id: groups.id, name: groups.name })
       .from(groups)
-      .where(and(eq(groups.isDeleted, false))),
+      .where(
+        and(
+          eq(groups.isDeleted, false),
+          sql`${groups.id} IN (
+            SELECT id FROM groups WHERE created_by = ${user.id} AND is_deleted = false
+            UNION
+            SELECT group_id FROM group_members WHERE user_id = ${user.id}
+          )`
+        )
+      ),
     db
       .select({ id: contacts.id, name: contacts.name })
       .from(contacts)

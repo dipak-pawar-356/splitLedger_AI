@@ -7,7 +7,7 @@ import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, AuthorizationError, ConflictError, DatabaseError } from "@/lib/errors";
 import { formatCurrency, generatePublicId, isDbIntegerId } from "@/lib/utils";
-import { recordTimelineEvent, executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
+import { recordTimelineEvent, executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
 
 function buildGroupCondition(idOrPublicId: string | number) {
   const strId = String(idOrPublicId).trim();
@@ -126,9 +126,7 @@ export async function addGroupMember(data: {
     });
 
     try {
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      revalidatePath(`/dashboard/groups/${group.id}`);
-      revalidatePath("/dashboard/groups");
+      await revalidateGroupHierarchy(group.id);
     } catch (_) {}
     return newMember;
   } catch (error) {
@@ -277,15 +275,7 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
     });
 
     try {
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      if (group.legacyPublicId) {
-        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
-      }
-      revalidatePath(`/dashboard/groups/${group.id}`);
-      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
-      revalidatePath("/dashboard/groups");
-      revalidatePath("/dashboard/settlements");
-      revalidatePath("/dashboard");
+      await revalidateGroupHierarchy(group.id);
     } catch (_) {}
 
     return { success: true };
@@ -346,8 +336,7 @@ export async function updateMemberRole(memberId: number, groupIdOrPublicId: numb
     }
 
     try {
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      revalidatePath(`/dashboard/groups/${group.id}`);
+      await revalidateGroupHierarchy(group.id);
     } catch (_) {}
     return { success: true, member: updated };
   } catch (error) {
@@ -388,7 +377,7 @@ export async function updateMemberNickname(memberId: number, groupIdOrPublicId: 
     }
 
     try {
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      await revalidateGroupHierarchy(group.id);
     } catch (_) {}
     return { success: true, member: updated };
   } catch (error) {
@@ -594,18 +583,7 @@ export async function toggleMemberExpenseParticipationAction(params: {
 
     // 8. Revalidate all group, dashboard, ledger, reports, and analytics paths (Feature 11 & 12)
     try {
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      if (group.legacyPublicId) {
-        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
-      }
-      revalidatePath(`/dashboard/groups/${group.id}`);
-      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
-      revalidatePath(`/dashboard/groups/${group.id}/expenses`);
-      revalidatePath("/dashboard/groups");
-      revalidatePath("/dashboard/settlements");
-      revalidatePath("/dashboard/reports");
-      revalidatePath("/dashboard/analytics");
-      revalidatePath("/dashboard");
+      await revalidateGroupHierarchy(group.id);
     } catch (_) {}
 
     return {

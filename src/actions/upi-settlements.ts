@@ -27,6 +27,7 @@ import {
 } from "@/lib/payments/upi";
 import { generatePublicId } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
+import { revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
 
 export interface UpiSettlementCardData {
   receiverId: number;
@@ -731,10 +732,7 @@ export async function recordUpiSettlementPaymentAction(data: {
     }
 
     // Real-Time Revalidation: invalidate stale cached amounts immediately
-    revalidatePath(`/dashboard/groups/${data.groupId}`);
-    revalidatePath(`/dashboard/groups/${data.groupId}/settlements`);
-    revalidatePath("/dashboard/settlements");
-    revalidatePath("/dashboard");
+    await revalidateGroupHierarchy(data.groupId);
 
     return { success: true, settlementId: insertedSettlement.id };
   } catch (error: any) {

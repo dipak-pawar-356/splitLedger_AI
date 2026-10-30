@@ -16,7 +16,7 @@ import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { AuthorizationError, ValidationError } from "@/lib/errors";
 import { generatePublicId, isDbIntegerId } from "@/lib/utils";
-import { safeRevalidatePath, executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
+import { safeRevalidatePath, executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
 import {
   calculateExactAmountGroupPayables,
   calculatePercentageGroupPayables,
@@ -183,12 +183,7 @@ export async function saveGroupSplitConfigAction(params: SaveSplitConfigParams) 
       }
     }
 
-    safeRevalidatePath(`/dashboard/groups/${groupRecord.publicId}`);
-    safeRevalidatePath(`/dashboard/groups/${groupId}`);
-    safeRevalidatePath(`/groups/${groupRecord.publicId}`);
-    safeRevalidatePath("/dashboard/groups");
-    safeRevalidatePath("/dashboard");
-    safeRevalidatePath("/dashboard/settlements");
+    await revalidateGroupHierarchy(groupRecord.id);
 
     return {
       success: true,
@@ -439,10 +434,7 @@ export async function createReceiverAssignmentAction(params: CreateReceiverAssig
       },
     });
 
-    safeRevalidatePath(`/dashboard/groups/${groupRecord.publicId}`);
-    safeRevalidatePath(`/dashboard/groups/${groupId}`);
-    safeRevalidatePath(`/dashboard/groups/${groupId}/settlements`);
-    safeRevalidatePath(`/groups/${groupRecord.publicId}`);
+    await revalidateGroupHierarchy(groupRecord.id);
 
     return {
       success: true,
@@ -487,7 +479,7 @@ export async function deleteReceiverAssignmentAction(assignmentId: number, group
         )
       );
 
-    safeRevalidatePath(`/dashboard/groups/${assignment.groupId}`);
+    await revalidateGroupHierarchy(assignment.groupId);
     return { success: true, message: "Assignment cancelled." };
   });
 }
@@ -527,7 +519,7 @@ export async function resetReceiverAssignmentsAction(groupIdOrPublicId: string |
       triggerOperation: "recalculate",
     });
 
-    safeRevalidatePath(`/dashboard/groups/${groupRecord.publicId}`);
+    await revalidateGroupHierarchy(groupRecord.id);
     return { success: true, message: "Reset to automatic smart netting." };
   });
 }

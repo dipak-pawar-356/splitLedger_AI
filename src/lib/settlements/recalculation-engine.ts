@@ -29,16 +29,85 @@ import {
   contacts,
   groupReceiverAssignments,
 } from "@/lib/db/schema/schema";
-import { eq, and, desc, sql, inArray, ne } from "drizzle-orm";
-import { generateTimelineId, generateSettlementVersionId, generateAuditId, generatePublicId } from "@/lib/utils";
+import { eq, and, desc, sql, inArray, ne, or } from "drizzle-orm";
+import { generateTimelineId, generateSettlementVersionId, generateAuditId, generatePublicId, isDbIntegerId } from "@/lib/utils";
 import { calculateOptimalSettlements, type Balance } from "./calculator";
 import { revalidatePath } from "next/cache";
+import { appCache } from "@/lib/cache";
 
 export function safeRevalidatePath(path: string, type?: "layout" | "page") {
   try {
     revalidatePath(path, type);
   } catch (_) {
     // Gracefully ignore missing static generation store in asynchronous or serverless actions
+  }
+}
+
+export async function revalidateGroupHierarchy(
+  groupIdOrPublicId: number | string,
+  extraPaths: string[] = []
+) {
+  try {
+    // 1. Immediately wipe in-memory financial cache
+    try {
+      appCache.clear();
+    } catch (_) {}
+
+    // 2. Resolve both integer ID and publicId(s)
+    const strId = String(groupIdOrPublicId).trim();
+    const isDbId = isDbIntegerId(groupIdOrPublicId);
+
+    const [groupRecord] = await db
+      .select({
+        id: groups.id,
+        publicId: groups.publicId,
+        legacyPublicId: groups.legacyPublicId,
+      })
+      .from(groups)
+      .where(
+        isDbId
+          ? or(eq(groups.publicId, strId), eq(groups.id, Number(strId)), eq(groups.legacyPublicId, strId))
+          : or(eq(groups.publicId, strId), eq(groups.legacyPublicId, strId))
+      )
+      .limit(1);
+
+    const pathsToRevalidate = new Set<string>([
+      "/dashboard",
+      "/dashboard/groups",
+      "/groups",
+      "/dashboard/settlements",
+      "/dashboard/reports",
+      "/dashboard/analytics",
+      "/dashboard/transactions",
+      "/dashboard/ledger",
+      "/dashboard/activity",
+      ...extraPaths,
+    ]);
+
+    if (groupRecord) {
+      const identifiers = [groupRecord.publicId, String(groupRecord.id)];
+      if (groupRecord.legacyPublicId) {
+        identifiers.push(groupRecord.legacyPublicId);
+      }
+
+      for (const ident of identifiers) {
+        pathsToRevalidate.add(`/dashboard/groups/${ident}`);
+        pathsToRevalidate.add(`/dashboard/groups/${ident}/expenses`);
+        pathsToRevalidate.add(`/dashboard/groups/${ident}/settlements`);
+        pathsToRevalidate.add(`/groups/${ident}`);
+      }
+    } else {
+      pathsToRevalidate.add(`/dashboard/groups/${strId}`);
+      pathsToRevalidate.add(`/dashboard/groups/${strId}/expenses`);
+      pathsToRevalidate.add(`/dashboard/groups/${strId}/settlements`);
+      pathsToRevalidate.add(`/groups/${strId}`);
+    }
+
+    for (const p of pathsToRevalidate) {
+      safeRevalidatePath(p);
+    }
+  } catch (err) {
+    console.warn("revalidateGroupHierarchy error:", err);
   }
 }
 
@@ -1082,16 +1151,7 @@ export async function executeAtomicGroupRecalculation(params: {
     } catch (_) {}
 
     // Step 12: Post-Commit Actions (Revalidation)
-    safeRevalidatePath(`/dashboard/groups/${groupRecord.publicId}`);
-    if (groupRecord.legacyPublicId) {
-      safeRevalidatePath(`/dashboard/groups/${groupRecord.legacyPublicId}`);
-    }
-    safeRevalidatePath(`/dashboard/groups/${groupRecord.id}`);
-    safeRevalidatePath(`/dashboard/groups/${groupRecord.id}/settlements`);
-    safeRevalidatePath("/dashboard/settlements");
-    safeRevalidatePath("/dashboard/groups");
-    safeRevalidatePath("/groups");
-    safeRevalidatePath("/dashboard");
+    await revalidateGroupHierarchy(groupRecord.id);
 
     return {
       success: true,

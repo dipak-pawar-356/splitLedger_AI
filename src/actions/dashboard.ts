@@ -423,9 +423,12 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         .from(transactions)
         .where(
           and(
-            eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            sql`${transactions.groupId} IS NOT NULL`
+            sql`${transactions.groupId} IN (
+              SELECT id FROM groups WHERE created_by = ${user.id} AND is_deleted = false
+              UNION
+              SELECT group_id FROM group_members WHERE user_id = ${user.id}
+            )`
           )
         ),
 
@@ -440,12 +443,15 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           memberCount: sql<number>`(SELECT COUNT(*) FROM group_members WHERE group_id = groups.id)`,
         })
         .from(groups)
-        .innerJoin(groupMembers, eq(groups.id, groupMembers.groupId))
         .where(
           and(
-            eq(groupMembers.userId, user.id),
             eq(groups.isDeleted, false),
-            eq(groups.isActive, true)
+            eq(groups.isActive, true),
+            sql`${groups.id} IN (
+              SELECT id FROM groups WHERE created_by = ${user.id} AND is_deleted = false
+              UNION
+              SELECT group_id FROM group_members WHERE user_id = ${user.id}
+            )`
           )
         )
         .orderBy(desc(groups.createdAt))
@@ -462,7 +468,11 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         .where(
           and(
             eq(groups.isDeleted, false),
-            sql`${groupMembers.groupId} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
+            sql`${groupMembers.groupId} IN (
+              SELECT id FROM groups WHERE created_by = ${user.id} AND is_deleted = false
+              UNION
+              SELECT group_id FROM group_members WHERE user_id = ${user.id}
+            )`
           )
         ),
 

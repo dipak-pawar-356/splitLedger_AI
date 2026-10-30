@@ -7,7 +7,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { calculateOptimalSettlements, type Balance } from "@/lib/settlements/calculator";
-import { executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
+import { executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
 
@@ -53,8 +53,8 @@ export async function createSettlement(data: {
     // Revalidate appropriate paths for real-time updates
     revalidatePath("/dashboard/settlements");
     if (data.groupId) {
-      revalidatePath(`/dashboard/groups/${data.groupId}`);
-      revalidatePath("/dashboard/groups");
+      await revalidateGroupHierarchy(data.groupId);
+    } else {
       revalidatePath("/dashboard");
     }
     return settlement;
@@ -127,8 +127,8 @@ export async function updateSettlement(
           console.warn("Failed to recalculate group after updating settlement:", recalcErr);
         }
       }
-      revalidatePath(`/dashboard/groups/${settlement.groupId}`);
-      revalidatePath("/dashboard/groups");
+      await revalidateGroupHierarchy(settlement.groupId);
+    } else {
       revalidatePath("/dashboard");
     }
     return settlement;
@@ -305,10 +305,10 @@ export async function markSettlementAsPaid(publicIdOrId: string | number, paymen
       } catch (recalcErr) {
         console.warn("Failed to recalculate group after completing settlement:", recalcErr);
       }
-      revalidatePath(`/dashboard/groups/${settlement.groupId}`);
-      revalidatePath("/dashboard/groups");
+      await revalidateGroupHierarchy(settlement.groupId);
+    } else {
+      revalidatePath("/dashboard");
     }
-    revalidatePath("/dashboard");
     return settlement;
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof ValidationError) {
@@ -461,10 +461,9 @@ export async function createSettlementsBatch(
     revalidatePath("/dashboard/settlements");
     
     const groupIds = [...new Set(data.map(s => s.groupId).filter((id): id is number => id !== null && id !== undefined))];
-    groupIds.forEach(groupId => {
-      revalidatePath(`/dashboard/groups/${groupId}`);
-      revalidatePath("/dashboard/groups");
-    });
+    for (const grpId of groupIds) {
+      await revalidateGroupHierarchy(grpId);
+    }
     revalidatePath("/dashboard");
 
     return insertedSettlements;
@@ -583,8 +582,7 @@ export async function deleteSettlement(publicIdOrId: string | number, reason?: s
       } catch (err) {
         console.warn("Failed to recalculate group after deleting settlement:", err);
       }
-      revalidatePath(`/dashboard/groups/${existing.groupId}`);
-      revalidatePath("/dashboard/groups");
+      await revalidateGroupHierarchy(existing.groupId);
     }
     revalidatePath("/dashboard/settlements");
     revalidatePath("/dashboard");
@@ -728,7 +726,7 @@ export async function createSettlementsFromCalculation(groupId: number) {
     });
 
     revalidatePath("/dashboard/settlements");
-    revalidatePath(`/dashboard/groups/${groupId}`);
+    await revalidateGroupHierarchy(groupId);
     revalidatePath("/dashboard");
     return { success: true, count: result.pendingSettlementsCount };
   } catch (error) {
@@ -1153,7 +1151,7 @@ export async function executeSettlementBatchAction(
         triggerOperation: "recalculate",
         initiatedByUserId: user.id,
       });
-      revalidatePath(`/dashboard/groups/${grpId}`);
+      await revalidateGroupHierarchy(grpId);
     } catch (recalcErr) {
       console.warn(`Recalculation failed for group ${grpId}:`, recalcErr);
     }

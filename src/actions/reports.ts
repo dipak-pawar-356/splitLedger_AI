@@ -386,8 +386,15 @@ export async function getReportDashboardSummary() {
         .innerJoin(groups, eq(transactions.groupId, groups.id))
         .where(
           and(
-            eq(transactions.userId, user.id),
-            eq(transactions.isDeleted, false)
+            eq(transactions.isDeleted, false),
+            or(
+              eq(transactions.userId, user.id),
+              sql`${transactions.groupId} IN (
+                SELECT id FROM groups WHERE created_by = ${user.id} AND is_deleted = false
+                UNION
+                SELECT group_id FROM group_members WHERE user_id = ${user.id}
+              )`
+            )
           )
         )
         .groupBy(groups.id, groups.name)
@@ -528,7 +535,7 @@ function computeComprehensiveFinancialModel({
   for (const tx of transactionsList) {
     const amtRupees = Number(tx.amount) / 100;
     const isGroup = tx.groupId !== null && targetGroupIds.includes(tx.groupId);
-    const isUserPayer = tx.paidBy === user.id || (tx.paidBy === null && tx.createdBy === user.id && !isGroup);
+    const isUserPayer = tx.paidBy === user.id || (tx.paidBy === null && (tx.createdBy === user.id || tx.userId === user.id));
     const monthKey = tx.date ? new Date(tx.date).toISOString().slice(0, 7) : "2026-10";
 
     const txSplits = splitsByTx.get(tx.id) || [];
@@ -945,12 +952,28 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
   try {
     const user = await requireAuth();
 
-    // 1. Get user's active group memberships
-    const userMemberships = await db
-      .select({ groupId: groupMembers.groupId })
-      .from(groupMembers)
-      .where(and(eq(groupMembers.userId, user.id), eq(groupMembers.membershipStatus, "active")));
-    const userGroupIds = Array.from(new Set(userMemberships.map((m) => m.groupId).filter(Boolean))) as number[];
+    // 1. Get user's active groups (as creator or as active/non-inactive member)
+    const userGroupsQuery = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .leftJoin(groupMembers, eq(groups.id, groupMembers.groupId))
+      .where(
+        and(
+          eq(groups.isDeleted, false),
+          or(
+            eq(groups.createdBy, user.id),
+            and(
+              eq(groupMembers.userId, user.id),
+              or(
+                isNull(groupMembers.membershipStatus),
+                eq(groupMembers.membershipStatus, "active"),
+                sql`${groupMembers.membershipStatus} != 'expense_inactive'`
+              )
+            )
+          )
+        )
+      );
+    const userGroupIds = Array.from(new Set(userGroupsQuery.map((g) => g.id).filter(Boolean))) as number[];
     const targetGroupIds = options.groupId ? [options.groupId] : userGroupIds;
 
     // 2. Standardized Period calculation
@@ -967,7 +990,11 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
             eq(transactions.createdBy, user.id),
             eq(transactions.paidBy, user.id)
           )
-        )
+        ),
+        eq(transactions.userId, user.id),
+        eq(transactions.createdBy, user.id),
+        eq(transactions.paidBy, user.id),
+        sql`EXISTS (SELECT 1 FROM expense_splits WHERE expense_splits.transaction_id = transactions.id AND expense_splits.user_id = ${user.id})`
       ),
     ];
 
@@ -1130,7 +1157,11 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
             .where(
               and(
                 inArray(groupMembers.groupId, targetGroupIds),
-                eq(groupMembers.membershipStatus, "active")
+                or(
+                  isNull(groupMembers.membershipStatus),
+                  eq(groupMembers.membershipStatus, "active"),
+                  sql`${groupMembers.membershipStatus} != 'expense_inactive'`
+                )
               )
             )
         : Promise.resolve([]),
@@ -1209,12 +1240,28 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
   try {
     const user = await requireAuth();
 
-    // 1. Group memberships
-    const userMemberships = await db
-      .select({ groupId: groupMembers.groupId })
-      .from(groupMembers)
-      .where(and(eq(groupMembers.userId, user.id), eq(groupMembers.membershipStatus, "active")));
-    const userGroupIds = Array.from(new Set(userMemberships.map((m) => m.groupId).filter(Boolean))) as number[];
+    // 1. Group memberships & ownership
+    const userGroupsQuery = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .leftJoin(groupMembers, eq(groups.id, groupMembers.groupId))
+      .where(
+        and(
+          eq(groups.isDeleted, false),
+          or(
+            eq(groups.createdBy, user.id),
+            and(
+              eq(groupMembers.userId, user.id),
+              or(
+                isNull(groupMembers.membershipStatus),
+                eq(groupMembers.membershipStatus, "active"),
+                sql`${groupMembers.membershipStatus} != 'expense_inactive'`
+              )
+            )
+          )
+        )
+      );
+    const userGroupIds = Array.from(new Set(userGroupsQuery.map((g) => g.id).filter(Boolean))) as number[];
     const targetGroupIds = options.groupId ? [options.groupId] : userGroupIds;
 
     // 2. Determine current period and comparison prior period
@@ -1233,7 +1280,11 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
           eq(transactions.createdBy, user.id),
           eq(transactions.paidBy, user.id)
         )
-      )
+      ),
+      eq(transactions.userId, user.id),
+      eq(transactions.createdBy, user.id),
+      eq(transactions.paidBy, user.id),
+      sql`EXISTS (SELECT 1 FROM expense_splits WHERE expense_splits.transaction_id = transactions.id AND expense_splits.user_id = ${user.id})`
     );
 
     const currentConditions: any[] = [
@@ -1354,7 +1405,11 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
             .where(
               and(
                 inArray(groupMembers.groupId, targetGroupIds),
-                eq(groupMembers.membershipStatus, "active")
+                or(
+                  isNull(groupMembers.membershipStatus),
+                  eq(groupMembers.membershipStatus, "active"),
+                  sql`${groupMembers.membershipStatus} != 'expense_inactive'`
+                )
               )
             )
         : Promise.resolve([]),

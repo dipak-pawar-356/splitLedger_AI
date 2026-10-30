@@ -14,7 +14,7 @@ import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError, ConflictError } from "@/lib/errors";
 import { generatePublicId, generateAuditId, isDbIntegerId } from "@/lib/utils";
 import { redistributeGroupHistoricalExpenses } from "@/actions/historical-redistribution";
-import { recordTimelineEvent, executeAtomicGroupRecalculation } from "@/lib/settlements/recalculation-engine";
+import { recordTimelineEvent, executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
 import { hasDelegatedGroupPermission } from "@/lib/security/rbac";
 
 /**
@@ -268,11 +268,7 @@ export async function submitGroupJoinRequestAction(groupPublicId: string) {
 
     try {
       revalidatePath(`/join-group/${groupPublicId}`);
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      if (group.legacyPublicId) {
-        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
-      }
-      revalidatePath(`/dashboard/groups/${group.id}`);
+      await revalidateGroupHierarchy(group.id);
     } catch (_) {}
 
     return {
@@ -565,20 +561,11 @@ export async function approveJoinRequestAction(data: {
 
     // 7. Revalidate all paths safely
     try {
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      if (group.legacyPublicId) {
-        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
-      }
-      revalidatePath(`/dashboard/groups/${group.id}`);
-      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
-      revalidatePath(`/dashboard/settlements`);
       revalidatePath(`/join-group/${group.publicId}`);
       if (group.legacyPublicId) {
         revalidatePath(`/join-group/${group.legacyPublicId}`);
       }
-      revalidatePath("/dashboard/groups");
-      revalidatePath("/groups");
-      revalidatePath("/dashboard");
+      await revalidateGroupHierarchy(group.id);
     } catch (_) {}
 
     return {
@@ -743,13 +730,7 @@ export async function activateMemberExpenseParticipationAction(data: {
 
     // 4. Revalidate paths for immediate sync safely
     try {
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      revalidatePath(`/dashboard/groups/${group.id}`);
-      revalidatePath(`/dashboard/groups/${group.id}/settlements`);
-      revalidatePath(`/dashboard/settlements`);
-      revalidatePath("/dashboard/groups");
-      revalidatePath("/groups");
-      revalidatePath("/dashboard");
+      await revalidateGroupHierarchy(group.id);
     } catch (_) {}
 
     return {
@@ -866,14 +847,7 @@ export async function rejectJoinRequestAction(data: {
       );
 
     try {
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
-      if (group.legacyPublicId) {
-        revalidatePath(`/dashboard/groups/${group.legacyPublicId}`);
-      }
-      revalidatePath(`/dashboard/groups/${group.id}`);
-      revalidatePath("/dashboard/groups");
-      revalidatePath("/groups");
-      revalidatePath("/dashboard");
+      await revalidateGroupHierarchy(group.id);
     } catch (_) {}
 
     return { success: true as const };

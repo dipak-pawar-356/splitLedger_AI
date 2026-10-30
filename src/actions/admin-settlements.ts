@@ -18,6 +18,7 @@ import {
 import { eq, and, desc, or, ilike, sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
 import {
   ValidationError,
   NotFoundError,
@@ -393,11 +394,7 @@ export async function verifySettlement(data: {
     }
 
     // 7. Revalidate Next.js cache
-    revalidatePath(`/dashboard/groups/${group.publicId}`);
-    revalidatePath(`/dashboard/groups/${group.id}`);
-    revalidatePath("/dashboard/groups");
-    revalidatePath("/dashboard/settlements");
-    revalidatePath("/dashboard");
+    await revalidateGroupHierarchy(group.id);
 
     return {
       success: true,
@@ -1077,7 +1074,7 @@ export async function sendSettlementRemindersNow(
         details: { sentCount, failedCount, totalRecipients: debtors.length + creditors.length },
       });
 
-      revalidatePath(`/dashboard/groups/${group.publicId}`);
+      await revalidateGroupHierarchy(group.id);
     }
 
     return {
