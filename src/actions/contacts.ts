@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
 import { appCache } from "@/lib/cache";
+import { revalidateContactHierarchy } from "@/lib/settlements/recalculation-engine";
 
 export async function createContact(data: {
   name: string;
@@ -38,7 +39,7 @@ export async function createContact(data: {
       })
       .returning();
 
-    revalidatePath("/dashboard/contacts");
+    await revalidateContactHierarchy(contact.publicId);
     return contact;
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -115,8 +116,7 @@ export async function updateContact(
       throw new NotFoundError("Contact");
     }
 
-    revalidatePath("/dashboard/contacts");
-    revalidatePath(`/dashboard/contacts/${existingContact.publicId}`);
+    await revalidateContactHierarchy(existingContact.publicId);
     return contact;
   } catch (error) {
     if (error instanceof ValidationError || error instanceof NotFoundError) {
@@ -156,8 +156,7 @@ export async function archiveContact(publicIdOrId: string | number, isArchived: 
       .where(eq(contacts.id, existingContact.id))
       .returning();
 
-    revalidatePath("/dashboard/contacts");
-    revalidatePath(`/dashboard/contacts/${existingContact.publicId}`);
+    await revalidateContactHierarchy(existingContact.publicId);
     return contact;
   } catch (error) {
     if (error instanceof ValidationError || error instanceof NotFoundError) {
@@ -257,14 +256,7 @@ export async function deleteContact(publicIdOrId: string | number) {
     });
 
     // 6. Purge cache and revalidate all relevant paths to recalculate dashboard
-    appCache.clear();
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/contacts");
-    revalidatePath("/dashboard/transactions");
-    revalidatePath("/dashboard/reports");
-    revalidatePath("/dashboard/activity");
-    revalidatePath("/dashboard/analytics");
-    revalidatePath(`/dashboard/contacts/${existingContact.publicId}`);
+    await revalidateContactHierarchy(existingContact.publicId);
     return { success: true };
   } catch (error) {
     if (error instanceof ValidationError || error instanceof NotFoundError) {

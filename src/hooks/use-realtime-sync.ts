@@ -8,6 +8,22 @@ export interface RealtimeSyncOptions {
   autoRefresh?: boolean;
 }
 
+let globalBroadcastChannel: BroadcastChannel | null = null;
+if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+  try {
+    globalBroadcastChannel = new BroadcastChannel("splitledger_sync_channel");
+  } catch (_) {}
+}
+
+export function broadcastSyncUpdate(data: any = { type: "REFRESH_REQUESTED", timestamp: Date.now() }) {
+  if (typeof window !== "undefined") {
+    try {
+      globalBroadcastChannel?.postMessage(data);
+      window.dispatchEvent(new CustomEvent("splitledger:sync", { detail: data }));
+    } catch (_) {}
+  }
+}
+
 export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
   const { onEvent, autoRefresh = true } = options;
   const router = useRouter();
@@ -56,8 +72,11 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
 
         setLastEventTime(new Date());
 
-        // Dispatch browser custom event for local components
+        // Dispatch browser custom event for local components & other tabs
         window.dispatchEvent(new CustomEvent("splitledger:sync", { detail: data }));
+        try {
+          globalBroadcastChannel?.postMessage(data);
+        } catch (_) {}
 
         if (onEvent) {
           onEvent(data);
@@ -86,6 +105,32 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
   useEffect(() => {
     connect();
 
+    // Cross-tab synchronization listener
+    const handleBroadcastMessage = (event: MessageEvent) => {
+      if (autoRefresh) {
+        router.refresh();
+      }
+    };
+
+    if (globalBroadcastChannel) {
+      globalBroadcastChannel.addEventListener("message", handleBroadcastMessage);
+    }
+
+    // Auto-refresh when tab becomes active / focused again
+    let lastVisibilityRefresh = Date.now();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now();
+        if (now - lastVisibilityRefresh > 3000) {
+          lastVisibilityRefresh = now;
+          if (autoRefresh) {
+            router.refresh();
+          }
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -93,8 +138,12 @@ export function useRealtimeSync(options: RealtimeSyncOptions = {}) {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      if (globalBroadcastChannel) {
+        globalBroadcastChannel.removeEventListener("message", handleBroadcastMessage);
+      }
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [connect]);
+  }, [connect, autoRefresh, router]);
 
   return {
     isConnected,

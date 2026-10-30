@@ -2,8 +2,9 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Info, Sparkles, Database, Server, Code, ShieldCheck, Mail } from "lucide-react";
+import { Info, Database, Server, Code, ShieldCheck, Mail } from "lucide-react";
 import Link from "next/link";
+import { SplitLedgerLogo } from "@/components/ui/logo";
 
 export function AboutSystemCard() {
   return (
@@ -20,8 +21,8 @@ export function AboutSystemCard() {
 
       <CardContent className="p-6 space-y-6 max-w-2xl">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-linear-to-tr from-primary to-indigo-600 flex items-center justify-center text-white shadow-md">
-            <Sparkles className="h-6 w-6" />
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center shadow-md">
+            <SplitLedgerLogo size={32} withGlow />
           </div>
           <div>
             <div className="flex items-center gap-2">

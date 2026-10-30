@@ -24,6 +24,7 @@ import {
   CircleUser,
 } from "lucide-react";
 import { useSidebar } from "@/components/layout/sidebar-context";
+import { SplitLedgerBrand } from "@/components/ui/logo";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -79,19 +80,15 @@ export function Sidebar() {
             href="/dashboard"
             onClick={closeMobile}
             className={cn(
-              "flex items-center gap-2.5 min-w-0 transition-opacity",
+              "flex items-center min-w-0 transition-opacity",
               isCollapsed && "lg:justify-center"
             )}
             title="SplitLedger AI"
           >
-            <div className="p-1.5 rounded-xl bg-primary/10 text-primary shrink-0">
-              <Sparkles className="h-6 w-6 text-primary" />
-            </div>
-            {(!isCollapsed || isMobileOpen) && (
-              <span className="text-lg font-bold tracking-tight truncate text-slate-900 dark:text-slate-100">
-                SplitLedger <span className="text-primary text-xs font-semibold px-1.5 py-0.5 rounded-md bg-primary/10 ml-0.5">AI</span>
-              </span>
-            )}
+            <SplitLedgerBrand
+              size="md"
+              showText={!isCollapsed || isMobileOpen}
+            />
           </Link>
 
           {/* Desktop Collapse Toggle */}

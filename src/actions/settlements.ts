@@ -7,9 +7,30 @@ import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { calculateOptimalSettlements, type Balance } from "@/lib/settlements/calculator";
-import { executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
+import { executeAtomicGroupRecalculation, revalidateGroupHierarchy, safeRevalidatePath, revalidateContactHierarchy } from "@/lib/settlements/recalculation-engine";
+import { appCache } from "@/lib/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
+
+async function revalidateSettlementPaths(groupId?: number | null, contactId?: number | null) {
+  try {
+    appCache.clear();
+  } catch (_) {}
+  if (groupId) {
+    await revalidateGroupHierarchy(groupId);
+  } else {
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/dashboard/settlements");
+    safeRevalidatePath("/dashboard/reports");
+    safeRevalidatePath("/dashboard/analytics");
+    safeRevalidatePath("/dashboard/activity");
+    safeRevalidatePath("/dashboard/contacts");
+    safeRevalidatePath("/dashboard/transactions");
+  }
+  if (contactId) {
+    await revalidateContactHierarchy(contactId);
+  }
+}
 
 export async function createSettlement(data: {
   fromUserId: number;
@@ -51,12 +72,7 @@ export async function createSettlement(data: {
       .returning();
 
     // Revalidate appropriate paths for real-time updates
-    revalidatePath("/dashboard/settlements");
-    if (data.groupId) {
-      await revalidateGroupHierarchy(data.groupId);
-    } else {
-      revalidatePath("/dashboard");
-    }
+    await revalidateSettlementPaths(data.groupId, data.fromContactId || data.toContactId);
     return settlement;
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -114,23 +130,18 @@ export async function updateSettlement(
       .returning();
 
     // Revalidate appropriate paths for real-time updates
-    revalidatePath("/dashboard/settlements");
-    if (settlement.groupId) {
-      if (data.status === "completed") {
-        try {
-          await executeAtomicGroupRecalculation({
-            groupId: settlement.groupId,
-            triggerOperation: "recalculate",
-            initiatedByUserId: user.id,
-          });
-        } catch (recalcErr) {
-          console.warn("Failed to recalculate group after updating settlement:", recalcErr);
-        }
+    if (settlement.groupId && data.status === "completed") {
+      try {
+        await executeAtomicGroupRecalculation({
+          groupId: settlement.groupId,
+          triggerOperation: "recalculate",
+          initiatedByUserId: user.id,
+        });
+      } catch (recalcErr) {
+        console.warn("Failed to recalculate group after updating settlement:", recalcErr);
       }
-      await revalidateGroupHierarchy(settlement.groupId);
-    } else {
-      revalidatePath("/dashboard");
     }
+    await revalidateSettlementPaths(settlement.groupId, settlement.fromContactId || settlement.toContactId);
     return settlement;
   } catch (error) {
     if (error instanceof ValidationError || error instanceof NotFoundError) {
@@ -294,7 +305,6 @@ export async function markSettlementAsPaid(publicIdOrId: string | number, paymen
     }
 
     // Revalidate appropriate paths for real-time updates
-    revalidatePath("/dashboard/settlements");
     if (settlement.groupId) {
       try {
         await executeAtomicGroupRecalculation({
@@ -305,10 +315,8 @@ export async function markSettlementAsPaid(publicIdOrId: string | number, paymen
       } catch (recalcErr) {
         console.warn("Failed to recalculate group after completing settlement:", recalcErr);
       }
-      await revalidateGroupHierarchy(settlement.groupId);
-    } else {
-      revalidatePath("/dashboard");
     }
+    await revalidateSettlementPaths(settlement.groupId, settlement.fromContactId || settlement.toContactId);
     return settlement;
   } catch (error) {
     if (error instanceof NotFoundError || error instanceof ValidationError) {
@@ -582,10 +590,8 @@ export async function deleteSettlement(publicIdOrId: string | number, reason?: s
       } catch (err) {
         console.warn("Failed to recalculate group after deleting settlement:", err);
       }
-      await revalidateGroupHierarchy(existing.groupId);
     }
-    revalidatePath("/dashboard/settlements");
-    revalidatePath("/dashboard");
+    await revalidateSettlementPaths(existing.groupId, existing.fromContactId || existing.toContactId);
 
     return { success: true };
   } catch (error) {

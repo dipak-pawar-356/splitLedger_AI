@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { transactions, contacts, categories, groups, users } from "@/lib/db/schema/schema";
-import { eq, desc, and, sql, gte, lte, or } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, or, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,17 @@ export default async function TransactionsPage() {
     const deletedByUsers = alias(users, "deleted_by_users");
     const creatorUsers = alias(users, "creator_users");
 
+    // Clean up any lingering orphaned transactions for deleted contacts
+    try {
+      await db.execute(sql`
+        UPDATE transactions 
+        SET is_deleted = true, deleted_at = NOW(), updated_at = NOW() 
+        WHERE is_deleted = false 
+          AND contact_id IS NOT NULL 
+          AND contact_id IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = true)
+      `);
+    } catch (_) {}
+
     // Fetch active transactions, deleted transactions, and statistics
     const [activeTxList, deletedTxList, monthlyStats, totalStats] = await Promise.all([
       db
@@ -84,7 +95,11 @@ export default async function TransactionsPage() {
               eq(transactions.createdBy, user.id),
               sql`${transactions.groupId} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
             ),
-            eq(transactions.isDeleted, false)
+            eq(transactions.isDeleted, false),
+            or(
+              isNull(transactions.contactId),
+              sql`${transactions.contactId} IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = false)`
+            )
           )
         )
         .orderBy(desc(transactions.date))
@@ -135,6 +150,10 @@ export default async function TransactionsPage() {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            or(
+              isNull(transactions.contactId),
+              sql`${transactions.contactId} IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = false)`
+            ),
             gte(transactions.date, startOfMonth),
             lte(transactions.date, endOfMonth)
           )
@@ -150,7 +169,11 @@ export default async function TransactionsPage() {
         .where(
           and(
             eq(transactions.userId, user.id),
-            eq(transactions.isDeleted, false)
+            eq(transactions.isDeleted, false),
+            or(
+              isNull(transactions.contactId),
+              sql`${transactions.contactId} IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = false)`
+            )
           )
         ),
     ]);

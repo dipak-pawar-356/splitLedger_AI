@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useEffect, useTransition, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -139,6 +139,14 @@ export function ReportsClientView({
   const [reportData, setReportData] = useState(initialReportData);
   const [analyticsData, setAnalyticsData] = useState(initialAnalytics);
   const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    setReportData(initialReportData);
+  }, [initialReportData]);
+
+  useEffect(() => {
+    setAnalyticsData(initialAnalytics);
+  }, [initialAnalytics]);
 
   // Update URL search params and fetch fresh data dynamically without slow full-page router revalidation
   const updateFilters = (newFilters: ReportFilterOptions) => {

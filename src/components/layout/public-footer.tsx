@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { SplitLedgerBrand } from "@/components/ui/logo";
 
 export function PublicFooter() {
   const currentYear = new Date().getFullYear();
@@ -12,15 +12,10 @@ export function PublicFooter() {
           <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 text-center sm:text-left">
             <Link
               href="/"
-              className="flex items-center gap-2 text-slate-900 dark:text-white font-bold transition-transform duration-200 ease-out hover:scale-[1.03]"
+              className="flex items-center text-slate-900 dark:text-white font-bold transition-transform duration-200 ease-out hover:scale-[1.02]"
               aria-label="SplitLedger AI Home"
             >
-              <div className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/20 transition-transform duration-300 group-hover:rotate-6">
-                <Sparkles className="h-3.5 w-3.5" />
-              </div>
-              <span className="text-sm tracking-tight font-black">
-                SplitLedger <span className="text-primary font-black">AI</span>
-              </span>
+              <SplitLedgerBrand size="sm" />
             </Link>
             <span className="hidden sm:inline text-slate-300 dark:text-slate-700" aria-hidden="true">
               •

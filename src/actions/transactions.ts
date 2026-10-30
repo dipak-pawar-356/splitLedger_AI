@@ -342,6 +342,7 @@ export async function createTransaction(data: CreateTransactionInput) {
     }
     safeRevalidatePath("/dashboard/reports");
     safeRevalidatePath("/dashboard/analytics");
+    safeRevalidatePath("/dashboard/activity");
 
       return transaction;
     });
@@ -641,6 +642,7 @@ export async function updateTransaction(
     }
     safeRevalidatePath("/dashboard/reports");
     safeRevalidatePath("/dashboard/analytics");
+    safeRevalidatePath("/dashboard/activity");
 
     return updatedTransaction;
   } catch (error) {
@@ -744,6 +746,7 @@ export async function deleteTransaction(publicIdOrId: string | number, reason?: 
     }
     safeRevalidatePath("/dashboard/reports");
     safeRevalidatePath("/dashboard/analytics");
+    safeRevalidatePath("/dashboard/activity");
 
     return { success: true };
   } catch (error) {
@@ -844,6 +847,7 @@ export async function restoreTransaction(publicIdOrId: string | number) {
     }
     safeRevalidatePath("/dashboard/reports");
     safeRevalidatePath("/dashboard/analytics");
+    safeRevalidatePath("/dashboard/activity");
 
     return { success: true };
   } catch (error) {

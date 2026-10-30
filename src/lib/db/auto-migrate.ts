@@ -2,8 +2,11 @@ import { neon } from "@neondatabase/serverless";
 
 let migrationPromise: Promise<void> | null = null;
 let contactsMigrationPromise: Promise<void> | null = null;
+let isContactsSchemaEnsured = false;
+let isSchemaEnsured = false;
 
 export async function ensureContactsSchema(): Promise<void> {
+  if (isContactsSchemaEnsured) return;
   if (contactsMigrationPromise) return contactsMigrationPromise;
 
   contactsMigrationPromise = (async () => {
@@ -87,6 +90,7 @@ export async function ensureContactsSchema(): Promise<void> {
           console.warn("Contact schema statement warning:", err?.message || err);
         }
       }
+      isContactsSchemaEnsured = true;
     } catch (err: any) {
       console.warn("ensureContactsSchema error:", err?.message || err);
     }
@@ -96,6 +100,7 @@ export async function ensureContactsSchema(): Promise<void> {
 }
 
 export async function ensureDatabaseSchema(): Promise<void> {
+  if (isSchemaEnsured) return;
   if (migrationPromise) return migrationPromise;
 
   migrationPromise = (async () => {
@@ -939,6 +944,7 @@ export async function ensureDatabaseSchema(): Promise<void> {
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_audit_grp_created ON audit_logs(entity_id, created_at DESC)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_audit_usr_created ON audit_logs(user_id, created_at DESC)`;
       await sqlClient`CREATE INDEX IF NOT EXISTS idx_budgets_usr_del ON budgets(user_id, is_deleted)`;
+      isSchemaEnsured = true;
     } catch (err: any) {
       console.warn("Schema auto-migration warning:", err?.message || err);
     }

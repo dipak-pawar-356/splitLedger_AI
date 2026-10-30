@@ -4,9 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Menu, X, ArrowRight } from "lucide-react";
+import { Menu, X, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { SplitLedgerBrand } from "@/components/ui/logo";
 
 export function PublicNavbar() {
   const pathname = usePathname();
@@ -42,18 +43,13 @@ export function PublicNavbar() {
     >
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo with micro-scale & sparkle rotation on hover */}
+          {/* Logo with modern branding */}
           <Link
             href="/"
-            className="flex items-center gap-2.5 group transition-transform duration-250 ease-out hover:scale-[1.02]"
+            className="flex items-center transition-transform duration-200 ease-out hover:scale-[1.02]"
             aria-label="SplitLedger AI Home"
           >
-            <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-xs transition-all duration-300 ease-out group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-primary/20">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            <span className="text-base font-bold tracking-tight text-slate-900 dark:text-white">
-              SplitLedger <span className="text-primary font-black">AI</span>
-            </span>
+            <SplitLedgerBrand size="md" />
           </Link>
 
           {/* Desktop Navigation Links with animated indicator */}

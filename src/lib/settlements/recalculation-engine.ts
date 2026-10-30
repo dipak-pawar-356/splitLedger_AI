@@ -111,6 +111,61 @@ export async function revalidateGroupHierarchy(
   }
 }
 
+export async function revalidateContactHierarchy(
+  contactIdOrPublicId?: number | string | null,
+  extraPaths: string[] = []
+) {
+  try {
+    try {
+      appCache.clear();
+    } catch (_) {}
+
+    const pathsToRevalidate = new Set<string>([
+      "/dashboard",
+      "/dashboard/contacts",
+      "/dashboard/transactions",
+      "/dashboard/reports",
+      "/dashboard/analytics",
+      "/dashboard/activity",
+      "/dashboard/ledger",
+      ...extraPaths,
+    ]);
+
+    if (contactIdOrPublicId) {
+      const strId = String(contactIdOrPublicId).trim();
+      const isDbId = /^\d+$/.test(strId);
+
+      const [contactRecord] = await db
+        .select({
+          id: contacts.id,
+          publicId: contacts.publicId,
+        })
+        .from(contacts)
+        .where(
+          isDbId
+            ? or(eq(contacts.publicId, strId), eq(contacts.id, Number(strId)))
+            : eq(contacts.publicId, strId)
+        )
+        .limit(1);
+
+      if (contactRecord) {
+        pathsToRevalidate.add(`/dashboard/contacts/${contactRecord.publicId}`);
+        pathsToRevalidate.add(`/dashboard/contacts/${contactRecord.publicId}/ledger`);
+        pathsToRevalidate.add(`/dashboard/contacts/${contactRecord.id}`);
+      } else {
+        pathsToRevalidate.add(`/dashboard/contacts/${strId}`);
+        pathsToRevalidate.add(`/dashboard/contacts/${strId}/ledger`);
+      }
+    }
+
+    for (const p of pathsToRevalidate) {
+      safeRevalidatePath(p);
+    }
+  } catch (err) {
+    console.warn("revalidateContactHierarchy error:", err);
+  }
+}
+
 let schemaEnsured = false;
 export async function ensureDatabaseSchema(txDb: any = db) {
   if (schemaEnsured) return;
