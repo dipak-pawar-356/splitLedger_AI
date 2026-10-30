@@ -1185,7 +1185,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
             subtitle: `Used ${pctUsed}% of limit (₹${(spentAmount / 100).toFixed(0)} / ₹${(budgetAmount / 100).toFixed(0)})`,
             type: "budget",
             amount: budgetAmount / 100,
-            href: "/dashboard/budgets",
+            href: "/dashboard/ai",
             priority: pctUsed >= 100 ? "high" : "medium",
           });
         }

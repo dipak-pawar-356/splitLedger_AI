@@ -591,14 +591,61 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     }
 
     if (userBudgets.length === 0) {
+      const suggestedBudget = currentMonthExpenses > 0
+        ? Math.round(currentMonthExpenses * 1.1)
+        : 15000;
+
       recommendations.push({
         id: "rec-create-budget",
         priority: "medium",
         category: "budget",
         title: "Set Up a Monthly Budget",
         reason: "Active budgets help you prevent overspending and boost your financial health score.",
-        suggestedAction: "Create a monthly grocery or general spending target.",
+        suggestedAction: `Create a monthly spending target (AI suggested: ₹${suggestedBudget.toLocaleString("en-IN")}).`,
         actionType: "create_budget",
+        actionPayload: {
+          suggestedAmount: suggestedBudget,
+          currentMonthExpenses,
+        },
+      });
+    } else {
+      const primaryBudget = userBudgets.find((b) => b.status === "active") || userBudgets[0];
+      const estimatedSavings = Math.max(0, currentMonthIncome - primaryBudget.spent);
+
+      let budgetPriority: "high" | "medium" | "low" = "low";
+      let dynamicReason = "";
+      let dynamicSuggestedAction = "";
+
+      if (primaryBudget.isOverBudget || primaryBudget.percentage >= 100) {
+        budgetPriority = "high";
+        const overAmt = primaryBudget.spent - primaryBudget.amount;
+        dynamicReason = `You have exceeded your monthly budget of ₹${primaryBudget.amount.toLocaleString("en-IN")} by ₹${overAmt.toLocaleString("en-IN")}.`;
+        dynamicSuggestedAction = "Pause discretionary expenses or adjust your monthly target limit.";
+      } else if (primaryBudget.percentage >= (primaryBudget.alertThreshold || 80) || primaryBudget.percentage >= 75) {
+        budgetPriority = "medium";
+        dynamicReason = `You have utilized ${primaryBudget.percentage}% of your ₹${primaryBudget.amount.toLocaleString("en-IN")} budget with ${primaryBudget.daysRemaining || 0} days remaining.`;
+        dynamicSuggestedAction = `Keep daily spending under ₹${primaryBudget.dailyBudgetRemaining.toLocaleString("en-IN")}/day to avoid exceeding your limit.`;
+      } else {
+        budgetPriority = "low";
+        dynamicReason = `Healthy budget pacing! You have used ${primaryBudget.percentage}% of your ₹${primaryBudget.amount.toLocaleString("en-IN")} budget with ₹${primaryBudget.remaining.toLocaleString("en-IN")} remaining.`;
+        dynamicSuggestedAction = `On track to save ~₹${estimatedSavings.toLocaleString("en-IN")} this billing cycle.`;
+      }
+
+      recommendations.push({
+        id: "rec-budget-overview",
+        priority: budgetPriority,
+        category: "budget",
+        title: "Monthly Budget Overview",
+        reason: dynamicReason,
+        suggestedAction: dynamicSuggestedAction,
+        actionType: "create_budget",
+        actionPayload: {
+          budget: {
+            ...primaryBudget,
+            estimatedSavings,
+          },
+          suggestedAmount: primaryBudget.amount,
+        },
       });
     }
 

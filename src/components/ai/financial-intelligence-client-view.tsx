@@ -63,6 +63,7 @@ export function FinancialIntelligenceClientView({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isBudgetDialogOpen, setIsBudgetDialogOpen] = useState(false);
   const [budgetToEdit, setBudgetToEdit] = useState<BudgetProgress | null>(null);
+  const [initialBudgetAmount, setInitialBudgetAmount] = useState<number | undefined>(undefined);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
 
   const shouldReduceMotion = useReducedMotion();
@@ -139,13 +140,15 @@ export function FinancialIntelligenceClientView({
     };
   }, [handleRefresh]);
 
-  const handleCreateBudget = () => {
+  const handleCreateBudget = (suggestedAmount?: number | React.MouseEvent) => {
     setBudgetToEdit(null);
+    setInitialBudgetAmount(typeof suggestedAmount === "number" ? suggestedAmount : undefined);
     setIsBudgetDialogOpen(true);
   };
 
   const handleEditBudget = (b: BudgetProgress) => {
     setBudgetToEdit(b);
+    setInitialBudgetAmount(undefined);
     setIsBudgetDialogOpen(true);
   };
 
@@ -313,6 +316,7 @@ export function FinancialIntelligenceClientView({
                 <SmartRecommendationsView
                   recommendations={data.recommendations}
                   onOpenBudgetDialog={handleCreateBudget}
+                  onEditBudget={handleEditBudget}
                 />
               </div>
             </motion.div>
@@ -352,6 +356,7 @@ export function FinancialIntelligenceClientView({
                 <SmartRecommendationsView
                   recommendations={data.recommendations}
                   onOpenBudgetDialog={handleCreateBudget}
+                  onEditBudget={handleEditBudget}
                 />
               </div>
             </motion.div>
@@ -585,6 +590,7 @@ export function FinancialIntelligenceClientView({
         categories={categories}
         groups={groups}
         budgetToEdit={budgetToEdit}
+        initialAmount={initialBudgetAmount}
       />
 
       {/* OCR Scanner Modal */}
