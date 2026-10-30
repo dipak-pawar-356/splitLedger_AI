@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Users,
-  Receipt,
+  ReceiptIndianRupee,
   Wallet,
   Settings,
   Sparkles,
@@ -28,7 +28,7 @@ import { useSidebar } from "@/components/layout/sidebar-context";
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Contacts", href: "/dashboard/contacts", icon: Contact },
-  { name: "Transactions", href: "/dashboard/transactions", icon: Receipt },
+  { name: "Transactions", href: "/dashboard/transactions", icon: ReceiptIndianRupee },
   { name: "Groups", href: "/dashboard/groups", icon: Users },
   { name: "Trips & Events", href: "/dashboard/trips", icon: Compass },
   // { name: "Budgets", href: "/dashboard/budgets", icon: PiggyBank },

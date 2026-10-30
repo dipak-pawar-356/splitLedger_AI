@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +52,34 @@ export function ReportFiltersBar({
   contacts,
 }: ReportFiltersBarProps) {
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(filters.search || "");
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync internal search query if parent resets or clears
+  useEffect(() => {
+    setSearchQuery(filters.search || "");
+  }, [filters.search]);
+
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      onFiltersChange({ ...filters, search: val, page: 1 });
+    }, 320);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    onFiltersChange({ ...filters, search: "", page: 1 });
+  };
 
   const activeFiltersCount = [
     filters.search,
@@ -70,6 +98,8 @@ export function ReportFiltersBar({
   ].filter(Boolean).length;
 
   const handleReset = () => {
+    setSearchQuery("");
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     onFiltersChange({
       reportType: filters.reportType || "overview",
       period: "all",
@@ -92,7 +122,7 @@ export function ReportFiltersBar({
               type="button"
               variant={(filters.reportScope || "combined") === "combined" ? "default" : "ghost"}
               size="sm"
-              className="rounded-lg text-xs h-7 px-3 font-semibold"
+              className="rounded-lg text-xs h-7 px-3 font-semibold transition-all duration-150 active:scale-95"
               onClick={() => onFiltersChange({ ...filters, reportScope: "combined", page: 1 })}
             >
               <Layers className="h-3.5 w-3.5 mr-1" />
@@ -102,7 +132,7 @@ export function ReportFiltersBar({
               type="button"
               variant={filters.reportScope === "group" ? "default" : "ghost"}
               size="sm"
-              className="rounded-lg text-xs h-7 px-3 font-semibold"
+              className="rounded-lg text-xs h-7 px-3 font-semibold transition-all duration-150 active:scale-95"
               onClick={() => onFiltersChange({ ...filters, reportScope: "group", page: 1 })}
             >
               <Users className="h-3.5 w-3.5 mr-1" />
@@ -112,7 +142,7 @@ export function ReportFiltersBar({
               type="button"
               variant={filters.reportScope === "personal" ? "default" : "ghost"}
               size="sm"
-              className="rounded-lg text-xs h-7 px-3 font-semibold"
+              className="rounded-lg text-xs h-7 px-3 font-semibold transition-all duration-150 active:scale-95"
               onClick={() => onFiltersChange({ ...filters, reportScope: "personal", page: 1 })}
             >
               <UserCheck className="h-3.5 w-3.5 mr-1" />
@@ -135,14 +165,16 @@ export function ReportFiltersBar({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             placeholder="Search by ID, keyword, title, tag, notes..."
-            value={filters.search || ""}
-            onChange={(e) => onFiltersChange({ ...filters, search: e.target.value, page: 1 })}
-            className="pl-9 rounded-xl h-9 text-xs"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="pl-9 pr-8 rounded-xl h-9 text-xs transition-colors"
           />
-          {filters.search && (
+          {searchQuery && (
             <button
-              onClick={() => onFiltersChange({ ...filters, search: "", page: 1 })}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              type="button"
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              title="Clear search"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -159,8 +191,8 @@ export function ReportFiltersBar({
                 type="button"
                 variant={isSelected ? "default" : "outline"}
                 size="sm"
-                className={`rounded-xl text-xs h-8 px-3 whitespace-nowrap ${
-                  isSelected ? "font-semibold bg-primary text-primary-foreground shadow-sm" : "text-slate-600 dark:text-slate-400"
+                className={`rounded-xl text-xs h-8 px-3 whitespace-nowrap transition-all duration-150 active:scale-95 ${
+                  isSelected ? "font-semibold bg-primary text-primary-foreground shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                 }`}
                 onClick={() => onFiltersChange({ ...filters, period: p.value as any, page: 1 })}
               >

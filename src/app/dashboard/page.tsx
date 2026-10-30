@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { 
-  Receipt, 
+  ReceiptIndianRupee, 
   ArrowRight, 
   Paperclip, 
   PlusCircle, 
@@ -70,7 +70,7 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                    <Receipt className="h-4 w-4" />
+                    <ReceiptIndianRupee className="h-4 w-4" />
                   </div>
                   <div>
                     <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100">
@@ -156,7 +156,7 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
               ) : (
                 <div className="py-12 px-4 text-center space-y-3">
                   <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-full w-12 h-12 mx-auto flex items-center justify-center text-slate-400">
-                    <Receipt className="h-6 w-6" />
+                    <ReceiptIndianRupee className="h-6 w-6" />
                   </div>
                   <div className="space-y-1">
                     <p className="font-bold text-sm text-slate-800 dark:text-slate-200">No transactions recorded yet</p>

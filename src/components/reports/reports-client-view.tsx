@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +29,6 @@ import {
   AlertCircle,
   PieChart as PieIcon,
   Layers,
-  Receipt,
   ShieldCheck,
   Sparkles,
   Zap,
@@ -78,6 +78,31 @@ function MiniSparkline({ data, color = "#4f46e5" }: { data?: number[]; color?: s
   );
 }
 
+const cardContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.025,
+      delayChildren: 0.01,
+    },
+  },
+};
+
+const cardItemVariants = {
+  hidden: { opacity: 0, y: 10, scale: 0.98 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      type: "spring",
+      stiffness: 420,
+      damping: 28,
+    },
+  },
+};
+
 interface ReportsClientViewProps {
   initialReportData: any;
   analyticsData: any;
@@ -98,6 +123,7 @@ export function ReportsClientView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const requestIdRef = useRef(0);
 
   const [filters, setFilters] = useState<ReportFilterOptions>({
     reportType: (searchParams.get("reportType") as any) || "overview",
@@ -114,11 +140,12 @@ export function ReportsClientView({
   const [analyticsData, setAnalyticsData] = useState(initialAnalytics);
   const [isExporting, setIsExporting] = useState(false);
 
-  // Update URL search params and fetch fresh data dynamically
+  // Update URL search params and fetch fresh data dynamically without slow full-page router revalidation
   const updateFilters = (newFilters: ReportFilterOptions) => {
+    const reqId = ++requestIdRef.current;
     setFilters(newFilters);
 
-    // Build URL query params
+    // Build URL query params and update address bar history smoothly
     const params = new URLSearchParams();
     if (newFilters.reportType && newFilters.reportType !== "overview") params.set("reportType", newFilters.reportType);
     if (newFilters.period && newFilters.period !== "all") params.set("period", newFilters.period);
@@ -131,19 +158,25 @@ export function ReportsClientView({
 
     const queryString = params.toString();
     const newPath = queryString ? `/dashboard/reports?${queryString}` : "/dashboard/reports";
-    router.push(newPath, { scroll: false });
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", newPath);
+    }
 
-    // Fetch updated dataset
+    // Fetch updated dataset concurrently with race condition safety
     startTransition(async () => {
       try {
         const [freshReport, freshAnalytics] = await Promise.all([
           getComprehensiveReport(newFilters),
           getReportAnalytics(newFilters),
         ]);
-        setReportData(freshReport);
-        setAnalyticsData(freshAnalytics);
+        if (reqId === requestIdRef.current) {
+          setReportData(freshReport);
+          setAnalyticsData(freshAnalytics);
+        }
       } catch (err: any) {
-        toast.error("Failed to load report data");
+        if (reqId === requestIdRef.current) {
+          toast.error("Failed to load report data");
+        }
       }
     });
   };
@@ -318,11 +351,17 @@ export function ReportsClientView({
           groups={groups}
           contacts={contacts}
         />
+        {/* Subtle Top Loading Line for instantaneous feedback */}
+        {isPending && (
+          <div className="h-0.5 w-full bg-slate-100 dark:bg-slate-800 overflow-hidden rounded-full mt-2">
+            <div className="h-full bg-primary animate-pulse w-full" />
+          </div>
+        )}
       </div>
 
       {/* SECTION 1: OVERALL GROUP FINANCIAL SUMMARY (Shown for Combined or Group scope) */}
       {(scope === "combined" || scope === "group") && gSum && (
-        <div className="space-y-2.5 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 bg-blue-50/20 dark:bg-blue-950/10">
+        <div className={`space-y-2.5 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 bg-blue-50/20 dark:bg-blue-950/10 transition-opacity duration-200 ${isPending ? 'opacity-80' : 'opacity-100'}`}>
           <div className="flex items-center justify-between text-xs px-1">
             <div className="flex items-center gap-2">
               <Badge className="bg-blue-600 text-white text-[10px] font-mono px-2 py-0.5">SECTION 1</Badge>
@@ -336,107 +375,132 @@ export function ReportsClientView({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <motion.div 
+            variants={cardContainerVariants} 
+            initial="hidden" 
+            animate="visible" 
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3"
+          >
             {/* 1. Total Group Expense */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Group Expense</span>
-              <div className="text-base font-bold text-rose-600 dark:text-rose-400 mt-1">
-                <AnimatedCounter value={formatCurrency(gSum.totalGroupExpense || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">All members combined</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/15 dark:hover:border-rose-500/60 dark:hover:shadow-rose-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">Total Group Expense</span>
+                <div className="text-base font-bold text-rose-600 dark:text-rose-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(gSum.totalGroupExpense || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">All members combined</span>
+              </Card>
+            </motion.div>
 
             {/* 2. Total Group Income */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Group Income</span>
-              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                <AnimatedCounter value={formatCurrency(gSum.totalGroupIncome || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Combined group deposits</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/15 dark:hover:border-emerald-500/60 dark:hover:shadow-emerald-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Total Group Income</span>
+                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(gSum.totalGroupIncome || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Combined group deposits</span>
+              </Card>
+            </motion.div>
 
             {/* 3. Total Group Transactions */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Group Txns</span>
-              <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
-                <AnimatedCounter value={String(gSum.totalGroupTransactions || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Shared group entries</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/15 dark:hover:border-blue-500/60 dark:hover:shadow-blue-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Total Group Txns</span>
+                <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
+                  <AnimatedCounter value={String(gSum.totalGroupTransactions || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Shared group entries</span>
+              </Card>
+            </motion.div>
 
             {/* 4. Total Members */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Members</span>
-              <div className="text-base font-bold text-indigo-600 dark:text-indigo-400 mt-1">
-                {gSum.totalMembers || 1}
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Across all circles</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/15 dark:hover:border-indigo-500/60 dark:hover:shadow-indigo-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Total Members</span>
+                <div className="text-base font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+                  {gSum.totalMembers || 1}
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Across all circles</span>
+              </Card>
+            </motion.div>
 
             {/* 5. Total Groups */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Total Groups</span>
-              <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
-                {gSum.totalGroups || 0}
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Active expense circles</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-violet-500/60 hover:shadow-lg hover:shadow-violet-500/15 dark:hover:border-violet-500/60 dark:hover:shadow-violet-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">Total Groups</span>
+                <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
+                  {gSum.totalGroups || 0}
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Active expense circles</span>
+              </Card>
+            </motion.div>
 
             {/* 6. Total Pending Settlements */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Pending Settlements</span>
-              <div className="text-base font-bold text-amber-600 dark:text-amber-400 mt-1">
-                <AnimatedCounter value={formatCurrency(gSum.totalPendingSettlements?.amount || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">{gSum.totalPendingSettlements?.count || 0} transfers waiting</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/15 dark:hover:border-amber-500/60 dark:hover:shadow-amber-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Pending Settlements</span>
+                <div className="text-base font-bold text-amber-600 dark:text-amber-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(gSum.totalPendingSettlements?.amount || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">{gSum.totalPendingSettlements?.count || 0} transfers waiting</span>
+              </Card>
+            </motion.div>
 
             {/* 7. Total Completed Settlements */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Completed Settl.</span>
-              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                <AnimatedCounter value={formatCurrency(gSum.totalCompletedSettlements?.amount || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">{gSum.totalCompletedSettlements?.count || 0} transfers cleared</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-teal-500/60 hover:shadow-lg hover:shadow-teal-500/15 dark:hover:border-teal-500/60 dark:hover:shadow-teal-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">Completed Settl.</span>
+                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(gSum.totalCompletedSettlements?.amount || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">{gSum.totalCompletedSettlements?.count || 0} transfers cleared</span>
+              </Card>
+            </motion.div>
 
             {/* 8. Largest Group Expense */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Largest Group Expense</span>
-              <div className="text-sm font-bold text-rose-600 dark:text-rose-400 mt-1 truncate">
-                {formatCurrency(gSum.largestGroupExpense?.amount || 0)}
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block truncate" title={gSum.largestGroupExpense?.title}>
-                {gSum.largestGroupExpense?.title || "None"}
-              </span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/15 dark:hover:border-rose-500/60 dark:hover:shadow-rose-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">Largest Group Expense</span>
+                <div className="text-sm font-bold text-rose-600 dark:text-rose-400 mt-1 truncate">
+                  {formatCurrency(gSum.largestGroupExpense?.amount || 0)}
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block truncate" title={gSum.largestGroupExpense?.title}>
+                  {gSum.largestGroupExpense?.title || "None"}
+                </span>
+              </Card>
+            </motion.div>
 
             {/* 9. Top Spending Group */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Top Spending Group</span>
-              <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 mt-1 truncate">
-                {formatCurrency(gSum.topSpendingGroup?.amount || 0)}
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block truncate" title={gSum.topSpendingGroup?.name}>
-                {gSum.topSpendingGroup?.name || "None"}
-              </span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/15 dark:hover:border-indigo-500/60 dark:hover:shadow-indigo-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Top Spending Group</span>
+                <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 mt-1 truncate">
+                  {formatCurrency(gSum.topSpendingGroup?.amount || 0)}
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block truncate" title={gSum.topSpendingGroup?.name}>
+                  {gSum.topSpendingGroup?.name || "None"}
+                </span>
+              </Card>
+            </motion.div>
 
             {/* 10. Group Average Expense */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Group Avg Expense</span>
-              <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
-                <AnimatedCounter value={formatCurrency(gSum.groupAverageExpense || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Per group transaction</span>
-            </Card>
-          </div>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/15 dark:hover:border-cyan-500/60 dark:hover:shadow-cyan-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">Group Avg Expense</span>
+                <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
+                  <AnimatedCounter value={formatCurrency(gSum.groupAverageExpense || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Per group transaction</span>
+              </Card>
+            </motion.div>
+          </motion.div>
         </div>
       )}
 
       {/* SECTION 2: MY PERSONAL FINANCIAL SUMMARY (Shown for Combined or Personal scope) */}
       {(scope === "combined" || scope === "personal") && pSum && (
-        <div className="space-y-2.5 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/20 dark:bg-emerald-950/10">
+        <div className={`space-y-2.5 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/20 dark:bg-emerald-950/10 transition-opacity duration-200 ${isPending ? 'opacity-80' : 'opacity-100'}`}>
           <div className="flex items-center justify-between text-xs px-1">
             <div className="flex items-center gap-2">
               <Badge className="bg-emerald-600 text-white text-[10px] font-mono px-2 py-0.5">SECTION 2</Badge>
@@ -450,135 +514,166 @@ export function ReportsClientView({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <motion.div 
+            variants={cardContainerVariants} 
+            initial="hidden" 
+            animate="visible" 
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
+          >
             {/* 1. My Total Spending */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-rose-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Total Spending</span>
-              <div className="text-base font-bold text-rose-600 dark:text-rose-400 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.myTotalSpending || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">My actual share of expenses</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/15 dark:hover:border-rose-500/60 dark:hover:shadow-rose-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">My Total Spending</span>
+                <div className="text-base font-bold text-rose-600 dark:text-rose-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.myTotalSpending || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">My actual share of expenses</span>
+              </Card>
+            </motion.div>
 
             {/* 2. My Total Income */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-emerald-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Total Income</span>
-              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.myTotalIncome || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Personal receipts</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/15 dark:hover:border-emerald-500/60 dark:hover:shadow-emerald-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">My Total Income</span>
+                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.myTotalIncome || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Personal receipts</span>
+              </Card>
+            </motion.div>
 
             {/* 3. My Net Balance */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-primary transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Net Balance</span>
-              <div className={`text-base font-bold mt-1 ${(pSum.myNetBalance || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                <AnimatedCounter value={`${(pSum.myNetBalance || 0) >= 0 ? '+' : ''}${formatCurrency(pSum.myNetBalance || 0)}`} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Personal surplus / deficit</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className={`rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] group ${(pSum.myNetBalance || 0) >= 0 ? 'hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/15 dark:hover:border-emerald-500/60 dark:hover:shadow-emerald-950/40' : 'hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/15 dark:hover:border-rose-500/60 dark:hover:shadow-rose-950/40'}`}>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-primary transition-colors">My Net Balance</span>
+                <div className={`text-base font-bold mt-1 ${(pSum.myNetBalance || 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                  <AnimatedCounter value={`${(pSum.myNetBalance || 0) >= 0 ? '+' : ''}${formatCurrency(pSum.myNetBalance || 0)}`} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Personal surplus / deficit</span>
+              </Card>
+            </motion.div>
 
             {/* 4. Amount I Paid (Contribution) */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-indigo-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Amount I Paid (Contribution)</span>
-              <div className="text-base font-bold text-indigo-600 dark:text-indigo-400 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.amountIPaid || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Out-of-pocket money paid</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/15 dark:hover:border-indigo-500/60 dark:hover:shadow-indigo-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Amount I Paid (Contribution)</span>
+                <div className="text-base font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.amountIPaid || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Out-of-pocket money paid</span>
+              </Card>
+            </motion.div>
 
             {/* 5. Amount I Owe */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-amber-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Pending Amount I Owe</span>
-              <div className="text-base font-bold text-amber-600 dark:text-amber-400 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.amountIOwe || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Liabilities owed to others</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/15 dark:hover:border-amber-500/60 dark:hover:shadow-amber-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Pending Amount I Owe</span>
+                <div className="text-base font-bold text-amber-600 dark:text-amber-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.amountIOwe || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Liabilities owed to others</span>
+              </Card>
+            </motion.div>
 
             {/* 6. Amount Others Owe Me */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-blue-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Amount Others Owe Me</span>
-              <div className="text-base font-bold text-blue-600 dark:text-blue-400 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.amountOthersOweMe || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Receivables from members</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/15 dark:hover:border-blue-500/60 dark:hover:shadow-blue-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Amount Others Owe Me</span>
+                <div className="text-base font-bold text-blue-600 dark:text-blue-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.amountOthersOweMe || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Receivables from members</span>
+              </Card>
+            </motion.div>
 
             {/* 7. My Pending Settlements */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-amber-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Pending Settl.</span>
-              <div className="text-base font-bold text-amber-600 dark:text-amber-400 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.myPendingSettlements?.amount || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">{pSum.myPendingSettlements?.count || 0} transfers waiting</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/15 dark:hover:border-amber-500/60 dark:hover:shadow-amber-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">My Pending Settl.</span>
+                <div className="text-base font-bold text-amber-600 dark:text-amber-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.myPendingSettlements?.amount || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">{pSum.myPendingSettlements?.count || 0} transfers waiting</span>
+              </Card>
+            </motion.div>
 
             {/* 8. My Completed Settlements */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card hover:border-teal-400 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Completed Settl.</span>
-              <div className="text-base font-bold text-teal-600 dark:text-teal-400 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.myCompletedSettlements?.amount || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">{pSum.myCompletedSettlements?.count || 0} transfers cleared</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-teal-500/60 hover:shadow-lg hover:shadow-teal-500/15 dark:hover:border-teal-500/60 dark:hover:shadow-teal-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">My Completed Settl.</span>
+                <div className="text-base font-bold text-teal-600 dark:text-teal-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.myCompletedSettlements?.amount || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">{pSum.myCompletedSettlements?.count || 0} transfers cleared</span>
+              </Card>
+            </motion.div>
 
             {/* 9. My Average Transaction */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Avg Transaction</span>
-              <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.myAverageTransaction || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">My personal average ticket</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-cyan-500/60 hover:shadow-lg hover:shadow-cyan-500/15 dark:hover:border-cyan-500/60 dark:hover:shadow-cyan-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">My Avg Transaction</span>
+                <div className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.myAverageTransaction || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">My personal average ticket</span>
+              </Card>
+            </motion.div>
 
             {/* 10. My Largest Expense */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Largest Expense</span>
-              <div className="text-sm font-bold text-rose-600 dark:text-rose-400 mt-1 truncate">
-                {formatCurrency(pSum.myLargestExpense?.amount || 0)}
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block truncate" title={pSum.myLargestExpense?.title}>
-                {pSum.myLargestExpense?.title || "None"}
-              </span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/15 dark:hover:border-rose-500/60 dark:hover:shadow-rose-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">My Largest Expense</span>
+                <div className="text-sm font-bold text-rose-600 dark:text-rose-400 mt-1 truncate">
+                  {formatCurrency(pSum.myLargestExpense?.amount || 0)}
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block truncate" title={pSum.myLargestExpense?.title}>
+                  {pSum.myLargestExpense?.title || "None"}
+                </span>
+              </Card>
+            </motion.div>
 
             {/* 11. My Monthly Spending */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Monthly Spend</span>
-              <div className="text-base font-bold text-purple-600 dark:text-purple-400 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.myMonthlySpending || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">30-day run rate</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/15 dark:hover:border-purple-500/60 dark:hover:shadow-purple-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">My Monthly Spend</span>
+                <div className="text-base font-bold text-purple-600 dark:text-purple-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.myMonthlySpending || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">30-day run rate</span>
+              </Card>
+            </motion.div>
 
             {/* 12. My Savings */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">My Savings</span>
-              <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                <AnimatedCounter value={formatCurrency(pSum.mySavings || 0)} />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Retained income</span>
-            </Card>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/15 dark:hover:border-emerald-500/60 dark:hover:shadow-emerald-950/40 group">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">My Savings</span>
+                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                  <AnimatedCounter value={formatCurrency(pSum.mySavings || 0)} />
+                </div>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Retained income</span>
+              </Card>
+            </motion.div>
 
             {/* 13. Financial Health */}
-            <Card className="rounded-xl border shadow-sm p-3 bg-gradient-to-br from-indigo-50/70 to-emerald-50/50 dark:from-indigo-950/20 dark:to-emerald-950/20 border-indigo-200 dark:border-indigo-800">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">Financial Health</span>
-                <Badge className="text-[9px] px-1.5 py-0 h-4 bg-indigo-600 text-white font-mono">{health.grade}</Badge>
-              </div>
-              <div className="text-base font-extrabold text-indigo-700 dark:text-indigo-300 mt-1">
-                {health.score}<span className="text-xs font-normal text-slate-400">/100</span>
-              </div>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5 block">{health.label}</span>
-            </Card>
-          </div>
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-gradient-to-br from-indigo-50/70 to-emerald-50/50 dark:from-indigo-950/20 dark:to-emerald-950/20 border-indigo-200 dark:border-indigo-800 transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-indigo-500/80 hover:shadow-lg hover:shadow-indigo-500/20 dark:hover:border-indigo-400 dark:hover:shadow-indigo-950/50 group">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 group-hover:text-indigo-600 transition-colors">Financial Health</span>
+                  <Badge className="text-[9px] px-1.5 py-0 h-4 bg-indigo-600 text-white font-mono">{health.grade}</Badge>
+                </div>
+                <div className="text-base font-extrabold text-indigo-700 dark:text-indigo-300 mt-1">
+                  {health.score}<span className="text-xs font-normal text-slate-400">/100</span>
+                </div>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5 block">{health.label}</span>
+              </Card>
+            </motion.div>
+          </motion.div>
         </div>
       )}
 
       {/* SECTION 5: PAYMENT SUMMARY (Shown for Combined scope) */}
       {scope === "combined" && paySum && (
-        <div className="space-y-2.5 p-4 rounded-2xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/20 dark:bg-purple-950/10">
+        <div className={`space-y-2.5 p-4 rounded-2xl border border-purple-100 dark:border-purple-900/30 bg-purple-50/20 dark:bg-purple-950/10 transition-opacity duration-200 ${isPending ? 'opacity-80' : 'opacity-100'}`}>
           <div className="flex items-center justify-between text-xs px-1">
             <div className="flex items-center gap-2">
               <Badge className="bg-purple-600 text-white text-[10px] font-mono px-2 py-0.5">SECTION 5</Badge>
@@ -592,36 +687,61 @@ export function ReportsClientView({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-xs">
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Total Paid By Me</span>
-              <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 mt-1">{formatCurrency(paySum.totalPaidByMe)}</div>
-            </Card>
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Total Paid By Others</span>
-              <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{formatCurrency(paySum.totalPaidByOthers)}</div>
-            </Card>
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Shared Expenses</span>
-              <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{formatCurrency(paySum.totalSharedExpenses)}</div>
-            </Card>
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Personal Expenses</span>
-              <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{formatCurrency(paySum.totalPersonalExpenses)}</div>
-            </Card>
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Settlement Amount</span>
-              <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">{formatCurrency(paySum.settlementAmount)}</div>
-            </Card>
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Outstanding Receivables</span>
-              <div className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-1">{formatCurrency(paySum.outstandingReceivables)}</div>
-            </Card>
-            <Card className="rounded-xl border shadow-sm p-3 bg-card">
-              <span className="text-[9.5px] font-bold uppercase text-slate-500 block">Outstanding Payables</span>
-              <div className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-1">{formatCurrency(paySum.outstandingPayables)}</div>
-            </Card>
-          </div>
+          <motion.div 
+            variants={cardContainerVariants} 
+            initial="hidden" 
+            animate="visible" 
+            className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 text-xs"
+          >
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/15 dark:hover:border-indigo-500/60 dark:hover:shadow-indigo-950/40 group">
+                <span className="text-[9.5px] font-bold uppercase text-slate-500 block group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Total Paid By Me</span>
+                <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 mt-1">{formatCurrency(paySum.totalPaidByMe)}</div>
+              </Card>
+            </motion.div>
+
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-slate-400/60 hover:shadow-lg hover:shadow-slate-500/15 dark:hover:border-slate-500/60 dark:hover:shadow-slate-900/40 group">
+                <span className="text-[9.5px] font-bold uppercase text-slate-500 block group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Total Paid By Others</span>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{formatCurrency(paySum.totalPaidByOthers)}</div>
+              </Card>
+            </motion.div>
+
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/15 dark:hover:border-blue-500/60 dark:hover:shadow-blue-950/40 group">
+                <span className="text-[9.5px] font-bold uppercase text-slate-500 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Shared Expenses</span>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{formatCurrency(paySum.totalSharedExpenses)}</div>
+              </Card>
+            </motion.div>
+
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/15 dark:hover:border-purple-500/60 dark:hover:shadow-purple-950/40 group">
+                <span className="text-[9.5px] font-bold uppercase text-slate-500 block group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">Personal Expenses</span>
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mt-1">{formatCurrency(paySum.totalPersonalExpenses)}</div>
+              </Card>
+            </motion.div>
+
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/15 dark:hover:border-emerald-500/60 dark:hover:shadow-emerald-950/40 group">
+                <span className="text-[9.5px] font-bold uppercase text-slate-500 block group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Settlement Amount</span>
+                <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">{formatCurrency(paySum.settlementAmount)}</div>
+              </Card>
+            </motion.div>
+
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/15 dark:hover:border-blue-500/60 dark:hover:shadow-blue-950/40 group">
+                <span className="text-[9.5px] font-bold uppercase text-slate-500 block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Outstanding Receivables</span>
+                <div className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-1">{formatCurrency(paySum.outstandingReceivables)}</div>
+              </Card>
+            </motion.div>
+
+            <motion.div variants={cardItemVariants}>
+              <Card className="rounded-xl border shadow-sm p-3 bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.02] hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/15 dark:hover:border-amber-500/60 dark:hover:shadow-amber-950/40 group">
+                <span className="text-[9.5px] font-bold uppercase text-slate-500 block group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Outstanding Payables</span>
+                <div className="text-sm font-bold text-amber-600 dark:text-amber-400 mt-1">{formatCurrency(paySum.outstandingPayables)}</div>
+              </Card>
+            </motion.div>
+          </motion.div>
         </div>
       )}
 
@@ -721,8 +841,20 @@ export function ReportsClientView({
                 settlement: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800",
               };
 
+              const hoverGlowClasses: Record<string, string> = {
+                positive: "hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/15 dark:hover:border-emerald-500/60 dark:hover:shadow-emerald-950/40",
+                warning: "hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/15 dark:hover:border-amber-500/60 dark:hover:shadow-amber-950/40",
+                trend: "hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/15 dark:hover:border-indigo-500/60 dark:hover:shadow-indigo-950/40",
+                saving: "hover:border-teal-500/60 hover:shadow-lg hover:shadow-teal-500/15 dark:hover:border-teal-500/60 dark:hover:shadow-teal-950/40",
+                anomaly: "hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/15 dark:hover:border-purple-500/60 dark:hover:shadow-purple-950/40",
+                settlement: "hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/15 dark:hover:border-blue-500/60 dark:hover:shadow-blue-950/40",
+              };
+
               return (
-                <Card key={ins.id} className="p-4 rounded-2xl border shadow-sm bg-card hover:shadow-md transition-shadow space-y-2.5">
+                <Card 
+                  key={ins.id} 
+                  className={`p-4 rounded-2xl border shadow-sm bg-card space-y-2.5 transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.01] ${hoverGlowClasses[ins.type] || "hover:border-primary/50 hover:shadow-md"}`}
+                >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
                       {ins.title}
@@ -755,7 +887,14 @@ export function ReportsClientView({
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {analyticsData?.recommendations?.map((rec: any) => (
-                <div key={rec.id} className="p-4 rounded-2xl border bg-card shadow-sm space-y-2">
+                <div 
+                  key={rec.id} 
+                  className={`p-4 rounded-2xl border bg-card shadow-sm space-y-2 transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:scale-[1.01] ${
+                    rec.urgency === "high"
+                      ? "hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/15 dark:hover:border-rose-500/60 dark:hover:shadow-rose-950/40"
+                      : "hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/15 dark:hover:border-indigo-500/60 dark:hover:shadow-indigo-950/40"
+                  }`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
                       {rec.title}

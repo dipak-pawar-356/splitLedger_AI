@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { 
   LayoutDashboard, 
   Users, 
-  Receipt, 
+  ReceiptIndianRupee, 
   Bot, 
   FileText, 
   Bell 
@@ -15,7 +15,7 @@ import {
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/groups", label: "Groups", icon: Users },
-  { href: "/dashboard/transactions", label: "Expenses", icon: Receipt },
+  { href: "/dashboard/transactions", label: "Expenses", icon: ReceiptIndianRupee },
   { href: "/dashboard/ai", label: "AI Intel", icon: Bot },
   { href: "/dashboard/reports", label: "Reports", icon: FileText },
 ];

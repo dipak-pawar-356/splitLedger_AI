@@ -52,7 +52,6 @@ import {
   MapPin,
   Tag,
   Coins,
-  DollarSign,
   RotateCcw,
   Ban,
   ShieldAlert,

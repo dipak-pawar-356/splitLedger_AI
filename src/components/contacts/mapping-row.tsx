@@ -16,7 +16,7 @@ import {
   MapPin,
   Tag,
   Coins,
-  DollarSign,
+  IndianRupee,
   FileText,
   FileSpreadsheet,
 } from "lucide-react";
@@ -89,7 +89,7 @@ export function getFieldMeta(key: string) {
       };
     case "currency":
       return {
-        icon: <DollarSign className="h-4 w-4" />,
+        icon: <IndianRupee className="h-4 w-4" />,
         bg: "bg-cyan-500/10 dark:bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/20",
       };
     case "notes":

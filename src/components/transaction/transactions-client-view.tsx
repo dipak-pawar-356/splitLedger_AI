@@ -12,7 +12,7 @@ import {
   Filter, 
   TrendingUp, 
   TrendingDown, 
-  Receipt, 
+  ReceiptIndianRupee, 
   Edit, 
   Trash2, 
   RotateCcw, 
@@ -245,7 +245,7 @@ export function TransactionsClientView({
                             <>
                               <span>•</span>
                               <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 font-medium">
-                                <Receipt className="h-3 w-3 inline" />
+                                <ReceiptIndianRupee className="h-3 w-3 inline" />
                                 Receipt
                               </span>
                             </>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Receipt, Users, Bot } from "lucide-react";
+import { Plus, ReceiptIndianRupee, Users, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 
@@ -32,7 +32,7 @@ export function MobileFAB() {
               >
                 <span>Add Expense</span>
                 <div className="w-7 h-7 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <Receipt className="h-3.5 w-3.5" />
+                  <ReceiptIndianRupee className="h-3.5 w-3.5" />
                 </div>
               </Link>
             </motion.div>

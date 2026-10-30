@@ -255,7 +255,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Chart A: Overall Group Expenses */}
-          <Card className="rounded-2xl border-2 border-blue-100 dark:border-blue-900/30 shadow-sm bg-card hover:shadow-md transition-shadow">
+          <Card className="rounded-2xl border-2 border-blue-100 dark:border-blue-900/30 shadow-sm bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/15 dark:hover:border-blue-500/60 dark:hover:shadow-blue-950/40">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -308,7 +308,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
           </Card>
 
           {/* Chart B: My Personal Expenses */}
-          <Card className="rounded-2xl border-2 border-emerald-100 dark:border-emerald-900/30 shadow-sm bg-card hover:shadow-md transition-shadow">
+          <Card className="rounded-2xl border-2 border-emerald-100 dark:border-emerald-900/30 shadow-sm bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/15 dark:hover:border-emerald-500/60 dark:hover:shadow-emerald-950/40">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -373,7 +373,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
       {/* SECTION 7: SPENDING & CASH FLOW TRAJECTORY (GROUP VS PERSONAL ANALYTICS) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Monthly Trend Area Chart */}
-        <Card className="lg:col-span-2 rounded-2xl border shadow-sm bg-card hover:shadow-md transition-shadow">
+        <Card className="lg:col-span-2 rounded-2xl border shadow-sm bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-indigo-500/60 hover:shadow-lg hover:shadow-indigo-500/15 dark:hover:border-indigo-500/60 dark:hover:shadow-indigo-950/40">
           <CardHeader className="pb-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
@@ -469,7 +469,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
         </Card>
 
         {/* Cumulative Running Balance & Savings Rate Line Chart */}
-        <Card className="rounded-2xl border shadow-sm bg-card hover:shadow-md transition-shadow">
+        <Card className="rounded-2xl border shadow-sm bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/15 dark:hover:border-emerald-500/60 dark:hover:shadow-emerald-950/40">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div>
@@ -520,7 +520,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
       {/* SECTION 2: EXPENSE BEHAVIOR - WEEKEND VS WEEKDAY & DAILY HEATMAP */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Weekend vs Weekday Card */}
-        <Card className="rounded-2xl border shadow-sm bg-card p-5 space-y-4">
+        <Card className="rounded-2xl border shadow-sm bg-card p-5 space-y-4 transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/15 dark:hover:border-amber-500/60 dark:hover:shadow-amber-950/40">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -580,7 +580,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
         </Card>
 
         {/* Day-of-Week Spending Distribution (Mon-Sun) */}
-        <Card className="rounded-2xl border shadow-sm bg-card p-5 lg:col-span-2">
+        <Card className="rounded-2xl border shadow-sm bg-card p-5 lg:col-span-2 transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/15 dark:hover:border-primary/60 dark:hover:shadow-primary/40">
           <div className="flex items-center justify-between mb-2">
             <div>
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -673,7 +673,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
       {/* SECTION 4: SETTLEMENT ANALYTICS & SMART DEBT OPTIMIZATION */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Settlement Completion & Speed */}
-        <Card className="rounded-2xl border shadow-sm bg-card p-5 space-y-4">
+        <Card className="rounded-2xl border shadow-sm bg-card p-5 space-y-4 transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-teal-500/60 hover:shadow-lg hover:shadow-teal-500/15 dark:hover:border-teal-500/60 dark:hover:shadow-teal-950/40">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -726,7 +726,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
         </Card>
 
         {/* Smart Settlement Debt Optimization Engine */}
-        <Card className="rounded-2xl border shadow-sm bg-card p-5 lg:col-span-2 space-y-4">
+        <Card className="rounded-2xl border shadow-sm bg-card p-5 lg:col-span-2 space-y-4 transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/15 dark:hover:border-amber-500/60 dark:hover:shadow-amber-950/40">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -779,7 +779,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
       </div>
 
       {/* SECTION 7: GROUP CIRCLE ALLOCATION */}
-      <Card className="rounded-2xl border shadow-sm bg-card">
+      <Card className="rounded-2xl border shadow-sm bg-card transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/15 dark:hover:border-blue-500/60 dark:hover:shadow-blue-950/40">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div>
@@ -823,7 +823,7 @@ export function ReportsAnalyticsView({ data }: ReportsAnalyticsViewProps) {
       </Card>
 
       {/* SECTION 7: PAYMENT RAILS BREAKDOWN (GROUP VS PERSONAL ANALYTICS) */}
-      <Card className="rounded-2xl border shadow-sm bg-card p-5">
+      <Card className="rounded-2xl border shadow-sm bg-card p-5 transition-all duration-200 ease-out cursor-default select-none hover:-translate-y-1 hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/15 dark:hover:border-purple-500/60 dark:hover:shadow-purple-950/40">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">

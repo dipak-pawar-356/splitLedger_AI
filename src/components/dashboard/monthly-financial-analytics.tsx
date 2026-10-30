@@ -8,7 +8,6 @@ import {
   TrendingUp, 
   TrendingDown, 
   Calendar, 
-  DollarSign, 
   PiggyBank, 
   Zap,
   ArrowUpRight,
