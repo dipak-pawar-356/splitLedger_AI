@@ -13,10 +13,28 @@ import {
   budgets
 } from "@/lib/db/schema/schema";
 import { eq, desc, and, sql, gte, lte, or, isNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { requireAuth } from "@/lib/auth";
 import { DatabaseError } from "@/lib/errors";
 import { getBudgetsWithProgress, BudgetProgress } from "@/actions/budgets";
 import { generateExecutiveReportNarrative } from "@/lib/ai/executive-summary";
+
+const settleFromUser = alias(users, "settleFromUser");
+const settleToUser = alias(users, "settleToUser");
+const fromProfile = alias(profiles, "fromProfile");
+const fromContact = alias(contacts, "fromContact");
+
+interface DebtorItem {
+  name: string;
+  amount: number;
+  phone?: string;
+  email?: string;
+  userId?: number;
+  contactId?: number;
+  groupId?: number;
+  groupName?: string;
+  groupPublicId?: string;
+}
 
 export interface FinancialHealthScore {
   score: number; // 0 - 100
@@ -147,6 +165,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       allSettlementsRaw,
       userProfileRaw,
       activeGroupsRaw,
+      owingContactsRaw,
     ] = await Promise.all([
       getBudgetsWithProgress(),
 
@@ -214,18 +233,36 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         )
         .groupBy(sql`TO_CHAR(${transactions.date}, 'YYYY-MM')`, sql`TO_CHAR(${transactions.date}, 'Day')`),
 
-      // Settlements audit
+      // Settlements audit with debtor and group enrichment
       db
         .select({
           id: settlements.id,
+          publicId: settlements.publicId,
           fromUserId: settlements.fromUserId,
+          fromContactId: settlements.fromContactId,
           toUserId: settlements.toUserId,
+          toContactId: settlements.toContactId,
           amount: settlements.amount,
           status: settlements.status,
+          groupId: settlements.groupId,
+          groupName: groups.name,
+          groupPublicId: groups.publicId,
+          fromUserName: settleFromUser.name,
+          fromUserEmail: settleFromUser.email,
+          fromUserPhone: fromProfile.phone,
+          fromContactName: fromContact.name,
+          fromContactEmail: fromContact.email,
+          fromContactPhone: fromContact.phone,
+          toUserName: settleToUser.name,
           createdAt: settlements.createdAt,
           paidAt: settlements.paidAt,
         })
         .from(settlements)
+        .leftJoin(groups, eq(settlements.groupId, groups.id))
+        .leftJoin(settleFromUser, eq(settlements.fromUserId, settleFromUser.id))
+        .leftJoin(fromProfile, eq(settleFromUser.id, fromProfile.userId))
+        .leftJoin(fromContact, eq(settlements.fromContactId, fromContact.id))
+        .leftJoin(settleToUser, eq(settlements.toUserId, settleToUser.id))
         .where(
           and(
             eq(settlements.isDeleted, false),
@@ -257,6 +294,25 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         .from(groups)
         .innerJoin(groupMembers, eq(groups.id, groupMembers.groupId))
         .where(and(eq(groupMembers.userId, user.id), eq(groups.isDeleted, false))),
+
+      // Active contacts who owe the user
+      db
+        .select({
+          id: contacts.id,
+          publicId: contacts.publicId,
+          name: contacts.name,
+          email: contacts.email,
+          phone: contacts.phone,
+          openingBalance: contacts.openingBalance,
+        })
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.userId, user.id),
+            eq(contacts.isDeleted, false),
+            sql`${contacts.openingBalance} > 0`
+          )
+        ),
     ]);
 
     // Current Month Metrics
@@ -469,15 +525,68 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       });
     }
 
-    if (pendingReceivables > 500) {
+    // Pending group settlements where user is the receiver
+    const pendingGroupDebtors: DebtorItem[] = allSettlementsRaw
+      .filter((s) => s.toUserId === user.id && s.status === "pending")
+      .map((s) => ({
+        name: s.fromUserName || s.fromContactName || "Group Member",
+        amount: s.amount / 100,
+        phone: s.fromUserPhone || s.fromContactPhone || undefined,
+        email: s.fromUserEmail || s.fromContactEmail || undefined,
+        userId: s.fromUserId || undefined,
+        contactId: s.fromContactId || undefined,
+        groupId: s.groupId || undefined,
+        groupName: s.groupName || undefined,
+        groupPublicId: s.groupPublicId || undefined,
+      }));
+
+    // Contacts who owe the user
+    const owingContactsList: DebtorItem[] = owingContactsRaw.map((c) => ({
+      name: c.name,
+      amount: Number(c.openingBalance) / 100,
+      phone: c.phone || undefined,
+      email: c.email || undefined,
+      contactId: c.id,
+      groupId: undefined,
+      groupName: undefined,
+      groupPublicId: undefined,
+    }));
+
+    const allDebtorsList: DebtorItem[] = [...pendingGroupDebtors, ...owingContactsList];
+    const totalPendingDebtRupees = allDebtorsList.reduce((sum, d) => sum + d.amount, 0);
+
+    if (pendingReceivables > 0 || totalPendingDebtRupees > 0) {
+      const primaryDebtor = allDebtorsList[0];
+      const isSingleDebtor = allDebtorsList.length === 1;
+      const effectiveTotal = totalPendingDebtRupees > 0 ? totalPendingDebtRupees : pendingReceivables;
+
       recommendations.push({
         id: "rec-send-reminders",
-        priority: "medium",
+        priority: effectiveTotal >= 1000 ? "high" : "medium",
         category: "settlement",
         title: "Collect Outstanding Dues",
-        reason: `Group members owe you ₹${pendingReceivables.toFixed(2)}.`,
+        reason: isSingleDebtor && primaryDebtor
+          ? `${primaryDebtor.name} owes you ₹${effectiveTotal.toFixed(2)}${primaryDebtor.groupName ? ` in ${primaryDebtor.groupName}` : ""}.`
+          : `Group members and contacts owe you ₹${effectiveTotal.toFixed(2)}.`,
         suggestedAction: "Send polite WhatsApp/Email payment reminders to speed up settlement.",
         actionType: "send_reminder",
+        actionPayload: {
+          amount: isSingleDebtor && primaryDebtor ? primaryDebtor.amount : effectiveTotal,
+          recipientName: isSingleDebtor && primaryDebtor ? primaryDebtor.name : "Group Members",
+          recipientPhone: isSingleDebtor && primaryDebtor ? primaryDebtor.phone : undefined,
+          recipientEmail: isSingleDebtor && primaryDebtor ? primaryDebtor.email : undefined,
+          creditorName: profileData?.name || user.name || "me",
+          groupId: primaryDebtor?.groupId,
+          groupPublicId: primaryDebtor?.groupPublicId,
+          groupName: primaryDebtor?.groupName,
+          receivesFromList: allDebtorsList,
+          owesToList: [
+            {
+              name: profileData?.name || user.name || "Me",
+              amount: isSingleDebtor && primaryDebtor ? primaryDebtor.amount : effectiveTotal,
+            },
+          ],
+        },
       });
     }
 

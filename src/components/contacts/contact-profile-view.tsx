@@ -490,7 +490,12 @@ export function ContactProfileView({
           <ReminderDialog
             contactId={contact.id}
             contactName={contact.name}
+            recipientName={contact.name}
+            recipientPhone={contact.phone || undefined}
+            recipientEmail={contact.email || undefined}
+            amount={currentNetBalancePaise > 0 ? currentNetBalancePaise / 100 : 0}
             currency={contact.currency}
+            reminderRole={isNetOwedToMe ? "payer" : "receiver"}
             trigger={
               <Button
                 variant="outline"
@@ -1021,7 +1026,12 @@ export function ContactProfileView({
                 <ReminderDialog
                   contactId={contact.id}
                   contactName={contact.name}
+                  recipientName={contact.name}
+                  recipientPhone={contact.phone || undefined}
+                  recipientEmail={contact.email || undefined}
+                  amount={currentNetBalancePaise > 0 ? currentNetBalancePaise / 100 : 0}
                   currency={contact.currency}
+                  reminderRole={isNetOwedToMe ? "payer" : "receiver"}
                   trigger={
                     <Button
                       size="sm"

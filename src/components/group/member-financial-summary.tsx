@@ -90,6 +90,13 @@ export function MemberFinancialSummary({
     (member.email && currentUserEmail && member.email.toLowerCase().trim() === currentUserEmail.toLowerCase().trim())
   );
 
+  const currentUserMember = allMembers?.find(
+    (m) =>
+      (m.userId && currentUserId && m.userId === currentUserId) ||
+      (m.email && currentUserEmail && m.email.toLowerCase().trim() === currentUserEmail.toLowerCase().trim())
+  );
+  const currentUserName = currentUserMember?.name;
+
   const totalPendingOutgoing = member.owesTo.reduce((sum, o) => sum + o.amount, 0);
   const totalPendingIncoming = member.receivesFrom.reduce((sum, r) => sum + r.amount, 0);
 
@@ -634,6 +641,7 @@ export function MemberFinancialSummary({
                 recipientEmail={member.email || undefined}
                 recipientPhone={member.phone || undefined}
                 recipientName={member.name}
+                creditorName={member.name}
                 amount={member.willReceive}
                 groupId={groupId}
                 groupPublicId={groupPublicId}
@@ -667,6 +675,7 @@ export function MemberFinancialSummary({
                   recipientEmail={member.email || undefined}
                   recipientPhone={member.phone || undefined}
                   recipientName={member.name}
+                  creditorName={currentUserName || undefined}
                   amount={member.needToPay}
                   groupId={groupId}
                   groupPublicId={groupPublicId}
@@ -697,6 +706,7 @@ export function MemberFinancialSummary({
                   recipientEmail={member.email || undefined}
                   recipientPhone={member.phone || undefined}
                   recipientName={member.name}
+                  creditorName={member.name}
                   amount={member.willReceive}
                   groupId={groupId}
                   groupPublicId={groupPublicId}

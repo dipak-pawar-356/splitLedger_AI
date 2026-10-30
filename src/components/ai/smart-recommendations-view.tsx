@@ -56,9 +56,23 @@ export function SmartRecommendationsView({
       );
     }
     if (rec.actionType === "send_reminder") {
+      const payload = rec.actionPayload || {};
+      const debtors = payload.receivesFromList || [];
+      const isSingleDebtor = debtors.length === 1;
+
       return (
         <ReminderDialog
-          recipientName="Group Members"
+          recipientName={payload.recipientName || (isSingleDebtor ? debtors[0].name : "Group Members")}
+          recipientPhone={payload.recipientPhone || (isSingleDebtor ? debtors[0].phone : undefined)}
+          recipientEmail={payload.recipientEmail || (isSingleDebtor ? debtors[0].email : undefined)}
+          amount={payload.amount}
+          creditorName={payload.creditorName}
+          receivesFromList={debtors}
+          owesToList={payload.owesToList}
+          groupId={payload.groupId}
+          groupPublicId={payload.groupPublicId}
+          groupName={payload.groupName}
+          reminderRole="receiver"
           trigger={
             <Button size="sm" variant="outline" aria-label="Send reminder to group members" className="rounded-xl text-xs font-semibold text-amber-600 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 gap-1.5 focus-visible:ring-2 focus-visible:ring-amber-500">
               <Bell className="h-3.5 w-3.5" aria-hidden="true" />
