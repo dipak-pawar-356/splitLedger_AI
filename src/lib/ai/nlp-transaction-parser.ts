@@ -536,21 +536,34 @@ export function parseConversationalMessage(
     return { hasTransactions: false, transactions: [], isIncomplete: false };
   }
 
-  // Exclude pure questions that do not propose a transaction (e.g. "what is my spending?", "who owes me?")
+  // Exclude pure questions that do not propose a transaction (e.g. "what is my spending?", "who owes me?", "how can I reduce my expenses?")
   const lower = trimmed.toLowerCase();
   const isQuestion =
+    lower.endsWith("?") ||
     lower.startsWith("what ") ||
     lower.startsWith("why ") ||
-    lower.startsWith("how much ") ||
+    lower.startsWith("how ") ||
     lower.startsWith("who ") ||
     lower.startsWith("when ") ||
     lower.startsWith("where ") ||
+    lower.startsWith("which ") ||
+    lower.startsWith("can ") ||
+    lower.startsWith("could ") ||
+    lower.startsWith("should ") ||
+    lower.startsWith("would ") ||
+    lower.startsWith("is ") ||
+    lower.startsWith("are ") ||
+    lower.startsWith("do ") ||
+    lower.startsWith("does ") ||
     lower.startsWith("show ") ||
     lower.startsWith("compare ") ||
     lower.startsWith("list ") ||
+    lower.startsWith("give me ") ||
+    lower.startsWith("suggest ") ||
+    lower.startsWith("help me ") ||
+    lower.startsWith("tell me ") ||
     lower.includes("predict ") ||
     lower.includes("summarize ") ||
-    lower.includes("tell me ") ||
     lower.includes("can you show");
 
   if (isQuestion && !lower.includes("add ") && !lower.includes("create ") && !lower.includes("log ") && !lower.includes("record ")) {
@@ -571,18 +584,16 @@ export function parseConversationalMessage(
     const line = lines[idx];
 
     // Check if line indicates an expense/income intent but missing amount
+    const lineLower = line.toLowerCase();
     const hasIntentKeyword =
-      lower.includes("spent") ||
-      lower.includes("bought") ||
-      lower.includes("paid") ||
-      lower.includes("gave") ||
-      lower.includes("received") ||
-      lower.includes("expense");
+      /\b(spent|bought|paid|gave|lent|received|borrowed)\b/i.test(line) ||
+      /\b(add|create|record|log)\s+(?:an?\s+)?(?:expense|transaction|income|bill)\b/i.test(line) ||
+      /\b(?:new|another)\s+(?:expense|transaction|income|bill)\b/i.test(line);
 
     const { amount } = extractAmount(line);
 
     if (!amount) {
-      if (hasIntentKeyword && lines.length === 1) {
+      if (hasIntentKeyword && lines.length === 1 && !lineLower.endsWith("?")) {
         detectedIncomplete = true;
         clarificationMessage = "I noticed you want to log a transaction. How much did you spend or receive?";
       }
