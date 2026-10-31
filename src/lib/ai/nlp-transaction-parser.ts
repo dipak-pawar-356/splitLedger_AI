@@ -115,40 +115,40 @@ function parseWordNumber(text: string): number | null {
 
 // Category keyword mappings for automated classification (ordered by specificity)
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  "Groceries & Supplies": [
+  "Food & Drinks": [
+    "water bottle", "watter bottle", "mineral water", "water", "watter", "bottle",
+    "chips", "juice", "tea", "chai", "coffee", "snacks", "snack", "food", "dinner",
+    "lunch", "breakfast", "pizza", "burger", "restaurant", "cafe", "swiggy",
+    "zomato", "biryani", "meal", "drink", "drinks", "biscuit", "biscuits",
+    "samosa", "sandwich", "maggi", "noodles", "icecream", "dessert", "thali", "dosa",
     "groceries", "grocery", "vegetable", "vegetables", "fruits", "milk", "bread",
     "eggs", "ration", "supermarket", "blinkit", "zepto", "instamart", "kirana",
     "market", "supplies"
   ],
-  "Bills & Utilities": [
-    "electricity", "power", "light bill", "water", "wifi", "internet", "broadband",
-    "recharge", "mobile recharge", "gas", "cylinder", "dth", "bill", "rent",
-    "maintenance", "utility", "phone bill"
+  "Travel & Transport": [
+    "bus", "metro", "train", "taxi", "uber", "ola", "cab", "auto", "rickshaw",
+    "fuel", "petrol", "diesel", "parking", "travel", "travel by bus", "toll",
+    "commute", "rapido", "flight", "transport", "trip"
   ],
-  "Healthcare & Medical": [
-    "medicine", "pharmacy", "hospital", "doctor", "clinic", "dental", "dentist",
-    "lab", "medical", "tablet", "tablets", "pills", "syrup", "test", "healthcare",
-    "meds", "apollo", "medplus"
+  "Healthcare": [
+    "medicine", "medicines", "medical", "doctor", "clinic", "pharmacy",
+    "hospital", "dental", "dentist", "lab", "tablet", "tablets", "pills",
+    "syrup", "test", "healthcare", "meds", "apollo", "medplus", "gym", "fitness"
   ],
-  "Entertainment": [
-    "movie", "tickets", "ticket", "netflix", "cinema", "game", "gaming", "party",
-    "concert", "outing", "hotstar", "spotify", "pvr", "inox", "theater", "show", "club"
-  ],
-  "Travel & Commute": [
-    "petrol", "fuel", "diesel", "auto", "uber", "ola", "cab", "taxi", "bus",
-    "metro", "train", "flight", "travel", "parking", "toll", "commute", "rapido",
-    "rickshaw", "transport", "trip"
-  ],
-  "Food & Dining": [
-    "chips", "snack", "snacks", "tea", "chai", "coffee", "biscuit", "biscuits",
-    "samosa", "breakfast", "lunch", "dinner", "pizza", "burger", "restaurant",
-    "cafe", "swiggy", "zomato", "biryani", "food", "meal", "drink", "drinks",
-    "juice", "sandwich", "maggi", "noodles", "icecream", "dessert", "thali", "dosa"
+  "Utilities": [
+    "electricity", "power", "light bill", "internet", "wifi", "broadband",
+    "gas", "cylinder", "water bill", "recharge", "mobile recharge", "dth",
+    "bill", "rent", "maintenance", "utility", "phone bill"
   ],
   "Shopping": [
-    "shopping", "amazon", "flipkart", "myntra", "clothes", "shoes", "dress",
-    "pants", "shirt", "mall", "store", "bought", "electronics", "gadgets",
-    "watch", "apparel", "zara", "h&m"
+    "shopping", "amazon", "flipkart", "myntra", "clothes", "cloth", "shoes",
+    "shoe", "dress", "pants", "shirt", "mall", "store", "electronics",
+    "gadgets", "watch", "apparel", "zara", "h&m"
+  ],
+  "Entertainment": [
+    "movie", "movies", "ticket", "tickets", "netflix", "cinema", "game",
+    "gaming", "party", "concert", "outing", "hotstar", "spotify", "pvr",
+    "inox", "theater", "theatre", "show", "club"
   ],
 };
 
@@ -157,7 +157,7 @@ const CATEGORY_KEYWORDS: Record<string, string[]> = {
  */
 function extractAmount(text: string): { amount: number | null; matchedText: string | null } {
   // Pattern 1: Explicit currency symbol: ₹20, ₹ 1,500, Rs. 500, Rs 500, 2500 INR
-  const symbolRegex = /(?:₹|rs\.?|inr)\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\b/i;
+  const symbolRegex = /(?:₹|rs\.?|inr)\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)/i;
   const symbolMatch = text.match(symbolRegex);
   if (symbolMatch) {
     const rawNum = symbolMatch[1].replace(/,/g, "");
@@ -167,8 +167,8 @@ function extractAmount(text: string): { amount: number | null; matchedText: stri
     }
   }
 
-  // Pattern 2: Number followed by currency: 500 rs, 20 rupees, 1500 bucks
-  const reverseRegex = /\b([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|rupees?|inr|bucks)\b/i;
+  // Pattern 2: Number followed by currency: 500 rs, 20rs, 20 rupees, 1500 bucks, 50/-
+  const reverseRegex = /([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|rupees?|inr|bucks|\/-)/i;
   const reverseMatch = text.match(reverseRegex);
   if (reverseMatch) {
     const rawNum = reverseMatch[1].replace(/,/g, "");
@@ -188,8 +188,8 @@ function extractAmount(text: string): { amount: number | null; matchedText: stri
     }
   }
 
-  // Pattern 4: "for 500", "of 120", "paid 2500"
-  const prepositionRegex = /(?:for|of|paid|spent|gave|received|got|cost)\s+([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\b/i;
+  // Pattern 4: "for 500", "of 120", "paid 2500", "spent 1000", "cost 50"
+  const prepositionRegex = /(?:for|of|paid|spent|gave|received|got|cost)\s+([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)/i;
   const prepMatch = text.match(prepositionRegex);
   if (prepMatch) {
     const rawNum = prepMatch[1].replace(/,/g, "");
@@ -199,13 +199,28 @@ function extractAmount(text: string): { amount: number | null; matchedText: stri
     }
   }
 
-  // Pattern 5: Word number (e.g. "fifty rupees", "two hundred", "twenty")
-  const wordAmt = parseWordNumber(text);
-  if (wordAmt && wordAmt > 0) {
-    return { amount: wordAmt, matchedText: "word_number" };
+  // Pattern 5: Number before "for" or "on": "20 for water bottle", "50 on bus"
+  const numBeforePrepRegex = /\b([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s+(?:for|on)\b/i;
+  const numBeforePrepMatch = text.match(numBeforePrepRegex);
+  if (numBeforePrepMatch) {
+    const rawNum = numBeforePrepMatch[1].replace(/,/g, "");
+    const parsed = parseFloat(rawNum);
+    if (!isNaN(parsed) && parsed > 0) {
+      return { amount: parsed, matchedText: numBeforePrepMatch[0] };
+    }
   }
 
-  // Pattern 6: Bare number at end of line (e.g. "Tea 20", "Petrol 600", "Lunch 250")
+  // Pattern 6: Bare number at start of clause: "20 water bottle"
+  const startNumRegex = /^\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s+/i;
+  const startMatch = text.match(startNumRegex);
+  if (startMatch) {
+    const parsed = parseFloat(startMatch[1].replace(/,/g, ""));
+    if (!isNaN(parsed) && parsed > 0 && parsed !== 2024 && parsed !== 2025 && parsed !== 2026) {
+      return { amount: parsed, matchedText: startMatch[0] };
+    }
+  }
+
+  // Pattern 7: Bare number at end of line (e.g. "Tea 20", "Petrol 600", "Lunch 250")
   const endNumRegex = /\b([0-9]+(?:\.[0-9]{1,2})?)\s*$/;
   const endMatch = text.match(endNumRegex);
   if (endMatch) {
@@ -213,6 +228,12 @@ function extractAmount(text: string): { amount: number | null; matchedText: stri
     if (!isNaN(parsed) && parsed > 0) {
       return { amount: parsed, matchedText: endMatch[0] };
     }
+  }
+
+  // Pattern 8: Word number (e.g. "fifty rupees", "two hundred", "twenty")
+  const wordAmt = parseWordNumber(text);
+  if (wordAmt && wordAmt > 0) {
+    return { amount: wordAmt, matchedText: "word_number" };
   }
 
   return { amount: null, matchedText: null };
@@ -375,30 +396,62 @@ function classifyCategory(
 ): { categoryId: number | null; categoryName: string; categoryIcon: string } {
   const lower = text.toLowerCase();
 
-  // First check against user's actual categories in database
-  if (userCategories && userCategories.length > 0) {
-    for (const cat of userCategories) {
-      const catLower = cat.name.toLowerCase();
-      if (lower.includes(catLower)) {
-        return { categoryId: cat.id, categoryName: cat.name, categoryIcon: cat.icon || "Tag" };
+  // Special check: 'water bill' belongs to Utilities, not Food & Drinks
+  const isWaterBill = lower.includes("water bill") || lower.includes("water-bill") || lower.includes("waterbill");
+
+  // Check against our comprehensive keyword dictionary
+  for (const [canonicalName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (canonicalName === "Food & Drinks" && isWaterBill) {
+      continue;
+    }
+
+    for (const kw of keywords) {
+      if (canonicalName === "Food & Drinks" && (kw === "water" || kw === "watter" || kw === "bottle") && isWaterBill) {
+        continue;
+      }
+
+      if (lower.includes(kw)) {
+        // Find if this category or equivalent exists in userCategories
+        let matchedUserCat = userCategories?.find(
+          (c) => c.name.toLowerCase() === canonicalName.toLowerCase()
+        );
+
+        // Alias matching for DB schemas using alternate names
+        if (!matchedUserCat && userCategories && userCategories.length > 0) {
+          if (canonicalName === "Food & Drinks") {
+            matchedUserCat = userCategories.find((c) =>
+              c.name.toLowerCase().includes("food") || c.name.toLowerCase().includes("dining")
+            );
+          } else if (canonicalName === "Travel & Transport") {
+            matchedUserCat = userCategories.find((c) =>
+              c.name.toLowerCase().includes("travel") || c.name.toLowerCase().includes("commute")
+            );
+          } else if (canonicalName === "Utilities") {
+            matchedUserCat = userCategories.find((c) =>
+              c.name.toLowerCase().includes("utilit") || c.name.toLowerCase().includes("bill")
+            );
+          } else if (canonicalName === "Healthcare") {
+            matchedUserCat = userCategories.find((c) =>
+              c.name.toLowerCase().includes("health") || c.name.toLowerCase().includes("medical")
+            );
+          }
+        }
+
+        return {
+          categoryId: matchedUserCat?.id || null,
+          categoryName: matchedUserCat?.name || canonicalName,
+          categoryIcon: matchedUserCat?.icon || "Tag",
+        };
       }
     }
   }
 
-  // Then check standard category keywords
-  for (const [categoryName, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    for (const kw of keywords) {
-      const regex = new RegExp(`\\b${kw}\\b`, "i");
-      if (regex.test(lower)) {
-        // Find if this category exists in userCategories
-        const userCat = userCategories?.find(
-          (c) => c.name.toLowerCase() === categoryName.toLowerCase() || c.name.toLowerCase().includes(kw)
-        );
-        return {
-          categoryId: userCat?.id || null,
-          categoryName,
-          categoryIcon: userCat?.icon || "Tag",
-        };
+  // Check direct match in user categories if any
+  if (userCategories && userCategories.length > 0) {
+    for (const cat of userCategories) {
+      const catLower = cat.name.toLowerCase();
+      if (catLower.length >= 4 && lower.includes(catLower)) {
+        return { categoryId: cat.id, categoryName: cat.name, categoryIcon: cat.icon || "Tag" };
       }
     }
   }
@@ -475,7 +528,7 @@ function matchGroup(
 }
 
 /**
- * Clean up raw phrase into human-readable Title and Description
+ * Clean up raw phrase into human-readable Title and Description with professional naming
  */
 function formatTitleAndDescription(
   rawText: string,
@@ -483,11 +536,70 @@ function formatTitleAndDescription(
   type: "paid" | "received" | "lent" | "borrowed",
   contactName: string | null
 ): { title: string; description: string } {
+  const lower = rawText.toLowerCase();
+
+  // Specific high-precision domain naming
+  if (lower.includes("water bottle") || lower.includes("watter bottle") || (lower.includes("water") && !lower.includes("bill"))) {
+    return { title: "Water bottle", description: "Purchased Water Bottle" };
+  }
+  if (lower.includes("bus") || lower.includes("travel by bus")) {
+    return { title: "Bus Travel Fare", description: "Bus Travel Fare" };
+  }
+  if (lower.includes("metro") || lower.includes("train")) {
+    return { title: "Train & Metro Ticket", description: "Metro / Train Travel Fare" };
+  }
+  if (lower.includes("uber") || lower.includes("ola") || lower.includes("cab") || lower.includes("taxi") || lower.includes("auto") || lower.includes("rapido")) {
+    return { title: "Cab Travel Fare", description: "Cab Travel Fare" };
+  }
+  if (lower.includes("petrol") || lower.includes("fuel") || lower.includes("diesel")) {
+    return { title: "Fuel Refill", description: "Fuel Refill Expense" };
+  }
+  if (lower.includes("tea") || lower.includes("chai")) {
+    return { title: "Tea Purchase", description: "Tea Purchase" };
+  }
+  if (lower.includes("coffee") || lower.includes("cafe")) {
+    return { title: "Coffee Purchase", description: "Coffee Purchase" };
+  }
+  if (lower.includes("lunch")) {
+    return { title: "Lunch at Restaurant", description: "Lunch at Restaurant" };
+  }
+  if (lower.includes("dinner")) {
+    return { title: "Dinner Expense", description: "Dinner at Restaurant" };
+  }
+  if (lower.includes("breakfast") || lower.includes("samosa")) {
+    return { title: "Breakfast & Snacks", description: "Breakfast & Snacks Purchase" };
+  }
+  if (lower.includes("chips")) {
+    return { title: "Chips & Snacks", description: "Chips & Snacks Purchase" };
+  }
+  if (lower.includes("movie") || lower.includes("cinema") || lower.includes("theater") || lower.includes("theatre")) {
+    return { title: "Movie Tickets", description: "Movie Tickets & Entertainment" };
+  }
+  if (lower.includes("internet") || lower.includes("wifi") || lower.includes("broadband")) {
+    return { title: "Monthly Internet Bill", description: "Monthly Internet Bill" };
+  }
+  if (lower.includes("electricity") || lower.includes("power") || lower.includes("light bill")) {
+    return { title: "Monthly Electricity Bill", description: "Monthly Electricity Bill" };
+  }
+  if (lower.includes("groceries") || lower.includes("grocery") || lower.includes("kirana")) {
+    return { title: "Grocery Supplies", description: "Grocery Supplies Purchase" };
+  }
+  if (lower.includes("medicine") || lower.includes("medical") || lower.includes("pharmacy") || lower.includes("doctor")) {
+    return { title: "Pharmacy & Healthcare", description: "Pharmacy & Healthcare Expense" };
+  }
+  if (lower.includes("parking") || lower.includes("toll")) {
+    return { title: "Vehicle Parking Fee", description: "Vehicle Parking Fee" };
+  }
+  if (lower.includes("gym") || lower.includes("fitness")) {
+    return { title: "Gym Membership", description: "Gym & Fitness Expense" };
+  }
+
   // Strip out currency, number words, and conversational fillers
   let cleaned = rawText
     .replace(/(?:₹|rs\.?|inr)\s*[0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?/gi, "")
-    .replace(/\b[0-9]+(?:\.[0-9]{1,2})?\s*(?:rs|rupees|inr|bucks)\b/gi, "")
+    .replace(/\b[0-9]+(?:\.[0-9]{1,2})?\s*(?:rs|rupees|inr|bucks|\/-)\b/gi, "")
     .replace(/\b[0-9]+(?:\.[0-9]+)?\s*k\b/gi, "")
+    .replace(/\b[0-9]+(?:\.[0-9]{1,2})?\b/g, "")
     .replace(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|lakh|crore|rupees|rupee)\b/gi, "")
     .replace(/\b(i|we|today|yesterday|tomorrow|this morning|tonight|please|just)\b/gi, "")
     .replace(/\b(bought|spent on|spent|paid for|paid|purchased|gave|lent|received|got|for)\b/gi, "")
@@ -507,21 +619,93 @@ function formatTitleAndDescription(
     else cleaned = `${categoryName} Expense`;
   }
 
-  // Capitalize properly
-  const title = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-  let description = title;
+  // Capitalize properly in Title Case
+  const title = cleaned
+    .split(" ")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 
+  let description = title;
   if (type === "paid") {
-    description = `Paid for ${title.toLowerCase()}`;
+    description = `${title} Purchase`;
   } else if (type === "received") {
-    description = contactName ? `Received from ${contactName}` : `Received ${title.toLowerCase()}`;
+    description = contactName ? `Received from ${contactName}` : `Received ${title}`;
   } else if (type === "lent" && contactName) {
-    description = `Gave ${contactName} for ${title.toLowerCase()}`;
+    description = `Gave ${contactName} for ${title}`;
   } else if (type === "borrowed" && contactName) {
     description = `Borrowed from ${contactName}`;
   }
 
   return { title, description };
+}
+
+/**
+ * Splits conversational multi-transaction input intelligently.
+ * Connected by: and, ,, then, also, plus, &, +, after, before, followed by, \n+, etc.
+ * Separates transactions whenever multiple independent expenses/purchases are present.
+ */
+function segmentMultiTransactionMessage(message: string): string[] {
+  const trimmed = message.trim();
+  if (!trimmed) return [];
+
+  // Delimiters: newlines, semicolons, commas, or conjunction words
+  const delimiterRegex = /(\r?\n+|;\s*|,\s*|\s+(?:and\s+then|also\s+bought|also\s+spent|and\s+also|followed\s+by|after|before|and|then|also|plus|&|\+)\s+)/i;
+
+  const rawPieces: string[] = [];
+  let remaining = trimmed;
+
+  while (remaining) {
+    const match = remaining.match(delimiterRegex);
+    if (!match || match.index === undefined) {
+      const lastPiece = remaining.trim();
+      if (lastPiece) rawPieces.push(lastPiece);
+      break;
+    }
+    const piece = remaining.slice(0, match.index).trim();
+    if (piece) rawPieces.push(piece);
+    remaining = remaining.slice(match.index + match[0].length).trim();
+  }
+
+  if (rawPieces.length <= 1) {
+    return [trimmed];
+  }
+
+  // Group candidate pieces into complete transaction clauses based on presence of amounts
+  const clauses: string[] = [];
+  let buffer = "";
+
+  for (let i = 0; i < rawPieces.length; i++) {
+    const piece = rawPieces[i];
+    const candidateCombined = buffer ? `${buffer} and ${piece}` : piece;
+    const pieceHasAmt = extractAmount(piece).amount !== null;
+
+    if (pieceHasAmt) {
+      if (buffer) {
+        if (extractAmount(buffer).amount === null) {
+          // Buffer was just a prefix item without an amount, merge into this piece
+          clauses.push(candidateCombined);
+          buffer = "";
+        } else {
+          clauses.push(buffer);
+          buffer = piece;
+        }
+      } else {
+        clauses.push(piece);
+      }
+    } else {
+      buffer = candidateCombined;
+    }
+  }
+
+  if (buffer) {
+    if (clauses.length > 0 && extractAmount(buffer).amount === null) {
+      clauses[clauses.length - 1] += ` ${buffer}`;
+    } else {
+      clauses.push(buffer);
+    }
+  }
+
+  return clauses.length > 0 ? clauses : [trimmed];
 }
 
 /**
@@ -570,11 +754,8 @@ export function parseConversationalMessage(
     return { hasTransactions: false, transactions: [], isIncomplete: false };
   }
 
-  // Split multi-line input or conjunction-separated entries (e.g. "Tea ₹20\nPetrol ₹600", "Tea ₹20, Petrol ₹600", or "Tea 20 and Petrol 600")
-  const lines = trimmed
-    .split(/\n+|;\s*|,\s*(?=[A-Za-z]+(?:\s+[A-Za-z]+)*\s*(?:₹|rs\.?|[0-9]+))|\s+and\s+(?=[A-Za-z]+(?:\s+[A-Za-z]+)*\s*(?:₹|rs\.?|[0-9]+))/i)
-    .map((l) => l.trim())
-    .filter(Boolean);
+  // Segment message into separate independent transaction clauses
+  const lines = segmentMultiTransactionMessage(trimmed);
 
   const proposals: ProposedTransaction[] = [];
   let detectedIncomplete = false;
@@ -612,7 +793,8 @@ export function parseConversationalMessage(
 
     // Build intelligent, comprehensive notes capturing user context accurately
     const intelligentNotes = [
-      `${title} (${categoryName})`,
+      `${description} (${categoryName})`,
+      lineLower.includes("water bottle") ? "Water bottle purchase" : null,
       contactMatch.contactName ? `Peer: ${contactMatch.contactName}` : null,
       groupMatch.groupName ? `Group: ${groupMatch.groupName}` : null,
       paymentMethod ? `Via ${paymentMethod}` : null,

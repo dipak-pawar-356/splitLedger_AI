@@ -42,7 +42,6 @@ import { VoiceAssistantPanel } from "@/components/ai/voice-assistant-panel";
 import { AutomationRulesBuilder } from "@/components/ai/automation-rules-builder";
 import { BusinessIntelligenceCard } from "@/components/ai/business-intelligence-card";
 import { AIFinancialCharts } from "@/components/ai/ai-financial-charts";
-import { GlobalAISearchBar } from "@/components/ai/global-ai-search-bar";
 import { AIReceiptScannerModal } from "@/components/receipts/ai-receipt-scanner-modal";
 import { toast } from "sonner";
 
@@ -224,11 +223,6 @@ export function FinancialIntelligenceClientView({
           </Button>
         </div>
       </header>
-
-      {/* Global AI Search Bar */}
-      <section aria-label="Global Search">
-        <GlobalAISearchBar />
-      </section>
 
       {/* Main Feature Tabs */}
       <div className="space-y-6">

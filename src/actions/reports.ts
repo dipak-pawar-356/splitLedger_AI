@@ -351,7 +351,12 @@ export async function getReportDashboardSummary() {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
+            or(
+              sql`${transactions.groupId} IS NOT NULL`,
+              isNull(transactions.contactId),
+              eq(transactions.isSyncedToDashboard, true),
+              sql`${transactions.contactId} IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = false)`
+            ),
             sql`${transactions.type} IN ('paid', 'borrowed')`
           )
         )
@@ -369,7 +374,12 @@ export async function getReportDashboardSummary() {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
+            or(
+              sql`${transactions.groupId} IS NOT NULL`,
+              isNull(transactions.contactId),
+              eq(transactions.isSyncedToDashboard, true),
+              sql`${transactions.contactId} IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = false)`
+            ),
             sql`${transactions.type} IN ('paid', 'borrowed')`
           )
         )
@@ -534,7 +544,7 @@ function computeComprehensiveFinancialModel({
 
   for (const tx of transactionsList) {
     const amtRupees = Number(tx.amount) / 100;
-    const isGroup = tx.groupId !== null && targetGroupIds.includes(tx.groupId);
+    const isGroup = tx.groupId !== null;
     const isUserPayer = tx.paidBy === user.id || (tx.paidBy === null && (tx.createdBy === user.id || tx.userId === user.id));
     const monthKey = tx.date ? new Date(tx.date).toISOString().slice(0, 7) : "2026-10";
 
@@ -760,7 +770,8 @@ function computeComprehensiveFinancialModel({
     if (amt > topGroup.amount) topGroup = { name, amount: amt };
   });
 
-  const totalMembersCount = new Set(groupMembersList.map((m) => m.userId).filter(Boolean)).size || Math.max(1, targetGroupIds.length * 2);
+  const calculatedDistinctGroups = new Set(transactionsList.map((t) => t.groupId).filter(Boolean)).size;
+  const totalMembersCount = new Set(groupMembersList.map((m) => m.userId).filter(Boolean)).size || Math.max(1, (targetGroupIds.length || calculatedDistinctGroups) * 2);
   const myAverageTransaction = myPersonalTxCount > 0 ? Number((myTotalSpending / myPersonalTxCount).toFixed(2)) : 0;
   const groupAverageExpense = totalGroupTransactions > 0 ? Number((totalGroupExpense / totalGroupTransactions).toFixed(2)) : 0;
   const myNetBalance = Number((userPendingReceivable - userPendingPayable).toFixed(2));
@@ -856,7 +867,7 @@ function computeComprehensiveFinancialModel({
     totalGroupIncome: Number(totalGroupIncome.toFixed(2)),
     totalGroupTransactions,
     totalMembers: totalMembersCount,
-    totalGroups: targetGroupIds.length,
+    totalGroups: targetGroupIds.length > 0 ? targetGroupIds.length : calculatedDistinctGroups,
     totalPendingSettlements: {
       amount: Number(pendingGroupAmount.toFixed(2)),
       count: pendingGroupCount,
@@ -956,21 +967,12 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
     const userGroupsQuery = await db
       .select({ id: groups.id })
       .from(groups)
-      .leftJoin(groupMembers, eq(groups.id, groupMembers.groupId))
       .where(
         and(
           eq(groups.isDeleted, false),
-          or(
-            eq(groups.createdBy, user.id),
-            and(
-              eq(groupMembers.userId, user.id),
-              or(
-                isNull(groupMembers.membershipStatus),
-                eq(groupMembers.membershipStatus, "active"),
-                sql`${groupMembers.membershipStatus} != 'expense_inactive'`
-              )
-            )
-          )
+          sql`(${groups.createdBy} = ${user.id} OR ${groups.id} IN (
+            SELECT group_id FROM group_members WHERE user_id = ${user.id}
+          ))`
         )
       );
     const userGroupIds = Array.from(new Set(userGroupsQuery.map((g) => g.id).filter(Boolean))) as number[];
@@ -983,6 +985,11 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
       eq(transactions.isDeleted, false),
       or(
         targetGroupIds.length > 0 ? inArray(transactions.groupId, targetGroupIds) : sql`FALSE`,
+        sql`${transactions.groupId} IN (
+          SELECT id FROM groups WHERE created_by = ${user.id} AND is_deleted = false
+          UNION
+          SELECT group_id FROM group_members WHERE user_id = ${user.id}
+        )`,
         and(
           isNull(transactions.groupId),
           or(
@@ -998,8 +1005,17 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
       ),
     ];
 
-    if (!options.contactId) {
-      conditions.push(or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)));
+    if (options.contactId) {
+      conditions.push(eq(transactions.contactId, options.contactId));
+    } else {
+      conditions.push(
+        or(
+          sql`${transactions.groupId} IS NOT NULL`,
+          isNull(transactions.contactId),
+          eq(transactions.isSyncedToDashboard, true),
+          sql`${transactions.contactId} IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = false)`
+        )
+      );
     }
 
     if (startDate) conditions.push(gte(transactions.date, startDate));
@@ -1244,21 +1260,12 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
     const userGroupsQuery = await db
       .select({ id: groups.id })
       .from(groups)
-      .leftJoin(groupMembers, eq(groups.id, groupMembers.groupId))
       .where(
         and(
           eq(groups.isDeleted, false),
-          or(
-            eq(groups.createdBy, user.id),
-            and(
-              eq(groupMembers.userId, user.id),
-              or(
-                isNull(groupMembers.membershipStatus),
-                eq(groupMembers.membershipStatus, "active"),
-                sql`${groupMembers.membershipStatus} != 'expense_inactive'`
-              )
-            )
-          )
+          sql`(${groups.createdBy} = ${user.id} OR ${groups.id} IN (
+            SELECT group_id FROM group_members WHERE user_id = ${user.id}
+          ))`
         )
       );
     const userGroupIds = Array.from(new Set(userGroupsQuery.map((g) => g.id).filter(Boolean))) as number[];
@@ -1273,6 +1280,11 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
 
     const baseScope = or(
       targetGroupIds.length > 0 ? inArray(transactions.groupId, targetGroupIds) : sql`FALSE`,
+      sql`${transactions.groupId} IN (
+        SELECT id FROM groups WHERE created_by = ${user.id} AND is_deleted = false
+        UNION
+        SELECT group_id FROM group_members WHERE user_id = ${user.id}
+      )`,
       and(
         isNull(transactions.groupId),
         or(
@@ -1287,10 +1299,17 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
       sql`EXISTS (SELECT 1 FROM expense_splits WHERE expense_splits.transaction_id = transactions.id AND expense_splits.user_id = ${user.id})`
     );
 
+    const contactScope = or(
+      sql`${transactions.groupId} IS NOT NULL`,
+      isNull(transactions.contactId),
+      eq(transactions.isSyncedToDashboard, true),
+      sql`${transactions.contactId} IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = false)`
+    );
+
     const currentConditions: any[] = [
       eq(transactions.isDeleted, false),
       baseScope,
-      or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
+      contactScope,
     ];
     if (startDate) currentConditions.push(gte(transactions.date, startDate));
     if (endDate) currentConditions.push(lte(transactions.date, endDate));
@@ -1301,7 +1320,7 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
     const prevConditions: any[] = [
       eq(transactions.isDeleted, false),
       baseScope,
-      or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
+      contactScope,
     ];
     if (prevStartDate) prevConditions.push(gte(transactions.date, prevStartDate));
     if (prevEndDate) prevConditions.push(lte(transactions.date, prevEndDate));

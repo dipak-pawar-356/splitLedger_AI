@@ -152,7 +152,7 @@ export function SplitLedgerBrand({
       {showText && (
         <span
           className={cn(
-            "font-extrabold tracking-tight truncate text-slate-900 dark:text-slate-100 flex items-center",
+            "font-extrabold tracking-tight truncate text-slate-900 dark:text-slate-100 flex items-center antialiased",
             textSizes[size]
           )}
         >

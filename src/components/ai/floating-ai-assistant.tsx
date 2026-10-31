@@ -39,7 +39,7 @@ export function FloatingAIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [inputQuery, setInputQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<Message[]>([
     {

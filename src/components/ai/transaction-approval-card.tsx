@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ProposedTransaction,
 } from "@/lib/ai/nlp-transaction-parser";
@@ -40,6 +41,10 @@ interface TransactionApprovalCardProps {
   categories?: Array<{ id: number; name: string }>;
   onApproved?: (txId: number, publicId: string) => void;
   onCancelled?: () => void;
+  isSelected?: boolean;
+  onToggleSelect?: (selected: boolean) => void;
+  showSelection?: boolean;
+  forceEdit?: boolean;
 }
 
 export function TransactionApprovalCard({
@@ -47,6 +52,10 @@ export function TransactionApprovalCard({
   categories = [],
   onApproved,
   onCancelled,
+  isSelected = true,
+  onToggleSelect,
+  showSelection = false,
+  forceEdit,
 }: TransactionApprovalCardProps) {
   const router = useRouter();
   const [proposal, setProposal] = useState<ProposedTransaction>(initialProposal);
@@ -56,6 +65,12 @@ export function TransactionApprovalCard({
   const [isCancelled, setIsCancelled] = useState(proposal.status === "cancelled");
   const [createdPublicId, setCreatedPublicId] = useState<string | null>(null);
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
+
+  useEffect(() => {
+    if (forceEdit !== undefined) {
+      setIsEditing(forceEdit);
+    }
+  }, [forceEdit]);
 
   // Edit form state
   const [editTitle, setEditTitle] = useState(proposal.title);
@@ -116,7 +131,7 @@ export function TransactionApprovalCard({
     setIsCancelled(true);
     setProposal((prev) => ({ ...prev, status: "cancelled" }));
     if (onCancelled) onCancelled();
-    toast.info("Transaction proposal discarded (no database changes).");
+    toast.info("Transaction proposal cancelled (no database changes).");
   };
 
   const typeColor =
@@ -141,11 +156,25 @@ export function TransactionApprovalCard({
     return (
       <div className="p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 text-xs text-slate-500 flex items-center justify-between">
         <span className="line-through">
-          Proposed {typeLabel}: ₹{proposal.amount.toLocaleString("en-IN")} ({proposal.title})
+          Proposed {typeLabel}: ₹{proposal.amount.toLocaleString("en-IN")} ({proposal.description || proposal.title})
         </span>
-        <Badge variant="outline" className="text-[10px] text-slate-400">
-          Discarded
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className="text-[10px] text-slate-400">
+            Cancelled
+          </Badge>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-6 text-[10px] font-semibold text-primary hover:underline px-2 cursor-pointer"
+            onClick={() => {
+              setIsCancelled(false);
+              setProposal((prev) => ({ ...prev, status: "draft" }));
+            }}
+          >
+            Undo Cancel
+          </Button>
+        </div>
       </div>
     );
   }
@@ -211,6 +240,16 @@ export function TransactionApprovalCard({
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-0.5">
         <div className="flex items-center gap-2">
+          {showSelection && !isApproved && !isCancelled && (
+            <div className="flex items-center pr-1">
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={(val) => onToggleSelect?.(!!val)}
+                className="h-4 w-4 rounded-md data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 cursor-pointer"
+                aria-label={`Select ${proposal.title}`}
+              />
+            </div>
+          )}
           <div className="p-1.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
             <Receipt className="h-4 w-4" />
           </div>
@@ -511,30 +550,30 @@ export function TransactionApprovalCard({
           )}
         </Button>
 
-        {/* Secondary Edit & Discard Controls */}
+        {/* Secondary Edit & Cancel Controls */}
         <div className="flex items-center justify-between gap-2">
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="flex-1 h-8 rounded-xl text-[11px] sm:text-xs font-semibold gap-1.5 border-slate-200 dark:border-slate-700/80 bg-background hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+            className="flex-1 h-8 rounded-xl text-[11px] sm:text-xs font-semibold gap-1.5 border-slate-200 dark:border-slate-700/80 bg-background hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
             onClick={() => setIsEditing((prev) => !prev)}
             disabled={isApproving}
           >
             <Edit3 className="h-3.5 w-3.5 text-primary" />
-            <span>{isEditing ? "Close Edit" : "Edit Details"}</span>
+            <span>{isEditing ? "Close Edit" : "Edit"}</span>
           </Button>
 
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            className="h-8 px-3 rounded-xl text-[11px] sm:text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 gap-1 transition-colors"
+            className="h-8 px-3 rounded-xl text-[11px] sm:text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 gap-1 transition-colors cursor-pointer"
             onClick={handleCancel}
             disabled={isApproving}
           >
             <X className="h-3.5 w-3.5" />
-            <span>Discard</span>
+            <span>Cancel</span>
           </Button>
         </div>
       </div>
@@ -543,7 +582,7 @@ export function TransactionApprovalCard({
 }
 
 /**
- * Bulk Approval Container for multiple transactions (Requirements 13 & 14)
+ * Bulk Approval Container for multiple transactions (Requirements 2 & 3)
  */
 export function TransactionApprovalCardGroup({
   proposals,
@@ -556,18 +595,22 @@ export function TransactionApprovalCardGroup({
 }) {
   const router = useRouter();
   const [items, setItems] = useState<ProposedTransaction[]>(proposals);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    new Set(proposals.map((p) => p.tempId))
+  );
+  const [forceEditAll, setForceEditAll] = useState(false);
   const [isBulkApproving, setIsBulkApproving] = useState(false);
-  const [allApproved, setAllApproved] = useState(false);
 
   const activeDrafts = items.filter((item) => item.status === "draft");
+  const selectedDrafts = activeDrafts.filter((item) => selectedIds.has(item.tempId));
   const totalAmount = activeDrafts.reduce((sum, item) => sum + item.amount, 0);
 
   const handleApproveAll = async () => {
+    if (activeDrafts.length === 0) return;
     setIsBulkApproving(true);
     try {
       await approveBatchConversationalTransactions(activeDrafts);
       setItems((prev) => prev.map((item) => ({ ...item, status: "approved" })));
-      setAllApproved(true);
       emitFinancialEvent("transaction:created");
       emitFinancialEvent("expense:created");
       toast.success(`Successfully approved and created all ${activeDrafts.length} transactions!`);
@@ -580,6 +623,30 @@ export function TransactionApprovalCardGroup({
     }
   };
 
+  const handleApproveSelected = async () => {
+    if (selectedDrafts.length === 0) {
+      toast.error("Please select at least one transaction to approve.");
+      return;
+    }
+    setIsBulkApproving(true);
+    try {
+      await approveBatchConversationalTransactions(selectedDrafts);
+      const approvedIds = new Set(selectedDrafts.map((s) => s.tempId));
+      setItems((prev) =>
+        prev.map((item) => (approvedIds.has(item.tempId) ? { ...item, status: "approved" } : item))
+      );
+      emitFinancialEvent("transaction:created");
+      emitFinancialEvent("expense:created");
+      toast.success(`Successfully approved ${selectedDrafts.length} selected transaction(s)!`);
+      if (onAllApproved) onAllApproved();
+      router.refresh();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to approve selected transactions.");
+    } finally {
+      setIsBulkApproving(false);
+    }
+  };
+
   const handleDiscardAll = () => {
     setItems((prev) => prev.map((item) => ({ ...item, status: "cancelled" })));
     toast.info("All detected transaction proposals discarded.");
@@ -587,60 +654,24 @@ export function TransactionApprovalCardGroup({
 
   return (
     <div className="space-y-3 pt-1">
-      {/* Bulk Action Strip if more than 1 item and has active drafts */}
-      {items.length > 1 && activeDrafts.length > 0 && (
-        <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-100/90 via-indigo-50/40 to-slate-100/90 dark:from-slate-900/90 dark:via-indigo-950/20 dark:to-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-sm space-y-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Sparkles className="h-4 w-4 text-amber-500 shrink-0 animate-pulse" />
-              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                Bulk Review ({activeDrafts.length} transactions)
-              </span>
-            </div>
-            <Badge variant="outline" className="font-mono font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 text-xs shrink-0">
-              ₹{totalAmount.toLocaleString("en-IN")}
-            </Badge>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs font-semibold rounded-xl px-2.5 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border-slate-200 dark:border-slate-700/80 flex-1"
-              onClick={handleDiscardAll}
-              disabled={isBulkApproving}
-            >
-              Discard All
-            </Button>
-            <Button
-              size="sm"
-              className="h-8 text-xs font-bold rounded-xl px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xs flex-1 cursor-pointer"
-              onClick={handleApproveAll}
-              disabled={isBulkApproving}
-            >
-              {isBulkApproving ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                  <span>Approving All...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                  <span>Approve All ({activeDrafts.length})</span>
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Render Individual Cards */}
-      <div className="space-y-2.5">
+      {/* 1. Render Individual Cards FIRST (Requirement 2: each with own approval, edit, cancel) */}
+      <div className="space-y-3">
         {items.map((proposal) => (
           <TransactionApprovalCard
             key={proposal.tempId}
             proposal={proposal}
             categories={categories}
+            showSelection={items.length > 1}
+            isSelected={selectedIds.has(proposal.tempId)}
+            onToggleSelect={(checked) => {
+              setSelectedIds((prev) => {
+                const next = new Set(prev);
+                if (checked) next.add(proposal.tempId);
+                else next.delete(proposal.tempId);
+                return next;
+              });
+            }}
+            forceEdit={forceEditAll}
             onApproved={() => {
               setItems((prev) =>
                 prev.map((p) => (p.tempId === proposal.tempId ? { ...p, status: "approved" } : p))
@@ -654,6 +685,75 @@ export function TransactionApprovalCardGroup({
           />
         ))}
       </div>
+
+      {/* 2. Bulk Actions Bar AT THE BOTTOM if multiple transactions exist (Requirement 3) */}
+      {items.length > 1 && activeDrafts.length > 0 && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-100/90 via-emerald-50/20 to-slate-100/90 dark:from-slate-900/90 dark:via-emerald-950/10 dark:to-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-sm space-y-2.5 mt-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Sparkles className="h-4 w-4 text-emerald-500 shrink-0 animate-pulse" />
+              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                Bulk Actions ({activeDrafts.length} transactions pending)
+              </span>
+            </div>
+            <Badge variant="outline" className="font-mono font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 text-xs shrink-0">
+              ₹{totalAmount.toLocaleString("en-IN")}
+            </Badge>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xs cursor-pointer"
+              onClick={handleApproveAll}
+              disabled={isBulkApproving}
+            >
+              {isBulkApproving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-200" />
+              )}
+              <span>Approve All ({activeDrafts.length})</span>
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs font-semibold rounded-xl text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer"
+              onClick={handleApproveSelected}
+              disabled={isBulkApproving || selectedDrafts.length === 0}
+            >
+              <span>Approve Selected ({selectedDrafts.length})</span>
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              onClick={() => setForceEditAll((prev) => !prev)}
+              disabled={isBulkApproving}
+            >
+              <Edit3 className="h-3 w-3 mr-1 text-primary" />
+              <span>{forceEditAll ? "Close Edit" : "Edit Individually"}</span>
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs font-semibold rounded-xl text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
+              onClick={handleDiscardAll}
+              disabled={isBulkApproving}
+            >
+              <X className="h-3 w-3 mr-1" />
+              <span>Reject All</span>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

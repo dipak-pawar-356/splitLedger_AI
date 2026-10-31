@@ -101,7 +101,7 @@ interface AIFinancialAssistantCardProps {
 export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssistantCardProps = {}) {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [showPromptPanel, setShowPromptPanel] = useState(true);
+  const [showPromptPanel, setShowPromptPanel] = useState(false);
   const [promptCategory, setPromptCategory] = useState<"all" | "spending" | "friends" | "forecast" | "reports">("all");
   const [promptSearchQuery, setPromptSearchQuery] = useState("");
   const [showAutocomplete, setShowAutocomplete] = useState(false);
@@ -115,7 +115,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
     {
       id: "turn_welcome",
       role: "assistant",
-      content: "Namaste! I am your SplitLedger AI Financial Copilot. Ask any question about your live spending, split groups, friend balances, budgets, or future expense forecasts. You can type freely below or browse our prompt search panel.",
+      content: "Namaste! I am your SplitLedger AI Financial Copilot. You can type or paste any expense, payment, or question below (e.g. '20 rs for water bottle and 50 rs for travel by bus', 'Who owes me money?', 'How much did I spend this month?').",
       timestamp: "Just now",
     },
   ]);
@@ -229,14 +229,14 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
 
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={() => setShowPromptPanel((prev) => !prev)}
-              className="h-8 rounded-xl text-xs gap-1.5 font-semibold border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
-              aria-label={showPromptPanel ? "Hide prompt search panel" : "Browse prompt search panel"}
+              className="h-8 rounded-xl text-[11px] gap-1 font-semibold text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+              aria-label={showPromptPanel ? "Hide internal developer prompts" : "Show internal developer prompts"}
             >
               <Compass className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-              <span>{showPromptPanel ? "Hide Prompts" : "Browse 25+ Prompts"}</span>
+              <span>{showPromptPanel ? "Hide Prompts" : "Internal Prompts"}</span>
               {showPromptPanel ? (
                 <ChevronUp className="h-3 w-3 opacity-60" aria-hidden="true" />
               ) : (
