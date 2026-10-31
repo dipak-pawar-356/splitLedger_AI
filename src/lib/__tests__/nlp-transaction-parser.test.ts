@@ -125,5 +125,21 @@ describe("NLP Conversational Transaction Parser", () => {
     expect(res.isIncomplete).toBe(true);
     expect(res.clarificationMessage).toBeDefined();
   });
+
+  it("detects multiple transactions in a single natural sentence separated by 'and'", () => {
+    const res = parseConversationalMessage("Tea ₹20 and Petrol ₹600", mockContext);
+    expect(res.hasTransactions).toBe(true);
+    expect(res.transactions).toHaveLength(2);
+    expect(res.transactions[0].amount).toBe(20);
+    expect(res.transactions[1].amount).toBe(600);
+  });
+
+  it("generates rich, human-readable notes with context and category", () => {
+    const res = parseConversationalMessage("Paid ₹450 for Water bottle", mockContext);
+    expect(res.hasTransactions).toBe(true);
+    expect(res.transactions[0].notes).toBeDefined();
+    expect(res.transactions[0].notes).toContain("Water bottle");
+    expect(res.transactions[0].notes).toContain("SplitLedger");
+  });
 });
 

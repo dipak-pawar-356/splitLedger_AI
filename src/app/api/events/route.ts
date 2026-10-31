@@ -6,6 +6,7 @@ import { groupMembers } from "@/lib/db/schema/schema";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export async function GET(req: NextRequest) {
   try {
@@ -58,8 +59,18 @@ export async function GET(req: NextRequest) {
           }
         }, 15000);
 
+        // Graceful maximum lifetime for serverless environments (prevents connection accumulation on repeated refreshes)
+        const timeout = setTimeout(() => {
+          clearInterval(heartbeatInterval);
+          unsubscribes.forEach((unsub) => unsub());
+          try {
+            controller.close();
+          } catch (_) {}
+        }, 25000);
+
         // Cleanup on client abort
         req.signal.addEventListener("abort", () => {
+          clearTimeout(timeout);
           clearInterval(heartbeatInterval);
           unsubscribes.forEach((unsub) => unsub());
           try {

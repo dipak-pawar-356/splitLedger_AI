@@ -19,6 +19,8 @@ import {
 import { toast } from "sonner";
 import { SUGGESTED_QUICK_QUESTIONS } from "@/lib/ai/prompts";
 import { FormattedAIAnswer, formatInlineText } from "@/components/ai/formatted-ai-answer";
+import { TransactionApprovalCardGroup } from "@/components/ai/transaction-approval-card";
+import { ProposedTransaction } from "@/lib/ai/nlp-transaction-parser";
 
 interface Message {
   id: string;
@@ -28,6 +30,7 @@ interface Message {
   insights?: string[];
   actionSuggestions?: Array<{ label: string; url: string }>;
   timestamp: string;
+  detectedTransactions?: ProposedTransaction[];
 }
 
 const QUICK_PROMPTS = SUGGESTED_QUICK_QUESTIONS;
@@ -77,6 +80,7 @@ export function FloatingAIAssistant() {
         metrics: response.keyMetrics,
         insights: response.insights,
         actionSuggestions: response.actionSuggestions,
+        detectedTransactions: response.detectedTransactions,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -123,7 +127,7 @@ export function FloatingAIAssistant() {
 
       {/* Floating Assistant Modal */}
       {isOpen && (
-        <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[410px] shadow-2xl rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 bg-card animate-in fade-in slide-in-from-bottom-5 flex flex-col max-h-[88vh]">
+        <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[450px] shadow-2xl rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 bg-card animate-in fade-in slide-in-from-bottom-5 flex flex-col max-h-[88vh]">
           <Card className="border-0 shadow-none rounded-none flex flex-col h-full bg-card">
             {/* Header */}
             <CardHeader className="p-3.5 bg-slate-900 text-white flex flex-row items-center justify-between border-b border-slate-800 shrink-0">
@@ -166,7 +170,7 @@ export function FloatingAIAssistant() {
             </CardHeader>
 
             {/* Chat Messages Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[160px] max-h-[320px]">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 min-h-[220px] max-h-[55vh]">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -175,16 +179,27 @@ export function FloatingAIAssistant() {
                   }`}
                 >
                   <div
-                    className={`p-3 rounded-2xl max-w-[88%] leading-relaxed ${
+                    className={`p-3 sm:p-3.5 rounded-2xl leading-relaxed ${
                       msg.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-br-none shadow-xs"
-                        : "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800"
+                        ? "bg-primary text-primary-foreground rounded-br-none shadow-xs max-w-[88%]"
+                        : msg.detectedTransactions && msg.detectedTransactions.length > 0
+                        ? "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800 w-full max-w-[98%]"
+                        : "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800 max-w-[88%]"
                     }`}
                   >
                     {msg.role === "assistant" ? (
                       <FormattedAIAnswer content={msg.content} />
                     ) : (
                       <p className="whitespace-pre-line">{msg.content}</p>
+                    )}
+
+                    {/* Conversational Transaction Approval Workflow */}
+                    {msg.detectedTransactions && msg.detectedTransactions.length > 0 && (
+                      <div className="mt-3 pt-2.5 border-t border-slate-200/80 dark:border-slate-800">
+                        <TransactionApprovalCardGroup
+                          proposals={msg.detectedTransactions}
+                        />
+                      </div>
                     )}
 
                     {msg.metrics && msg.metrics.length > 0 && (

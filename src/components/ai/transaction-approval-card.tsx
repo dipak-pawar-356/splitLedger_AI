@@ -338,6 +338,15 @@ export function TransactionApprovalCard({
                 </span>
               </div>
             )}
+
+            {proposal.notes && (
+              <div className="p-2 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-800/60 col-span-full">
+                <span className="text-[10px] text-slate-400 font-semibold block">Notes & Details</span>
+                <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 block break-words">
+                  {proposal.notes}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -351,7 +360,7 @@ export function TransactionApprovalCard({
             <Button
               size="sm"
               variant="ghost"
-              className="h-6 text-[11px] px-2"
+              className="h-6 text-[11px] px-2 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
               onClick={() => setIsEditing(false)}
             >
               Cancel Edit
@@ -392,7 +401,7 @@ export function TransactionApprovalCard({
             </div>
 
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold">Title / Description *</Label>
+              <Label className="text-[11px] font-semibold">Title / Item Name *</Label>
               <Input
                 value={editTitle}
                 onChange={(e) => {
@@ -454,13 +463,23 @@ export function TransactionApprovalCard({
                 <option value="Wallet">Wallet</option>
               </select>
             </div>
+
+            <div className="space-y-1 col-span-full">
+              <Label className="text-[11px] font-semibold">Notes / Purpose</Label>
+              <Input
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="e.g. Water bottle for trip, Team dinner..."
+                className="h-8 text-xs bg-background"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-1">
             <Button
               type="button"
               size="sm"
-              className="h-7 text-xs font-bold rounded-xl px-3 bg-primary"
+              className="h-7 text-xs font-bold rounded-xl px-3 bg-primary hover:bg-primary/90 text-primary-foreground"
               onClick={handleSaveEdit}
             >
               Save Changes
@@ -469,53 +488,55 @@ export function TransactionApprovalCard({
         </div>
       )}
 
-      {/* Action Bar (Requirement 3 & 5) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-        <div className="flex items-center gap-1.5">
+      {/* Action Bar (Prominent, High-Contrast & Unmissable across all screen sizes) */}
+      <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+        {/* Primary Unmissable Approve Button */}
+        <Button
+          type="button"
+          size="sm"
+          className="w-full h-9 sm:h-10 rounded-xl text-xs sm:text-sm font-bold gap-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-950/20 active:scale-[0.98] transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-500"
+          onClick={handleApprove}
+          disabled={isApproving}
+        >
+          {isApproving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Recording Transaction...</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="h-4 w-4 text-emerald-200" />
+              <span>Approve & Create (₹{proposal.amount.toLocaleString("en-IN")})</span>
+            </>
+          )}
+        </Button>
+
+        {/* Secondary Edit & Discard Controls */}
+        <div className="flex items-center justify-between gap-2">
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 rounded-xl text-xs font-semibold gap-1.5 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="flex-1 h-8 rounded-xl text-[11px] sm:text-xs font-semibold gap-1.5 border-slate-200 dark:border-slate-700/80 bg-background hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
             onClick={() => setIsEditing((prev) => !prev)}
             disabled={isApproving}
           >
-            <Edit3 className="h-3.5 w-3.5 text-slate-500" />
-            <span>{isEditing ? "Done Editing" : "Edit Details"}</span>
+            <Edit3 className="h-3.5 w-3.5 text-primary" />
+            <span>{isEditing ? "Close Edit" : "Edit Details"}</span>
           </Button>
 
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            className="h-8 rounded-xl text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 gap-1"
+            className="h-8 px-3 rounded-xl text-[11px] sm:text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 gap-1 transition-colors"
             onClick={handleCancel}
             disabled={isApproving}
           >
             <X className="h-3.5 w-3.5" />
-            <span>Cancel</span>
+            <span>Discard</span>
           </Button>
         </div>
-
-        <Button
-          type="button"
-          size="sm"
-          className="h-8 rounded-xl text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs focus-visible:ring-2 focus-visible:ring-emerald-500"
-          onClick={handleApprove}
-          disabled={isApproving}
-        >
-          {isApproving ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span>Recording...</span>
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              <span>Approve & Create</span>
-            </>
-          )}
-        </Button>
       </div>
     </motion.div>
   );
@@ -568,19 +589,24 @@ export function TransactionApprovalCardGroup({
     <div className="space-y-3 pt-1">
       {/* Bulk Action Strip if more than 1 item and has active drafts */}
       {items.length > 1 && activeDrafts.length > 0 && (
-        <div className="p-3 rounded-2xl bg-slate-100/90 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-amber-500" />
-            <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-              Bulk Transaction Review ({activeDrafts.length} items • ₹{totalAmount.toLocaleString("en-IN")})
-            </span>
+        <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-slate-100/90 via-indigo-50/40 to-slate-100/90 dark:from-slate-900/90 dark:via-indigo-950/20 dark:to-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-sm space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Sparkles className="h-4 w-4 text-amber-500 shrink-0 animate-pulse" />
+              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                Bulk Review ({activeDrafts.length} transactions)
+              </span>
+            </div>
+            <Badge variant="outline" className="font-mono font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10 text-xs shrink-0">
+              ₹{totalAmount.toLocaleString("en-IN")}
+            </Badge>
           </div>
 
           <div className="flex items-center gap-2">
             <Button
               size="sm"
               variant="outline"
-              className="h-7 text-xs rounded-xl px-2.5 text-slate-500"
+              className="h-8 text-xs font-semibold rounded-xl px-2.5 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border-slate-200 dark:border-slate-700/80 flex-1"
               onClick={handleDiscardAll}
               disabled={isBulkApproving}
             >
@@ -588,7 +614,7 @@ export function TransactionApprovalCardGroup({
             </Button>
             <Button
               size="sm"
-              className="h-7 text-xs font-bold rounded-xl px-3 bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="h-8 text-xs font-bold rounded-xl px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xs flex-1 cursor-pointer"
               onClick={handleApproveAll}
               disabled={isBulkApproving}
             >

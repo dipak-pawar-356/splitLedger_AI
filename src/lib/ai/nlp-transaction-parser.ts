@@ -570,9 +570,9 @@ export function parseConversationalMessage(
     return { hasTransactions: false, transactions: [], isIncomplete: false };
   }
 
-  // Split multi-line input or conjunction-separated entries (e.g. "Tea ₹20\nPetrol ₹600" or "Tea ₹20, Petrol ₹600")
+  // Split multi-line input or conjunction-separated entries (e.g. "Tea ₹20\nPetrol ₹600", "Tea ₹20, Petrol ₹600", or "Tea 20 and Petrol 600")
   const lines = trimmed
-    .split(/\n+|;\s*|,\s*(?=[A-Za-z]+(?:\s+[A-Za-z]+)*\s*(?:₹|rs\.?|[0-9]+))/i)
+    .split(/\n+|;\s*|,\s*(?=[A-Za-z]+(?:\s+[A-Za-z]+)*\s*(?:₹|rs\.?|[0-9]+))|\s+and\s+(?=[A-Za-z]+(?:\s+[A-Za-z]+)*\s*(?:₹|rs\.?|[0-9]+))/i)
     .map((l) => l.trim())
     .filter(Boolean);
 
@@ -610,6 +610,17 @@ export function parseConversationalMessage(
 
     const tempId = `prop_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`;
 
+    // Build intelligent, comprehensive notes capturing user context accurately
+    const intelligentNotes = [
+      `${title} (${categoryName})`,
+      contactMatch.contactName ? `Peer: ${contactMatch.contactName}` : null,
+      groupMatch.groupName ? `Group: ${groupMatch.groupName}` : null,
+      paymentMethod ? `Via ${paymentMethod}` : null,
+      `Recorded via SplitLedger Conversational AI Assistant`,
+    ]
+      .filter(Boolean)
+      .join(" • ");
+
     proposals.push({
       tempId,
       title,
@@ -628,7 +639,7 @@ export function parseConversationalMessage(
       groupId: groupMatch.groupId,
       groupName: groupMatch.groupName,
       paymentMethod,
-      notes: null,
+      notes: intelligentNotes,
       needsClarification: contactMatch.clarificationNeeded,
       clarificationField: contactMatch.clarificationNeeded ? "contact" : undefined,
       clarificationQuestion: contactMatch.clarificationNeeded

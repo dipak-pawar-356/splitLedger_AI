@@ -225,17 +225,37 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       const txCount = enriched.length;
       const totalAmt = enriched.reduce((s, x) => s + x.amount, 0);
 
-      const answer = txCount === 1
-        ? `I detected a ${enriched[0].type === "received" ? "income receipt" : enriched[0].type === "lent" ? "peer payment" : "new expense"} of **₹${enriched[0].amount.toLocaleString("en-IN")}** for **${enriched[0].title}**. No transaction has been logged yet—please review the approval card below and tap **Approve & Create** to add it to your ledger.`
-        : `I detected **${txCount} transactions** in your message totalling **₹${totalAmt.toLocaleString("en-IN")}**. No transactions have been saved yet—please review the approval cards below. You can edit, approve individually, or approve all at once.`;
+      let answer = "";
+      if (txCount === 1) {
+        const item = enriched[0];
+        if (item.type === "received") {
+          answer = `Got it! I've drafted an income receipt of **₹${item.amount.toLocaleString("en-IN")}**${item.contactName ? ` from **${item.contactName}**` : ""} categorized under **${item.categoryName}**.\n\nTo ensure your ledger stays accurate, nothing has been saved yet. Please review the details below and tap **Approve & Create** to add it to your records.`;
+        } else if (item.type === "lent") {
+          answer = `Understood! I've prepared a record for **₹${item.amount.toLocaleString("en-IN")}** given to **${item.contactName || "your friend"}** (${item.categoryName}).\n\nNothing is logged yet. Once you confirm the card below, your mutual balance and personal ledger will be updated immediately.`;
+        } else if (item.type === "borrowed") {
+          answer = `Noted! I've prepared a borrowed amount of **₹${item.amount.toLocaleString("en-IN")}** from **${item.contactName || "your contact"}**.\n\nPlease review the proposal below and tap **Approve & Create** to log it.`;
+        } else {
+          answer = `I've prepared a draft for your **₹${item.amount.toLocaleString("en-IN")}** expense on **${item.title}** categorized under **${item.categoryName}** (${item.formattedDate} via ${item.paymentMethod || "UPI"}).\n\nTo keep you in complete control, no database changes have been made yet. Review the card below and tap **Approve & Create** to save it!`;
+        }
+      } else {
+        answer = `I found **${txCount} transactions** in your message totaling **₹${totalAmt.toLocaleString("en-IN")}**.\n\nI've analyzed and categorized each item for you below with context notes. You can make adjustments, approve them individually, or tap **Approve All (${txCount})** to add them to your ledger in a single click!`;
+      }
+
+      const insights = txCount === 1
+        ? [
+            `Classified under "${enriched[0].categoryName}" (${enriched[0].paymentMethod || "UPI"})`,
+            `Transaction scheduled for ${enriched[0].formattedDate}`,
+            enriched[0].contactName ? `Assigned to contact ${enriched[0].contactName}` : enriched[0].groupName ? `Linked to group "${enriched[0].groupName}"` : "Personal expense ledger",
+          ]
+        : [
+            `Extracted ${txCount} distinct transactions totaling ₹${totalAmt.toLocaleString("en-IN")}`,
+            `Auto-classified across categories: ${Array.from(new Set(enriched.map((x) => x.categoryName))).join(", ")}`,
+            "Awaiting your explicit confirmation before writing to database",
+          ];
 
       return {
         answer,
-        insights: [
-          `Category classified as "${enriched[0].categoryName}"`,
-          `Transaction scheduled for ${enriched[0].formattedDate}`,
-          enriched[0].contactName ? `Assigned to contact ${enriched[0].contactName}` : "Personal expense ledger",
-        ],
+        insights,
         keyMetrics: [
           { label: "Proposed Amount", value: `₹${totalAmt.toLocaleString("en-IN")}` },
           { label: "Detected Items", value: `${txCount} item${txCount > 1 ? "s" : ""}` },
