@@ -54,6 +54,32 @@ interface TransactionApprovalCardProps {
   forceEdit?: boolean;
 }
 
+function getCategoryIcon(categoryName: string) {
+  const lower = (categoryName || "").toLowerCase();
+  if (lower.includes("food") || lower.includes("dining") || lower.includes("drink") || lower.includes("tea") || lower.includes("coffee") || lower.includes("lunch") || lower.includes("dinner")) {
+    return <UtensilsCrossed className="h-4 w-4 text-amber-500 shrink-0" />;
+  }
+  if (lower.includes("travel") || lower.includes("transport") || lower.includes("commute") || lower.includes("bus") || lower.includes("cab") || lower.includes("fuel") || lower.includes("metro")) {
+    return <Bus className="h-4 w-4 text-blue-500 shrink-0" />;
+  }
+  if (lower.includes("bill") || lower.includes("util") || lower.includes("electric") || lower.includes("recharge")) {
+    return <Zap className="h-4 w-4 text-yellow-500 shrink-0" />;
+  }
+  if (lower.includes("health") || lower.includes("medic") || lower.includes("doctor")) {
+    return <HeartPulse className="h-4 w-4 text-rose-500 shrink-0" />;
+  }
+  if (lower.includes("shop") || lower.includes("cloth") || lower.includes("retail")) {
+    return <ShoppingBag className="h-4 w-4 text-purple-500 shrink-0" />;
+  }
+  if (lower.includes("entertain") || lower.includes("movie") || lower.includes("game")) {
+    return <Film className="h-4 w-4 text-pink-500 shrink-0" />;
+  }
+  if (lower.includes("grocer") || lower.includes("suppl") || lower.includes("market")) {
+    return <ShoppingCart className="h-4 w-4 text-emerald-500 shrink-0" />;
+  }
+  return <Receipt className="h-4 w-4 text-primary shrink-0" />;
+}
+
 export function TransactionApprovalCard({
   proposal: initialProposal,
   categories = [],
@@ -68,10 +94,25 @@ export function TransactionApprovalCard({
   const [proposal, setProposal] = useState<ProposedTransaction>(initialProposal);
   const [isEditing, setIsEditing] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
-  const [isApproved, setIsApproved] = useState(proposal.status === "approved");
-  const [isCancelled, setIsCancelled] = useState(proposal.status === "cancelled");
-  const [createdPublicId, setCreatedPublicId] = useState<string | null>(null);
+  const [isApproved, setIsApproved] = useState(initialProposal.status === "approved");
+  const [isCancelled, setIsCancelled] = useState(initialProposal.status === "cancelled");
+  const [createdPublicId, setCreatedPublicId] = useState<string | null>(
+    initialProposal.createdPublicId || initialProposal.duplicateInfo?.publicId || null
+  );
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
+
+  // Sync state reactively with props so bulk approval or external updates immediately switch this card
+  useEffect(() => {
+    setProposal(initialProposal);
+    if (initialProposal.status === "approved") {
+      setIsApproved(true);
+      if (initialProposal.createdPublicId) {
+        setCreatedPublicId(initialProposal.createdPublicId);
+      }
+    } else if (initialProposal.status === "cancelled") {
+      setIsCancelled(true);
+    }
+  }, [initialProposal]);
 
   useEffect(() => {
     if (forceEdit !== undefined) {
@@ -121,7 +162,7 @@ export function TransactionApprovalCard({
       const res = await approveConversationalTransaction(proposal);
       setIsApproved(true);
       setCreatedPublicId(res.publicId);
-      setProposal((prev) => ({ ...prev, status: "approved" }));
+      setProposal((prev) => ({ ...prev, status: "approved", createdPublicId: res.publicId }));
       emitFinancialEvent("transaction:created");
       emitFinancialEvent("expense:created");
       toast.success(res.message);
@@ -159,11 +200,15 @@ export function TransactionApprovalCard({
       ? "Money Borrowed"
       : "Expense Debit";
 
-  if (isCancelled) {
+  const isCardApproved = isApproved || proposal.status === "approved" || initialProposal.status === "approved";
+  const isCardCancelled = isCancelled || proposal.status === "cancelled" || initialProposal.status === "cancelled";
+  const effectivePublicId = createdPublicId || proposal.createdPublicId || initialProposal.createdPublicId;
+
+  if (isCardCancelled) {
     return (
       <div className="p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 text-xs text-slate-500 flex items-center justify-between">
         <span className="line-through">
-          Proposed {typeLabel}: ₹{proposal.amount.toLocaleString("en-IN")} ({proposal.description || proposal.title})
+          Proposed {typeLabel}: ₹{proposal.amount.toLocaleString("en-IN")} ({proposal.title || proposal.description})
         </span>
         <div className="flex items-center gap-1.5">
           <Badge variant="outline" className="text-[10px] text-slate-400">
@@ -186,79 +231,76 @@ export function TransactionApprovalCard({
     );
   }
 
-  if (isApproved) {
+  if (isCardApproved) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        className="p-4 rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent text-slate-900 dark:text-slate-100 space-y-2 shadow-2xs"
+        className="p-3.5 sm:p-4 rounded-2xl border border-emerald-500/40 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-slate-50/50 dark:from-emerald-950/40 dark:via-emerald-950/20 dark:to-slate-900/60 text-slate-900 dark:text-slate-100 space-y-3 shadow-xs relative overflow-hidden"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-            <span className="font-bold text-xs sm:text-sm">
-              Transaction Approved & Created Successfully
-            </span>
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400" />
+
+        {/* Header with Icon, Title and Amount */}
+        <div className="flex items-start justify-between gap-3 pt-0.5">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shrink-0 mt-0.5">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  Approved & Added to Ledger
+                </span>
+                <span className="text-slate-400 text-[10px]">•</span>
+                <span className="text-[10px] text-slate-500 font-medium">{proposal.formattedDate}</span>
+              </div>
+              <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 break-words leading-tight">
+                {proposal.title || proposal.description}
+              </h4>
+              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                <Badge variant="outline" className="text-[10px] font-semibold py-0 px-2 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                  {proposal.categoryName}
+                </Badge>
+                <Badge className={`text-[10px] font-semibold py-0 px-2 border ${typeColor}`}>
+                  {typeLabel}
+                </Badge>
+                {proposal.paymentMethod && (
+                  <span className="text-[10px] font-medium text-slate-500 px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60">
+                    {proposal.paymentMethod}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <Badge className="bg-emerald-600 text-white text-[10px] font-bold">
-            Live in Ledger
-          </Badge>
+
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <div className="font-mono text-base sm:text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+              ₹{proposal.amount.toLocaleString("en-IN")}
+            </div>
+            <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[9.5px] font-bold px-2 py-0 shadow-2xs">
+              Live in Ledger
+            </Badge>
+          </div>
         </div>
 
-        <div className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-3 flex-wrap">
-          <span>
-            Amount: <strong className="font-mono text-slate-900 dark:text-slate-100 font-bold">₹{proposal.amount.toLocaleString("en-IN")}</strong>
+        {/* Footer with Instant Sync Confirmation & Link */}
+        <div className="pt-2 border-t border-emerald-500/20 flex items-center justify-between text-xs gap-2">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 truncate">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Balances, reports & budgets updated</span>
           </span>
-          <span>•</span>
-          <span>Category: <strong className="text-slate-900 dark:text-slate-100">{proposal.categoryName}</strong></span>
-          <span>•</span>
-          <span>Date: <strong>{proposal.formattedDate}</strong></span>
-        </div>
-
-        <div className="pt-1 flex items-center justify-between text-xs">
-          <span className="text-[11px] text-slate-500">
-            Dashboard balances, budgets, and reports recalculated instantly.
-          </span>
-          {createdPublicId && (
-            <Link
-              href={`/dashboard/transactions/${createdPublicId}`}
-              className="text-primary hover:underline font-bold inline-flex items-center gap-1 text-xs"
-            >
-              <span>View in Ledger</span>
-              <ArrowRight className="h-3 w-3" />
-            </Link>
-          )}
+          <Link
+            href={effectivePublicId ? `/dashboard/transactions/${effectivePublicId}` : `/dashboard/transactions`}
+            className="text-primary hover:text-primary/80 font-bold inline-flex items-center gap-1 text-xs shrink-0 hover:underline cursor-pointer transition-colors"
+          >
+            <span>View in Ledger</span>
+            <ArrowRight className="h-3 w-3" />
+          </Link>
         </div>
       </motion.div>
     );
   }
-
-function getCategoryIcon(categoryName: string) {
-  const lower = (categoryName || "").toLowerCase();
-  if (lower.includes("food") || lower.includes("dining") || lower.includes("drink") || lower.includes("tea") || lower.includes("coffee") || lower.includes("lunch") || lower.includes("dinner")) {
-    return <UtensilsCrossed className="h-4 w-4 text-amber-500 shrink-0" />;
-  }
-  if (lower.includes("travel") || lower.includes("transport") || lower.includes("commute") || lower.includes("bus") || lower.includes("cab") || lower.includes("fuel") || lower.includes("metro")) {
-    return <Bus className="h-4 w-4 text-blue-500 shrink-0" />;
-  }
-  if (lower.includes("bill") || lower.includes("util") || lower.includes("electric") || lower.includes("recharge")) {
-    return <Zap className="h-4 w-4 text-yellow-500 shrink-0" />;
-  }
-  if (lower.includes("health") || lower.includes("medic") || lower.includes("doctor")) {
-    return <HeartPulse className="h-4 w-4 text-rose-500 shrink-0" />;
-  }
-  if (lower.includes("shop") || lower.includes("cloth") || lower.includes("retail")) {
-    return <ShoppingBag className="h-4 w-4 text-purple-500 shrink-0" />;
-  }
-  if (lower.includes("entertain") || lower.includes("movie") || lower.includes("game")) {
-    return <Film className="h-4 w-4 text-pink-500 shrink-0" />;
-  }
-  if (lower.includes("grocer") || lower.includes("suppl") || lower.includes("market")) {
-    return <ShoppingCart className="h-4 w-4 text-emerald-500 shrink-0" />;
-  }
-  return <Receipt className="h-4 w-4 text-primary shrink-0" />;
-}
 
   return (
     <motion.div
@@ -602,7 +644,14 @@ export function TransactionApprovalCardGroup({
   const [forceEditAll, setForceEditAll] = useState(false);
   const [isBulkApproving, setIsBulkApproving] = useState(false);
 
+  // Keep items synced if proposals prop changes
+  useEffect(() => {
+    setItems(proposals);
+    setSelectedIds(new Set(proposals.map((p) => p.tempId)));
+  }, [proposals]);
+
   const activeDrafts = items.filter((item) => item.status === "draft");
+  const approvedItems = items.filter((item) => item.status === "approved");
   const selectedDrafts = activeDrafts.filter((item) => selectedIds.has(item.tempId));
   const totalAmount = activeDrafts.reduce((sum, item) => sum + item.amount, 0);
 
@@ -610,8 +659,21 @@ export function TransactionApprovalCardGroup({
     if (activeDrafts.length === 0) return;
     setIsBulkApproving(true);
     try {
-      await approveBatchConversationalTransactions(activeDrafts);
-      setItems((prev) => prev.map((item) => ({ ...item, status: "approved" })));
+      const res = await approveBatchConversationalTransactions(activeDrafts);
+      const resultMap = new Map<string, string>();
+      activeDrafts.forEach((draft, idx) => {
+        const matching = res.results && res.results[idx];
+        if (matching) {
+          resultMap.set(draft.tempId, matching.publicId);
+        }
+      });
+      setItems((prev) =>
+        prev.map((item) => ({
+          ...item,
+          status: "approved",
+          createdPublicId: resultMap.get(item.tempId) || item.createdPublicId,
+        }))
+      );
       emitFinancialEvent("transaction:created");
       emitFinancialEvent("expense:created");
       toast.success(`Successfully approved and created all ${activeDrafts.length} transactions!`);
@@ -631,10 +693,24 @@ export function TransactionApprovalCardGroup({
     }
     setIsBulkApproving(true);
     try {
-      await approveBatchConversationalTransactions(selectedDrafts);
-      const approvedIds = new Set(selectedDrafts.map((s) => s.tempId));
+      const res = await approveBatchConversationalTransactions(selectedDrafts);
+      const resultMap = new Map<string, string>();
+      selectedDrafts.forEach((draft, idx) => {
+        const matching = res.results && res.results[idx];
+        if (matching) {
+          resultMap.set(draft.tempId, matching.publicId);
+        }
+      });
       setItems((prev) =>
-        prev.map((item) => (approvedIds.has(item.tempId) ? { ...item, status: "approved" } : item))
+        prev.map((item) =>
+          selectedIds.has(item.tempId)
+            ? {
+                ...item,
+                status: "approved",
+                createdPublicId: resultMap.get(item.tempId) || item.createdPublicId,
+              }
+            : item
+        )
       );
       emitFinancialEvent("transaction:created");
       emitFinancialEvent("expense:created");
@@ -655,7 +731,7 @@ export function TransactionApprovalCardGroup({
 
   return (
     <div className="space-y-3 pt-1">
-      {/* 1. Render Individual Cards FIRST (Requirement 2: each with own approval, edit, cancel) */}
+      {/* 1. Render Individual Cards FIRST (Each transitions dynamically to Approved Live in Ledger state) */}
       <div className="space-y-3">
         {items.map((proposal) => (
           <TransactionApprovalCard
@@ -673,9 +749,13 @@ export function TransactionApprovalCardGroup({
               });
             }}
             forceEdit={forceEditAll}
-            onApproved={() => {
+            onApproved={(txId, publicId) => {
               setItems((prev) =>
-                prev.map((p) => (p.tempId === proposal.tempId ? { ...p, status: "approved" } : p))
+                prev.map((p) =>
+                  p.tempId === proposal.tempId
+                    ? { ...p, status: "approved", createdPublicId: publicId }
+                    : p
+                )
               );
             }}
             onCancelled={() => {
@@ -686,6 +766,25 @@ export function TransactionApprovalCardGroup({
           />
         ))}
       </div>
+
+      {/* All Transactions Approved Success Banner */}
+      {items.length > 1 && activeDrafts.length === 0 && approvedItems.length > 0 && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-emerald-500/15 border border-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs flex items-center justify-between gap-3 animate-in fade-in duration-300">
+          <div className="flex items-center gap-2 min-w-0">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="font-bold truncate">
+              All {items.length} transactions have been approved and saved to your live ledger.
+            </span>
+          </div>
+          <Link
+            href="/dashboard/transactions"
+            className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:underline shrink-0 inline-flex items-center gap-1 cursor-pointer"
+          >
+            <span>Open Ledger</span>
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
+      )}
 
       {/* 2. Bulk Actions Bar AT THE BOTTOM if multiple transactions exist (Requirement 3) */}
       {items.length > 1 && activeDrafts.length > 0 && (

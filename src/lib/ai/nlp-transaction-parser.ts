@@ -36,6 +36,7 @@ export interface ProposedTransaction {
   clarificationQuestion?: string;
   clarificationOptions?: Array<{ id: number; name: string }>;
   status: "draft" | "approved" | "cancelled";
+  createdPublicId?: string;
 }
 
 export interface NLPParserContext {
