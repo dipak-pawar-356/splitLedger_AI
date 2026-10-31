@@ -72,7 +72,7 @@ export function Sidebar() {
         {/* Header Branding & Collapse Control */}
         <div
           className={cn(
-            "p-4 border-b border-slate-200 dark:border-slate-800 flex items-center h-16 shrink-0 transition-all",
+            "p-3 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex items-center h-16 shrink-0 transition-all",
             isCollapsed ? "lg:justify-center lg:px-2" : "justify-between"
           )}
         >
@@ -81,9 +81,9 @@ export function Sidebar() {
             onClick={closeMobile}
             className={cn(
               "flex items-center min-w-0 transition-opacity",
-              isCollapsed && "lg:justify-center"
+              isCollapsed && "lg:justify-center w-full"
             )}
-            title="SplitLedger AI"
+            title={isCollapsed ? "SplitLedger AI (Click to open Dashboard)" : "SplitLedger AI"}
           >
             <SplitLedgerBrand
               size="md"
@@ -91,19 +91,18 @@ export function Sidebar() {
             />
           </Link>
 
-          {/* Desktop Collapse Toggle */}
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className={cn(
-              "hidden lg:flex items-center justify-center p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
-              isCollapsed && "mt-2"
-            )}
-            title={isCollapsed ? "Expand sidebar (Ctrl+B)" : "Collapse sidebar"}
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-          </button>
+          {/* Desktop Collapse Toggle (Shown in header only when expanded; collapsed view has footer expand button) */}
+          {!isCollapsed && (
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className="hidden lg:flex items-center justify-center p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Collapse sidebar (Ctrl+B)"
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          )}
 
           {/* Mobile & Tablet Close Button */}
           <button

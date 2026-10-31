@@ -127,23 +127,23 @@ export function FloatingAIAssistant() {
 
       {/* Floating Assistant Modal */}
       {isOpen && (
-        <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[450px] shadow-2xl rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 bg-card animate-in fade-in slide-in-from-bottom-5 flex flex-col max-h-[88vh]">
+        <div className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[460px] md:w-[480px] shadow-2xl rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 bg-card animate-in fade-in slide-in-from-bottom-5 flex flex-col max-h-[88vh]">
           <Card className="border-0 shadow-none rounded-none flex flex-col h-full bg-card">
             {/* Header */}
-            <CardHeader className="p-3.5 bg-slate-900 text-white flex flex-row items-center justify-between border-b border-slate-800 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-primary/20 flex items-center justify-center text-primary">
-                  <Bot className="h-4 w-4" />
+            <CardHeader className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-row items-center justify-between border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-indigo-600/30 border border-primary/40 flex items-center justify-center text-primary shadow-xs">
+                  <Bot className="h-4.5 w-4.5 text-indigo-400" />
                 </div>
                 <div>
                   <CardTitle className="text-sm font-black flex items-center gap-1.5 text-white">
                     <span>SplitLedger AI</span>
-                    <Badge variant="secondary" className="bg-primary/20 text-indigo-300 text-[9px] py-0 px-1 font-bold">
+                    <Badge variant="secondary" className="bg-primary/25 text-indigo-200 border border-primary/30 text-[9px] py-0 px-1.5 font-bold uppercase tracking-wider">
                       PRO
                     </Badge>
                   </CardTitle>
-                  <CardDescription className="text-[10px] text-slate-400">
-                    INR (₹) Financial Copilot
+                  <CardDescription className="text-[10px] text-slate-300 font-medium">
+                    INR (₹) Real-time Financial Copilot
                   </CardDescription>
                 </div>
               </div>
@@ -170,7 +170,7 @@ export function FloatingAIAssistant() {
             </CardHeader>
 
             {/* Chat Messages Body */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 min-h-[220px] max-h-[55vh]">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 min-h-[220px] max-h-[58vh]">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -183,7 +183,7 @@ export function FloatingAIAssistant() {
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground rounded-br-none shadow-xs max-w-[88%]"
                         : msg.detectedTransactions && msg.detectedTransactions.length > 0
-                        ? "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800 w-full max-w-[98%]"
+                        ? "bg-slate-50 dark:bg-slate-900/90 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800 w-full max-w-[98%]"
                         : "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800 max-w-[88%]"
                     }`}
                   >
@@ -202,7 +202,8 @@ export function FloatingAIAssistant() {
                       </div>
                     )}
 
-                    {msg.metrics && msg.metrics.length > 0 && (
+                    {/* Render metrics only when NO detected transaction cards exist */}
+                    {msg.metrics && msg.metrics.length > 0 && (!msg.detectedTransactions || msg.detectedTransactions.length === 0) && (
                       <div className="grid grid-cols-2 gap-1.5 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
                         {msg.metrics.map((m, idx) => (
                           <div key={idx} className="p-1.5 rounded-lg bg-background/80 text-[10px]">
@@ -213,7 +214,8 @@ export function FloatingAIAssistant() {
                       </div>
                     )}
 
-                    {msg.insights && msg.insights.length > 0 && !msg.content.includes(msg.insights[0]) && (
+                    {/* Render insights only when NO detected transaction cards exist */}
+                    {msg.insights && msg.insights.length > 0 && !msg.content.includes(msg.insights[0]) && (!msg.detectedTransactions || msg.detectedTransactions.length === 0) && (
                       <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800 space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
                         <p className="font-semibold text-[10px] text-primary flex items-center gap-1">
                           <Sparkles className="h-2.5 w-2.5" />
@@ -227,7 +229,8 @@ export function FloatingAIAssistant() {
                       </div>
                     )}
 
-                    {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (
+                    {/* Render action suggestions only when NO detected transaction cards exist */}
+                    {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (!msg.detectedTransactions || msg.detectedTransactions.length === 0) && (
                       <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
                         {msg.actionSuggestions.map((act, idx) => (
                           <Link key={idx} href={act.url}>

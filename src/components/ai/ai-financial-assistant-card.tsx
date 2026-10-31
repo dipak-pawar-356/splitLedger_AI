@@ -426,8 +426,8 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                       </div>
                     )}
 
-                    {/* Key Metrics Grid (if returned by server action) */}
-                    {msg.response && msg.response.keyMetrics && msg.response.keyMetrics.length > 0 && (
+                    {/* Key Metrics Grid (rendered only when no transaction approval cards exist) */}
+                    {msg.response && msg.response.keyMetrics && msg.response.keyMetrics.length > 0 && (!msg.response.detectedTransactions || msg.response.detectedTransactions.length === 0) && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
                         {msg.response.keyMetrics.map((m, idx) => (
                           <div
@@ -445,8 +445,8 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                       </div>
                     )}
 
-                    {/* Explanatory Insights (if available) */}
-                    {msg.response && msg.response.insights && msg.response.insights.length > 0 && (
+                    {/* Explanatory Insights (rendered only when no transaction approval cards exist) */}
+                    {msg.response && msg.response.insights && msg.response.insights.length > 0 && (!msg.response.detectedTransactions || msg.response.detectedTransactions.length === 0) && (
                       <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                           Reasoning & Context
@@ -462,8 +462,8 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                       </div>
                     )}
 
-                    {/* Action Suggestion Buttons (if available) */}
-                    {msg.response && msg.response.actionSuggestions && msg.response.actionSuggestions.length > 0 && (
+                    {/* Action Suggestion Buttons (rendered only when no transaction approval cards exist) */}
+                    {msg.response && msg.response.actionSuggestions && msg.response.actionSuggestions.length > 0 && (!msg.response.detectedTransactions || msg.response.detectedTransactions.length === 0) && (
                       <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex-wrap">
                         {msg.response.actionSuggestions.map((act, aIdx) => (
                           <Link key={aIdx} href={act.url}>

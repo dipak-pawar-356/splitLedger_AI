@@ -31,6 +31,13 @@ import {
   ExternalLink,
   ShieldAlert,
   Sparkles,
+  UtensilsCrossed,
+  Bus,
+  Zap,
+  HeartPulse,
+  ShoppingBag,
+  Film,
+  ShoppingCart,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -227,21 +234,47 @@ export function TransactionApprovalCard({
     );
   }
 
+function getCategoryIcon(categoryName: string) {
+  const lower = (categoryName || "").toLowerCase();
+  if (lower.includes("food") || lower.includes("dining") || lower.includes("drink") || lower.includes("tea") || lower.includes("coffee") || lower.includes("lunch") || lower.includes("dinner")) {
+    return <UtensilsCrossed className="h-4 w-4 text-amber-500 shrink-0" />;
+  }
+  if (lower.includes("travel") || lower.includes("transport") || lower.includes("commute") || lower.includes("bus") || lower.includes("cab") || lower.includes("fuel") || lower.includes("metro")) {
+    return <Bus className="h-4 w-4 text-blue-500 shrink-0" />;
+  }
+  if (lower.includes("bill") || lower.includes("util") || lower.includes("electric") || lower.includes("recharge")) {
+    return <Zap className="h-4 w-4 text-yellow-500 shrink-0" />;
+  }
+  if (lower.includes("health") || lower.includes("medic") || lower.includes("doctor")) {
+    return <HeartPulse className="h-4 w-4 text-rose-500 shrink-0" />;
+  }
+  if (lower.includes("shop") || lower.includes("cloth") || lower.includes("retail")) {
+    return <ShoppingBag className="h-4 w-4 text-purple-500 shrink-0" />;
+  }
+  if (lower.includes("entertain") || lower.includes("movie") || lower.includes("game")) {
+    return <Film className="h-4 w-4 text-pink-500 shrink-0" />;
+  }
+  if (lower.includes("grocer") || lower.includes("suppl") || lower.includes("market")) {
+    return <ShoppingCart className="h-4 w-4 text-emerald-500 shrink-0" />;
+  }
+  return <Receipt className="h-4 w-4 text-primary shrink-0" />;
+}
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="p-4 rounded-2xl border border-amber-500/30 dark:border-amber-500/20 bg-card hover:border-amber-500/50 transition-all duration-200 shadow-sm space-y-3 relative overflow-hidden"
+      className="p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900/95 hover:border-primary/50 hover:shadow-md transition-all duration-200 relative overflow-hidden group shadow-2xs space-y-3"
     >
       {/* Glow highlight strip */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-primary to-emerald-500" />
 
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-0.5">
-        <div className="flex items-center gap-2">
+      {/* Main Card Header */}
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 pt-0.5">
+        <div className="flex items-start gap-2.5 min-w-0">
           {showSelection && !isApproved && !isCancelled && (
-            <div className="flex items-center pr-1">
+            <div className="pt-1 shrink-0">
               <Checkbox
                 checked={isSelected}
                 onCheckedChange={(val) => onToggleSelect?.(!!val)}
@@ -250,27 +283,38 @@ export function TransactionApprovalCard({
               />
             </div>
           )}
-          <div className="p-1.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-            <Receipt className="h-4 w-4" />
+
+          <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 shrink-0 mt-0.5 shadow-2xs">
+            {getCategoryIcon(proposal.categoryName)}
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100">
-                New Transaction Detected
-              </span>
-              <Badge className={`text-[10px] font-bold py-0 px-1.5 border ${typeColor}`}>
+
+          <div className="min-w-0 space-y-1">
+            <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 break-words leading-tight">
+              {proposal.title || proposal.description}
+            </h4>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Badge variant="outline" className="text-[10px] font-semibold py-0 px-2 bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+                {proposal.categoryName}
+              </Badge>
+              <Badge className={`text-[10px] font-semibold py-0 px-2 border ${typeColor}`}>
                 {typeLabel}
               </Badge>
+              <span className="text-[11px] text-slate-400 font-medium">
+                • {proposal.formattedDate}
+              </span>
             </div>
-            <p className="text-[11px] text-slate-500">
-              Awaiting your explicit confirmation. Nothing is logged until you approve.
-            </p>
           </div>
         </div>
 
-        <Badge variant="outline" className="text-[10px] font-mono text-amber-600 border-amber-300 dark:border-amber-800 bg-amber-500/5 self-start sm:self-auto">
-          Requires Approval
-        </Badge>
+        {/* Amount & Status Badge */}
+        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 shrink-0 pl-1 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800">
+          <div className="font-mono text-base sm:text-xl font-black text-slate-900 dark:text-slate-100 tabular-nums">
+            ₹{proposal.amount.toLocaleString("en-IN")}
+          </div>
+          <Badge variant="outline" className="text-[10px] font-medium text-amber-600 dark:text-amber-400 border-amber-300/80 dark:border-amber-800/60 bg-amber-500/10">
+            Awaiting Approval
+          </Badge>
+        </div>
       </div>
 
       {/* Duplicate Warning Alert (Requirement 7) */}
@@ -315,78 +359,35 @@ export function TransactionApprovalCard({
 
       {/* Readonly Display vs Inline Edit Mode */}
       {!isEditing ? (
-        <div className="space-y-3">
-          {/* Main Numbers & Title */}
-          <div className="flex items-baseline justify-between p-3 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                Proposed Amount
-              </span>
-              <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 dark:text-slate-100 tabular-nums">
-                ₹{proposal.amount.toLocaleString("en-IN")}
-              </span>
-            </div>
-            <div className="text-right">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                Category
-              </span>
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 justify-end">
-                <Tag className="h-3 w-3 text-primary inline" />
-                <span>{proposal.categoryName}</span>
-              </span>
-            </div>
-          </div>
-
-          {/* Details Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-            <div className="p-2 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-800/60">
-              <span className="text-[10px] text-slate-400 font-semibold block">Description</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
-                {proposal.description || proposal.title}
-              </span>
-            </div>
-
-            <div className="p-2 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-800/60">
-              <span className="text-[10px] text-slate-400 font-semibold block">Date & Timing</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
-                {proposal.formattedDate}
-              </span>
-            </div>
-
-            <div className="p-2 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-800/60">
-              <span className="text-[10px] text-slate-400 font-semibold block">Payment Method</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
-                {proposal.paymentMethod || "UPI"}
-              </span>
-            </div>
+        <div className="space-y-2.5">
+          {/* Metadata Chips (Clean, Responsive, Non-Truncating) */}
+          <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100/80 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 font-medium text-[11px] border border-slate-200/50 dark:border-slate-700/50">
+              <CreditCard className="h-3 w-3 text-slate-400" />
+              <span>{proposal.paymentMethod || "UPI"}</span>
+            </span>
 
             {proposal.contactName && (
-              <div className="p-2 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-800/60">
-                <span className="text-[10px] text-slate-400 font-semibold block">Contact</span>
-                <span className="font-bold text-blue-600 dark:text-blue-400 truncate block">
-                  {proposal.contactName}
-                </span>
-              </div>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-medium text-[11px] border border-blue-200/50 dark:border-blue-800/50">
+                <User className="h-3 w-3 text-blue-500" />
+                <span>{proposal.contactName}</span>
+              </span>
             )}
 
             {proposal.groupName && (
-              <div className="p-2 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-800/60">
-                <span className="text-[10px] text-slate-400 font-semibold block">Group</span>
-                <span className="font-bold text-indigo-600 dark:text-indigo-400 truncate block">
-                  {proposal.groupName}
-                </span>
-              </div>
-            )}
-
-            {proposal.notes && (
-              <div className="p-2 rounded-xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-800/60 col-span-full">
-                <span className="text-[10px] text-slate-400 font-semibold block">Notes & Details</span>
-                <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 block break-words">
-                  {proposal.notes}
-                </span>
-              </div>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-medium text-[11px] border border-indigo-200/50 dark:border-indigo-800/50">
+                <Users className="h-3 w-3 text-indigo-500" />
+                <span>{proposal.groupName}</span>
+              </span>
             )}
           </div>
+
+          {/* Full Notes & Details Container without Truncation */}
+          {proposal.notes && (
+            <div className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 break-words leading-relaxed">
+              {proposal.notes}
+            </div>
+          )}
         </div>
       ) : (
         /* Inline Edit Form (Requirement 4) */
@@ -551,29 +552,29 @@ export function TransactionApprovalCard({
         </Button>
 
         {/* Secondary Edit & Cancel Controls */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="flex-1 h-8 rounded-xl text-[11px] sm:text-xs font-semibold gap-1.5 border-slate-200 dark:border-slate-700/80 bg-background hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+            className="h-8 rounded-xl text-xs font-semibold gap-1.5 border-slate-200 dark:border-slate-800 bg-background hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-all cursor-pointer"
             onClick={() => setIsEditing((prev) => !prev)}
             disabled={isApproving}
           >
             <Edit3 className="h-3.5 w-3.5 text-primary" />
-            <span>{isEditing ? "Close Edit" : "Edit"}</span>
+            <span>{isEditing ? "Close Edit" : "Edit Details"}</span>
           </Button>
 
           <Button
             type="button"
             size="sm"
-            variant="ghost"
-            className="h-8 px-3 rounded-xl text-[11px] sm:text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 gap-1 transition-colors cursor-pointer"
+            variant="outline"
+            className="h-8 rounded-xl text-xs font-semibold gap-1.5 border-rose-200/80 dark:border-rose-900/60 bg-rose-50/30 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100/60 dark:hover:bg-rose-900/40 transition-all cursor-pointer"
             onClick={handleCancel}
             disabled={isApproving}
           >
             <X className="h-3.5 w-3.5" />
-            <span>Cancel</span>
+            <span>Reject</span>
           </Button>
         </div>
       </div>
@@ -688,7 +689,7 @@ export function TransactionApprovalCardGroup({
 
       {/* 2. Bulk Actions Bar AT THE BOTTOM if multiple transactions exist (Requirement 3) */}
       {items.length > 1 && activeDrafts.length > 0 && (
-        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-100/90 via-emerald-50/20 to-slate-100/90 dark:from-slate-900/90 dark:via-emerald-950/10 dark:to-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-sm space-y-2.5 mt-2">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-slate-100/90 via-emerald-50/20 to-slate-100/90 dark:from-slate-900/90 dark:via-emerald-950/10 dark:to-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-sm space-y-3 mt-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
               <Sparkles className="h-4 w-4 text-emerald-500 shrink-0 animate-pulse" />
@@ -701,56 +702,61 @@ export function TransactionApprovalCardGroup({
             </Badge>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xs cursor-pointer"
-              onClick={handleApproveAll}
-              disabled={isBulkApproving}
-            >
-              {isBulkApproving ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-200" />
-              )}
-              <span>Approve All ({activeDrafts.length})</span>
-            </Button>
+          <div className="space-y-2 pt-0.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="w-full h-9 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xs cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                onClick={handleApproveAll}
+                disabled={isBulkApproving}
+              >
+                {isBulkApproving ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-100 shrink-0" />
+                )}
+                <span className="truncate">Approve All ({activeDrafts.length})</span>
+              </Button>
 
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs font-semibold rounded-xl text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer"
-              onClick={handleApproveSelected}
-              disabled={isBulkApproving || selectedDrafts.length === 0}
-            >
-              <span>Approve Selected ({selectedDrafts.length})</span>
-            </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full h-9 text-xs font-semibold rounded-xl text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                onClick={handleApproveSelected}
+                disabled={isBulkApproving || selectedDrafts.length === 0}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                <span className="truncate">Approve Selected ({selectedDrafts.length})</span>
+              </Button>
+            </div>
 
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-              onClick={() => setForceEditAll((prev) => !prev)}
-              disabled={isBulkApproving}
-            >
-              <Edit3 className="h-3 w-3 mr-1 text-primary" />
-              <span>{forceEditAll ? "Close Edit" : "Edit Individually"}</span>
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full h-8.5 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all flex items-center justify-center gap-1.5 px-3"
+                onClick={() => setForceEditAll((prev) => !prev)}
+                disabled={isBulkApproving}
+              >
+                <Edit3 className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="truncate">{forceEditAll ? "Done Editing" : "Edit Individually"}</span>
+              </Button>
 
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 text-xs font-semibold rounded-xl text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
-              onClick={handleDiscardAll}
-              disabled={isBulkApproving}
-            >
-              <X className="h-3 w-3 mr-1" />
-              <span>Reject All</span>
-            </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full h-8.5 text-xs font-semibold rounded-xl text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer transition-all flex items-center justify-center gap-1.5 px-3"
+                onClick={handleDiscardAll}
+                disabled={isBulkApproving}
+              >
+                <X className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">Reject All</span>
+              </Button>
+            </div>
           </div>
         </div>
       )}
