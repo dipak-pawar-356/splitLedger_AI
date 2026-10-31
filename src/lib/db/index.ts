@@ -7,7 +7,11 @@ const connectionString = process.env.DATABASE_URL || "postgresql://postgres:post
 const sql = neon(connectionString);
 export const db = drizzle(sql, { schema });
 
-export async function withDbRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 350): Promise<T> {
+export async function withDbRetry<T>(
+  fn: () => Promise<T>,
+  retries = process.env.NODE_ENV === 'test' ? 1 : 3,
+  delayMs = 350
+): Promise<T> {
   let lastError: any;
 
   for (let i = 0; i < retries; i++) {
