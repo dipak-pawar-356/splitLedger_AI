@@ -11,7 +11,8 @@ import {
   TrendingDown, 
   PiggyBank, 
   Clock, 
-  Users 
+  Users,
+  Calendar 
 } from "lucide-react";
 
 interface DashboardSummaryCardsProps {
@@ -19,6 +20,8 @@ interface DashboardSummaryCardsProps {
     totalReceivable: number;
     totalPayable: number;
     netBalance: number;
+    totalIncome?: number;
+    totalExpenses?: number;
     monthlyContactIncome?: number;
     monthlyContactExpense?: number;
     monthlySpending: number;
@@ -28,6 +31,15 @@ interface DashboardSummaryCardsProps {
     pendingSettlementsAmount: number;
     pendingSettlementsCount: number;
     myGroupsCount: number;
+    previousMonthExpense?: {
+      monthName: string;
+      shortMonthName: string;
+      priorMonthName: string;
+      amount: number;
+      percentChange: number;
+      trend: "up" | "down" | "neutral";
+      comparisonText: string;
+    };
   };
   trends: {
     spendingTrend: number;
@@ -38,10 +50,11 @@ interface DashboardSummaryCardsProps {
 
 export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCardsProps) {
   const isNetPositive = summary.netBalance >= 0;
-  const contactIncome = summary.monthlyContactIncome ?? summary.monthlyIncome;
-  const contactExpense = summary.monthlyContactExpense ?? summary.monthlySpending;
+  const totalIncome = summary.totalIncome ?? summary.monthlyContactIncome ?? summary.monthlyIncome;
+  const totalExpenses = summary.totalExpenses ?? summary.monthlyContactExpense ?? summary.monthlySpending;
   const savings = summary.savings;
   const isSavingsPositive = savings >= 0;
+  const prevMonth = summary.previousMonthExpense;
 
   return (
     <div className="space-y-4">
@@ -51,13 +64,13 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
             Financial Summary
           </h3>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Aggregated overview of settled and reflected contact balances
+            Aggregated overview of live transactions, journals, and reflected balances
           </p>
         </div>
         <span className="text-xs text-slate-400 font-medium">All amounts in INR (₹)</span>
       </div>
 
-      {/* Row 1: Net Position, Total Receivable, Total Payable, Monthly Contact Income */}
+      {/* Row 1: Net Position, Total Receivable, Total Payable, Total Income */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Row 1 - Card 1: Net Position */}
         <Card className={`card-lift group rounded-2xl border shadow-xs p-4 transition-all cursor-pointer relative overflow-hidden ${
@@ -119,21 +132,21 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
           <p className="text-[11px] text-slate-400 mt-1">Amount you owe to others</p>
         </Card>
 
-        {/* Row 1 - Card 4: Monthly Contact Income */}
+        {/* Row 1 - Card 4: Total Income */}
         <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-4 hover:border-emerald-500/50 transition-all bg-card cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
             <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 dark:text-slate-300">
-              Monthly Contact Income
+              Total Income
             </span>
             <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 truncate tracking-tight">
-            <AnimatedCounter value={formatCurrency(contactIncome)} />
+            <AnimatedCounter value={formatCurrency(totalIncome)} />
           </div>
           <div className="flex items-center justify-between mt-1 text-[11px]">
-            <span className="text-slate-400">Money received from contacts this month</span>
+            <span className="text-slate-400">Total earned in active period</span>
             {trends.incomeTrend !== 0 && (
               <span className={trends.incomeTrend >= 0 ? "text-emerald-600 font-semibold" : "text-rose-600 font-semibold"}>
                 {trends.incomeTrend >= 0 ? `+${trends.incomeTrend}%` : `${trends.incomeTrend}%`}
@@ -143,23 +156,23 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
         </Card>
       </div>
 
-      {/* Row 2: Monthly Contact Expense, Savings, Pending Settlements, Total Groups */}
+      {/* Row 2: Total Expenses, Previous Month Expense, Savings, Pending Settlements */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Row 2 - Card 1: Monthly Contact Expense */}
+        {/* Row 2 - Card 1: Total Expenses */}
         <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-4 hover:border-purple-500/50 transition-all bg-card cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
             <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 dark:text-slate-300">
-              Monthly Contact Expense
+              Total Expenses
             </span>
             <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
               <TrendingDown className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-slate-900 dark:text-slate-100 truncate tracking-tight">
-            <AnimatedCounter value={formatCurrency(contactExpense)} />
+            <AnimatedCounter value={formatCurrency(totalExpenses)} />
           </div>
           <div className="flex items-center justify-between mt-1 text-[11px]">
-            <span className="text-slate-400">Money paid to contacts this month</span>
+            <span className="text-slate-400">Total spent in active period</span>
             {trends.spendingTrend !== 0 && (
               <span className={trends.spendingTrend > 0 ? "text-rose-600 font-semibold" : "text-emerald-600 font-semibold"}>
                 {trends.spendingTrend > 0 ? `+${trends.spendingTrend}%` : `${trends.spendingTrend}%`}
@@ -168,7 +181,35 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
           </div>
         </Card>
 
-        {/* Row 2 - Card 2: Savings */}
+        {/* Row 2 - Card 2: Previous Month Expense (Dedicated Historical Card) */}
+        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-4 hover:border-indigo-500/50 transition-all bg-card cursor-pointer">
+          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+            <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 dark:text-slate-300 truncate">
+              {prevMonth?.monthName || "Previous Month Expense"}
+            </span>
+            <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
+              <Calendar className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-slate-900 dark:text-slate-100 truncate tracking-tight">
+            <AnimatedCounter value={formatCurrency(prevMonth?.amount || 0)} />
+          </div>
+          <div className="flex items-center justify-between mt-1 text-[11px] min-w-0">
+            <span className="text-slate-400 truncate">
+              {prevMonth?.comparisonText || "Historical baseline"}
+            </span>
+            {prevMonth && prevMonth.percentChange !== 0 && (
+              <span className={`font-semibold shrink-0 ml-1.5 ${
+                prevMonth.trend === "up" ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+              }`}>
+                {prevMonth.trend === "up" ? "↑" : "↓"}
+                {Math.abs(prevMonth.percentChange)}%
+              </span>
+            )}
+          </div>
+        </Card>
+
+        {/* Row 2 - Card 3: Savings */}
         <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-4 hover:border-teal-500/50 transition-all bg-card cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
             <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 dark:text-slate-300">
@@ -188,11 +229,11 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
             <AnimatedCounter value={`${isSavingsPositive ? "+" : ""}${formatCurrency(savings)}`} />
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
-            {isSavingsPositive ? "Net contact surplus this month" : "Net contact deficit this month"}
+            {isSavingsPositive ? "Net surplus in active period" : "Net deficit in active period"}
           </p>
         </Card>
 
-        {/* Row 2 - Card 3: Pending Settlements */}
+        {/* Row 2 - Card 4: Pending Settlements */}
         <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-4 hover:border-amber-500/50 transition-all bg-card cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
             <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 dark:text-slate-300">
@@ -208,22 +249,6 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
           <p className="text-[11px] text-slate-400 mt-1">
             <AnimatedCounter value={summary.pendingSettlementsCount} /> active settlements
           </p>
-        </Card>
-
-        {/* Row 2 - Card 4: Total Groups */}
-        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-4 hover:border-indigo-500/50 transition-all bg-card cursor-pointer">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 dark:text-slate-300">
-              Total Groups
-            </span>
-            <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-              <Users className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-slate-900 dark:text-slate-100 truncate tracking-tight">
-            <AnimatedCounter value={summary.myGroupsCount} />
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">Active group ledgers</p>
         </Card>
       </div>
     </div>

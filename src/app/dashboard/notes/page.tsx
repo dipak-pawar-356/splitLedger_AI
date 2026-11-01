@@ -6,6 +6,7 @@ import {
   getNoteTimeline,
   getNoteCalendar,
 } from "@/actions/notes";
+import { getFinancialNotesAnalysisAction } from "@/actions/notes-financial-analytics";
 import { NotesClientView } from "@/components/notes/notes-client-view";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export default async function NotesPage({
   const initialTag = sParams?.tag;
   const initialSearch = sParams?.search;
 
-  const [notesData, categoriesList, statsData, timelineData, calendarData] = await Promise.all([
+  const [notesData, categoriesList, statsData, timelineData, calendarData, financialNotesAnalytics] = await Promise.all([
     getNotes({
       status: initialStatus,
       categoryId: initialCatId,
@@ -40,6 +41,7 @@ export default async function NotesPage({
     getNoteStats(),
     getNoteTimeline(),
     getNoteCalendar(),
+    getFinancialNotesAnalysisAction().catch(() => null),
   ]);
 
   return (
@@ -49,6 +51,7 @@ export default async function NotesPage({
       stats={statsData}
       timeline={timelineData}
       calendarData={calendarData}
+      financialAnalytics={financialNotesAnalytics}
     />
   );
 }

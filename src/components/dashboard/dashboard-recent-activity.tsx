@@ -32,9 +32,10 @@ interface ActivityItem {
 
 interface DashboardRecentActivityProps {
   activities: ActivityItem[];
+  className?: string;
 }
 
-export function DashboardRecentActivity({ activities }: DashboardRecentActivityProps) {
+export function DashboardRecentActivity({ activities, className }: DashboardRecentActivityProps) {
   const getActionIcon = (action: string) => {
     switch (action.toLowerCase()) {
       case "create":
@@ -93,8 +94,8 @@ export function DashboardRecentActivity({ activities }: DashboardRecentActivityP
   };
 
   return (
-    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden bg-card">
-      <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+    <Card className={`rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden bg-card h-full flex flex-col justify-between ${className || ""}`}>
+      <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-primary/10 text-primary">
@@ -111,7 +112,7 @@ export function DashboardRecentActivity({ activities }: DashboardRecentActivityP
           </div>
           <Link
             href="/dashboard/activity"
-            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
           >
             <span>View All</span>
             <ArrowRight className="h-3 w-3" />
@@ -119,9 +120,9 @@ export function DashboardRecentActivity({ activities }: DashboardRecentActivityP
         </div>
       </CardHeader>
 
-      <CardContent className="p-3">
+      <CardContent className="p-3 flex-1 flex flex-col justify-between">
         {activities.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-y-2 flex-1">
             {activities.map((item) => (
               <div
                 key={item.id}
@@ -157,7 +158,7 @@ export function DashboardRecentActivity({ activities }: DashboardRecentActivityP
             ))}
           </div>
         ) : (
-          <div className="py-10 text-center text-slate-400 space-y-1">
+          <div className="py-10 text-center text-slate-400 space-y-1 flex-1 flex flex-col items-center justify-center">
             <Activity className="h-6 w-6 mx-auto text-slate-300 mb-1" />
             <p className="text-xs font-semibold">No recent activity logged</p>
             <p className="text-[11px]">Financial events and ledger changes will appear here.</p>

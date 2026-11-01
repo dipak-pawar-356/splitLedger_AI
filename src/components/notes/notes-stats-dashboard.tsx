@@ -33,14 +33,18 @@ import {
   Area,
 } from "recharts";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/utils";
+import type { FinancialNotesAnalysisResult } from "@/lib/notes/financial-note-analyzer";
+import { IndianRupee, ArrowDownRight, ArrowUpRight, CheckCircle2, Calendar, Layers } from "lucide-react";
 
 interface NotesStatsDashboardProps {
   stats: any;
+  financialAnalytics?: FinancialNotesAnalysisResult;
 }
 
 const PALETTE = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899"];
 
-export function NotesStatsDashboard({ stats }: NotesStatsDashboardProps) {
+export function NotesStatsDashboard({ stats, financialAnalytics }: NotesStatsDashboardProps) {
   const [chartMetric, setChartMetric] = useState<"count" | "words">("count");
 
   if (!stats) return null;
@@ -213,6 +217,156 @@ export function NotesStatsDashboard({ stats }: NotesStatsDashboardProps) {
           <p className="text-[10px] text-slate-400 mt-0.5">{stats.categoriesCount || 0} categories</p>
         </Card>
       </div>
+
+      {/* Smart Financial Notes & Journal Analytics (Keep Option / NLP Extraction) */}
+      {financialAnalytics && (
+        <Card className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-card via-card to-emerald-500/[0.03] p-5 sm:p-6 shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
+                <IndianRupee className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Smart Financial Journal & Expense Analytics
+                  </h3>
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-bold">
+                    Keep Option
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Automated extraction from date-wise and point-wise notes (e.g. 01/11/2026 • 1. for bus travel - 500)
+                </p>
+              </div>
+            </div>
+
+            <Badge variant="secondary" className="text-[11px] font-mono text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 shrink-0 self-start sm:self-auto">
+              {financialAnalytics.totalExpensesCount} Extracted Expenses
+            </Badge>
+          </div>
+
+          {/* 4 Financial Journal Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {/* Card 1: All-Time Note Expenses */}
+            <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                All-Time Journal Expenses
+              </span>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
+                {formatCurrency(financialAnalytics.allTimeTotalAmount)}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Across {financialAnalytics.totalExpensesCount} point-wise entries
+              </p>
+            </div>
+
+            {/* Card 2: Current Month Expenses */}
+            <div className="p-4 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/60 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                {financialAnalytics.currentMonth?.monthName || "Current Month"}
+              </span>
+              <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                {formatCurrency(financialAnalytics.currentMonth?.totalAmount || 0)}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                {financialAnalytics.currentMonth?.expenseCount || 0} note entries this month
+              </p>
+            </div>
+
+            {/* Card 3: Previous Month Comparison */}
+            <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  {financialAnalytics.previousMonth?.monthName || "Previous Month"}
+                </span>
+                {financialAnalytics.trend && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    financialAnalytics.trend.direction === "up" 
+                      ? "text-rose-600 bg-rose-50 dark:bg-rose-950/40" 
+                      : "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40"
+                  }`}>
+                    {financialAnalytics.trend.direction === "up" ? "↑" : "↓"}
+                    {Math.abs(financialAnalytics.trend.percentageDiff)}%
+                  </span>
+                )}
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
+                {formatCurrency(financialAnalytics.previousMonth?.totalAmount || 0)}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                {financialAnalytics.trend?.comparisonText || "Baseline journal records"}
+              </p>
+            </div>
+
+            {/* Card 4: Top Category & High/Low Stats */}
+            <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Top Category & Average
+              </span>
+              <div className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate">
+                {financialAnalytics.mostUsedCategory || "General"}
+              </div>
+              <p className="text-[11px] text-slate-400 truncate">
+                Avg: {formatCurrency(financialAnalytics.currentMonth?.averageExpense || 0)} • Max: {formatCurrency(financialAnalytics.highestOverallExpense?.amount || 0)}
+              </p>
+            </div>
+          </div>
+
+          {/* Monthly Comparison Table & Recent Extracted Note Items */}
+          {financialAnalytics.monthlySummaries && financialAnalytics.monthlySummaries.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-emerald-500" />
+                <span>Monthly Journal Breakdown & Records</span>
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {financialAnalytics.monthlySummaries.slice(0, 4).map((m) => (
+                  <div
+                    key={m.monthKey}
+                    className="p-3.5 rounded-2xl bg-card border border-slate-200/70 dark:border-slate-800 space-y-2 hover:border-emerald-500/40 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                        {m.monthName}
+                      </span>
+                      <span className="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(m.totalAmount)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-400">
+                      <span>{m.expenseCount} entries recorded</span>
+                      <span>Avg {formatCurrency(m.averageExpense)} / item</span>
+                    </div>
+
+                    {m.items && m.items.length > 0 && (
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800/60 pt-1 text-xs">
+                        {m.items.slice(0, 3).map((item) => (
+                          <div key={item.id} className="py-1 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal shrink-0">
+                                {item.category}
+                              </Badge>
+                              <span className="text-slate-700 dark:text-slate-300 truncate">
+                                {item.description}
+                              </span>
+                            </div>
+                            <span className="font-mono text-slate-900 dark:text-slate-100 font-semibold shrink-0">
+                              {formatCurrency(item.amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Recharts Visualizations Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

@@ -113,6 +113,7 @@ import { NoteLinkedEntitiesWidget } from "@/components/notes/note-linked-entitie
 import { NoteAttachmentsWidget } from "@/components/notes/note-attachments-widget";
 import { NoteCommentsWidget } from "@/components/notes/note-comments-widget";
 import { DailyFinancialJournalView } from "@/components/notes/daily-financial-journal-view";
+import { extractExpensesFromNote } from "@/lib/notes/financial-note-analyzer";
 import { NoteActivityLogDialog } from "@/components/notes/note-activity-log-dialog";
 import { QuickNoteDialog } from "@/components/notes/quick-note-dialog";
 import { toast } from "sonner";
@@ -128,6 +129,7 @@ interface NotesClientViewProps {
   stats: any;
   timeline: any[];
   calendarData: Record<string, any>;
+  financialAnalytics?: any;
 }
 
 const NOTE_COLORS = [
@@ -145,6 +147,7 @@ export function NotesClientView({
   stats: initialStats,
   timeline: initialTimeline,
   calendarData: initialCalendar,
+  financialAnalytics,
 }: NotesClientViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -200,6 +203,21 @@ export function NotesClientView({
   // Bottom Widgets Tab State ("tasks" | "voice" | "attachments" | "comments" | "links")
   const [activeWidgetTab, setActiveWidgetTab] = useState<"tasks" | "voice" | "attachments" | "comments" | "links">("tasks");
   const [mobileAccordionOpen, setMobileAccordionOpen] = useState<"tasks" | "voice" | "attachments" | "comments" | "links" | null>("tasks");
+
+  // Real-time NLP parsing of point-wise & date-wise notes for Keep option
+  const activeNoteExpenses = useMemo(() => {
+    if (!editorContent) return [];
+    return extractExpensesFromNote(
+      editorContent,
+      activeNote?.createdAt ? new Date(activeNote.createdAt) : new Date(),
+      activeNote?.id,
+      editorTitle
+    );
+  }, [editorContent, activeNote?.createdAt, activeNote?.id, editorTitle]);
+
+  const activeNoteTotalExpenses = useMemo(() => {
+    return activeNoteExpenses.reduce((sum, e) => sum + e.amount, 0);
+  }, [activeNoteExpenses]);
   const [widgetsLayout, setWidgetsLayout] = useState<"tabs" | "grid">("tabs");
 
   // Bulk Selection State
@@ -1560,7 +1578,7 @@ export function NotesClientView({
           {viewMode === "journal" && <DailyFinancialJournalView />}
 
           {/* VIEW: STATS DASHBOARD */}
-          {viewMode === "stats" && <NotesStatsDashboard stats={stats} />}
+          {viewMode === "stats" && <NotesStatsDashboard stats={stats} financialAnalytics={financialAnalytics} />}
 
           {/* VIEW: TIMELINE */}
           {viewMode === "timeline" && (
@@ -2513,6 +2531,24 @@ export function NotesClientView({
                             />
                           </div>
                         </div>
+
+                        {/* Smart Keep Financial Journal Analysis Banner */}
+                        {activeNoteExpenses.length > 0 && (
+                          <div className="px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between gap-3 text-xs animate-in fade-in duration-200">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                              <span className="font-bold text-emerald-900 dark:text-emerald-200 truncate">
+                                Keep Analysis: {activeNoteExpenses.length} expense item{activeNoteExpenses.length > 1 ? "s" : ""} extracted
+                              </span>
+                              <span className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 hidden md:inline truncate">
+                                ({activeNoteExpenses.map((e) => `${e.description}: ₹${e.amount}`).slice(0, 3).join(", ")})
+                              </span>
+                            </div>
+                            <Badge variant="outline" className="font-mono font-bold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 bg-emerald-500/10 text-xs shrink-0">
+                              Total: ₹{activeNoteTotalExpenses.toLocaleString("en-IN")}
+                            </Badge>
+                          </div>
+                        )}
 
                         {/* Rich Text Editor */}
                         <RichTextEditor

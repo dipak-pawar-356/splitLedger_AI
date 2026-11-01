@@ -26,9 +26,10 @@ interface PendingTask {
 
 interface DashboardPendingTasksProps {
   tasks: PendingTask[];
+  className?: string;
 }
 
-export function DashboardPendingTasks({ tasks }: DashboardPendingTasksProps) {
+export function DashboardPendingTasks({ tasks, className }: DashboardPendingTasksProps) {
   const getTaskIcon = (type: string, priority: string) => {
     switch (type) {
       case "settlement":
@@ -75,8 +76,8 @@ export function DashboardPendingTasks({ tasks }: DashboardPendingTasksProps) {
   };
 
   return (
-    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden bg-card">
-      <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+    <Card className={`rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden bg-card h-full flex flex-col justify-between ${className || ""}`}>
+      <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
@@ -99,9 +100,9 @@ export function DashboardPendingTasks({ tasks }: DashboardPendingTasksProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="p-0">
+      <CardContent className="p-0 flex-1 flex flex-col justify-between">
         {tasks.length > 0 ? (
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/80 flex-1">
             {tasks.map((task) => (
               <Link
                 key={task.id}
@@ -130,7 +131,7 @@ export function DashboardPendingTasks({ tasks }: DashboardPendingTasksProps) {
             ))}
           </div>
         ) : (
-          <div className="p-8 text-center space-y-2">
+          <div className="p-8 text-center space-y-2 flex-1 flex flex-col items-center justify-center">
             <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
               <CheckCheck className="h-5 w-5" />
             </div>

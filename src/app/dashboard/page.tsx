@@ -56,17 +56,17 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
       <DashboardQuickActions />
 
       {/* 4 & 5: Pending Tasks (Action-Required) & Financial Insights (3-5 Short Insights) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <DashboardPendingTasks tasks={data.pendingTasks} />
-        <DashboardFinancialInsights insights={data.financialInsights} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+        <DashboardPendingTasks tasks={data.pendingTasks} className="h-full flex flex-col justify-between" />
+        <DashboardFinancialInsights insights={data.financialInsights} className="h-full flex flex-col justify-between" />
       </div>
 
       {/* 6 & 7: Recent Transactions (Latest 5) & Recent Activity (Latest 5) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         {/* 6. Recent Transactions (Latest 5) */}
-        <div className="lg:col-span-2">
-          <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden bg-card">
-            <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+        <div className="lg:col-span-2 flex flex-col h-full">
+          <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden bg-card flex-1 flex flex-col justify-between h-full">
+            <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-primary/10 text-primary">
@@ -83,7 +83,7 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
                 </div>
                 <Link
                   href="/dashboard/transactions"
-                  className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                  className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <span>View All</span>
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -91,9 +91,9 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
               </div>
             </CardHeader>
 
-            <CardContent className="p-0">
+            <CardContent className="p-0 flex-1 flex flex-col justify-between">
               {latestFiveTransactions.length > 0 ? (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/80 flex-1">
                   {latestFiveTransactions.map((tx) => {
                     const isPositive = tx.type === "received" || tx.type === "lent" || tx.type === "repaid";
                     const formattedDate = new Intl.DateTimeFormat("en-IN", {
@@ -154,7 +154,7 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
                   })}
                 </div>
               ) : (
-                <div className="py-12 px-4 text-center space-y-3">
+                <div className="py-12 px-4 text-center space-y-3 flex-1 flex flex-col items-center justify-center">
                   <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-full w-12 h-12 mx-auto flex items-center justify-center text-slate-400">
                     <ReceiptIndianRupee className="h-6 w-6" />
                   </div>
@@ -179,8 +179,8 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
         </div>
 
         {/* 7. Recent Activity Feed (Latest 5) */}
-        <div className="lg:col-span-1">
-          <DashboardRecentActivity activities={latestFiveActivities} />
+        <div className="lg:col-span-1 flex flex-col h-full">
+          <DashboardRecentActivity activities={latestFiveActivities} className="h-full flex flex-col justify-between flex-1" />
         </div>
       </div>
     </div>

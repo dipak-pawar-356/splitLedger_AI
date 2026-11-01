@@ -27,6 +27,7 @@ import { calculateGroupSettlements } from "@/lib/settlements/calculator";
 import { appCache } from "@/lib/cache";
 import { logger } from "@/lib/logger";
 import { formatCurrency } from "@/lib/utils";
+import { extractExpensesFromNote } from "@/lib/notes/financial-note-analyzer";
 
 export interface DashboardOptions {
   period?: "current_month" | "last_month" | "this_week" | "today" | "year" | "all_time" | "custom";
@@ -95,8 +96,10 @@ export interface DashboardData {
     totalReceivable: number; // in rupees (Row 1, Card 2)
     totalPayable: number; // in rupees (Row 1, Card 3)
     netBalance: number; // in rupees (Row 1, Card 1)
-    monthlyContactIncome: number; // in rupees (Row 1, Card 4)
-    monthlyContactExpense: number; // in rupees (Row 2, Card 1)
+    totalIncome: number; // in rupees (Row 1, Card 4 - all transactions)
+    totalExpenses: number; // in rupees (Row 2, Card 1 - all transactions + notes)
+    monthlyContactIncome: number; // in rupees (backward-compat)
+    monthlyContactExpense: number; // in rupees (backward-compat)
     savings: number; // in rupees (Row 2, Card 2)
     monthlySpending: number; // alias
     monthlyIncome: number; // alias
@@ -104,6 +107,15 @@ export interface DashboardData {
     pendingSettlementsAmount: number; // in rupees (Row 2, Card 3)
     pendingSettlementsCount: number;
     myGroupsCount: number; // (Row 2, Card 4)
+    previousMonthExpense: {
+      monthName: string; // e.g. "October Expense"
+      shortMonthName: string; // e.g. "Oct"
+      priorMonthName: string; // e.g. "September"
+      amount: number; // in rupees
+      percentChange: number; // e.g. +12 or -61
+      trend: "up" | "down" | "neutral";
+      comparisonText: string; // e.g. "↑12% Compared to September"
+    };
   };
   trends: {
     spendingTrend: number; // percentage vs last month
@@ -292,6 +304,26 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           const settleToUser = alias(users, "settle_to_user");
           const settleFromUser = alias(users, "settle_from_user");
 
+          // Exact Previous Calendar Month & Prior Month Calculations for Historical Baseline
+          const exactPrevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const exactPrevMonthIdx = exactPrevMonthDate.getMonth();
+          const exactPrevMonthYear = exactPrevMonthDate.getFullYear();
+          const exactPrevMonthStart = new Date(exactPrevMonthYear, exactPrevMonthIdx, 1, 0, 0, 0, 0);
+          const exactPrevMonthEnd = new Date(exactPrevMonthYear, exactPrevMonthIdx + 1, 0, 23, 59, 59, 999);
+
+          const exactPriorMonthDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+          const exactPriorMonthIdx = exactPriorMonthDate.getMonth();
+          const exactPriorMonthYear = exactPriorMonthDate.getFullYear();
+          const exactPriorMonthStart = new Date(exactPriorMonthYear, exactPriorMonthIdx, 1, 0, 0, 0, 0);
+          const exactPriorMonthEnd = new Date(exactPriorMonthYear, exactPriorMonthIdx + 1, 0, 23, 59, 59, 999);
+
+          const monthNames = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December",
+          ];
+          const exactPrevMonthName = monthNames[exactPrevMonthIdx];
+          const exactPriorMonthName = monthNames[exactPriorMonthIdx];
+
           // Ensure database schema is up-to-date
           try {
             await ensureDatabaseSchema();
@@ -323,6 +355,11 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
             contactDailySeries,
             pinnedNotesQuery,
             pinnedChecklistsQuery,
+            periodAllTxSummary,
+            prevPeriodAllTxSummary,
+            exactPrevMonthTxSummary,
+            exactPriorMonthTxSummary,
+            activeNotesForExpenses,
           ] = await withDbRetry(async () => {
             return await Promise.all([
       // 1. User Profile & Extended Settings
@@ -389,7 +426,9 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
             or(
               isNull(transactions.contactId),
               and(eq(transactions.isSyncedToDashboard, true), eq(contacts.isDeleted, false))
-            )
+            ),
+            period !== "all_time" ? gte(transactions.date, startDate) : sql`1=1`,
+            period !== "all_time" ? lte(transactions.date, endDate) : sql`1=1`
           )
         ),
 
@@ -593,7 +632,9 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
             or(
               isNull(transactions.contactId),
               and(eq(transactions.isSyncedToDashboard, true), eq(contacts.isDeleted, false))
-            )
+            ),
+            period !== "all_time" ? gte(transactions.date, startDate) : sql`1=1`,
+            period !== "all_time" ? lte(transactions.date, endDate) : sql`1=1`
           )
         )
         .orderBy(desc(transactions.date))
@@ -785,6 +826,88 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         .orderBy(desc(notes.isPinned), asc(noteChecklists.dueDate))
         .limit(10)
         .catch(() => [] as any[]),
+
+      // 23. All Transactions in Active Period (personal, contact, group)
+      db
+        .select({
+          totalIncome: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          totalExpense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          count: sql<number>`COUNT(*)`,
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.isDeleted, false),
+            gte(transactions.date, startDate),
+            lte(transactions.date, endDate)
+          )
+        ),
+
+      // 24. All Transactions in Prior Period (for trend comparison)
+      db
+        .select({
+          totalIncome: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          totalExpense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.isDeleted, false),
+            gte(transactions.date, prevStartDate),
+            lte(transactions.date, prevEndDate)
+          )
+        ),
+
+      // 25. Exact Previous Calendar Month Expenses
+      db
+        .select({
+          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.isDeleted, false),
+            gte(transactions.date, exactPrevMonthStart),
+            lte(transactions.date, exactPrevMonthEnd)
+          )
+        ),
+
+      // 26. Exact Prior Month Expenses (for historical comparison)
+      db
+        .select({
+          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.isDeleted, false),
+            gte(transactions.date, exactPriorMonthStart),
+            lte(transactions.date, exactPriorMonthEnd)
+          )
+        ),
+
+      // 27. All Active Notes for Smart Journal Expense Extraction
+      db
+        .select({
+          id: notes.id,
+          title: notes.title,
+          content: notes.content,
+          createdAt: notes.createdAt,
+          updatedAt: notes.updatedAt,
+        })
+        .from(notes)
+        .where(
+          and(
+            eq(notes.userId, user.id),
+            eq(notes.isDeleted, false),
+            eq(notes.isArchived, false)
+          )
+        )
+        .catch(() => [] as any[]),
     ]);
   });
 
@@ -907,17 +1030,96 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
     const contactSavings = monthlyContactIncome - monthlyContactExpense;
     const prevContactSavings = prevContactIncome - prevContactExpense;
 
-    const incomeTrend = prevContactIncome > 0
-      ? Math.round(((monthlyContactIncome - prevContactIncome) / prevContactIncome) * 100)
+    // Extract notes-derived financial expenses (Smart Keep / Financial Journal)
+    const allNotesExtractedExpenses = (activeNotesForExpenses || []).flatMap((n: any) =>
+      extractExpensesFromNote(n.content, n.createdAt ? new Date(n.createdAt) : new Date(), n.id, n.title)
+    );
+
+    let periodNotesExpense = 0;
+    let prevPeriodNotesExpense = 0;
+    let exactPrevMonthNotesExpense = 0;
+    let exactPriorMonthNotesExpense = 0;
+
+    allNotesExtractedExpenses.forEach((exp) => {
+      const expDate = new Date(exp.date);
+      if (expDate >= startDate && expDate <= endDate) {
+        periodNotesExpense += exp.amount;
+      }
+      if (expDate >= prevStartDate && expDate <= prevEndDate) {
+        prevPeriodNotesExpense += exp.amount;
+      }
+      if (expDate >= exactPrevMonthStart && expDate <= exactPrevMonthEnd) {
+        exactPrevMonthNotesExpense += exp.amount;
+      }
+      if (expDate >= exactPriorMonthStart && expDate <= exactPriorMonthEnd) {
+        exactPriorMonthNotesExpense += exp.amount;
+      }
+    });
+
+    // Unified Period Totals (across ALL transactions: personal, contact, group + notes)
+    const allTxPeriodIncome = (periodAllTxSummary[0]?.totalIncome || 0) / 100;
+    const allTxPeriodExpense = (periodAllTxSummary[0]?.totalExpense || 0) / 100;
+    const allTxPrevIncome = (prevPeriodAllTxSummary[0]?.totalIncome || 0) / 100;
+    const allTxPrevExpense = (prevPeriodAllTxSummary[0]?.totalExpense || 0) / 100;
+
+    const totalIncome = allTxPeriodIncome;
+    const totalExpenses = allTxPeriodExpense + periodNotesExpense;
+    const prevTotalIncome = allTxPrevIncome;
+    const prevTotalExpenses = allTxPrevExpense + prevPeriodNotesExpense;
+
+    const netSavings = totalIncome - totalExpenses;
+    const prevNetSavings = prevTotalIncome - prevTotalExpenses;
+
+    const incomeTrend = prevTotalIncome > 0
+      ? Math.round(((totalIncome - prevTotalIncome) / prevTotalIncome) * 100)
+      : (prevContactIncome > 0 ? Math.round(((monthlyContactIncome - prevContactIncome) / prevContactIncome) * 100) : 0);
+
+    const spendingTrend = prevTotalExpenses > 0
+      ? Math.round(((totalExpenses - prevTotalExpenses) / prevTotalExpenses) * 100)
+      : (prevContactExpense > 0 ? Math.round(((monthlyContactExpense - prevContactExpense) / prevContactExpense) * 100) : 0);
+
+    const balanceTrend = prevNetSavings !== 0
+      ? Math.round(((netSavings - prevNetSavings) / Math.abs(prevNetSavings)) * 100)
       : 0;
 
-    const spendingTrend = prevContactExpense > 0
-      ? Math.round(((monthlyContactExpense - prevContactExpense) / prevContactExpense) * 100)
-      : 0;
+    // Exact Previous Month Card Calculations (Requirement 4)
+    const prevMonthTotalExpense = ((exactPrevMonthTxSummary[0]?.expense || 0) / 100) + exactPrevMonthNotesExpense;
+    const priorMonthTotalExpense = ((exactPriorMonthTxSummary[0]?.expense || 0) / 100) + exactPriorMonthNotesExpense;
 
-    const balanceTrend = prevContactSavings !== 0
-      ? Math.round(((contactSavings - prevContactSavings) / Math.abs(prevContactSavings)) * 100)
-      : 0;
+    let prevMonthPercentChange = 0;
+    let prevMonthTrend: "up" | "down" | "neutral" = "neutral";
+    let prevMonthComparisonText = `Compared to ${exactPriorMonthName}`;
+
+    if (priorMonthTotalExpense > 0) {
+      prevMonthPercentChange = Math.round(
+        ((prevMonthTotalExpense - priorMonthTotalExpense) / priorMonthTotalExpense) * 100
+      );
+      if (prevMonthPercentChange > 0) {
+        prevMonthTrend = "up";
+        prevMonthComparisonText = `↑${prevMonthPercentChange}% Compared to ${exactPriorMonthName}`;
+      } else if (prevMonthPercentChange < 0) {
+        prevMonthTrend = "down";
+        prevMonthComparisonText = `↓${Math.abs(prevMonthPercentChange)}% Compared to ${exactPriorMonthName}`;
+      } else {
+        prevMonthTrend = "neutral";
+        prevMonthComparisonText = `0% change vs ${exactPriorMonthName}`;
+      }
+    } else if (prevMonthTotalExpense > 0) {
+      prevMonthTrend = "up";
+      prevMonthComparisonText = `Recorded in ${exactPrevMonthName}`;
+    } else {
+      prevMonthComparisonText = `No expenses recorded in ${exactPrevMonthName}`;
+    }
+
+    const previousMonthExpenseData = {
+      monthName: `${exactPrevMonthName} Expense`,
+      shortMonthName: exactPrevMonthName.slice(0, 3),
+      priorMonthName: exactPriorMonthName,
+      amount: prevMonthTotalExpense,
+      percentChange: prevMonthPercentChange,
+      trend: prevMonthTrend,
+      comparisonText: prevMonthComparisonText,
+    };
 
     // Contact Receivables and Payables (from reflected transactions only)
     const contactsReceivablePaise = contactsQuery.reduce((acc, c) => acc + (Number(c.balance) > 0 ? Number(c.balance) : 0), 0);
@@ -1272,15 +1474,18 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         totalReceivable: overallReceivableRupees,
         totalPayable: overallPayableRupees,
         netBalance: netBalanceRupees,
+        totalIncome,
+        totalExpenses,
         monthlyContactIncome,
-        monthlyContactExpense,
-        savings: contactSavings,
-        monthlySpending: monthlyContactExpense,
-        monthlyIncome: monthlyContactIncome,
+        monthlyContactExpense: totalExpenses,
+        savings: netSavings,
+        monthlySpending: totalExpenses,
+        monthlyIncome: totalIncome,
         totalTransactions: Number(allTimeIncomeExp[0]?.totalCount || 0) + totalReflectedTxCount,
         pendingSettlementsAmount: totalPendingSettlementsPaise / 100,
         pendingSettlementsCount: totalPendingCount,
         myGroupsCount: activeGroupsRaw.length,
+        previousMonthExpense: previousMonthExpenseData,
       },
       trends: {
         spendingTrend,
