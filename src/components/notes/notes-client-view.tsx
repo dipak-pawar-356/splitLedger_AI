@@ -104,6 +104,7 @@ import {
 } from "@/actions/notes";
 import { RichTextEditor } from "@/components/notes/rich-text-editor";
 import { NoteVersionHistoryDialog } from "@/components/notes/note-version-history-dialog";
+import { ExportDocumentDialog } from "@/components/notes/export-document-dialog";
 import { NotesCategoryDialog } from "@/components/notes/notes-category-dialog";
 import { NotesTimelineView } from "@/components/notes/notes-timeline-view";
 import { NotesCalendarView } from "@/components/notes/notes-calendar-view";
@@ -252,6 +253,7 @@ export function NotesClientView({
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   // Delete & Bulk Confirmation Dialog States (Parts 2 & 6)
   const [noteToDelete, setNoteToDelete] = useState<any | null>(null);
@@ -771,8 +773,15 @@ export function NotesClientView({
       toast.error("Please select a note to export");
       return;
     }
+    const isCurrent = note.id === activeNote?.id;
     try {
-      const res = await exportNoteDocument(format, note.publicId);
+      const res = await exportNoteDocument(format, note.publicId, {
+        overrideTitle: isCurrent ? editorTitle : note.title,
+        overrideContent: isCurrent ? editorContent : (note.content || note.plainText),
+        paperSize: "a4",
+        orientation: "portrait",
+        theme: "print",
+      });
       if (format === "pdf") {
         const win = window.open("", "_blank");
         if (win) {
@@ -811,7 +820,13 @@ export function NotesClientView({
     }
     try {
       toast.info("Preparing print layout...");
-      const res = await exportNoteDocument("pdf", activeNote.publicId);
+      const res = await exportNoteDocument("pdf", activeNote.publicId, {
+        overrideTitle: editorTitle,
+        overrideContent: editorContent,
+        paperSize: "a4",
+        orientation: "portrait",
+        theme: "print",
+      });
       recordNotePrintActivity(activeNote.publicId).catch(() => {});
 
       const iframe = document.createElement("iframe");
@@ -830,14 +845,14 @@ export function NotesClientView({
         frameDoc.write(res.content);
         frameDoc.close();
 
-        iframe.contentWindow?.focus();
         setTimeout(() => {
+          iframe.contentWindow?.focus();
           iframe.contentWindow?.print();
           setTimeout(() => {
             if (document.body.contains(iframe)) {
               document.body.removeChild(iframe);
             }
-          }, 2000);
+          }, 3000);
         }, 350);
       } else {
         const win = window.open("", "_blank");
@@ -2188,28 +2203,27 @@ export function NotesClientView({
 
                                       <DropdownMenuSeparator />
 
-                                      {/* Export Submenu */}
-                                      <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger className="gap-2 text-xs rounded-xl cursor-pointer">
-                                          <Download className="h-3.5 w-3.5 text-slate-500" />
-                                          <span>Export Note</span>
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuSubContent className="w-40 rounded-xl p-1">
-                                          <DropdownMenuItem onClick={() => handleExport("txt", note)} className="text-xs rounded-lg cursor-pointer">
-                                            Export as TXT
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => handleExport("markdown", note)} className="text-xs rounded-lg cursor-pointer">
-                                            Export as Markdown
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => handleExport("pdf", note)} className="text-xs rounded-lg cursor-pointer">
-                                            Export as PDF
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={handlePrint} className="text-xs rounded-lg cursor-pointer flex items-center gap-1.5">
-                                            <Printer className="h-3 w-3 text-slate-400" />
-                                            <span>Print</span>
-                                          </DropdownMenuItem>
-                                        </DropdownMenuSubContent>
-                                      </DropdownMenuSub>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setActiveNote(note);
+                                          setIsExportDialogOpen(true);
+                                        }}
+                                        className="gap-2 text-xs rounded-xl cursor-pointer"
+                                      >
+                                        <Download className="h-3.5 w-3.5 text-primary" />
+                                        <span>Export Document...</span>
+                                      </DropdownMenuItem>
+
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setActiveNote(note);
+                                          setTimeout(() => handlePrint(), 50);
+                                        }}
+                                        className="gap-2 text-xs rounded-xl cursor-pointer"
+                                      >
+                                        <Printer className="h-3.5 w-3.5 text-slate-400" />
+                                        <span>Print Note</span>
+                                      </DropdownMenuItem>
 
                                       <DropdownMenuItem onClick={(e) => handleCopyNoteLink(note, e)} className="gap-2 text-xs rounded-xl cursor-pointer">
                                         <LinkIcon className="h-3.5 w-3.5 text-blue-500" />
@@ -2476,32 +2490,10 @@ export function NotesClientView({
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-lg">
-                                <DropdownMenuSub>
-                                  <DropdownMenuSubTrigger className="text-xs cursor-pointer">
-                                    <Download className="h-3.5 w-3.5 mr-2" />
-                                    <span>Export Document</span>
-                                  </DropdownMenuSubTrigger>
-                                  <DropdownMenuSubContent className="w-44 rounded-xl">
-                                    <DropdownMenuItem onClick={() => handleExport("pdf")} className="text-xs cursor-pointer">
-                                      PDF Document (.pdf)
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleExport("docx")} className="text-xs cursor-pointer">
-                                      Word Document (.docx)
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleExport("markdown")} className="text-xs cursor-pointer">
-                                      Markdown (.md)
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleExport("txt")} className="text-xs cursor-pointer">
-                                      Plain Text (.txt)
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleExport("csv")} className="text-xs cursor-pointer">
-                                      CSV Table (.csv)
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleExport("json")} className="text-xs cursor-pointer">
-                                      Raw JSON (.json)
-                                    </DropdownMenuItem>
-                                  </DropdownMenuSubContent>
-                                </DropdownMenuSub>
+                                <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)} className="text-xs cursor-pointer">
+                                  <Download className="h-3.5 w-3.5 mr-2 text-primary" />
+                                  <span>Export Document...</span>
+                                </DropdownMenuItem>
 
                                 <DropdownMenuItem onClick={handlePrint} className="text-xs cursor-pointer">
                                   <Printer className="h-3.5 w-3.5 mr-2 text-slate-500" />
@@ -3083,6 +3075,14 @@ export function NotesClientView({
             isOpen={isActivityDialogOpen}
             onClose={() => setIsActivityDialogOpen(false)}
             notePublicId={activeNote.publicId}
+          />
+
+          <ExportDocumentDialog
+            isOpen={isExportDialogOpen}
+            onClose={() => setIsExportDialogOpen(false)}
+            note={activeNote}
+            overrideTitle={editorTitle}
+            overrideContent={editorContent}
           />
         </>
       )}
