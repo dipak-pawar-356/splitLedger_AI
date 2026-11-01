@@ -1024,34 +1024,51 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
 
     let periodNotesExpense = 0;
     let periodNotesIncome = 0;
+    let periodNotesReceivable = 0;
+    let periodNotesPayable = 0;
     let prevPeriodNotesExpense = 0;
     let prevPeriodNotesIncome = 0;
     let exactPrevMonthNotesExpense = 0;
     let exactPriorMonthNotesExpense = 0;
     let allTimeNotesExpenseTotal = 0;
     let allTimeNotesIncomeTotal = 0;
+    let allTimeNotesReceivableTotal = 0;
+    let allTimeNotesPayableTotal = 0;
 
     allNotesExtractedExpenses.forEach((exp) => {
       const expDate = new Date(exp.date);
-      const isOutflow = exp.type === "expense" || exp.type === "payable";
-      const isInflow = exp.type === "income" || exp.type === "receivable";
-
-      if (isOutflow) allTimeNotesExpenseTotal += exp.amount;
-      if (isInflow) allTimeNotesIncomeTotal += exp.amount;
-
-      if (expDate >= startDate && expDate <= endDate) {
-        if (isOutflow) periodNotesExpense += exp.amount;
-        if (isInflow) periodNotesIncome += exp.amount;
-      }
-      if (expDate >= prevStartDate && expDate <= prevEndDate) {
-        if (isOutflow) prevPeriodNotesExpense += exp.amount;
-        if (isInflow) prevPeriodNotesIncome += exp.amount;
-      }
-      if (expDate >= exactPrevMonthStart && expDate <= exactPrevMonthEnd) {
-        if (isOutflow) exactPrevMonthNotesExpense += exp.amount;
-      }
-      if (expDate >= exactPriorMonthStart && expDate <= exactPriorMonthEnd) {
-        if (isOutflow) exactPriorMonthNotesExpense += exp.amount;
+      if (exp.type === "expense") {
+        allTimeNotesExpenseTotal += exp.amount;
+        if (expDate >= startDate && expDate <= endDate) {
+          periodNotesExpense += exp.amount;
+        }
+        if (expDate >= prevStartDate && expDate <= prevEndDate) {
+          prevPeriodNotesExpense += exp.amount;
+        }
+        if (expDate >= exactPrevMonthStart && expDate <= exactPrevMonthEnd) {
+          exactPrevMonthNotesExpense += exp.amount;
+        }
+        if (expDate >= exactPriorMonthStart && expDate <= exactPriorMonthEnd) {
+          exactPriorMonthNotesExpense += exp.amount;
+        }
+      } else if (exp.type === "income") {
+        allTimeNotesIncomeTotal += exp.amount;
+        if (expDate >= startDate && expDate <= endDate) {
+          periodNotesIncome += exp.amount;
+        }
+        if (expDate >= prevStartDate && expDate <= prevEndDate) {
+          prevPeriodNotesIncome += exp.amount;
+        }
+      } else if (exp.type === "receivable") {
+        allTimeNotesReceivableTotal += exp.amount;
+        if (expDate >= startDate && expDate <= endDate) {
+          periodNotesReceivable += exp.amount;
+        }
+      } else if (exp.type === "payable") {
+        allTimeNotesPayableTotal += exp.amount;
+        if (expDate >= startDate && expDate <= endDate) {
+          periodNotesPayable += exp.amount;
+        }
       }
     });
 
@@ -1166,8 +1183,8 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
     const contactsReceivablePaise = contactsQuery.reduce((acc, c) => acc + (Number(c.balance) > 0 ? Number(c.balance) : 0), 0);
     const contactsPayablePaise = contactsQuery.reduce((acc, c) => acc + (Number(c.balance) < 0 ? Math.abs(Number(c.balance)) : 0), 0);
 
-    const overallReceivableRupees = totalReceivableRupees + (contactsReceivablePaise / 100);
-    const overallPayableRupees = totalPayableRupees + (contactsPayablePaise / 100);
+    const overallReceivableRupees = totalReceivableRupees + (contactsReceivablePaise / 100) + periodNotesReceivable;
+    const overallPayableRupees = totalPayableRupees + (contactsPayablePaise / 100) + periodNotesPayable;
     const netBalanceRupees = overallReceivableRupees - overallPayableRupees;
 
     // Contact Financial Overview Data (Requirement 10)

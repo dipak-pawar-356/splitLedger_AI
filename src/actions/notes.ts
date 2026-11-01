@@ -1315,19 +1315,67 @@ export async function getDailyFinancialJournal(dateStr?: string) {
     let notesReceivableTotal = 0;
     let notesPayableTotal = 0;
     const categoriesUsedSet = new Set<string>();
+    const activeNoteDatesSet = new Set<string>();
 
     allNotes.forEach((n) => {
       const noteDate = new Date(n.createdAt);
       const content = n.content || n.plainText || "";
       const exps = extractExpensesFromNote(content, noteDate, n.id, n.title);
+      exps.forEach((e) => activeNoteDatesSet.add(e.date));
       
       const dayEntries = exps.filter((e) => e.date === normalizedTargetDateStr);
+
+      // Compute note's overall full summary across all dates
+      let noteOverallExpense = 0;
+      let noteOverallIncome = 0;
+      let noteOverallReceivable = 0;
+      let noteOverallPayable = 0;
+      exps.forEach((e) => {
+        if (e.type === "expense") noteOverallExpense += e.amount;
+        else if (e.type === "income") noteOverallIncome += e.amount;
+        else if (e.type === "receivable") noteOverallReceivable += e.amount;
+        else if (e.type === "payable") noteOverallPayable += e.amount;
+      });
+      const noteNetCashflow = noteOverallIncome - noteOverallExpense;
+      const notePrimaryMonth = exps[0] ? `${exps[0].month} ${exps[0].year}` : (n.title || "");
+
+      let dayIncome = 0;
+      let dayExpense = 0;
+      let dayReceivable = 0;
+      let dayPayable = 0;
+
+      dayEntries.forEach((e) => {
+        matchingExpenses.push(e);
+        if (e.type === "income") {
+          notesIncomeTotal += e.amount;
+          dayIncome += e.amount;
+        } else if (e.type === "expense") {
+          notesExpenseTotal += e.amount;
+          dayExpense += e.amount;
+        } else if (e.type === "receivable") {
+          notesReceivableTotal += e.amount;
+          dayReceivable += e.amount;
+        } else if (e.type === "payable") {
+          notesPayableTotal += e.amount;
+          dayPayable += e.amount;
+        }
+        categoriesUsedSet.add(e.category);
+      });
 
       if (dayEntries.length > 0) {
         matchingNotes.push({
           ...n,
           extractedExpensesCount: dayEntries.length,
-          extractedExpensesAmount: dayEntries.reduce((s, e) => s + e.amount, 0),
+          extractedExpensesAmount: dayExpense,
+          dayIncome,
+          dayExpense,
+          dayReceivable,
+          dayPayable,
+          noteOverallIncome,
+          noteOverallExpense,
+          noteNetCashflow,
+          notePrimaryMonth,
+          noteTotalItems: exps.length,
         });
       } else {
         // If note has NO internal dates, only match if note's creation date is today
@@ -1338,25 +1386,18 @@ export async function getDailyFinancialJournal(dateStr?: string) {
             ...n,
             extractedExpensesCount: 0,
             extractedExpensesAmount: 0,
+            dayIncome: 0,
+            dayExpense: 0,
+            dayReceivable: 0,
+            dayPayable: 0,
+            noteOverallIncome,
+            noteOverallExpense,
+            noteNetCashflow,
+            notePrimaryMonth,
+            noteTotalItems: exps.length,
           });
         }
       }
-
-      dayEntries.forEach((e) => {
-        matchingExpenses.push(e);
-        if (e.type === "income") {
-          notesIncomeTotal += e.amount;
-        } else if (e.type === "receivable") {
-          notesIncomeTotal += e.amount;
-          notesReceivableTotal += e.amount;
-        } else if (e.type === "payable") {
-          notesExpenseTotal += e.amount;
-          notesPayableTotal += e.amount;
-        } else if (e.type === "expense") {
-          notesExpenseTotal += e.amount;
-        }
-        categoriesUsedSet.add(e.category);
-      });
     });
 
     const totalIncome = income + notesIncomeTotal;
@@ -1386,6 +1427,7 @@ export async function getDailyFinancialJournal(dateStr?: string) {
       notes: matchingNotes,
       extractedExpenses: matchingExpenses,
       categoriesUsed: Array.from(categoriesUsedSet),
+      activeNoteDates: Array.from(activeNoteDatesSet).sort(),
       dailyExpenseSummary: {
         transactionsExpense: txExpense,
         notesExpense: notesExpenseTotal,

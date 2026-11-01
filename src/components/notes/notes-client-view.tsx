@@ -113,7 +113,12 @@ import { NoteLinkedEntitiesWidget } from "@/components/notes/note-linked-entitie
 import { NoteAttachmentsWidget } from "@/components/notes/note-attachments-widget";
 import { NoteCommentsWidget } from "@/components/notes/note-comments-widget";
 import { DailyFinancialJournalView } from "@/components/notes/daily-financial-journal-view";
-import { extractExpensesFromNote, aggregateFinancialNotes } from "@/lib/notes/financial-note-analyzer";
+import {
+  extractExpensesFromNote,
+  aggregateFinancialNotes,
+  getNoteFinancialSummary,
+  type NoteFinancialSummary,
+} from "@/lib/notes/financial-note-analyzer";
 import { NoteActivityLogDialog } from "@/components/notes/note-activity-log-dialog";
 import { QuickNoteDialog } from "@/components/notes/quick-note-dialog";
 import { emitFinancialEvent } from "@/lib/events/financial-events";
@@ -216,9 +221,12 @@ export function NotesClientView({
     );
   }, [editorContent, activeNote?.createdAt, activeNote?.id, editorTitle]);
 
-  const activeNoteTotalExpenses = useMemo(() => {
-    return activeNoteExpenses.reduce((sum, e) => sum + e.amount, 0);
-  }, [activeNoteExpenses]);
+  const activeNoteSummary = useMemo(() => {
+    return getNoteFinancialSummary(activeNoteExpenses, editorTitle);
+  }, [activeNoteExpenses, editorTitle]);
+
+  const activeNoteTotalExpenses = activeNoteSummary.totalExpense;
+  const [isKeepAnalysisExpanded, setIsKeepAnalysisExpanded] = useState(false);
 
   // Live real-time aggregation across all notes with immediate synchronization on note edits
   const liveFinancialAnalytics = useMemo(() => {
@@ -2556,19 +2564,151 @@ export function NotesClientView({
 
                         {/* Smart Keep Financial Journal Analysis Banner */}
                         {activeNoteExpenses.length > 0 && (
-                          <div className="px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between gap-3 text-xs animate-in fade-in duration-200">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                              <span className="font-bold text-emerald-900 dark:text-emerald-200 truncate">
-                                Keep Analysis: {activeNoteExpenses.length} expense item{activeNoteExpenses.length > 1 ? "s" : ""} extracted
-                              </span>
-                              <span className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 hidden md:inline truncate">
-                                ({activeNoteExpenses.map((e) => `${e.description}: ₹${e.amount}`).slice(0, 3).join(", ")})
-                              </span>
+                          <div className="rounded-2xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-primary/5 border border-emerald-500/25 p-3.5 space-y-2.5 text-xs animate-in fade-in duration-200">
+                            {/* Header row with Title, Month, and KPI Badges */}
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                                  <Sparkles className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                                      Keep Analysis
+                                    </span>
+                                    {activeNoteSummary.monthYear && activeNoteSummary.monthYear !== "Unknown 2026" && (
+                                      <Badge variant="secondary" className="text-[10px] font-mono bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                        📅 {activeNoteSummary.monthYear}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Accurate Totals Badges */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {activeNoteSummary.expenseCount > 0 && (
+                                  <Badge variant="outline" className="font-mono text-[11px] font-bold text-rose-600 dark:text-rose-400 border-rose-500/30 bg-rose-500/10">
+                                    Expense: -₹{activeNoteSummary.totalExpense.toLocaleString("en-IN")} ({activeNoteSummary.expenseCount})
+                                  </Badge>
+                                )}
+                                {activeNoteSummary.incomeCount > 0 && (
+                                  <Badge variant="outline" className="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+                                    Income: +₹{activeNoteSummary.totalIncome.toLocaleString("en-IN")} ({activeNoteSummary.incomeCount})
+                                  </Badge>
+                                )}
+                                {activeNoteSummary.receivableCount > 0 && (
+                                  <Badge variant="outline" className="font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/10">
+                                    Receivable: ₹{activeNoteSummary.totalReceivable.toLocaleString("en-IN")}
+                                  </Badge>
+                                )}
+                                {activeNoteSummary.payableCount > 0 && (
+                                  <Badge variant="outline" className="font-mono text-[11px] font-bold text-purple-600 dark:text-purple-400 border-purple-500/30 bg-purple-500/10">
+                                    Payable: ₹{activeNoteSummary.totalPayable.toLocaleString("en-IN")}
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className={`font-mono text-[11px] font-bold border-blue-500/30 bg-blue-500/10 ${
+                                  activeNoteSummary.netCashflow >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                                }`}>
+                                  Net: {activeNoteSummary.netCashflow >= 0 ? "+" : ""}₹{activeNoteSummary.netCashflow.toLocaleString("en-IN")}
+                                </Badge>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setIsKeepAnalysisExpanded(!isKeepAnalysisExpanded)}
+                                  className="text-[11px] font-semibold text-primary hover:underline ml-1"
+                                >
+                                  {isKeepAnalysisExpanded ? "Hide Details" : "View Breakdown"}
+                                </button>
+                              </div>
                             </div>
-                            <Badge variant="outline" className="font-mono font-bold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 bg-emerald-500/10 text-xs shrink-0">
-                              Total: ₹{activeNoteTotalExpenses.toLocaleString("en-IN")}
-                            </Badge>
+
+                            {/* Summary Line Preview */}
+                            <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 flex-wrap gap-2 pt-1 border-t border-emerald-500/15">
+                              <div className="truncate max-w-xl">
+                                {activeNoteSummary.topIncomeNames.length > 0 && (
+                                  <span className="text-emerald-700 dark:text-emerald-300 mr-2">
+                                    <strong>Income:</strong> {activeNoteSummary.topIncomeNames.join(", ")}
+                                  </span>
+                                )}
+                                {activeNoteSummary.topExpenseNames.length > 0 && (
+                                  <span className="text-slate-700 dark:text-slate-300">
+                                    <strong>Expense:</strong> {activeNoteSummary.topExpenseNames.slice(0, 4).join(", ")}
+                                    {activeNoteSummary.topExpenseNames.length > 4 ? ` +${activeNoteSummary.topExpenseNames.length - 4} more` : ""}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {activeNoteSummary.hasDuplicates && (
+                                  <span className="text-[10px] font-bold text-amber-600 bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded-md">
+                                    ⚠️ {activeNoteSummary.duplicateCount} possible duplicate{activeNoteSummary.duplicateCount > 1 ? "s" : ""}
+                                  </span>
+                                )}
+                                {activeNoteSummary.hasReviewItems && (
+                                  <span className="text-[10px] font-bold text-rose-600 bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.5 rounded-md">
+                                    ⚠️ {activeNoteSummary.reviewCount} needs review
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Expanded Breakdown Drawer / List */}
+                            {isKeepAnalysisExpanded && (
+                              <div className="pt-2 border-t border-emerald-500/20 space-y-2 max-h-56 overflow-y-auto pr-1">
+                                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                                  Extracted Date-Wise Records ({activeNoteExpenses.length} entries across {activeNoteSummary.dateCount} dates)
+                                </p>
+                                <div className="space-y-1.5">
+                                  {activeNoteExpenses.map((exp) => (
+                                    <div
+                                      key={exp.id}
+                                      className="flex items-center justify-between p-2 rounded-xl border border-slate-200/70 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 text-xs"
+                                    >
+                                      <div className="flex items-center gap-2 truncate">
+                                        <Badge variant="outline" className="font-mono text-[9px] px-1 py-0">
+                                          {exp.date}
+                                        </Badge>
+                                        <Badge
+                                          variant="outline"
+                                          className={`text-[9px] font-bold uppercase px-1.5 py-0 ${
+                                            exp.type === "income"
+                                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                              : exp.type === "receivable"
+                                              ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                              : exp.type === "payable"
+                                              ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30"
+                                              : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                          }`}
+                                        >
+                                          {exp.type}
+                                        </Badge>
+                                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                                          {exp.description}
+                                        </span>
+                                        {exp.contactName && (
+                                          <span className="text-[10px] text-slate-400">👤 {exp.contactName}</span>
+                                        )}
+                                        {exp.isDuplicate && (
+                                          <span className="text-[9px] text-amber-600 bg-amber-500/10 px-1 rounded">Duplicate</span>
+                                        )}
+                                      </div>
+                                      <span
+                                        className={`font-mono font-bold shrink-0 ml-2 ${
+                                          exp.type === "income"
+                                            ? "text-emerald-600 dark:text-emerald-400"
+                                            : exp.type === "expense"
+                                            ? "text-rose-600 dark:text-rose-400"
+                                            : "text-blue-600 dark:text-blue-400"
+                                        }`}
+                                      >
+                                        {exp.type === "income" ? "+" : exp.type === "expense" ? "-" : ""}₹{exp.amount.toLocaleString("en-IN")}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 

@@ -89,15 +89,23 @@ export function calculateUnifiedMetrics({
     }
   });
 
-  // Include notes-derived expenses for the active date range
-  const currentNotesExpense = (notesExpenses || [])
-    .filter((n) => {
-      const d = new Date(n.date);
-      return d >= startDate && d <= endDate;
-    })
-    .reduce((sum, n) => sum + n.amount, 0);
+  // Include notes-derived entries for the active date range
+  let currentNotesExpense = 0;
+  let currentNotesIncome = 0;
+  let currentNotesReceivable = 0;
+  let currentNotesPayable = 0;
 
-  const totalIncomeRupees = currentTxIncomePaise / 100;
+  (notesExpenses || []).forEach((n) => {
+    const d = new Date(n.date);
+    if (d >= startDate && d <= endDate) {
+      if (n.type === "expense") currentNotesExpense += n.amount;
+      else if (n.type === "income") currentNotesIncome += n.amount;
+      else if (n.type === "receivable") currentNotesReceivable += n.amount;
+      else if (n.type === "payable") currentNotesPayable += n.amount;
+    }
+  });
+
+  const totalIncomeRupees = (currentTxIncomePaise / 100) + currentNotesIncome;
   const totalExpenseRupees = (currentTxExpensePaise / 100) + currentNotesExpense;
   const netSavingsRupees = totalIncomeRupees - totalExpenseRupees;
 
@@ -117,14 +125,18 @@ export function calculateUnifiedMetrics({
     }
   });
 
-  const prevNotesExpense = (notesExpenses || [])
-    .filter((n) => {
-      const d = new Date(n.date);
-      return d >= prevStartDate && d <= prevEndDate;
-    })
-    .reduce((sum, n) => sum + n.amount, 0);
+  let prevNotesExpense = 0;
+  let prevNotesIncome = 0;
 
-  const prevIncomeRupees = prevTxIncomePaise / 100;
+  (notesExpenses || []).forEach((n) => {
+    const d = new Date(n.date);
+    if (d >= prevStartDate && d <= prevEndDate) {
+      if (n.type === "expense") prevNotesExpense += n.amount;
+      else if (n.type === "income") prevNotesIncome += n.amount;
+    }
+  });
+
+  const prevIncomeRupees = (prevTxIncomePaise / 100) + prevNotesIncome;
   const prevExpenseRupees = (prevTxExpensePaise / 100) + prevNotesExpense;
   const prevSavingsRupees = prevIncomeRupees - prevExpenseRupees;
 
@@ -173,7 +185,7 @@ export function calculateUnifiedMetrics({
   const prevMonthNotesAmount = (notesExpenses || [])
     .filter((n) => {
       const d = new Date(n.date);
-      return d >= prevMonthStart && d <= prevMonthEnd;
+      return n.type === "expense" && d >= prevMonthStart && d <= prevMonthEnd;
     })
     .reduce((sum, n) => sum + n.amount, 0);
 
@@ -191,7 +203,7 @@ export function calculateUnifiedMetrics({
   const priorMonthNotesAmount = (notesExpenses || [])
     .filter((n) => {
       const d = new Date(n.date);
-      return d >= priorMonthStart && d <= priorMonthEnd;
+      return n.type === "expense" && d >= priorMonthStart && d <= priorMonthEnd;
     })
     .reduce((sum, n) => sum + n.amount, 0);
 
@@ -222,14 +234,16 @@ export function calculateUnifiedMetrics({
     comparisonText = `No expenses recorded in ${prevMonthName}`;
   }
 
-  const netPosition = receivablesRupees - payablesRupees;
+  const finalReceivablesRupees = receivablesRupees + currentNotesReceivable;
+  const finalPayablesRupees = payablesRupees + currentNotesPayable;
+  const netPosition = finalReceivablesRupees - finalPayablesRupees;
 
   return {
     totalIncome: totalIncomeRupees,
     totalExpenses: totalExpenseRupees,
     netSavings: netSavingsRupees,
-    receivables: receivablesRupees,
-    payables: payablesRupees,
+    receivables: finalReceivablesRupees,
+    payables: finalPayablesRupees,
     netPosition,
     transactionCount: activeTx.length,
     previousMonthExpense: {

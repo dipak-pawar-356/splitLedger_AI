@@ -205,6 +205,18 @@ export function DailyFinancialJournalView() {
     return true;
   });
 
+  // Filtered extracted note financial entries
+  const filteredExtractedExpenses = (journalData?.extractedExpenses || []).filter((exp: any) => {
+    if (filterType === "expenses" && exp.type !== "expense" && exp.type !== "payable") return false;
+    if (filterType === "incomes" && exp.type !== "income" && exp.type !== "receivable") return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const desc = (exp.description || exp.category || exp.contactName || "").toLowerCase();
+      return desc.includes(q);
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-4 sm:space-y-5" suppressHydrationWarning>
       {/* Top Header Card */}
@@ -347,6 +359,37 @@ export function DailyFinancialJournalView() {
             </Button>
           )}
         </div>
+
+        {/* Quick Date Jump Chips from Notes Content */}
+        {journalData?.activeNoteDates && journalData.activeNoteDates.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 border-t border-slate-100 dark:border-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
+              Note Dates:
+            </span>
+            {journalData.activeNoteDates.map((d: string) => {
+              const isSelected = d === currentDate;
+              const [, mStr, dStr] = d.split("-");
+              const mIdx = parseInt(mStr, 10) - 1;
+              const monthShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][mIdx] || mStr;
+              const label = `${dStr} ${monthShort}`;
+
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setCurrentDate(d)}
+                  className={`h-6 px-2 text-[11px] font-mono rounded-lg transition-all shrink-0 font-bold border ${
+                    isSelected
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                      : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-primary/50"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Real-time Daily Financial KPI Cards (2 Columns on Mobile, 4 on Desktop, Never 1 Stretching) */}
         {journalData && (
@@ -535,7 +578,7 @@ export function DailyFinancialJournalView() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                 <Sparkles className="h-4 w-4 text-primary" />
-                Date-Wise Extracted Entries ({journalData?.extractedExpenses?.length || 0})
+                Date-Wise Extracted Entries ({filteredExtractedExpenses.length})
               </h4>
               <div className="flex items-center gap-1.5">
                 {journalData?.income > 0 && (
@@ -552,9 +595,11 @@ export function DailyFinancialJournalView() {
             </div>
 
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {journalData?.extractedExpenses?.map((exp: any, idx: number) => {
-                const isIncome = exp.type === "income" || exp.type === "receivable";
-                const isExpense = exp.type === "expense" || exp.type === "payable";
+              {filteredExtractedExpenses.map((exp: any, idx: number) => {
+                const isIncome = exp.type === "income";
+                const isExpense = exp.type === "expense";
+                const isReceivable = exp.type === "receivable";
+                const isPayable = exp.type === "payable";
 
                 return (
                   <div
@@ -567,11 +612,11 @@ export function DailyFinancialJournalView() {
                         <Badge
                           variant="outline"
                           className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0 ${
-                            exp.type === "income"
+                            isIncome
                               ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                              : exp.type === "receivable"
+                              : isReceivable
                               ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
-                              : exp.type === "payable"
+                              : isPayable
                               ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30"
                               : exp.type === "transfer"
                               ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30"
@@ -604,25 +649,36 @@ export function DailyFinancialJournalView() {
                             ? "text-emerald-600 dark:text-emerald-400"
                             : isExpense
                             ? "text-rose-600 dark:text-rose-400"
+                            : isReceivable
+                            ? "text-amber-600 dark:text-amber-400"
+                            : isPayable
+                            ? "text-purple-600 dark:text-purple-400"
                             : "text-blue-600 dark:text-blue-400"
                         }`}
                       >
-                        {isIncome ? "+" : isExpense ? "-" : ""}{formatCurrency(exp.amount)}
+                        {isIncome ? "+" : isExpense ? "-" : isReceivable ? "↓ " : isPayable ? "↑ " : ""}{formatCurrency(exp.amount)}
                       </span>
                     </div>
 
                     {/* Ambiguity Note if low confidence */}
                     {exp.isAmbiguous && (
                       <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
-                        <span>⚠️ Needs clarification:</span>
+                        <span>⚠️ Needs review:</span>
                         <span className="truncate">{exp.ambiguityReason || "Classification confidence below 70%"}</span>
+                      </div>
+                    )}
+
+                    {/* Duplicate Warning */}
+                    {exp.isDuplicate && (
+                      <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                        <span>⚠️ Possible duplicate detected</span>
                       </div>
                     )}
                   </div>
                 );
               })}
 
-              {(!journalData?.extractedExpenses || journalData.extractedExpenses.length === 0) && (
+              {(!filteredExtractedExpenses || filteredExtractedExpenses.length === 0) && (
                 <div className="py-6 text-center text-slate-400 text-xs bg-slate-50/50 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
                   <Sparkles className="h-5 w-5 mx-auto text-slate-300 dark:text-slate-600 mb-1" />
                   <p className="font-medium text-slate-600 dark:text-slate-400">No financial entries detected for this date</p>
@@ -642,19 +698,61 @@ export function DailyFinancialJournalView() {
               {journalData?.notes?.map((n: any) => (
                 <div
                   key={n.id}
-                  className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs space-y-1"
+                  className="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs space-y-2 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-900 dark:text-slate-100">{n.title}</span>
-                    {n.categoryName && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {n.categoryName}
-                      </Badge>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-slate-900 dark:text-slate-100 truncate">{n.title}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {n.notePrimaryMonth && (
+                        <Badge variant="secondary" className="text-[10px] font-medium bg-slate-100 dark:bg-slate-800">
+                          {n.notePrimaryMonth}
+                        </Badge>
+                      )}
+                      {n.categoryName && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {n.categoryName}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Date-specific activity pill & Overall note financial summary */}
+                  <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-100 dark:border-slate-800 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        Today: {n.extractedExpensesCount || 0} entries
+                      </span>
+                      {n.dayIncome > 0 && (
+                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          +{formatCurrency(n.dayIncome)}
+                        </span>
+                      )}
+                      {n.dayExpense > 0 && (
+                        <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                          -{formatCurrency(n.dayExpense)}
+                        </span>
+                      )}
+                    </div>
+
+                    {(n.noteOverallIncome > 0 || n.noteOverallExpense > 0) && (
+                      <div className="flex items-center gap-2 font-mono text-[10px]">
+                        <span className="text-slate-400">Note Total:</span>
+                        {n.noteOverallIncome > 0 && (
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                            Inc: {formatCurrency(n.noteOverallIncome)}
+                          </span>
+                        )}
+                        {n.noteOverallExpense > 0 && (
+                          <span className="font-bold text-rose-600 dark:text-rose-400">
+                            Exp: {formatCurrency(n.noteOverallExpense)}
+                          </span>
+                        )}
+                        <span className={`font-bold ${(n.noteNetCashflow || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                          Net: {(n.noteNetCashflow || 0) >= 0 ? "+" : ""}{formatCurrency(n.noteNetCashflow || 0)}
+                        </span>
+                      </div>
                     )}
                   </div>
-                  <p className="text-slate-600 dark:text-slate-400 line-clamp-2 text-[11px]">
-                    {n.plainText || "No content"}
-                  </p>
                 </div>
               ))}
 

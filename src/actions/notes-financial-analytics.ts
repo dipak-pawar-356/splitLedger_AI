@@ -8,8 +8,10 @@ import { appCache } from "@/lib/cache";
 import {
   extractExpensesFromNote,
   aggregateFinancialNotes,
+  getNoteFinancialSummary,
   FinancialNotesAnalysisResult,
   ExtractedNoteExpense,
+  NoteFinancialSummary,
 } from "@/lib/notes/financial-note-analyzer";
 
 /**
@@ -55,14 +57,20 @@ export async function analyzeSingleNoteContentAction(
   noteTitle?: string
 ): Promise<{
   expenses: ExtractedNoteExpense[];
-  totalAmount: number;
+  summary: NoteFinancialSummary;
+  totalAmount: number; // backward-compatibility: totalExpense
+  totalExpense: number;
+  totalIncome: number;
+  totalReceivable: number;
+  totalPayable: number;
+  netCashflow: number;
   count: number;
   categories: Array<{ name: string; amount: number; count: number }>;
 }> {
   await requireAuth();
 
   const expenses = extractExpensesFromNote(content, new Date(), noteId, noteTitle);
-  const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const summary = getNoteFinancialSummary(expenses, noteTitle);
 
   const catMap = new Map<string, { amount: number; count: number }>();
   expenses.forEach((e) => {
@@ -80,7 +88,13 @@ export async function analyzeSingleNoteContentAction(
 
   return {
     expenses,
-    totalAmount,
+    summary,
+    totalAmount: summary.totalExpense,
+    totalExpense: summary.totalExpense,
+    totalIncome: summary.totalIncome,
+    totalReceivable: summary.totalReceivable,
+    totalPayable: summary.totalPayable,
+    netCashflow: summary.netCashflow,
     count: expenses.length,
     categories,
   };
