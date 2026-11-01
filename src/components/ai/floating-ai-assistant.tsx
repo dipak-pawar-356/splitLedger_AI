@@ -72,7 +72,15 @@ export function FloatingAIAssistant() {
     setLoading(true);
 
     try {
-      const response = await askFinancialAssistant(query.trim());
+      // Find active pending drafts from the most recent assistant message with drafts
+      const latestWithDrafts = [...messages]
+        .reverse()
+        .find((m) => m.role === "assistant" && m.detectedTransactions && m.detectedTransactions.length > 0);
+      const activeDrafts = latestWithDrafts?.detectedTransactions?.filter(
+        (t) => t.status !== "approved" && t.status !== "cancelled"
+      );
+
+      const response = await askFinancialAssistant(query.trim(), activeDrafts);
       const assistantMsg: Message = {
         id: `ai_${Date.now()}`,
         role: "assistant",
@@ -229,20 +237,34 @@ export function FloatingAIAssistant() {
                       </div>
                     )}
 
-                    {/* Render action suggestions only when NO detected transaction cards exist */}
-                    {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (!msg.detectedTransactions || msg.detectedTransactions.length === 0) && (
-                      <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                        {msg.actionSuggestions.map((act, idx) => (
-                          <Link key={idx} href={act.url}>
+                    {/* Render action suggestions & payment method quick chips */}
+                    {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                        {msg.actionSuggestions.map((act, idx) =>
+                          act.url.startsWith("action:payment:") ? (
                             <button
+                              key={idx}
                               type="button"
-                              className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary font-medium flex items-center gap-0.5 transition-colors cursor-pointer"
+                              onClick={() => {
+                                const val = act.url.replace("action:payment:", "");
+                                handleSend(val);
+                              }}
+                              className="text-[11px] px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
                             >
                               <span>{act.label}</span>
-                              <ArrowUpRight className="h-2.5 w-2.5" />
                             </button>
-                          </Link>
-                        ))}
+                          ) : (
+                            <Link key={idx} href={act.url}>
+                              <button
+                                type="button"
+                                className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary font-medium flex items-center gap-0.5 transition-colors cursor-pointer"
+                              >
+                                <span>{act.label}</span>
+                                <ArrowUpRight className="h-2.5 w-2.5" />
+                              </button>
+                            </Link>
+                          )
+                        )}
                       </div>
                     )}
                   </div>

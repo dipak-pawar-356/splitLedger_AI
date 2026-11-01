@@ -189,8 +189,8 @@ function extractAmount(text: string): { amount: number | null; matchedText: stri
     }
   }
 
-  // Pattern 4: "for 500", "of 120", "paid 2500", "spent 1000", "cost 50"
-  const prepositionRegex = /(?:for|of|paid|spent|gave|received|got|cost)\s+([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)/i;
+  // Pattern 4: "for 500", "of 120", "paid 2500", "spent 1000", "take 500", "give 400"
+  const prepositionRegex = /(?:for|of|paid|spent|gave|received|got|cost|take|collect|pay|give|send|lend|borrow|transfer)\s+([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)/i;
   const prepMatch = text.match(prepositionRegex);
   if (prepMatch) {
     const rawNum = prepMatch[1].replace(/,/g, "");
@@ -200,8 +200,8 @@ function extractAmount(text: string): { amount: number | null; matchedText: stri
     }
   }
 
-  // Pattern 5: Number before "for" or "on": "20 for water bottle", "50 on bus"
-  const numBeforePrepRegex = /\b([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s+(?:for|on)\b/i;
+  // Pattern 5: Number before "for", "on", "from", "to": "20 for water bottle", "500 from kartik"
+  const numBeforePrepRegex = /\b([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s+(?:for|on|from|to)\b/i;
   const numBeforePrepMatch = text.match(numBeforePrepRegex);
   if (numBeforePrepMatch) {
     const rawNum = numBeforePrepMatch[1].replace(/,/g, "");
@@ -231,7 +231,20 @@ function extractAmount(text: string): { amount: number | null; matchedText: stri
     }
   }
 
-  // Pattern 8: Word number (e.g. "fifty rupees", "two hundred", "twenty")
+  // Pattern 8: Any standalone financial amount in sentence (ignoring dates/years/phone numbers)
+  const generalNumRegex = /\b([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\b/g;
+  let numMatch: RegExpExecArray | null;
+  while ((numMatch = generalNumRegex.exec(text)) !== null) {
+    const raw = numMatch[1].replace(/,/g, "");
+    const val = parseFloat(raw);
+    const isYear = val >= 2020 && val <= 2035;
+    const isPhoneOrTimestamp = raw.length >= 7;
+    if (!isNaN(val) && val > 0 && !isYear && !isPhoneOrTimestamp) {
+      return { amount: val, matchedText: numMatch[0] };
+    }
+  }
+
+  // Pattern 9: Word number (e.g. "fifty rupees", "two hundred", "twenty")
   const wordAmt = parseWordNumber(text);
   if (wordAmt && wordAmt > 0) {
     return { amount: wordAmt, matchedText: "word_number" };
@@ -244,9 +257,72 @@ function extractAmount(text: string): { amount: number | null; matchedText: stri
  * Determine transaction type based on language context
  */
 function determineTransactionType(text: string): "paid" | "received" | "lent" | "borrowed" {
-  const lower = text.toLowerCase();
+  const lower = text.toLowerCase().trim();
 
-  // Lending to someone
+  // 1. RECEIVABLES (Money owed to user / to be collected from peer -> lent)
+  if (
+    lower.includes("need to take") ||
+    lower.includes("need to receive") ||
+    lower.includes("need to collect") ||
+    lower.includes("have to collect") ||
+    lower.includes("have to take") ||
+    lower.includes("to collect") ||
+    lower.includes("collect from") ||
+    lower.includes("take from") ||
+    lower.includes("owes me") ||
+    lower.includes("owe me") ||
+    lower.includes("has to give") ||
+    lower.includes("to give me") ||
+    lower.includes("receivable")
+  ) {
+    return "lent";
+  }
+
+  // 2. PAYABLES (Money user owes to peer or pending bills -> borrowed)
+  if (
+    lower.includes("need to pay") ||
+    lower.includes("need to give") ||
+    lower.includes("need to return") ||
+    lower.includes("have to pay") ||
+    lower.includes("have to give") ||
+    lower.includes("have to return") ||
+    lower.includes("pending bill") ||
+    lower.includes("pay bill") ||
+    lower.includes("pay emi") ||
+    lower.includes("pay electricity") ||
+    lower.includes("i owe") ||
+    lower.includes("owe ") ||
+    lower.includes("borrowed from") ||
+    lower.includes("borrow from") ||
+    lower.includes("took from") ||
+    lower.includes("loan from") ||
+    lower.includes("payable")
+  ) {
+    return "borrowed";
+  }
+
+  // 3. INCOME (Money received / salary / refunds / credits -> received)
+  if (
+    lower.includes("received") ||
+    lower.includes("salary") ||
+    lower.includes("refund") ||
+    lower.includes("cashback") ||
+    lower.includes("bonus") ||
+    lower.includes("interest") ||
+    lower.includes("dividend") ||
+    lower.includes("commission") ||
+    lower.includes("credit") ||
+    lower.includes("earned") ||
+    lower.includes("income") ||
+    lower.includes("deposited") ||
+    lower.includes("paid me") ||
+    lower.includes("returned ") ||
+    lower.includes("got ")
+  ) {
+    return "received";
+  }
+
+  // 4. LENDING / GIVING (Gave money to contact -> lent)
   if (
     lower.includes("gave ") ||
     lower.includes("give ") ||
@@ -259,32 +335,7 @@ function determineTransactionType(text: string): "paid" | "received" | "lent" | 
     return "lent";
   }
 
-  // Borrowing from someone
-  if (
-    lower.includes("borrowed from") ||
-    lower.includes("borrow from") ||
-    lower.includes("took from") ||
-    lower.includes("loan from")
-  ) {
-    return "borrowed";
-  }
-
-  // Receiving money / Income
-  if (
-    lower.includes("received") ||
-    lower.includes("got ") ||
-    lower.includes("salary") ||
-    lower.includes("refund") ||
-    lower.includes("cashback") ||
-    lower.includes("earned") ||
-    lower.includes("income") ||
-    lower.includes("credit") ||
-    lower.includes("deposited")
-  ) {
-    return "received";
-  }
-
-  // Default is Expense
+  // Default is Expense (paid)
   return "paid";
 }
 
@@ -478,29 +529,53 @@ function matchContact(
   clarificationNeeded?: boolean;
   clarificationOptions?: Array<{ id: number; name: string }>;
 } {
-  if (!userContacts || userContacts.length === 0) {
-    return { contactId: null, contactName: null };
+  const lower = text.toLowerCase();
+
+  // First try matching against registered database contacts
+  if (userContacts && userContacts.length > 0) {
+    const matching = userContacts.filter((c) => {
+      const firstName = c.name.split(" ")[0].toLowerCase();
+      const fullName = c.name.toLowerCase();
+      return (
+        (firstName.length >= 3 && lower.includes(firstName)) ||
+        lower.includes(fullName)
+      );
+    });
+
+    if (matching.length === 1) {
+      return { contactId: matching[0].id, contactName: matching[0].name };
+    } else if (matching.length > 1) {
+      return {
+        contactId: null,
+        contactName: matching[0].name.split(" ")[0],
+        clarificationNeeded: true,
+        clarificationOptions: matching.map((m) => ({ id: m.id, name: m.name })),
+      };
+    }
   }
 
-  const lower = text.toLowerCase();
-  const matching = userContacts.filter((c) => {
-    const firstName = c.name.split(" ")[0].toLowerCase();
-    const fullName = c.name.toLowerCase();
-    return (
-      (firstName.length >= 3 && lower.includes(firstName)) ||
-      lower.includes(fullName)
-    );
-  });
+  // Natural language contact extraction for unregistered peers
+  // e.g. "from Kunal", "to Rahul", "paid Rahul", "take from Kartik", "collect from Amol", "receive Rohit"
+  const namePatterns = [
+    /(?:from|to|pay|paid|give|gave|return|returned|collect\s+from|take\s+from|receive\s+from|receive)\s+([A-Z][a-z]+)/,
+    /([A-Z][a-z]+)\s+(?:paid\s+me|owes\s+me|returned|has\s+to\s+give)/i,
+    /(?:need\s+to\s+pay|need\s+to\s+take\s+from|need\s+to\s+give|need\s+to\s+return|need\s+to\s+receive|need\s+to\s+collect\s+from)\s+([A-Za-z]+)/i,
+  ];
 
-  if (matching.length === 1) {
-    return { contactId: matching[0].id, contactName: matching[0].name };
-  } else if (matching.length > 1) {
-    return {
-      contactId: null,
-      contactName: matching[0].name.split(" ")[0],
-      clarificationNeeded: true,
-      clarificationOptions: matching.map((m) => ({ id: m.id, name: m.name })),
-    };
+  for (const pat of namePatterns) {
+    const match = text.match(pat);
+    if (match && match[1]) {
+      const rawName = match[1].trim();
+      const forbiddenWords = [
+        "salary", "petrol", "chips", "tea", "bill", "flipkart", "amazon", "recharge",
+        "groceries", "mess", "hotel", "coffee", "food", "bus", "train", "water", "bottle",
+        "order", "wifi", "rent", "emi"
+      ];
+      if (!forbiddenWords.includes(rawName.toLowerCase()) && rawName.length >= 3) {
+        const capitalized = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
+        return { contactId: null, contactName: capitalized };
+      }
+    }
   }
 
   return { contactId: null, contactName: null };
@@ -539,63 +614,95 @@ function formatTitleAndDescription(
 ): { title: string; description: string } {
   const lower = rawText.toLowerCase();
 
-  // Specific high-precision domain naming
-  if (lower.includes("water bottle") || lower.includes("watter bottle") || (lower.includes("water") && !lower.includes("bill"))) {
+  // If receivable or payable with a peer
+  if (type === "lent" && contactName) {
+    if (lower.includes("need to take") || lower.includes("take from")) {
+      return { title: `Need to take from ${contactName}`, description: `Receivable from ${contactName}` };
+    }
+    if (lower.includes("need to receive") || lower.includes("receive from") || lower.includes("receive ")) {
+      return { title: `Need to receive from ${contactName}`, description: `Receivable from ${contactName}` };
+    }
+    if (lower.includes("collect from")) {
+      return { title: `Collect from ${contactName}`, description: `Receivable from ${contactName}` };
+    }
+    if (lower.includes("owes me")) {
+      return { title: `${contactName} owes me`, description: `Receivable from ${contactName}` };
+    }
+    return { title: `Receivable from ${contactName}`, description: `Receivable from ${contactName}` };
+  }
+
+  if (type === "borrowed" && contactName) {
+    if (lower.includes("need to pay")) {
+      return { title: `Need to pay ${contactName}`, description: `Payable to ${contactName}` };
+    }
+    if (lower.includes("need to give")) {
+      return { title: `Need to give ${contactName}`, description: `Payable to ${contactName}` };
+    }
+    if (lower.includes("need to return")) {
+      return { title: `Need to return to ${contactName}`, description: `Payable to ${contactName}` };
+    }
+    return { title: `Payable to ${contactName}`, description: `Pending payment to ${contactName}` };
+  }
+
+  if (type === "received") {
+    if (lower.includes("salary")) {
+      return { title: "Salary Credited", description: "Monthly Salary Credited" };
+    }
+    if (contactName && (lower.includes("received from") || lower.includes("paid me") || lower.includes("returned"))) {
+      return { title: `Received from ${contactName}`, description: `Payment received from ${contactName}` };
+    }
+    if (lower.includes("cashback")) {
+      return { title: "Cashback Received", description: "Cashback Reward" };
+    }
+    if (lower.includes("refund")) {
+      if (lower.includes("amazon")) return { title: "Amazon Refund", description: "Refund from Amazon" };
+      if (lower.includes("flipkart")) return { title: "Flipkart Refund", description: "Refund from Flipkart" };
+      return { title: "Refund Received", description: "Refund Amount" };
+    }
+    if (lower.includes("bonus")) {
+      return { title: "Bonus Received", description: "Bonus Credit" };
+    }
+  }
+
+  // Domain item naming
+  if (lower.includes("water bottle") || lower.includes("watter bottle")) {
     return { title: "Water bottle", description: "Purchased Water Bottle" };
+  }
+  if (lower.includes("flipkart")) {
+    return { title: "Flipkart Order", description: "Flipkart Order Purchase" };
+  }
+  if (lower.includes("amazon") && !lower.includes("refund")) {
+    return { title: "Amazon Order", description: "Amazon Order Purchase" };
+  }
+  if (lower.includes("recharge")) {
+    return { title: "Mobile Recharge", description: "Mobile Recharge" };
+  }
+  if (lower.includes("electric bill") || lower.includes("light bill") || lower.includes("electricity")) {
+    return { title: "Electric Bill", description: "Monthly Electricity Bill" };
+  }
+  if (lower.includes("mess")) {
+    return { title: "Mess Food", description: "Mess Meal Expense" };
+  }
+  if (lower.includes("tea") || lower.includes("chai")) {
+    return { title: "Tea", description: "Tea Purchase" };
+  }
+  if (lower.includes("coffee")) {
+    return { title: "Coffee", description: "Coffee Purchase" };
+  }
+  if (lower.includes("petrol") || lower.includes("fuel") || lower.includes("diesel")) {
+    return { title: "Petrol", description: "Fuel Refill Expense" };
+  }
+  if (lower.includes("chips")) {
+    return { title: "Chips", description: "Chips & Snacks Purchase" };
+  }
+  if (lower.includes("groceries") || lower.includes("grocery") || lower.includes("kirana")) {
+    return { title: "Groceries", description: "Grocery Supplies Purchase" };
   }
   if (lower.includes("bus") || lower.includes("travel by bus")) {
     return { title: "Bus Travel Fare", description: "Bus Travel Fare" };
   }
-  if (lower.includes("metro") || lower.includes("train")) {
-    return { title: "Train & Metro Ticket", description: "Metro / Train Travel Fare" };
-  }
-  if (lower.includes("uber") || lower.includes("ola") || lower.includes("cab") || lower.includes("taxi") || lower.includes("auto") || lower.includes("rapido")) {
-    return { title: "Cab Travel Fare", description: "Cab Travel Fare" };
-  }
-  if (lower.includes("petrol") || lower.includes("fuel") || lower.includes("diesel")) {
-    return { title: "Fuel Refill", description: "Fuel Refill Expense" };
-  }
-  if (lower.includes("tea") || lower.includes("chai")) {
-    return { title: "Tea Purchase", description: "Tea Purchase" };
-  }
-  if (lower.includes("coffee") || lower.includes("cafe")) {
-    return { title: "Coffee Purchase", description: "Coffee Purchase" };
-  }
-  if (lower.includes("lunch")) {
-    return { title: "Lunch at Restaurant", description: "Lunch at Restaurant" };
-  }
-  if (lower.includes("dinner")) {
-    return { title: "Dinner Expense", description: "Dinner at Restaurant" };
-  }
-  if (lower.includes("breakfast") || lower.includes("samosa")) {
-    return { title: "Breakfast & Snacks", description: "Breakfast & Snacks Purchase" };
-  }
-  if (lower.includes("chips")) {
-    return { title: "Chips & Snacks", description: "Chips & Snacks Purchase" };
-  }
-  if (lower.includes("movie") || lower.includes("cinema") || lower.includes("theater") || lower.includes("theatre")) {
-    return { title: "Movie Tickets", description: "Movie Tickets & Entertainment" };
-  }
-  if (lower.includes("internet") || lower.includes("wifi") || lower.includes("broadband")) {
-    return { title: "Monthly Internet Bill", description: "Monthly Internet Bill" };
-  }
-  if (lower.includes("electricity") || lower.includes("power") || lower.includes("light bill")) {
-    return { title: "Monthly Electricity Bill", description: "Monthly Electricity Bill" };
-  }
-  if (lower.includes("groceries") || lower.includes("grocery") || lower.includes("kirana")) {
-    return { title: "Grocery Supplies", description: "Grocery Supplies Purchase" };
-  }
-  if (lower.includes("medicine") || lower.includes("medical") || lower.includes("pharmacy") || lower.includes("doctor")) {
-    return { title: "Pharmacy & Healthcare", description: "Pharmacy & Healthcare Expense" };
-  }
-  if (lower.includes("parking") || lower.includes("toll")) {
-    return { title: "Vehicle Parking Fee", description: "Vehicle Parking Fee" };
-  }
-  if (lower.includes("gym") || lower.includes("fitness")) {
-    return { title: "Gym Membership", description: "Gym & Fitness Expense" };
-  }
 
-  // Strip out currency, number words, and conversational fillers
+  // Clean rawText
   let cleaned = rawText
     .replace(/(?:₹|rs\.?|inr)\s*[0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?/gi, "")
     .replace(/\b[0-9]+(?:\.[0-9]{1,2})?\s*(?:rs|rupees|inr|bucks|\/-)\b/gi, "")
@@ -609,10 +716,8 @@ function formatTitleAndDescription(
     .replace(/\s+/g, " ")
     .trim();
 
-  // Strip leading prepositions: "on petrol" -> "petrol", "from amit" -> "amit"
   cleaned = cleaned.replace(/^(on|from|to|for|of|with|in)\s+/i, "").trim();
 
-  // If text is empty or purely filler
   if (!cleaned || cleaned.length < 2) {
     if (type === "lent" && contactName) cleaned = `Payment to ${contactName}`;
     else if (type === "received" && contactName) cleaned = `Received from ${contactName}`;
@@ -620,93 +725,88 @@ function formatTitleAndDescription(
     else cleaned = `${categoryName} Expense`;
   }
 
-  // Capitalize properly in Title Case
   const title = cleaned
     .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ");
 
-  let description = title;
-  if (type === "paid") {
-    description = `${title} Purchase`;
-  } else if (type === "received") {
-    description = contactName ? `Received from ${contactName}` : `Received ${title}`;
-  } else if (type === "lent" && contactName) {
-    description = `Gave ${contactName} for ${title}`;
-  } else if (type === "borrowed" && contactName) {
-    description = `Borrowed from ${contactName}`;
-  }
-
-  return { title, description };
+  return { title, description: title };
 }
 
 /**
  * Splits conversational multi-transaction input intelligently.
- * Connected by: and, ,, then, also, plus, &, +, after, before, followed by, \n+, etc.
+ * Connected by: and, ,, then, also, plus, &, +, newlines, or multi-item token streams.
  * Separates transactions whenever multiple independent expenses/purchases are present.
  */
 function segmentMultiTransactionMessage(message: string): string[] {
-  const trimmed = message.trim();
-  if (!trimmed) return [];
+  let cleanText = message.trim();
+  if (!cleanText) return [];
 
-  // Delimiters: newlines, semicolons, commas, or conjunction words
-  const delimiterRegex = /(\r?\n+|;\s*|,\s*|\s+(?:and\s+then|also\s+bought|also\s+spent|and\s+also|followed\s+by|after|before|and|then|also|plus|&|\+)\s+)/i;
+  // Strip conversational preamble if present
+  cleanText = cleanText.replace(
+    /^(?:i\s+(?:made|make|have|want\s+to\s+make|spent|did)|here\s+(?:are|is)|please\s+(?:add|create|record|log)|add|create|log|record|exp[ae]n[cs]es?|below\s+details|details\s+below|so\s+create\s+trans(?:action|ition)s?)[\s\S]*?(?=(?:[A-Z][a-z0-9_-]+\s*[-–—:]\s*\d+|[A-Z][a-z0-9_-]+\s+\d+|\d+\s+[A-Za-z]+|need\s+to|salary|received|paid|chips|petrol|mess|tea|flipkart|amazon|groceries))/i,
+    ""
+  ).trim();
 
-  const rawPieces: string[] = [];
-  let remaining = trimmed;
-
-  while (remaining) {
-    const match = remaining.match(delimiterRegex);
-    if (!match || match.index === undefined) {
-      const lastPiece = remaining.trim();
-      if (lastPiece) rawPieces.push(lastPiece);
-      break;
-    }
-    const piece = remaining.slice(0, match.index).trim();
-    if (piece) rawPieces.push(piece);
-    remaining = remaining.slice(match.index + match[0].length).trim();
-  }
-
-  if (rawPieces.length <= 1) {
-    return [trimmed];
-  }
-
-  // Group candidate pieces into complete transaction clauses based on presence of amounts
+  // Split by newlines first
+  const rawLines = cleanText.split(/\r?\n+/).map((l) => l.trim()).filter(Boolean);
   const clauses: string[] = [];
-  let buffer = "";
 
-  for (let i = 0; i < rawPieces.length; i++) {
-    const piece = rawPieces[i];
-    const candidateCombined = buffer ? `${buffer} and ${piece}` : piece;
-    const pieceHasAmt = extractAmount(piece).amount !== null;
+  for (const rawLine of rawLines) {
+    // Split by commas, semicolons, or conjunctions
+    const subParts = rawLine
+      .split(/[,;]|\s+(?:and\s+then|and\s+also|also\s+bought|also\s+spent|followed\s+by|plus|and|\+)\s+/i)
+      .map((s) => s.trim())
+      .filter(Boolean);
 
-    if (pieceHasAmt) {
-      if (buffer) {
-        if (extractAmount(buffer).amount === null) {
-          // Buffer was just a prefix item without an amount, merge into this piece
-          clauses.push(candidateCombined);
-          buffer = "";
-        } else {
-          clauses.push(buffer);
-          buffer = piece;
+    for (const part of subParts) {
+      // Find all numbers that look like financial amounts
+      const amtRegex = /(?:(?:₹|rs\.?|inr)\s*)?[-–—]?\s*\b([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s*(?:(?:₹|rs\.?|inr|rupees?|\/-)\b)?/gi;
+      const matches: Array<{ fullMatch: string; amount: number; index: number; length: number }> = [];
+      let m: RegExpExecArray | null;
+
+      while ((m = amtRegex.exec(part)) !== null) {
+        const val = parseFloat(m[1].replace(/,/g, ""));
+        const isYear = (val === 2024 || val === 2025 || val === 2026 || val === 2027) && !/(?:₹|rs\.?|inr)/i.test(m[0]);
+        if (!isNaN(val) && val > 0 && !isYear) {
+          matches.push({
+            fullMatch: m[0],
+            amount: val,
+            index: m.index,
+            length: m[0].length,
+          });
+        }
+      }
+
+      if (matches.length <= 1) {
+        clauses.push(part);
+        continue;
+      }
+
+      // Multiple amounts found in a single line / segment!
+      const startsWithAmount = matches[0].index === 0 || /^\s*[-–—]?\s*(?:₹|rs\.?|inr)?[0-9]+/i.test(part);
+
+      if (startsWithAmount) {
+        // [Amount1 Item1] [Amount2 Item2] ...
+        for (let i = 0; i < matches.length; i++) {
+          const start = matches[i].index;
+          const end = i < matches.length - 1 ? matches[i + 1].index : part.length;
+          const chunk = part.slice(start, end).trim();
+          if (chunk) clauses.push(chunk);
         }
       } else {
-        clauses.push(piece);
+        // [Item1 Amount1] [Item2 Amount2] ...
+        for (let i = 0; i < matches.length; i++) {
+          const prevEnd = i === 0 ? 0 : matches[i - 1].index + matches[i - 1].length;
+          const curEnd = matches[i].index + matches[i].length;
+          const chunk = part.slice(prevEnd, curEnd).trim();
+          if (chunk) clauses.push(chunk);
+        }
       }
-    } else {
-      buffer = candidateCombined;
     }
   }
 
-  if (buffer) {
-    if (clauses.length > 0 && extractAmount(buffer).amount === null) {
-      clauses[clauses.length - 1] += ` ${buffer}`;
-    } else {
-      clauses.push(buffer);
-    }
-  }
-
-  return clauses.length > 0 ? clauses : [trimmed];
+  return clauses.length > 0 ? clauses : [cleanText];
 }
 
 /**
@@ -721,7 +821,30 @@ export function parseConversationalMessage(
     return { hasTransactions: false, transactions: [], isIncomplete: false };
   }
 
-  // Exclude pure questions that do not propose a transaction (e.g. "what is my spending?", "who owes me?", "how can I reduce my expenses?")
+  // 1. Check for single bare number (e.g. "500", "₹500", "500 rs")
+  const bareNumberMatch = trimmed.match(/^[-–—]?\s*(?:₹|rs\.?|inr)?\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|rupees?|\/-)?$/i);
+  if (bareNumberMatch) {
+    const amt = parseFloat(bareNumberMatch[1].replace(/,/g, ""));
+    return {
+      hasTransactions: false,
+      transactions: [],
+      isIncomplete: true,
+      clarificationMessage: `I detected an amount of ₹${amt.toLocaleString("en-IN")} but couldn't identify the purpose.\n\nWhat was this transaction for?`,
+    };
+  }
+
+  // 2. Check for generic intent without details (e.g. "Created transaction", "add transaction")
+  const genericIntentRegex = /^(?:please\s+)?(?:created?|add|log|record|make|new)\s+(?:a\s+)?(?:trans(?:action|ition)|exp[ae]n[cs]e|income|bill)s?$/i;
+  if (genericIntentRegex.test(trimmed)) {
+    return {
+      hasTransactions: false,
+      transactions: [],
+      isIncomplete: true,
+      clarificationMessage: `Please tell me the transaction details.\n\nExamples:\n• Petrol 500\n• Salary 25000\n• Need to pay Rahul 500\n• Received from Kunal 1000`,
+    };
+  }
+
+  // Exclude pure questions that do not propose a transaction
   const lower = trimmed.toLowerCase();
   const isQuestion =
     lower.endsWith("?") ||
@@ -821,7 +944,7 @@ export function parseConversationalMessage(
       contactName: contactMatch.contactName,
       groupId: groupMatch.groupId,
       groupName: groupMatch.groupName,
-      paymentMethod,
+      paymentMethod: paymentMethod || "UPI",
       notes: intelligentNotes,
       needsClarification: contactMatch.clarificationNeeded,
       clarificationField: contactMatch.clarificationNeeded ? "contact" : undefined,

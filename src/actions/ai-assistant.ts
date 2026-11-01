@@ -29,6 +29,16 @@ export interface AIAssistantResponse {
   detectedTransactions?: ProposedTransaction[];
 }
 
+function extractPaymentMethodInQuery(text: string): string | null {
+  const lower = text.toLowerCase();
+  if (lower.includes("upi") || lower.includes("gpay") || lower.includes("phonepe") || lower.includes("paytm")) return "UPI";
+  if (lower.includes("cash")) return "Cash";
+  if (lower.includes("credit card") || lower.includes("cc")) return "Credit Card";
+  if (lower.includes("debit card") || lower.includes("dc") || lower.includes("card")) return "Debit Card";
+  if (lower.includes("bank") || lower.includes("netbanking") || lower.includes("neft")) return "Net Banking";
+  return null;
+}
+
 /**
  * Check if a similar transaction already exists within the last 7 days (Duplicate Prevention)
  */
@@ -168,7 +178,10 @@ export async function approveBatchConversationalTransactions(
  * AI Financial Assistant Q&A Engine (100+ Natural Language Queries)
  * Powered entirely by validated PostgreSQL ledger data.
  */
-export async function askFinancialAssistant(question: string): Promise<AIAssistantResponse> {
+export async function askFinancialAssistant(
+  question: string,
+  pendingDrafts?: ProposedTransaction[]
+): Promise<AIAssistantResponse> {
   try {
     let user;
     try {
@@ -190,7 +203,132 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
     const savingsRate = ctx.transactions?.savingsRatePct ?? 0;
 
     // =========================================================================
-    // 0. CHECK FOR CONVERSATIONAL TRANSACTION INTENT (Awaiting User Approval)
+    // 0. CHAT MEMORY: IN-CONVERSATION DRAFT MANAGEMENT (Updates, Removals, Payment Methods)
+    // =========================================================================
+    if (pendingDrafts && pendingDrafts.length > 0) {
+      // 0a. Payment Method Follow-up Selection
+      const paymentMethodOnlyRegex = /^(?:(?:paid\s+)?via|(?:paid\s+)?by|using|method\s+is)?\s*(upi|cash|credit\s+card|debit\s+card|card|net\s*banking|skip)\.?$/i;
+      const pmMatch = qLower.match(paymentMethodOnlyRegex);
+      if (pmMatch) {
+        const rawMethod = pmMatch[1].toLowerCase();
+        let method = "UPI";
+        if (rawMethod === "cash") method = "Cash";
+        else if (rawMethod.includes("credit")) method = "Credit Card";
+        else if (rawMethod.includes("debit") || rawMethod === "card") method = "Debit Card";
+        else if (rawMethod.includes("bank")) method = "Net Banking";
+        else if (rawMethod === "skip") method = pendingDrafts[0].paymentMethod || "UPI";
+
+        const updatedDrafts = pendingDrafts.map((d) => ({
+          ...d,
+          paymentMethod: method,
+          notes: d.notes ? `${d.notes.replace(/Via [A-Za-z ]+ • /, "")} • Via ${method}` : `Via ${method}`,
+        }));
+
+        return {
+          answer: rawMethod === "skip"
+            ? `Kept default payment method for your draft transaction(s).\n\nReview the details below and tap **Approve & Create** to save!`
+            : `Got it! Updated payment method to **${method}** for your pending draft(s).\n\nReview the details below and tap **Approve & Create** when ready!`,
+          insights: [`Set payment method to ${method}`],
+          keyMetrics: [],
+          actionSuggestions: [
+            { label: "View Ledger", url: "/dashboard/transactions" },
+          ],
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          detectedTransactions: updatedDrafts,
+        };
+      }
+
+      // 0b. Modify Draft Amount ("Change petrol to 550", "Make petrol 550", "Update tea to 40")
+      const changeMatch =
+        qLower.match(/^(?:please\s+)?(?:change|update|make|set)\s+(?:the\s+)?([a-z0-9_\s-]+?)\s+(?:to|=)\s*(?:₹|rs\.?)?\s*([0-9]+(?:\.[0-9]{1,2})?)/i) ||
+        qLower.match(/^(?:please\s+)?(?:change|update|make|set)\s+(?:the\s+)?([a-z0-9_\s-]+?)\s+(?:₹|rs\.?)?\s*([0-9]+(?:\.[0-9]{1,2})?)$/i);
+
+      if (changeMatch) {
+        const targetName = changeMatch[1].trim();
+        const newAmt = parseFloat(changeMatch[2]);
+        if (!isNaN(newAmt) && newAmt > 0) {
+          let targetIndex = -1;
+          if (targetName === "amount" || targetName === "this" || targetName === "it" || pendingDrafts.length === 1) {
+            targetIndex = 0;
+          } else {
+            targetIndex = pendingDrafts.findIndex((d) =>
+              d.title.toLowerCase().includes(targetName) ||
+              d.description.toLowerCase().includes(targetName) ||
+              d.categoryName.toLowerCase().includes(targetName)
+            );
+          }
+
+          if (targetIndex !== -1) {
+            const updatedDrafts = [...pendingDrafts];
+            const oldTitle = updatedDrafts[targetIndex].title;
+            updatedDrafts[targetIndex] = {
+              ...updatedDrafts[targetIndex],
+              amount: newAmt,
+            };
+
+            const newTotal = updatedDrafts.reduce((s, x) => s + x.amount, 0);
+
+            return {
+              answer: `I've updated **${oldTitle}** to **₹${newAmt.toLocaleString("en-IN")}**.\n\nThe draft card below has been updated. Total is now **₹${newTotal.toLocaleString("en-IN")}**. Review and tap **Approve & Create** to save!`,
+              insights: [`Updated amount of "${oldTitle}" to ₹${newAmt.toLocaleString("en-IN")}`],
+              keyMetrics: [],
+              actionSuggestions: [
+                { label: "View Ledger", url: "/dashboard/transactions" },
+              ],
+              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              detectedTransactions: updatedDrafts,
+            };
+          }
+        }
+      }
+
+      // 0c. Remove Draft ("Remove the bus fare", "Remove petrol", "Delete chips", "Drop tea")
+      const removeMatch = qLower.match(/^(?:please\s+)?(?:remove|delete|drop|cancel|clear|discard)\s+(?:the\s+)?([a-z0-9_\s-]+?)(?:\s+card|\s+transaction|\s+draft)?$/i);
+      if (removeMatch) {
+        const targetName = removeMatch[1].trim();
+        let targetIndex = -1;
+        if (targetName === "this" || targetName === "all" || targetName === "draft" || targetName === "transaction" || pendingDrafts.length === 1) {
+          targetIndex = targetName === "all" ? -2 : 0;
+        } else {
+          targetIndex = pendingDrafts.findIndex((d) =>
+            d.title.toLowerCase().includes(targetName) ||
+            d.description.toLowerCase().includes(targetName) ||
+            d.categoryName.toLowerCase().includes(targetName)
+          );
+        }
+
+        if (targetIndex === -2) {
+          return {
+            answer: "I've cleared all pending draft transactions.",
+            insights: ["All draft proposals cleared"],
+            keyMetrics: [],
+            actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            detectedTransactions: [],
+          };
+        }
+
+        if (targetIndex !== -1) {
+          const removedTitle = pendingDrafts[targetIndex].title;
+          const remaining = pendingDrafts.filter((_, idx) => idx !== targetIndex);
+          const remainingTotal = remaining.reduce((s, x) => s + x.amount, 0);
+
+          return {
+            answer: remaining.length > 0
+              ? `I've removed **${removedTitle}** from your pending drafts.\n\nYou have **${remaining.length} transaction(s)** remaining totaling **₹${remainingTotal.toLocaleString("en-IN")}**. Review them below.`
+              : `I've removed **${removedTitle}**. All draft transactions have been cleared.`,
+            insights: [`Removed "${removedTitle}" from drafts`],
+            keyMetrics: [],
+            actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            detectedTransactions: remaining,
+          };
+        }
+      }
+    }
+
+    // =========================================================================
+    // 1. CHECK FOR CONVERSATIONAL TRANSACTION INTENT (Awaiting User Approval)
     // =========================================================================
     const [userContacts, userCategories] = await Promise.all([
       db
@@ -222,34 +360,55 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         });
       }
 
-      const txCount = enriched.length;
-      const totalAmt = enriched.reduce((s, x) => s + x.amount, 0);
+      // Check if user is appending to existing pending drafts ("Also add tea 30", "And add tea 30")
+      const isAppending = /^(?:also\s+add|and\s+add|plus\s+add|also|and\s+|plus\s+)/i.test(question);
+      let finalTransactions: ProposedTransaction[] = enriched;
+      if (isAppending && pendingDrafts && pendingDrafts.length > 0) {
+        finalTransactions = [...pendingDrafts, ...enriched];
+      }
+
+      const txCount = finalTransactions.length;
+      const totalAmt = finalTransactions.reduce((s, x) => s + x.amount, 0);
 
       let answer = "";
-      if (txCount === 1) {
-        const item = enriched[0];
+      if (isAppending && pendingDrafts && pendingDrafts.length > 0) {
+        answer = `Added **${enriched.map((x) => x.title).join(", ")}** to your drafts!\n\nYou now have **${txCount} pending transactions** totaling **₹${totalAmt.toLocaleString("en-IN")}**.\n\nTo keep you in control, no database changes have been made yet. Review them below and tap **Approve All (${txCount})** or approve each individually.`;
+      } else if (txCount === 1) {
+        const item = finalTransactions[0];
+        const paymentMethodPrompt = !extractPaymentMethodInQuery(question)
+          ? "\n\n*What payment method was used? Choose below or tap Approve to proceed with UPI.*"
+          : "";
+
         if (item.type === "received") {
-          answer = `Got it! I've drafted an income receipt of **₹${item.amount.toLocaleString("en-IN")}**${item.contactName ? ` from **${item.contactName}**` : ""} categorized under **${item.categoryName}**.\n\nTo ensure your ledger stays accurate, nothing has been saved yet. Please review the details below and tap **Approve & Create** to add it to your records.`;
+          answer = `Got it! I've drafted an income receipt of **₹${item.amount.toLocaleString("en-IN")}**${item.contactName ? ` from **${item.contactName}**` : ""} categorized under **${item.categoryName}**.\n\nTo ensure your ledger stays accurate, nothing has been saved yet. Please review the details below and tap **Approve & Create** to add it to your records.${paymentMethodPrompt}`;
         } else if (item.type === "lent") {
-          answer = `Understood! I've prepared a record for **₹${item.amount.toLocaleString("en-IN")}** given to **${item.contactName || "your friend"}** (${item.categoryName}).\n\nNothing is logged yet. Once you confirm the card below, your mutual balance and personal ledger will be updated immediately.`;
+          answer = `Understood! I've prepared a record for **₹${item.amount.toLocaleString("en-IN")}** given to **${item.contactName || "your friend"}** (${item.categoryName}).\n\nNothing is logged yet. Once you confirm the card below, your mutual balance and personal ledger will be updated immediately.${paymentMethodPrompt}`;
         } else if (item.type === "borrowed") {
-          answer = `Noted! I've prepared a borrowed amount of **₹${item.amount.toLocaleString("en-IN")}** from **${item.contactName || "your contact"}**.\n\nPlease review the proposal below and tap **Approve & Create** to log it.`;
+          answer = `Noted! I've prepared a payable record of **₹${item.amount.toLocaleString("en-IN")}** owed to **${item.contactName || "your contact"}**.\n\nPlease review the proposal below and tap **Approve & Create** to log it.${paymentMethodPrompt}`;
         } else {
-          answer = `I've prepared a draft for your **₹${item.amount.toLocaleString("en-IN")}** expense on **${item.title}** categorized under **${item.categoryName}** (${item.formattedDate} via ${item.paymentMethod || "UPI"}).\n\nTo keep you in complete control, no database changes have been made yet. Review the card below and tap **Approve & Create** to save it!`;
+          answer = `I've prepared a draft for your **₹${item.amount.toLocaleString("en-IN")}** expense on **${item.title}** categorized under **${item.categoryName}** (${item.formattedDate} via ${item.paymentMethod || "UPI"}).\n\nTo keep you in complete control, no database changes have been made yet. Review the card below and tap **Approve & Create** to save it!${paymentMethodPrompt}`;
         }
       } else {
         answer = `I found **${txCount} transactions** in your message totaling **₹${totalAmt.toLocaleString("en-IN")}**.\n\nI've analyzed and categorized each item for you below with context notes. You can make adjustments, approve them individually, or tap **Approve All (${txCount})** to add them to your ledger in a single click!`;
       }
 
+      const paymentSuggestions = [
+        { label: "⚡ UPI", url: "action:payment:UPI" },
+        { label: "💵 Cash", url: "action:payment:Cash" },
+        { label: "💳 Card", url: "action:payment:Card" },
+        { label: "🏦 Net Banking", url: "action:payment:Net Banking" },
+        { label: "⏭️ Skip", url: "action:payment:Skip" },
+      ];
+
       const insights = txCount === 1
         ? [
-            `Classified under "${enriched[0].categoryName}" (${enriched[0].paymentMethod || "UPI"})`,
-            `Transaction scheduled for ${enriched[0].formattedDate}`,
-            enriched[0].contactName ? `Assigned to contact ${enriched[0].contactName}` : enriched[0].groupName ? `Linked to group "${enriched[0].groupName}"` : "Personal expense ledger",
+            `Classified under "${finalTransactions[0].categoryName}" (${finalTransactions[0].paymentMethod || "UPI"})`,
+            `Transaction scheduled for ${finalTransactions[0].formattedDate}`,
+            finalTransactions[0].contactName ? `Assigned to contact ${finalTransactions[0].contactName}` : finalTransactions[0].groupName ? `Linked to group "${finalTransactions[0].groupName}"` : "Personal expense ledger",
           ]
         : [
             `Extracted ${txCount} distinct transactions totaling ₹${totalAmt.toLocaleString("en-IN")}`,
-            `Auto-classified across categories: ${Array.from(new Set(enriched.map((x) => x.categoryName))).join(", ")}`,
+            `Auto-classified across categories: ${Array.from(new Set(finalTransactions.map((x) => x.categoryName))).join(", ")}`,
             "Awaiting your explicit confirmation before writing to database",
           ];
 
@@ -257,12 +416,12 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
         answer,
         insights,
         keyMetrics: [],
-        actionSuggestions: [
+        actionSuggestions: txCount === 1 && !extractPaymentMethodInQuery(question) ? paymentSuggestions : [
           { label: "View Ledger", url: "/dashboard/transactions" },
           { label: "Monthly Budget", url: "/dashboard/ai" },
         ],
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        detectedTransactions: enriched,
+        detectedTransactions: finalTransactions,
       };
     }
 

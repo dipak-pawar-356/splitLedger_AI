@@ -189,5 +189,86 @@ describe("NLP Conversational Transaction Parser", () => {
     expect(res.transactions).toHaveLength(1);
     expect(res.transactions[0].amount).toBe(100);
   });
+
+  it("handles the exact user prompt: 'I make expances below details so create transition Chips - 20 Petrol - 500 Flipkart Order - 300'", () => {
+    const res = parseConversationalMessage(
+      "I make expances below details so create transition Chips - 20 Petrol - 500 Flipkart Order - 300",
+      mockContext
+    );
+    expect(res.hasTransactions).toBe(true);
+    expect(res.transactions).toHaveLength(3);
+    expect(res.transactions[0].amount).toBe(20);
+    expect(res.transactions[0].title).toBe("Chips");
+    expect(res.transactions[0].type).toBe("paid");
+
+    expect(res.transactions[1].amount).toBe(500);
+    expect(res.transactions[1].title).toBe("Petrol");
+    expect(res.transactions[1].type).toBe("paid");
+
+    expect(res.transactions[2].amount).toBe(300);
+    expect(res.transactions[2].title).toBe("Flipkart Order");
+    expect(res.transactions[2].type).toBe("paid");
+  });
+
+  it("handles income & receivable correctly", () => {
+    const res = parseConversationalMessage("Salary 25000\nReceived from Kunal 1500", mockContext);
+    expect(res.hasTransactions).toBe(true);
+    expect(res.transactions).toHaveLength(2);
+    expect(res.transactions[0].amount).toBe(25000);
+    expect(res.transactions[0].type).toBe("received");
+    expect(res.transactions[1].amount).toBe(1500);
+    expect(res.transactions[1].type).toBe("received");
+  });
+
+  it("handles payable & receivable natural phrasing", () => {
+    const payable = parseConversationalMessage("Need to pay Rahul 400", mockContext);
+    expect(payable.hasTransactions).toBe(true);
+    expect(payable.transactions[0].amount).toBe(400);
+    expect(payable.transactions[0].type).toBe("borrowed"); // Payable
+
+    const receivable = parseConversationalMessage("Need to take 500 from Kartik", mockContext);
+    expect(receivable.hasTransactions).toBe(true);
+    expect(receivable.transactions[0].amount).toBe(500);
+    expect(receivable.transactions[0].type).toBe("lent"); // Receivable
+  });
+
+  it("handles mixed 4-transaction input: Petrol 500, Salary 25000, Need to pay Rahul 400, Need to receive Kunal 800", () => {
+    const input = "Petrol 500\nSalary 25000\nNeed to pay Rahul 400\nNeed to receive Kunal 800";
+    const res = parseConversationalMessage(input, mockContext);
+    expect(res.hasTransactions).toBe(true);
+    expect(res.transactions).toHaveLength(4);
+
+    // 1. Petrol 500 (Expense)
+    expect(res.transactions[0].amount).toBe(500);
+    expect(res.transactions[0].type).toBe("paid");
+    expect(res.transactions[0].title).toBe("Petrol");
+
+    // 2. Salary 25000 (Income)
+    expect(res.transactions[1].amount).toBe(25000);
+    expect(res.transactions[1].type).toBe("received");
+    expect(res.transactions[1].title).toContain("Salary");
+
+    // 3. Need to pay Rahul 400 (Payable -> borrowed)
+    expect(res.transactions[2].amount).toBe(400);
+    expect(res.transactions[2].type).toBe("borrowed");
+
+    // 4. Need to receive Kunal 800 (Receivable -> lent)
+    expect(res.transactions[3].amount).toBe(800);
+    expect(res.transactions[3].type).toBe("lent");
+  });
+
+  it("handles bare number clarification: '500'", () => {
+    const res = parseConversationalMessage("500", mockContext);
+    expect(res.hasTransactions).toBe(false);
+    expect(res.isIncomplete).toBe(true);
+    expect(res.clarificationMessage).toContain("₹500");
+  });
+
+  it("handles generic intent clarification: 'Created transaction'", () => {
+    const res = parseConversationalMessage("Created transaction", mockContext);
+    expect(res.hasTransactions).toBe(false);
+    expect(res.isIncomplete).toBe(true);
+    expect(res.clarificationMessage).toContain("Examples");
+  });
 });
 

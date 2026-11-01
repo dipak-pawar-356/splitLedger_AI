@@ -162,7 +162,15 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
     setIsLoading(true);
 
     try {
-      const res = await askFinancialAssistant(trimmed);
+      // Find active pending drafts from the most recent assistant turn
+      const latestWithDrafts = [...messages]
+        .reverse()
+        .find((m) => m.role === "assistant" && m.response?.detectedTransactions && m.response.detectedTransactions.length > 0);
+      const activeDrafts = latestWithDrafts?.response?.detectedTransactions?.filter(
+        (t) => t.status !== "approved" && t.status !== "cancelled"
+      );
+
+      const res = await askFinancialAssistant(trimmed, activeDrafts);
       const assistantTurn: ChatTurn = {
         id: `turn_ai_${Date.now()}`,
         role: "assistant",
@@ -462,17 +470,32 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                       </div>
                     )}
 
-                    {/* Action Suggestion Buttons (rendered only when no transaction approval cards exist) */}
-                    {msg.response && msg.response.actionSuggestions && msg.response.actionSuggestions.length > 0 && (!msg.response.detectedTransactions || msg.response.detectedTransactions.length === 0) && (
+                    {/* Action Suggestion Buttons & Payment Method Quick Chips */}
+                    {msg.response && msg.response.actionSuggestions && msg.response.actionSuggestions.length > 0 && (
                       <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex-wrap">
-                        {msg.response.actionSuggestions.map((act, aIdx) => (
-                          <Link key={aIdx} href={act.url}>
-                            <Button variant="outline" size="sm" className="rounded-xl text-xs h-7.5 px-3 gap-1.5 font-semibold hover:border-primary/50">
+                        {msg.response.actionSuggestions.map((act, aIdx) =>
+                          act.url.startsWith("action:payment:") ? (
+                            <Button
+                              key={aIdx}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const val = act.url.replace("action:payment:", "");
+                                handleSend(val);
+                              }}
+                              className="rounded-xl text-xs h-7.5 px-3 gap-1.5 font-semibold bg-primary/5 hover:bg-primary/15 text-primary border-primary/20 hover:border-primary/50 cursor-pointer shadow-2xs hover:scale-105 active:scale-95 transition-all"
+                            >
                               <span>{act.label}</span>
-                              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
                             </Button>
-                          </Link>
-                        ))}
+                          ) : (
+                            <Link key={aIdx} href={act.url}>
+                              <Button variant="outline" size="sm" className="rounded-xl text-xs h-7.5 px-3 gap-1.5 font-semibold hover:border-primary/50">
+                                <span>{act.label}</span>
+                                <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+                              </Button>
+                            </Link>
+                          )
+                        )}
                       </div>
                     )}
                   </div>

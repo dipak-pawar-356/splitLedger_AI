@@ -141,13 +141,67 @@ interface NotesClientViewProps {
 }
 
 const NOTE_COLORS = [
-  { id: "default", bg: "bg-white dark:bg-slate-900", border: "border-slate-200 dark:border-slate-800", label: "Default" },
-  { id: "blue", bg: "bg-blue-50 dark:bg-blue-950/30", border: "border-blue-200 dark:border-blue-800", label: "Blue" },
-  { id: "green", bg: "bg-emerald-50 dark:bg-emerald-950/30", border: "border-emerald-200 dark:border-emerald-800", label: "Emerald" },
-  { id: "yellow", bg: "bg-amber-50 dark:bg-amber-950/30", border: "border-amber-200 dark:border-amber-800", label: "Amber" },
-  { id: "red", bg: "bg-rose-50 dark:bg-rose-950/30", border: "border-rose-200 dark:border-rose-800", label: "Rose" },
-  { id: "purple", bg: "bg-purple-50 dark:bg-purple-950/30", border: "border-purple-200 dark:border-purple-800", label: "Purple" },
+  {
+    id: "default",
+    label: "Default Slate",
+    dot: "bg-slate-400 dark:bg-slate-500 border-slate-300 dark:border-slate-600",
+    editorBg: "bg-card border-slate-200 dark:border-slate-800",
+    cardBg: "bg-card border-slate-200 dark:border-slate-800",
+    strip: "bg-slate-400 dark:bg-slate-600",
+  },
+  {
+    id: "blue",
+    label: "Ocean Blue",
+    dot: "bg-blue-500 border-blue-400 shadow-xs shadow-blue-500/40",
+    editorBg: "bg-blue-50/80 dark:bg-blue-950/40 border-blue-200/90 dark:border-blue-800/80 shadow-blue-500/5",
+    cardBg: "bg-blue-50/60 dark:bg-blue-950/30 border-blue-200/70 dark:border-blue-900/50",
+    strip: "bg-blue-500",
+  },
+  {
+    id: "green",
+    label: "Emerald Green",
+    dot: "bg-emerald-500 border-emerald-400 shadow-xs shadow-emerald-500/40",
+    editorBg: "bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200/90 dark:border-emerald-800/80 shadow-emerald-500/5",
+    cardBg: "bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-900/50",
+    strip: "bg-emerald-500",
+  },
+  {
+    id: "yellow",
+    label: "Amber Gold",
+    dot: "bg-amber-500 border-amber-400 shadow-xs shadow-amber-500/40",
+    editorBg: "bg-amber-50/80 dark:bg-amber-950/40 border-amber-200/90 dark:border-amber-800/80 shadow-amber-500/5",
+    cardBg: "bg-amber-50/60 dark:bg-amber-950/30 border-amber-200/70 dark:border-amber-900/50",
+    strip: "bg-amber-500",
+  },
+  {
+    id: "red",
+    label: "Rose Red",
+    dot: "bg-rose-500 border-rose-400 shadow-xs shadow-rose-500/40",
+    editorBg: "bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/90 dark:border-rose-800/80 shadow-rose-500/5",
+    cardBg: "bg-rose-50/60 dark:bg-rose-950/30 border-rose-200/70 dark:border-rose-900/50",
+    strip: "bg-rose-500",
+  },
+  {
+    id: "purple",
+    label: "Royal Purple",
+    dot: "bg-purple-500 border-purple-400 shadow-xs shadow-purple-500/40",
+    editorBg: "bg-purple-50/80 dark:bg-purple-950/40 border-purple-200/90 dark:border-purple-800/80 shadow-purple-500/5",
+    cardBg: "bg-purple-50/60 dark:bg-purple-950/30 border-purple-200/70 dark:border-purple-900/50",
+    strip: "bg-purple-500",
+  },
+  {
+    id: "teal",
+    label: "Teal Cyan",
+    dot: "bg-teal-500 border-teal-400 shadow-xs shadow-teal-500/40",
+    editorBg: "bg-teal-50/80 dark:bg-teal-950/40 border-teal-200/90 dark:border-teal-800/80 shadow-teal-500/5",
+    cardBg: "bg-teal-50/60 dark:bg-teal-950/30 border-teal-200/70 dark:border-teal-900/50",
+    strip: "bg-teal-500",
+  },
 ];
+
+function getNoteColorConfig(colorId?: string) {
+  return NOTE_COLORS.find((c) => c.id === colorId) || NOTE_COLORS[0];
+}
 
 export function NotesClientView({
   initialNotesData,
@@ -996,19 +1050,6 @@ export function NotesClientView({
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            onClick={toggleSidebar}
-            className="rounded-xl text-xs gap-1.5 hidden lg:flex h-9 font-medium"
-            title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            suppressHydrationWarning
-          >
-            {isSidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
-            <span>{isSidebarOpen ? "Hide Panel" : "Show Panel"}</span>
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
             onClick={() => setIsQuickNoteOpen(true)}
             className="rounded-xl font-semibold gap-1.5 h-9 text-xs sm:text-sm"
             suppressHydrationWarning
@@ -1029,33 +1070,33 @@ export function NotesClientView({
         </div>
       </div>
 
-      {/* Layout Presets & Independent Panel Toggles Bar */}
-      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 no-print scrollbar-none">
-        {/* Layout Presets (Three Panel, Split View, Focused, Full Screen) */}
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shrink-0">
+      {/* Streamlined Layout Presets & Panels Toolbar */}
+      <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1 no-print scrollbar-none flex-wrap">
+        {/* Layout Presets (3-Panel, Split View, Focused, Full Screen) */}
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shrink-0 shadow-2xs">
           <span className="text-[10px] uppercase font-bold text-slate-400 px-2 hidden sm:inline">Layout:</span>
 
           <button
             type="button"
             onClick={() => applyLayoutMode("three_panel")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               layoutMode === "three_panel"
-                ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
+                ? "bg-white dark:bg-slate-900 text-primary shadow-xs ring-1 ring-primary/20"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
-            title="Three Panel: Sidebar + Notes List + Editor"
+            title="Three Panel: Categories Sidebar + Notes List + Editor"
             suppressHydrationWarning
           >
             <Columns3 className="h-3.5 w-3.5" />
-            <span>Three Panel</span>
+            <span>3-Panel</span>
           </button>
 
           <button
             type="button"
             onClick={() => applyLayoutMode("split")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               layoutMode === "split"
-                ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
+                ? "bg-white dark:bg-slate-900 text-primary shadow-xs ring-1 ring-primary/20"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
             title="Split View: Notes List + Editor"
@@ -1068,9 +1109,9 @@ export function NotesClientView({
           <button
             type="button"
             onClick={() => applyLayoutMode("focused")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               layoutMode === "focused"
-                ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
+                ? "bg-white dark:bg-slate-900 text-primary shadow-xs ring-1 ring-primary/20"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
             title="Focused Editor: Full width distraction-free"
@@ -1083,9 +1124,9 @@ export function NotesClientView({
           <button
             type="button"
             onClick={() => applyLayoutMode("fullscreen")}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
               layoutMode === "fullscreen" || isFullscreen
-                ? "bg-white dark:bg-slate-900 text-primary shadow-xs"
+                ? "bg-white dark:bg-slate-900 text-primary shadow-xs ring-1 ring-primary/20"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
             }`}
             title="Full Screen Mode"
@@ -1096,51 +1137,23 @@ export function NotesClientView({
           </button>
         </div>
 
-        {/* Individual Panel Visibility Toggles */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Button
-            type="button"
-            variant={isSidebarOpen ? "secondary" : "outline"}
-            size="sm"
-            onClick={toggleSidebar}
-            className={`h-7.5 px-2.5 rounded-xl text-xs gap-1.5 font-medium ${
-              isSidebarOpen ? "bg-primary/10 text-primary font-semibold" : "text-slate-600 dark:text-slate-400"
-            }`}
-            title={isSidebarOpen ? "Hide Categories Sidebar" : "Show Categories Sidebar"}
-            suppressHydrationWarning
-          >
-            {isSidebarOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeft className="h-3.5 w-3.5" />}
-            <span className="hidden md:inline">Sidebar</span>
-          </Button>
-
-          <Button
-            type="button"
-            variant={isNotesListOpen ? "secondary" : "outline"}
-            size="sm"
-            onClick={toggleNotesList}
-            className={`h-7.5 px-2.5 rounded-xl text-xs gap-1.5 font-medium ${
-              isNotesListOpen ? "bg-primary/10 text-primary font-semibold" : "text-slate-600 dark:text-slate-400"
-            }`}
-            title={isNotesListOpen ? "Hide Notes List" : "Show Notes List"}
-            suppressHydrationWarning
-          >
-            <Columns className="h-3.5 w-3.5" />
-            <span className="hidden md:inline">Notes List</span>
-          </Button>
-
+        {/* Bottom Widgets Panel Control */}
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             type="button"
             variant={isBottomWidgetsOpen ? "secondary" : "outline"}
             size="sm"
             onClick={toggleBottomWidgets}
-            className={`h-7.5 px-2.5 rounded-xl text-xs gap-1.5 font-medium ${
-              isBottomWidgetsOpen ? "bg-primary/10 text-primary font-semibold" : "text-slate-600 dark:text-slate-400"
+            className={`h-8 px-3 rounded-xl text-xs gap-1.5 font-medium transition-all ${
+              isBottomWidgetsOpen
+                ? "bg-primary/10 text-primary border-primary/30 font-semibold"
+                : "text-slate-600 dark:text-slate-400"
             }`}
-            title={isBottomWidgetsOpen ? "Hide Bottom Panels" : "Show Bottom Panels"}
+            title={isBottomWidgetsOpen ? "Hide Task & Attachment Panels" : "Show Task & Attachment Panels"}
             suppressHydrationWarning
           >
             {isBottomWidgetsOpen ? <PanelBottomClose className="h-3.5 w-3.5" /> : <PanelBottom className="h-3.5 w-3.5" />}
-            <span className="hidden md:inline">Panels</span>
+            <span>{isBottomWidgetsOpen ? "Hide Widgets" : "Show Widgets"}</span>
           </Button>
         </div>
       </div>
@@ -1977,7 +1990,7 @@ export function NotesClientView({
                                     key={c.id}
                                     type="button"
                                     onClick={() => handleBulkAction("color", c.id)}
-                                    className={`h-6 rounded-lg border border-slate-600 ${c.bg} hover:scale-110 transition-transform`}
+                                    className={`h-6 rounded-lg border border-slate-600 ${c.dot} hover:scale-110 transition-transform`}
                                     title={c.label}
                                   />
                                 ))}
@@ -2051,17 +2064,23 @@ export function NotesClientView({
                           const isActive = activeNote?.id === note.id;
                           const isSelected = selectedNoteIds.includes(note.publicId);
                           const isQuick = (note.tags || []).some((t: string) => t.toLowerCase().includes("quick note")) || note.title?.toLowerCase().startsWith("quick note");
+                          const noteColorConfig = getNoteColorConfig(note.color);
 
                           return (
                             <div
                               key={note.id}
                               onClick={() => handleSelectNote(note)}
-                              className={`p-3 rounded-2xl border cursor-pointer transition-all relative group ${
+                              className={`p-3 rounded-2xl border cursor-pointer transition-all relative overflow-hidden group ${
+                                noteColorConfig.cardBg
+                              } ${
                                 isActive
-                                  ? "border-primary bg-primary/5 shadow-xs ring-1 ring-primary/20"
-                                  : "border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                                  ? "ring-2 ring-primary border-primary shadow-sm"
+                                  : "hover:border-slate-300 dark:hover:border-slate-700"
                               } ${isQuick ? "border-l-4 border-l-amber-500" : ""}`}
                             >
+                              {note.color && note.color !== "default" && (
+                                <div className={`absolute top-0 left-0 right-0 h-1 ${noteColorConfig.strip}`} />
+                              )}
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
                                   <button
@@ -2340,7 +2359,9 @@ export function NotesClientView({
                 {activeNote ? (
                   <>
                     <Card
-                      className={`rounded-2xl border shadow-sm p-4 space-y-4 bg-card transition-all ${
+                      className={`rounded-2xl border shadow-sm p-4 space-y-4 transition-all duration-300 ${
+                        getNoteColorConfig(editorColor).editorBg
+                      } ${
                         isFullscreen
                           ? "fixed inset-0 z-50 rounded-none overflow-y-auto p-6 bg-background max-w-none m-0"
                           : ""
@@ -2351,23 +2372,34 @@ export function NotesClientView({
                         <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800 flex-wrap">
                           {/* Color Palette & Auto-save status */}
                           <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                              {NOTE_COLORS.map((c) => (
-                                <button
-                                  key={c.id}
-                                  type="button"
-                                  title={c.label}
-                                  onClick={() => {
-                                    setEditorColor(c.id);
-                                    updateNote(activeNote.publicId, { color: c.id });
-                                  }}
-                                  className={`h-4 w-4 rounded-full border transition-transform ${c.bg} ${
-                                    editorColor === c.id
-                                      ? "scale-125 ring-2 ring-primary ring-offset-1 border-primary"
-                                      : "border-slate-300 dark:border-slate-700 hover:scale-110"
-                                  }`}
-                                />
-                              ))}
+                            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                              {NOTE_COLORS.map((c) => {
+                                const isSelected = (editorColor || "default") === c.id;
+                                return (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    title={c.label}
+                                    onClick={() => {
+                                      setEditorColor(c.id);
+                                      setActiveNote((prev: any) => (prev ? { ...prev, color: c.id } : prev));
+                                      setNotesData((prev: any) => ({
+                                        ...prev,
+                                        notes: (prev?.notes || []).map((n: any) =>
+                                          n.publicId === activeNote?.publicId ? { ...n, color: c.id } : n
+                                        ),
+                                      }));
+                                      updateNote(activeNote.publicId, { color: c.id });
+                                      toast.success(`Color set to ${c.label}`);
+                                    }}
+                                    className={`h-4.5 w-4.5 rounded-full border transition-all duration-200 cursor-pointer ${c.dot} ${
+                                      isSelected
+                                        ? "scale-125 ring-2 ring-primary ring-offset-2 ring-offset-background border-white dark:border-slate-900 shadow-md"
+                                        : "hover:scale-110 opacity-80 hover:opacity-100"
+                                    }`}
+                                  />
+                                );
+                              })}
                             </div>
 
                             {/* Auto-Save Indicator */}
