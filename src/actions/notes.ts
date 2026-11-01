@@ -7,7 +7,12 @@ import { requireAuth } from "@/lib/auth";
 import { generatePublicId, formatDate } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
 import { appCache } from "@/lib/cache";
-import { extractExpensesFromNote } from "@/lib/notes/financial-note-analyzer";
+import {
+  extractExpensesFromNote,
+  getNoteFinancialSummary,
+  type ExtractedNoteExpense,
+  type NoteFinancialSummary,
+} from "@/lib/notes/financial-note-analyzer";
 
 function calculateStatsText(content: string) {
   const plainText = content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -380,6 +385,8 @@ export async function createNote(data: {
       summary: "Initial note creation",
     });
 
+    await logNoteActivity(newNote.id, user.id, "created", `Created note "${newNote.title}"`);
+
     safeRevalidatePath("/dashboard/notes");
     return newNote;
   });
@@ -453,6 +460,17 @@ export async function updateNote(
         content: updated.content,
         summary: data.versionSummary || `Version ${newVersionNum} update`,
       });
+      await logNoteActivity(existing.id, user.id, "edited", data.versionSummary || `Saved version ${newVersionNum}`);
+    } else {
+      if (data.isArchived !== undefined && data.isArchived !== existing.isArchived) {
+        await logNoteActivity(existing.id, user.id, data.isArchived ? "archived" : "unarchived", data.isArchived ? "Archived note" : "Unarchived note");
+      }
+      if (data.tags !== undefined && JSON.stringify(data.tags) !== JSON.stringify(existing.tags)) {
+        await logNoteActivity(existing.id, user.id, "tags_updated", `Updated tags: ${(data.tags || []).join(", ")}`);
+      }
+      if (data.categoryId !== undefined && data.categoryId !== existing.categoryId) {
+        await logNoteActivity(existing.id, user.id, "category_changed", "Changed note category");
+      }
     }
 
     safeRevalidatePath("/dashboard/notes");
@@ -529,6 +547,8 @@ export async function deleteNote(publicId: string, reason?: string) {
       .where(eq(notes.id, existing.id))
       .returning();
 
+    await logNoteActivity(existing.id, user.id, "deleted", reason || "Moved note to trash");
+
     safeRevalidatePath("/dashboard/notes");
     return deleted;
   });
@@ -557,6 +577,8 @@ export async function restoreNote(publicId: string) {
       })
       .where(eq(notes.id, existing.id))
       .returning();
+
+    await logNoteActivity(existing.id, user.id, "restored", "Restored note from trash");
 
     safeRevalidatePath("/dashboard/notes");
     return restored;
@@ -589,6 +611,8 @@ export async function duplicateNote(publicId: string) {
     if (!original) throw new Error("Original note not found");
 
     const newPublicId = generatePublicId("nte");
+    const cleanTitle = (original.title || "Untitled Note").replace(/^Copy of\s+/i, "");
+    const newTitle = `Copy of ${cleanTitle}`;
 
     const [dup] = await db
       .insert(notes)
@@ -596,14 +620,16 @@ export async function duplicateNote(publicId: string) {
         publicId: newPublicId,
         userId: user.id,
         categoryId: original.categoryId,
-        title: `${original.title} (Copy)`,
+        title: newTitle,
         content: original.content,
         plainText: original.plainText,
         color: original.color,
         tags: original.tags,
         isDraft: original.isDraft,
         isPinned: false,
-        isFavorite: original.isFavorite,
+        isFavorite: false,
+        isArchived: false,
+        isDeleted: false,
         version: 1,
         wordCount: original.wordCount,
         characterCount: original.characterCount,
@@ -611,6 +637,49 @@ export async function duplicateNote(publicId: string) {
       })
       .returning();
 
+    // 1. Deep copy checklist tasks
+    const originalTasks = await db
+      .select()
+      .from(noteChecklists)
+      .where(eq(noteChecklists.noteId, original.id));
+
+    for (const t of originalTasks) {
+      await db.insert(noteChecklists).values({
+        publicId: generatePublicId("nchk"),
+        noteId: dup.id,
+        title: t.title,
+        description: t.description,
+        status: t.status,
+        progress: t.progress,
+        taskNotes: t.taskNotes,
+        subtasks: t.subtasks,
+        assignedTo: t.assignedTo,
+        dueDate: t.dueDate,
+        priority: t.priority,
+      });
+    }
+
+    // 2. Deep copy attachments
+    const originalAttachments = await db
+      .select()
+      .from(noteAttachments)
+      .where(eq(noteAttachments.noteId, original.id));
+
+    for (const att of originalAttachments) {
+      await db.insert(noteAttachments).values({
+        publicId: generatePublicId("natt"),
+        noteId: dup.id,
+        userId: user.id,
+        fileName: att.fileName,
+        fileSize: att.fileSize,
+        mimeType: att.mimeType,
+        url: att.url,
+        isVoiceNote: att.isVoiceNote,
+        durationSeconds: att.durationSeconds,
+      });
+    }
+
+    // 3. Create initial version 1 snapshot
     await db.insert(noteVersions).values({
       publicId: generatePublicId("nver"),
       noteId: dup.id,
@@ -618,8 +687,12 @@ export async function duplicateNote(publicId: string) {
       editedBy: user.id,
       title: dup.title,
       content: dup.content,
-      summary: `Duplicated from ${original.title}`,
+      summary: `Initial version (duplicated from "${original.title}")`,
     });
+
+    // 4. Record audit activity logs
+    await logNoteActivity(dup.id, user.id, "created", `Duplicated from "${original.title}"`);
+    await logNoteActivity(original.id, user.id, "duplicated", `Created duplicate "${dup.title}"`);
 
     safeRevalidatePath("/dashboard/notes");
     return dup;
@@ -730,7 +803,7 @@ export async function getNoteVersions(notePublicId: string) {
 
   return await withDbRetry(async () => {
     const [note] = await db
-      .select()
+      .select({ id: notes.id })
       .from(notes)
       .where(and(eq(notes.publicId, notePublicId), eq(notes.userId, user.id)))
       .limit(1);
@@ -738,8 +811,19 @@ export async function getNoteVersions(notePublicId: string) {
     if (!note) return [];
 
     return await db
-      .select()
+      .select({
+        id: noteVersions.id,
+        publicId: noteVersions.publicId,
+        versionNumber: noteVersions.versionNumber,
+        title: noteVersions.title,
+        content: noteVersions.content,
+        summary: noteVersions.summary,
+        createdAt: noteVersions.createdAt,
+        editedBy: noteVersions.editedBy,
+        userName: users.name,
+      })
       .from(noteVersions)
+      .leftJoin(users, eq(noteVersions.editedBy, users.id))
       .where(eq(noteVersions.noteId, note.id))
       .orderBy(desc(noteVersions.versionNumber));
   });
@@ -765,12 +849,15 @@ export async function restoreNoteVersion(notePublicId: string, versionPublicId: 
 
     if (!ver) throw new Error("Version snapshot not found");
 
-    return await updateNote(notePublicId, {
+    const updated = await updateNote(notePublicId, {
       title: ver.title,
       content: ver.content,
       createVersion: true,
       versionSummary: `Restored version ${ver.versionNumber}`,
     });
+
+    await logNoteActivity(note.id, user.id, "version_restored", `Restored snapshot from version ${ver.versionNumber}`);
+    return updated;
   });
 }
 
@@ -2379,80 +2466,941 @@ export async function getNoteActivityLog(notePublicId: string) {
   });
 }
 
-// 8. DOCUMENT EXPORT (PDF, TXT, Markdown, CSV, JSON)
-export async function exportNoteDocument(format: "pdf" | "txt" | "markdown" | "csv" | "json", notePublicId: string) {
+function escapeXml(unsafe: string = ""): string {
+  if (!unsafe) return "";
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// 8. DOCUMENT EXPORT (PDF, DOCX, Markdown, TXT, CSV, JSON)
+export async function exportNoteDocument(
+  format: "pdf" | "docx" | "markdown" | "txt" | "csv" | "json",
+  notePublicId: string
+) {
   const user = await requireAuth();
 
   return await withDbRetry(async () => {
-    const note = await getNoteById(notePublicId);
+    const [note] = await db
+      .select({
+        id: notes.id,
+        publicId: notes.publicId,
+        userId: notes.userId,
+        categoryId: notes.categoryId,
+        title: notes.title,
+        content: notes.content,
+        plainText: notes.plainText,
+        color: notes.color,
+        tags: notes.tags,
+        version: notes.version,
+        wordCount: notes.wordCount,
+        characterCount: notes.characterCount,
+        readingTime: notes.readingTime,
+        createdAt: notes.createdAt,
+        updatedAt: notes.updatedAt,
+        categoryName: noteCategories.name,
+        categoryColor: noteCategories.color,
+        userName: users.name,
+        userEmail: users.email,
+      })
+      .from(notes)
+      .leftJoin(noteCategories, eq(notes.categoryId, noteCategories.id))
+      .leftJoin(users, eq(notes.userId, users.id))
+      .where(and(eq(notes.publicId, notePublicId), eq(notes.userId, user.id)))
+      .limit(1);
+
     if (!note) throw new Error("Note not found");
 
-    const titleSlug = (note.title || "Untitled_Note").replace(/[^a-zA-Z0-9]/g, "_");
+    // Fetch attached tasks / checklists
+    const tasks = await db
+      .select()
+      .from(noteChecklists)
+      .where(eq(noteChecklists.noteId, note.id))
+      .orderBy(asc(noteChecklists.id));
+
+    // Fetch attachments
+    const attachments = await db
+      .select()
+      .from(noteAttachments)
+      .where(eq(noteAttachments.noteId, note.id))
+      .orderBy(asc(noteAttachments.id));
+
+    // Extract dynamic financial intelligence from note content
+    const rawNoteText = note.plainText || (note.content ? note.content.replace(/<[^>]+>/g, "\n") : "");
+    const extractedExpenses: ExtractedNoteExpense[] = extractExpensesFromNote(rawNoteText);
+    const financial: NoteFinancialSummary = getNoteFinancialSummary(extractedExpenses, note.title);
+    const hasFinancial = extractedExpenses.length > 0;
+
+    const titleSlug = (note.title || "Untitled_Note").replace(/[^a-zA-Z0-9_-]/g, "_");
     const dateSlug = new Date().toISOString().split("T")[0];
-    const filename = `${titleSlug}_SplitLedger_AI_${dateSlug}.${format === "markdown" ? "md" : format}`;
+    const authorName = note.userName || user.name || "SplitLedger User";
+    const categoryName = note.categoryName || "General";
+    const tagsList = Array.isArray(note.tags) ? (note.tags as string[]) : [];
+    const tagsString = tagsList.map((t) => (t.startsWith("#") ? t : `#${t}`)).join(", ");
+    const exportTimeStr = new Date().toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const createdStr = new Date(note.createdAt).toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const updatedStr = new Date(note.updatedAt).toLocaleString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    // Record audit activity log for this export
+    await logNoteActivity(note.id, user.id, "exported", `Exported note as ${format.toUpperCase()}`);
 
     if (format === "json") {
+      const filename = `${titleSlug}_SplitLedger_AI_${dateSlug}.json`;
       return {
-        content: JSON.stringify(note, null, 2),
+        content: JSON.stringify(
+          {
+            note: {
+              title: note.title,
+              category: categoryName,
+              tags: tagsList,
+              author: authorName,
+              createdAt: note.createdAt,
+              updatedAt: note.updatedAt,
+              wordCount: note.wordCount,
+              readingTimeMinutes: note.readingTime,
+              content: note.content,
+              plainText: note.plainText,
+            },
+            financialSummary: hasFinancial
+              ? {
+                  totalIncome: financial.totalIncome,
+                  totalExpense: financial.totalExpense,
+                  receivable: financial.totalReceivable,
+                  payable: financial.totalPayable,
+                  netCashflow: financial.netCashflow,
+                  detectedMonth: financial.month,
+                  detectedYear: financial.year,
+                  breakdown: extractedExpenses,
+                }
+              : null,
+            tasks: tasks.map((t) => ({
+              title: t.title,
+              status: t.status,
+              progress: t.progress,
+              description: t.description,
+            })),
+            attachments: attachments.map((a) => ({
+              fileName: a.fileName,
+              fileSize: a.fileSize,
+              mimeType: a.mimeType,
+            })),
+            exportedAt: new Date().toISOString(),
+          },
+          null,
+          2
+        ),
         filename,
         mimeType: "application/json",
       };
     }
 
-    if (format === "txt" || format === "markdown") {
-      const textContent = `# ${note.title}\n\nCreated: ${formatDate(note.createdAt)}\nReading Time: ${note.readingTime} min\nWords: ${note.wordCount}\n\n${note.plainText}`;
-      return {
-        content: textContent,
-        filename,
-        mimeType: "text/plain",
-      };
-    }
-
     if (format === "csv") {
-      const csvContent = `"ID","Title","WordCount","ReadingTime","CreatedAt"\n"${note.publicId}","${note.title}","${note.wordCount}","${note.readingTime}","${formatDate(note.createdAt)}"`;
+      const filename = `${titleSlug}_Financial_Breakdown_${dateSlug}.csv`;
+      const csvLines = [];
+      csvLines.push(`"Report","${(note.title || "Note").replace(/"/g, '""')}"`);
+      csvLines.push(`"Author","${authorName.replace(/"/g, '""')}"`);
+      csvLines.push(`"Category","${categoryName.replace(/"/g, '""')}"`);
+      csvLines.push(`"ExportedAt","${exportTimeStr}"`);
+      csvLines.push("");
+      csvLines.push('"Date","Item Description","Transaction Type","Category","Amount (INR)"');
+
+      if (hasFinancial) {
+        for (const item of extractedExpenses) {
+          csvLines.push(
+            `"${item.date || "General"}","${item.description.replace(/"/g, '""')}","${item.type.toUpperCase()}","${(item.category || "General").replace(/"/g, '""')}","${item.amount.toFixed(2)}"`
+          );
+        }
+        csvLines.push("");
+        csvLines.push(`"TOTAL INCOME","","","","${financial.totalIncome.toFixed(2)}"`);
+        csvLines.push(`"TOTAL EXPENSE","","","","${financial.totalExpense.toFixed(2)}"`);
+        csvLines.push(`"RECEIVABLE","","","","${financial.totalReceivable.toFixed(2)}"`);
+        csvLines.push(`"PAYABLE","","","","${financial.totalPayable.toFixed(2)}"`);
+        csvLines.push(`"NET CASHFLOW","","","","${financial.netCashflow.toFixed(2)}"`);
+      } else {
+        csvLines.push(`"${dateSlug}","No financial items detected in this note","N/A","N/A","0.00"`);
+      }
+
       return {
-        content: csvContent,
+        content: csvLines.join("\n"),
         filename,
         mimeType: "text/csv",
       };
     }
 
-    // Default Printable HTML / PDF Template
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
+    if (format === "markdown") {
+      const filename = `${titleSlug}_SplitLedger_AI_${dateSlug}.md`;
+      let md = `# ${note.title || "Untitled Note"}\n\n`;
+      md += `| Field | Details |\n|---|---|\n`;
+      md += `| **Author** | ${authorName} |\n`;
+      md += `| **Category** | ${categoryName} |\n`;
+      md += `| **Tags** | ${tagsString || "None"} |\n`;
+      md += `| **Created** | ${createdStr} |\n`;
+      md += `| **Last Updated** | ${updatedStr} |\n`;
+      md += `| **Reading Time** | ${note.readingTime || 1} min (${note.wordCount || 0} words) |\n\n`;
+      md += `---\n\n`;
+
+      if (hasFinancial) {
+        md += `## 📊 Financial Analysis Summary\n\n`;
+        md += `| Metric | Amount |\n|---|---|\n`;
+        md += `| **Total Income** | ₹${financial.totalIncome.toLocaleString("en-IN", { minimumFractionDigits: 2 })} |\n`;
+        md += `| **Total Expense** | ₹${financial.totalExpense.toLocaleString("en-IN", { minimumFractionDigits: 2 })} |\n`;
+        md += `| **Receivable (Owed to You)** | ₹${financial.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })} |\n`;
+        md += `| **Payable (You Owe)** | ₹${financial.totalPayable.toLocaleString("en-IN", { minimumFractionDigits: 2 })} |\n`;
+        md += `| **Net Cashflow** | ${financial.netCashflow >= 0 ? "+" : ""}₹${financial.netCashflow.toLocaleString("en-IN", { minimumFractionDigits: 2 })} |\n\n`;
+
+        md += `### 📅 Date-wise Financial Breakdown\n\n`;
+        md += `| Date | Item Description | Flow Type | Category | Amount |\n`;
+        md += `|---|---|---|---|---:|\n`;
+        for (const item of extractedExpenses) {
+          md += `| ${item.date || "General"} | ${item.description} | \`${item.type.toUpperCase()}\` | ${item.category || "General"} | ₹${item.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })} |\n`;
+        }
+        md += `\n---\n\n`;
+      }
+
+      md += `## 📝 Note Content\n\n`;
+      md += `${note.plainText || rawNoteText}\n\n`;
+
+      if (tasks.length > 0) {
+        md += `---\n\n## ✅ Attached Tasks (${tasks.length})\n\n`;
+        for (const t of tasks) {
+          const isDone = t.status === "completed";
+          md += `- [${isDone ? "x" : " "}] **${t.title}**${t.description ? ` — ${t.description}` : ""}${t.progress ? ` (${t.progress}% complete)` : ""}\n`;
+        }
+        md += "\n";
+      }
+
+      if (attachments.length > 0) {
+        md += `---\n\n## 📎 Attachments (${attachments.length})\n\n`;
+        for (const a of attachments) {
+          md += `- **${a.fileName}** (${(a.fileSize / 1024).toFixed(1)} KB)\n`;
+        }
+        md += "\n";
+      }
+
+      md += `---\n*Generated by SplitLedger AI • Financial Intelligence Platform on ${exportTimeStr}*\n`;
+
+      return {
+        content: md,
+        filename,
+        mimeType: "text/markdown",
+      };
+    }
+
+    if (format === "txt") {
+      const filename = `${titleSlug}_SplitLedger_AI_${dateSlug}.txt`;
+      const sep = "================================================================================";
+      const subsep = "--------------------------------------------------------------------------------";
+
+      let txt = `${sep}\n`;
+      txt += `  SPLITLEDGER AI — FINANCIAL NOTE REPORT\n`;
+      txt += `${sep}\n\n`;
+      txt += `# ${note.title || "Untitled Note"}\n\n`;
+      txt += `Title:        ${note.title || "Untitled Note"}\n`;
+      txt += `Author:       ${authorName}\n`;
+      txt += `Category:     ${categoryName}\n`;
+      txt += `Tags:         ${tagsString || "None"}\n`;
+      txt += `Created:      ${createdStr}\n`;
+      txt += `Updated:      ${updatedStr}\n`;
+      txt += `Word Count:   ${note.wordCount || 0} words (${note.readingTime || 1} min read)\n\n`;
+
+      if (hasFinancial) {
+        txt += `${subsep}\n`;
+        txt += `FINANCIAL SUMMARY\n`;
+        txt += `${subsep}\n`;
+        txt += `  Total Income:               ₹${financial.totalIncome.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n`;
+        txt += `  Total Expense:              ₹${financial.totalExpense.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n`;
+        txt += `  Receivable (Owed to You):   ₹${financial.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n`;
+        txt += `  Payable (You Owe):          ₹${financial.totalPayable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n`;
+        txt += `  Net Cashflow:               ${financial.netCashflow >= 0 ? "+" : ""}₹${financial.netCashflow.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\n\n`;
+
+        txt += `${subsep}\n`;
+        txt += `DATE-WISE FINANCIAL BREAKDOWN\n`;
+        txt += `${subsep}\n`;
+        txt += `Date        | Type       | Amount       | Description\n`;
+        txt += `------------+------------+--------------+---------------------------------------\n`;
+        for (const item of extractedExpenses) {
+          const d = (item.date || "General").padEnd(11);
+          const t = item.type.toUpperCase().padEnd(10);
+          const a = `₹${item.amount.toFixed(2)}`.padEnd(12);
+          txt += `${d} | ${t} | ${a} | ${item.description} (${item.category || "General"})\n`;
+        }
+        txt += `\n`;
+      }
+
+      txt += `${subsep}\n`;
+      txt += `NOTE CONTENT\n`;
+      txt += `${subsep}\n`;
+      txt += `${note.plainText || rawNoteText}\n\n`;
+
+      if (tasks.length > 0) {
+        txt += `${subsep}\n`;
+        txt += `ATTACHED TASKS (${tasks.length})\n`;
+        txt += `${subsep}\n`;
+        for (const t of tasks) {
+          const check = t.status === "completed" ? "[X]" : "[ ]";
+          txt += `${check} ${t.title}${t.progress ? ` (${t.progress}%)` : ""}${t.description ? ` - ${t.description}` : ""}\n`;
+        }
+        txt += "\n";
+      }
+
+      if (attachments.length > 0) {
+        txt += `${subsep}\n`;
+        txt += `ATTACHMENTS (${attachments.length})\n`;
+        txt += `${subsep}\n`;
+        for (const a of attachments) {
+          txt += `• ${a.fileName || "File"} (${a.fileSize ? (a.fileSize / 1024).toFixed(1) : "0"} KB)\n`;
+        }
+        txt += "\n";
+      }
+
+      txt += `${sep}\n`;
+      txt += `Exported from SplitLedger AI on ${exportTimeStr}\n`;
+      txt += `${sep}\n`;
+
+      return {
+        content: txt,
+        filename,
+        mimeType: "text/plain",
+      };
+    }
+
+    if (format === "docx") {
+      const filename = `${titleSlug}_SplitLedger_AI_${dateSlug}.docx`;
+      const docxHtml = `
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
-  <title>${note.title} - SplitLedger AI</title>
+  <meta charset='utf-8'>
+  <title>${escapeXml(note.title || "Note")}</title>
+  <!--[if gte mso 9]>
+  <xml>
+    <w:WordDocument>
+      <w:View>Print</w:View>
+      <w:Zoom>100</w:Zoom>
+      <w:DoNotOptimizeForBrowser/>
+    </w:WordDocument>
+  </xml>
+  <![endif]-->
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; color: #0f172a; max-width: 800px; margin: 0 auto; }
-    .header { border-b: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 24px; }
-    h1 { margin: 0 0 8px 0; font-size: 26px; }
-    .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
-    .content { font-size: 14px; line-height: 1.6; }
-    .footer { margin-top: 40px; border-t: 1px solid #e2e8f0; pt: 16px; font-size: 11px; color: #94a3b8; text-align: center; }
+    @page {
+      size: A4 portrait;
+      margin: 1.0in 1.0in 1.0in 1.0in;
+      mso-header-margin: 0.5in;
+      mso-footer-margin: 0.5in;
+    }
+    body {
+      font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.5;
+      color: #0f172a;
+    }
+    .header {
+      border-bottom: 2pt solid #2563eb;
+      padding-bottom: 8pt;
+      margin-bottom: 16pt;
+    }
+    h1 {
+      font-size: 22pt;
+      font-weight: bold;
+      color: #0f172a;
+      margin: 0 0 4pt 0;
+    }
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8pt;
+      font-size: 9.5pt;
+      color: #475569;
+    }
+    .meta-table td {
+      padding: 3pt 6pt;
+      border: 1pt solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .section-title {
+      font-size: 14pt;
+      font-weight: bold;
+      color: #1e293b;
+      margin-top: 18pt;
+      margin-bottom: 8pt;
+      border-bottom: 1pt solid #cbd5e1;
+      padding-bottom: 4pt;
+    }
+    .kpi-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12pt 0;
+    }
+    .kpi-table td {
+      border: 1pt solid #cbd5e1;
+      padding: 8pt;
+      text-align: center;
+      background: #f1f5f9;
+    }
+    .kpi-label { font-size: 8.5pt; color: #64748b; font-weight: bold; text-transform: uppercase; }
+    .kpi-amount { font-size: 13pt; font-weight: bold; margin-top: 4pt; }
+    .income-val { color: #059669; }
+    .expense-val { color: #e11d48; }
+    .net-val { color: #2563eb; }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10pt 0 16pt 0;
+      font-size: 10pt;
+    }
+    .data-table th {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 6pt 8pt;
+      text-align: left;
+      font-size: 9.5pt;
+    }
+    .data-table td {
+      padding: 5pt 8pt;
+      border: 1pt solid #e2e8f0;
+    }
+    .data-table tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+    .content-box {
+      background: #ffffff;
+      border: 1pt solid #e2e8f0;
+      padding: 12pt;
+      margin: 8pt 0;
+      font-size: 10.5pt;
+      line-height: 1.6;
+    }
+    .task-list {
+      margin: 8pt 0;
+      padding-left: 18pt;
+    }
+    .task-item {
+      font-size: 10pt;
+      margin-bottom: 4pt;
+    }
+    .footer {
+      margin-top: 30pt;
+      border-top: 1pt solid #cbd5e1;
+      padding-top: 8pt;
+      font-size: 9pt;
+      color: #94a3b8;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>${note.title}</h1>
-    <div class="meta">
-      Created: ${formatDate(note.createdAt)} | Category: ${note.categoryName || "General"} | Words: ${note.wordCount} | Reading Time: ${note.readingTime} min
+    <div style="font-size: 9pt; color: #2563eb; font-weight: bold; letter-spacing: 1pt; text-transform: uppercase;">
+      SplitLedger AI • Financial Intelligence Report
     </div>
+    <h1>${escapeXml(note.title || "Untitled Note")}</h1>
+    <table class="meta-table">
+      <tr>
+        <td><strong>Author:</strong> ${escapeXml(authorName)}</td>
+        <td><strong>Category:</strong> ${escapeXml(categoryName)}</td>
+        <td><strong>Tags:</strong> ${escapeXml(tagsString || "None")}</td>
+      </tr>
+      <tr>
+        <td><strong>Created:</strong> ${escapeXml(createdStr)}</td>
+        <td><strong>Updated:</strong> ${escapeXml(updatedStr)}</td>
+        <td><strong>Length:</strong> ${note.wordCount || 0} words (${note.readingTime || 1} min read)</td>
+      </tr>
+    </table>
   </div>
-  <div class="content">
-    ${note.content}
+
+  ${
+    hasFinancial
+      ? `
+  <div class="section-title">Financial Summary</div>
+  <table class="kpi-table">
+    <tr>
+      <td>
+        <div class="kpi-label">Total Income</div>
+        <div class="kpi-amount income-val">₹${financial.totalIncome.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </td>
+      <td>
+        <div class="kpi-label">Total Expense</div>
+        <div class="kpi-amount expense-val">₹${financial.totalExpense.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </td>
+      <td>
+        <div class="kpi-label">Receivable</div>
+        <div class="kpi-amount">₹${financial.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </td>
+      <td>
+        <div class="kpi-label">Payable</div>
+        <div class="kpi-amount">₹${financial.totalPayable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </td>
+      <td>
+        <div class="kpi-label">Net Cashflow</div>
+        <div class="kpi-amount net-val">${financial.netCashflow >= 0 ? "+" : ""}₹${financial.netCashflow.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="section-title">Date-wise Financial Breakdown</div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width: 15%;">Date</th>
+        <th style="width: 40%;">Description</th>
+        <th style="width: 15%;">Flow Type</th>
+        <th style="width: 15%;">Category</th>
+        <th style="width: 15%; text-align: right;">Amount (₹)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${extractedExpenses
+        .map(
+          (e: ExtractedNoteExpense) => `
+      <tr>
+        <td>${escapeXml(e.date || "General")}</td>
+        <td><strong>${escapeXml(e.description)}</strong></td>
+        <td>${escapeXml(e.type.toUpperCase())}</td>
+        <td>${escapeXml(e.category || "General")}</td>
+        <td style="text-align: right; font-weight: bold;">₹${e.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+      </tr>`
+        )
+        .join("")}
+    </tbody>
+  </table>
+  `
+      : ""
+  }
+
+  <div class="section-title">Complete Note Content</div>
+  <div class="content-box">
+    ${note.content || escapeXml(rawNoteText).replace(/\n/g, "<br/>")}
   </div>
+
+  ${
+    tasks.length > 0
+      ? `
+  <div class="section-title">Attached Tasks (${tasks.length})</div>
+  <ul class="task-list">
+    ${tasks
+      .map(
+        (t) => `
+    <li class="task-item">
+      <strong>[${t.status === "completed" ? "COMPLETED" : "PENDING"}]</strong> ${escapeXml(t.title)}
+      ${t.description ? ` — <em>${escapeXml(t.description)}</em>` : ""}
+      ${t.progress ? ` (${t.progress}%)` : ""}
+    </li>`
+      )
+      .join("")}
+  </ul>
+  `
+      : ""
+  }
+
+  ${
+    attachments.length > 0
+      ? `
+  <div class="section-title">Attached Files (${attachments.length})</div>
+  <ul class="task-list">
+    ${attachments
+      .map(
+        (a) => `
+    <li class="task-item">
+      📎 <strong>${escapeXml(a.fileName)}</strong> (${(a.fileSize / 1024).toFixed(1)} KB)
+    </li>`
+      )
+      .join("")}
+  </ul>
+  `
+      : ""
+  }
+
   <div class="footer">
-    Generated by SplitLedger AI • Personal Financial Journal
+    Exported from SplitLedger AI • Financial Intelligence Platform on ${escapeXml(exportTimeStr)}<br/>
+    Confidential Financial Record
+  </div>
+</body>
+</html>`;
+
+      return {
+        content: docxHtml,
+        filename,
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      };
+    }
+
+    // Default Printable HTML / PDF Template
+    const filename = `${titleSlug}_SplitLedger_AI_${dateSlug}.pdf`;
+    const printableHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>${escapeXml(note.title || "Note")} - SplitLedger AI</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 15mm 20mm 20mm 20mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      color: #0f172a;
+      background: #ffffff;
+      font-size: 13px;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .report-container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .report-brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid #2563eb;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .brand-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #2563eb;
+      text-transform: uppercase;
+    }
+    .brand-tagline {
+      font-size: 10px;
+      color: #64748b;
+    }
+    h1.note-title {
+      font-size: 26px;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 0 0 10px 0;
+      line-height: 1.25;
+    }
+    .meta-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      background: #f1f5f9;
+      color: #334155;
+      font-weight: 500;
+      border: 1px solid #e2e8f0;
+    }
+    .pill strong { margin-right: 4px; color: #0f172a; }
+    .section-header {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #1e293b;
+      margin: 24px 0 12px 0;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .kpi-card {
+      padding: 12px;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+    .kpi-label {
+      font-size: 9.5px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .kpi-value {
+      font-size: 15px;
+      font-weight: 800;
+    }
+    .text-emerald { color: #059669; }
+    .text-rose { color: #e11d48; }
+    .text-amber { color: #d97706; }
+    .text-blue { color: #2563eb; }
+    table.breakdown-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      font-size: 12px;
+      page-break-inside: avoid;
+    }
+    table.breakdown-table th {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 8px 10px;
+      font-weight: 600;
+      text-align: left;
+      font-size: 11px;
+    }
+    table.breakdown-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    table.breakdown-table tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-expense { background: #fee2e2; color: #991b1b; }
+    .badge-income { background: #dcfce7; color: #166534; }
+    .badge-receivable { background: #fef3c7; color: #92400e; }
+    .badge-payable { background: #ffedd5; color: #9a3412; }
+    .content-container {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .tasks-list, .attachments-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 24px 0;
+    }
+    .task-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      background: #f8fafc;
+      page-break-inside: avoid;
+    }
+    .task-check {
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .task-completed { text-decoration: line-through; color: #94a3b8; }
+    .report-footer {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 16px;
+      margin-top: 36px;
+      text-align: center;
+      font-size: 10px;
+      color: #94a3b8;
+      page-break-inside: avoid;
+    }
+    @media print {
+      body { background: #fff !important; }
+      .no-print { display: none !important; }
+      .report-container { padding: 0 !important; width: 100% !important; max-width: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="report-container">
+    <div class="report-brand">
+      <div>
+        <div class="brand-title">SplitLedger AI</div>
+        <div class="brand-tagline">Financial Intelligence & Journal Platform</div>
+      </div>
+      <div style="text-align: right; font-size: 10px; color: #64748b;">
+        Official Document<br/>${escapeXml(exportTimeStr)}
+      </div>
+    </div>
+
+    <h1 class="note-title">${escapeXml(note.title || "Untitled Note")}</h1>
+
+    <div class="meta-pills">
+      <div class="pill"><strong>Author:</strong> ${escapeXml(authorName)}</div>
+      <div class="pill"><strong>Category:</strong> ${escapeXml(categoryName)}</div>
+      ${tagsString ? `<div class="pill"><strong>Tags:</strong> ${escapeXml(tagsString)}</div>` : ""}
+      <div class="pill"><strong>Created:</strong> ${escapeXml(createdStr)}</div>
+      <div class="pill"><strong>Last Modified:</strong> ${escapeXml(updatedStr)}</div>
+    </div>
+
+    ${
+      hasFinancial
+        ? `
+    <div class="section-header">Financial Summary</div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Income</div>
+        <div class="kpi-value text-emerald">₹${financial.totalIncome.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Expense</div>
+        <div class="kpi-value text-rose">₹${financial.totalExpense.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Receivable</div>
+        <div class="kpi-value text-amber">₹${financial.totalReceivable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Payable</div>
+        <div class="kpi-value text-amber">₹${financial.totalPayable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Net Cashflow</div>
+        <div class="kpi-value ${financial.netCashflow >= 0 ? "text-emerald" : "text-rose"}">${financial.netCashflow >= 0 ? "+" : ""}₹${financial.netCashflow.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</div>
+      </div>
+    </div>
+
+    <div class="section-header">Date-wise Financial Breakdown</div>
+    <table class="breakdown-table">
+      <thead>
+        <tr>
+          <th style="width: 14%;">Date</th>
+          <th style="width: 40%;">Description</th>
+          <th style="width: 16%;">Flow Type</th>
+          <th style="width: 16%;">Category</th>
+          <th style="width: 14%; text-align: right;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${extractedExpenses
+          .map(
+            (e: ExtractedNoteExpense) => `
+        <tr>
+          <td><strong>${escapeXml(e.date || "General")}</strong></td>
+          <td>${escapeXml(e.description)}</td>
+          <td><span class="badge badge-${e.type}">${escapeXml(e.type.toUpperCase())}</span></td>
+          <td>${escapeXml(e.category || "General")}</td>
+          <td style="text-align: right; font-weight: 700;">₹${e.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
+        </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+    `
+        : ""
+    }
+
+    <div class="section-header">Complete Note Content</div>
+    <div class="content-container">
+      ${note.content || escapeXml(rawNoteText).replace(/\n/g, "<br/>")}
+    </div>
+
+    ${
+      tasks.length > 0
+        ? `
+    <div class="section-header">Attached Tasks (${tasks.length})</div>
+    <ul class="tasks-list">
+      ${tasks
+        .map(
+          (t) => `
+      <li class="task-row">
+        <span class="task-check ${t.status === "completed" ? "text-emerald" : "text-slate-400"}">
+          ${t.status === "completed" ? "☑" : "☐"}
+        </span>
+        <div style="flex: 1;">
+          <div class="${t.status === "completed" ? "task-completed font-medium" : "font-semibold"}">${escapeXml(t.title)}</div>
+          ${t.description ? `<div style="font-size: 11px; color: #64748b;">${escapeXml(t.description)}</div>` : ""}
+        </div>
+        ${t.progress ? `<span class="pill" style="font-size: 10px;">${t.progress}%</span>` : ""}
+      </li>`
+        )
+        .join("")}
+    </ul>
+    `
+        : ""
+    }
+
+    ${
+      attachments.length > 0
+        ? `
+    <div class="section-header">Attached Files (${attachments.length})</div>
+    <ul class="attachments-list">
+      ${attachments
+        .map(
+          (a) => `
+      <li class="task-row">
+        <span>📎</span>
+        <div style="flex: 1; font-weight: 500;">${escapeXml(a.fileName)}</div>
+        <span style="font-size: 11px; color: #64748b;">${(a.fileSize / 1024).toFixed(1)} KB</span>
+      </li>`
+        )
+        .join("")}
+    </ul>
+    `
+        : ""
+    }
+
+    <div class="report-footer">
+      Generated automatically by SplitLedger AI • Financial Intelligence Platform on ${escapeXml(exportTimeStr)}<br/>
+      Strict Date-wise Note Engine • All Rights Reserved
+    </div>
   </div>
 </body>
 </html>`;
 
     return {
-      content: htmlContent,
+      content: printableHtml,
       filename,
       mimeType: "text/html",
     };
+  });
+}
+
+// 9. RECORD PRINT ACTIVITY LOG
+export async function recordNotePrintActivity(publicId: string) {
+  const user = await requireAuth();
+
+  return await withDbRetry(async () => {
+    const [note] = await db
+      .select({ id: notes.id })
+      .from(notes)
+      .where(and(eq(notes.publicId, publicId), eq(notes.userId, user.id)))
+      .limit(1);
+
+    if (note) {
+      await logNoteActivity(note.id, user.id, "printed", "Printed note with dedicated report layout");
+    }
+
+    return { success: true };
   });
 }
 

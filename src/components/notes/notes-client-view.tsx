@@ -98,6 +98,7 @@ import {
   bulkNoteAction,
   emptyTrash,
   exportNoteDocument,
+  recordNotePrintActivity,
   createNoteReminder,
   createChecklistItem,
 } from "@/actions/notes";
@@ -540,17 +541,26 @@ export function NotesClientView({
         categoryId: editorCategoryId,
         color: editorColor,
         tags: editorTags,
+        createVersion: true,
+        versionSummary: "Manual save",
       });
       if (updated) {
-        setActiveNote((prev: any) => ({ ...prev, title: editorTitle, content: editorContent }));
+        setActiveNote((prev: any) => ({
+          ...prev,
+          title: editorTitle,
+          content: editorContent,
+          version: updated.version,
+        }));
         setNotesData((prev) => ({
           ...prev,
-          notes: prev.notes.map((n) => (n.publicId === activeNote.publicId ? { ...n, title: editorTitle, content: editorContent } : n)),
+          notes: prev.notes.map((n) =>
+            n.publicId === activeNote.publicId ? { ...n, title: editorTitle, content: editorContent, version: updated.version } : n
+          ),
         }));
         setSaveStatus("saved");
         emitFinancialEvent("journal:updated");
         emitFinancialEvent("notes:created");
-        toast.success("Note saved successfully!");
+        toast.success(`Note and snapshot (v${updated.version}) saved!`);
       }
     } catch (err) {
       setSaveStatus("unsaved");
@@ -755,21 +765,27 @@ export function NotesClientView({
     }
   };
 
-  const handleExport = async (format: "pdf" | "txt" | "markdown" | "csv" | "json", targetNote?: any) => {
+  const handleExport = async (format: "pdf" | "docx" | "markdown" | "txt" | "csv" | "json", targetNote?: any) => {
     const note = targetNote || activeNote;
-    if (!note) return;
+    if (!note) {
+      toast.error("Please select a note to export");
+      return;
+    }
     try {
       const res = await exportNoteDocument(format, note.publicId);
       if (format === "pdf") {
         const win = window.open("", "_blank");
         if (win) {
+          win.document.open();
           win.document.write(res.content);
-          win.document.title = res.filename;
           win.document.close();
+          win.focus();
           setTimeout(() => {
-            win.focus();
             win.print();
-          }, 250);
+          }, 350);
+          toast.success("Opened PDF Print / Save Dialog");
+        } else {
+          toast.error("Popup window blocked. Please allow popups to save as PDF.");
         }
       } else {
         const blob = new Blob([res.content], { type: res.mimeType });
@@ -788,8 +804,54 @@ export function NotesClientView({
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (!activeNote) {
+      toast.error("Please select a note to print");
+      return;
+    }
+    try {
+      toast.info("Preparing print layout...");
+      const res = await exportNoteDocument("pdf", activeNote.publicId);
+      recordNotePrintActivity(activeNote.publicId).catch(() => {});
+
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      iframe.style.visibility = "hidden";
+      document.body.appendChild(iframe);
+
+      const frameDoc = iframe.contentWindow?.document;
+      if (frameDoc) {
+        frameDoc.open();
+        frameDoc.write(res.content);
+        frameDoc.close();
+
+        iframe.contentWindow?.focus();
+        setTimeout(() => {
+          iframe.contentWindow?.print();
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 2000);
+        }, 350);
+      } else {
+        const win = window.open("", "_blank");
+        if (win) {
+          win.document.open();
+          win.document.write(res.content);
+          win.document.close();
+          win.focus();
+          setTimeout(() => win.print(), 350);
+        }
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to print note");
+    }
   };
 
   const handleBulkAction = async (action: any, extraData?: any) => {
@@ -2419,21 +2481,24 @@ export function NotesClientView({
                                     <Download className="h-3.5 w-3.5 mr-2" />
                                     <span>Export Document</span>
                                   </DropdownMenuSubTrigger>
-                                  <DropdownMenuSubContent className="w-36 rounded-xl">
+                                  <DropdownMenuSubContent className="w-44 rounded-xl">
                                     <DropdownMenuItem onClick={() => handleExport("pdf")} className="text-xs cursor-pointer">
-                                      Export as PDF
+                                      PDF Document (.pdf)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleExport("docx")} className="text-xs cursor-pointer">
+                                      Word Document (.docx)
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleExport("markdown")} className="text-xs cursor-pointer">
-                                      Export as Markdown
+                                      Markdown (.md)
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleExport("txt")} className="text-xs cursor-pointer">
-                                      Export as Text
+                                      Plain Text (.txt)
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleExport("csv")} className="text-xs cursor-pointer">
-                                      Export as CSV
+                                      CSV Table (.csv)
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleExport("json")} className="text-xs cursor-pointer">
-                                      Export as JSON
+                                      Raw JSON (.json)
                                     </DropdownMenuItem>
                                   </DropdownMenuSubContent>
                                 </DropdownMenuSub>
@@ -3009,6 +3074,8 @@ export function NotesClientView({
             onClose={() => setIsVersionDialogOpen(false)}
             notePublicId={activeNote.publicId}
             versions={activeNote.versions || []}
+            currentContent={editorContent || activeNote.content || ""}
+            currentTitle={editorTitle || activeNote.title || ""}
             onVersionRestored={() => refreshNotes()}
           />
 

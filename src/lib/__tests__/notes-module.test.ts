@@ -82,6 +82,10 @@ import {
   restoreNote,
   duplicateNote,
   bulkNoteAction,
+  exportNoteDocument,
+  recordNotePrintActivity,
+  getNoteVersions,
+  restoreNoteVersion,
 } from "@/actions/notes";
 
 describe("Notes & Financial Journal Module (Part I & Part II)", () => {
@@ -128,5 +132,55 @@ describe("Notes & Financial Journal Module (Part I & Part II)", () => {
   it("should execute bulk actions across multiple notes", async () => {
     const result = await bulkNoteAction("pin", ["nte_1", "nte_2"]);
     expect(result).toBeDefined();
+  });
+
+  it("should duplicate a note with 'Copy of' prefix, fresh version 1, and activity logs", async () => {
+    const dup = await duplicateNote("nte_test123");
+    expect(dup).toBeDefined();
+    expect(dup.title).toBe("Copy of Test Note");
+    expect(dup.version).toBe(1);
+  });
+
+  it("should export note document in PDF, DOCX, Markdown, TXT, CSV, and JSON formats", async () => {
+    const pdfExport = await exportNoteDocument("pdf", "nte_test123");
+    expect(pdfExport.mimeType).toBe("text/html");
+    expect(pdfExport.filename).toContain(".pdf");
+    expect(pdfExport.content).toContain("SplitLedger AI");
+
+    const docxExport = await exportNoteDocument("docx", "nte_test123");
+    expect(docxExport.mimeType).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    expect(docxExport.filename).toContain(".docx");
+    expect(docxExport.content).toContain("<w:WordDocument>");
+
+    const mdExport = await exportNoteDocument("markdown", "nte_test123");
+    expect(mdExport.mimeType).toBe("text/markdown");
+    expect(mdExport.filename).toContain(".md");
+    expect(mdExport.content).toContain("# Test Note");
+
+    const txtExport = await exportNoteDocument("txt", "nte_test123");
+    expect(txtExport.mimeType).toBe("text/plain");
+    expect(txtExport.filename).toContain(".txt");
+    expect(txtExport.content).toContain("SPLITLEDGER AI — FINANCIAL NOTE REPORT");
+
+    const jsonExport = await exportNoteDocument("json", "nte_test123");
+    expect(jsonExport.mimeType).toBe("application/json");
+    expect(jsonExport.filename).toContain(".json");
+
+    const csvExport = await exportNoteDocument("csv", "nte_test123");
+    expect(csvExport.mimeType).toBe("text/csv");
+    expect(csvExport.filename).toContain(".csv");
+  });
+
+  it("should record print audit activity successfully", async () => {
+    const res = await recordNotePrintActivity("nte_test123");
+    expect(res).toEqual({ success: true });
+  });
+
+  it("should fetch note versions and restore a snapshot as a new version", async () => {
+    const versions = await getNoteVersions("nte_test123");
+    expect(Array.isArray(versions)).toBe(true);
+
+    const restored = await restoreNoteVersion("nte_test123", "nver_test1");
+    expect(restored).toBeDefined();
   });
 });
