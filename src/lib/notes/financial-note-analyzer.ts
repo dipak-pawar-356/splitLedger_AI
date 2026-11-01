@@ -422,6 +422,31 @@ export function classifyFinancialIntent(
 
   // 4. Payable: Money paid to a person / peer settlement / credit clearance
   // e.g. "Paid Rahul - 500", "Paid to Rahul", "Paid Grocery Credit", "Returned Loan", "Borrowed from Amit"
+  if (/(?:returned\s+loan|loan\s+repayment|repaid\s+loan|cleared\s+loan|returned\s+debt|paid\s+loan|settled\s+loan|loan\s+paid)\b/i.test(lower)) {
+    return {
+      type: "payable",
+      category: "Debt Repayment",
+      contactName: null,
+      confidence: 96,
+      isAmbiguous: false,
+    };
+  }
+
+  const returnedToContactMatch = lower.match(/(?:returned\s+(?:money\s+)?to\s+([a-z\s]+)|repaid\s+([a-z\s]+))/i);
+  if (returnedToContactMatch) {
+    const rawContact = (returnedToContactMatch[1] || returnedToContactMatch[2] || "").trim();
+    if (rawContact.length > 1) {
+      const contactName = rawContact.charAt(0).toUpperCase() + rawContact.slice(1);
+      return {
+        type: "payable",
+        category: "Contact Payment",
+        contactName,
+        confidence: 96,
+        isAmbiguous: false,
+      };
+    }
+  }
+
   const borrowedMatch = lower.match(
     /(?:borrowed\s+(?:from\s+)?([a-z\s]+)|need\s+to\s+return\s+(?:to\s+)?([a-z\s]+))/i
   );

@@ -116,6 +116,7 @@ import { DailyFinancialJournalView } from "@/components/notes/daily-financial-jo
 import { extractExpensesFromNote, aggregateFinancialNotes } from "@/lib/notes/financial-note-analyzer";
 import { NoteActivityLogDialog } from "@/components/notes/note-activity-log-dialog";
 import { QuickNoteDialog } from "@/components/notes/quick-note-dialog";
+import { emitFinancialEvent } from "@/lib/events/financial-events";
 import { toast } from "sonner";
 
 interface NotesClientViewProps {
@@ -437,6 +438,7 @@ export function NotesClientView({
     try {
       for (const note of dayNotes) {
         await deleteNote(note.publicId);
+      emitFinancialEvent("journal:updated");
       }
       toast.success(`Moved ${dayNotes.length} notes from ${dateStr} to Trash!`);
       refreshNotes();
@@ -510,6 +512,7 @@ export function NotesClientView({
             ...prev,
             notes: prev.notes.map((n) => (n.publicId === activeNote.publicId ? { ...n, title: newTitle, content: newContent } : n)),
           }));
+          emitFinancialEvent("journal:updated");
         }
         setSaveStatus("saved");
       } catch (err) {
@@ -537,6 +540,8 @@ export function NotesClientView({
           notes: prev.notes.map((n) => (n.publicId === activeNote.publicId ? { ...n, title: editorTitle, content: editorContent } : n)),
         }));
         setSaveStatus("saved");
+        emitFinancialEvent("journal:updated");
+        emitFinancialEvent("notes:created");
         toast.success("Note saved successfully!");
       }
     } catch (err) {
@@ -553,6 +558,8 @@ export function NotesClientView({
         categoryId: selectedCategory,
       });
       toast.success("New note created!");
+      emitFinancialEvent("notes:created");
+      emitFinancialEvent("journal:updated");
       refreshNotes();
       setActiveNote(newNote);
       setViewMode("editor");
@@ -616,6 +623,7 @@ export function NotesClientView({
     const note = noteToDelete;
     try {
       await deleteNote(note.publicId);
+      emitFinancialEvent("journal:updated");
       toast.success(`Moved "${note.title || "Note"}" to Trash!`, {
         action: {
           label: "Undo",

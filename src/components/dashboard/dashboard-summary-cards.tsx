@@ -1,9 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import Link from "next/link";
+import { subscribeFinancialEvents } from "@/lib/events/financial-events";
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -61,6 +64,28 @@ interface DashboardSummaryCardsProps {
 }
 
 export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCardsProps) {
+  const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = subscribeFinancialEvents((payload) => {
+      if (
+        payload.type === "journal:updated" ||
+        payload.type === "notes:created" ||
+        payload.type === "transaction:created" ||
+        payload.type === "transaction:updated" ||
+        payload.type === "transaction:deleted" ||
+        payload.type === "expense:created" ||
+        payload.type === "expense:updated" ||
+        payload.type === "expense:deleted" ||
+        payload.type === "financial:data-changed"
+      ) {
+        router.refresh();
+      }
+    });
+
+    return unsubscribe;
+  }, [router]);
+
   const lifetimeIncome = summary.lifetimeIncome ?? summary.totalIncome ?? summary.monthlyIncome ?? 0;
   const lifetimeExpenses = summary.lifetimeExpenses ?? summary.totalExpenses ?? summary.monthlySpending ?? 0;
   const currentMonthExpenseAmt = summary.currentMonthExpense?.amount ?? summary.totalExpenses ?? summary.monthlySpending ?? 0;

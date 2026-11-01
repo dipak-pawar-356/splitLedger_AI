@@ -210,5 +210,58 @@ Groceries - 1850
     expect(octSummary?.highestIncome?.amount).toBe(25000);
     expect(octSummary?.highestExpense?.amount).toBe(1850);
   });
+
+  it("handles word date formats, peer receivables, payables, internal transfers, and ambiguity flags", () => {
+    const testContent = `
+October 2026
+
+1 October 2026
+Amit returned money - 800
+Rahul paid me - 450
+
+05-10-2026
+Paid Grocery Credit - 1200
+Returned Loan - 5000
+
+October 18 2026
+Bank to UPI - 2000
+Sent money - 500
+    `;
+
+    const entries = extractExpensesFromNote(testContent, new Date(2026, 9, 1));
+    expect(entries).toHaveLength(6);
+
+    // 1 October 2026
+    const oct01 = entries.filter((e) => e.date === "2026-10-01");
+    expect(oct01).toHaveLength(2);
+    expect(oct01[0].type).toBe("receivable");
+    expect(oct01[0].contactName).toBe("Amit");
+    expect(oct01[0].amount).toBe(800);
+    expect(oct01[1].type).toBe("receivable");
+    expect(oct01[1].contactName).toBe("Rahul");
+    expect(oct01[1].amount).toBe(450);
+
+    // 05-10-2026
+    const oct05 = entries.filter((e) => e.date === "2026-10-05");
+    expect(oct05).toHaveLength(2);
+    expect(oct05[0].type).toBe("payable");
+    expect(oct05[0].amount).toBe(1200);
+    expect(oct05[1].type).toBe("payable");
+    expect(oct05[1].amount).toBe(5000);
+
+    // October 18 2026
+    const oct18 = entries.filter((e) => e.date === "2026-10-18");
+    expect(oct18).toHaveLength(2);
+    // Bank to UPI is internal transfer
+    expect(oct18[0].type).toBe("transfer");
+    expect(oct18[0].amount).toBe(2000);
+    // Sent money is flagged as ambiguous
+    expect(oct18[1].isAmbiguous).toBe(true);
+
+    const analytics = aggregateFinancialNotes(entries);
+    // Internal transfer shouldn't add to expenses or income totals
+    expect(analytics.allTimeTotalReceivable).toBe(800 + 450); // 1,250
+    expect(analytics.allTimeTotalPayable).toBe(1200 + 5000); // 6,200
+  });
 });
 

@@ -33,6 +33,7 @@ import {
   HandCoins,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { subscribeFinancialEvents } from "@/lib/events/financial-events";
 import { getDailyFinancialJournal, saveDailyJournalReflection } from "@/actions/notes";
 import { toast } from "sonner";
 import {
@@ -104,6 +105,24 @@ export function DailyFinancialJournalView() {
 
   useEffect(() => {
     fetchJournal(currentDate);
+
+    const unsubscribe = subscribeFinancialEvents((payload) => {
+      if (
+        payload.type === "journal:updated" ||
+        payload.type === "notes:created" ||
+        payload.type === "transaction:created" ||
+        payload.type === "transaction:updated" ||
+        payload.type === "transaction:deleted" ||
+        payload.type === "expense:created" ||
+        payload.type === "expense:updated" ||
+        payload.type === "expense:deleted" ||
+        payload.type === "financial:data-changed"
+      ) {
+        fetchJournal(currentDate);
+      }
+    });
+
+    return unsubscribe;
   }, [currentDate]);
 
   const changeDate = (days: number) => {
