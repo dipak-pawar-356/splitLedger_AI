@@ -76,6 +76,7 @@ import {
   Share2,
   Link as LinkIcon,
   AlertTriangle,
+  Palette,
 } from "lucide-react";
 import {
   Dialog,
@@ -144,7 +145,8 @@ const NOTE_COLORS = [
   {
     id: "default",
     label: "Default Slate",
-    dot: "bg-slate-400 dark:bg-slate-500 border-slate-300 dark:border-slate-600",
+    dot: "bg-slate-200 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-500",
+    checkColor: "text-slate-700 dark:text-slate-100",
     editorBg: "bg-card border-slate-200 dark:border-slate-800",
     cardBg: "bg-card border-slate-200 dark:border-slate-800",
     strip: "bg-slate-400 dark:bg-slate-600",
@@ -152,49 +154,55 @@ const NOTE_COLORS = [
   {
     id: "blue",
     label: "Ocean Blue",
-    dot: "bg-blue-500 border-blue-400 shadow-xs shadow-blue-500/40",
-    editorBg: "bg-blue-50/80 dark:bg-blue-950/40 border-blue-200/90 dark:border-blue-800/80 shadow-blue-500/5",
-    cardBg: "bg-blue-50/60 dark:bg-blue-950/30 border-blue-200/70 dark:border-blue-900/50",
+    dot: "bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-blue-300 dark:border-blue-400 shadow-sm shadow-blue-500/40",
+    checkColor: "text-white",
+    editorBg: "bg-blue-50/90 dark:bg-blue-950/50 border-blue-300/90 dark:border-blue-800/90 shadow-blue-500/10",
+    cardBg: "bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/60",
     strip: "bg-blue-500",
   },
   {
     id: "green",
     label: "Emerald Green",
-    dot: "bg-emerald-500 border-emerald-400 shadow-xs shadow-emerald-500/40",
-    editorBg: "bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200/90 dark:border-emerald-800/80 shadow-emerald-500/5",
-    cardBg: "bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-200/70 dark:border-emerald-900/50",
+    dot: "bg-gradient-to-br from-emerald-400 to-emerald-600 border-2 border-emerald-300 dark:border-emerald-400 shadow-sm shadow-emerald-500/40",
+    checkColor: "text-white",
+    editorBg: "bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-300/90 dark:border-emerald-800/90 shadow-emerald-500/10",
+    cardBg: "bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60",
     strip: "bg-emerald-500",
   },
   {
     id: "yellow",
     label: "Amber Gold",
-    dot: "bg-amber-500 border-amber-400 shadow-xs shadow-amber-500/40",
-    editorBg: "bg-amber-50/80 dark:bg-amber-950/40 border-amber-200/90 dark:border-amber-800/80 shadow-amber-500/5",
-    cardBg: "bg-amber-50/60 dark:bg-amber-950/30 border-amber-200/70 dark:border-amber-900/50",
+    dot: "bg-gradient-to-br from-amber-300 to-amber-500 border-2 border-amber-200 dark:border-amber-300 shadow-sm shadow-amber-500/40",
+    checkColor: "text-amber-950",
+    editorBg: "bg-amber-50/90 dark:bg-amber-950/50 border-amber-300/90 dark:border-amber-800/90 shadow-amber-500/10",
+    cardBg: "bg-amber-50/70 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60",
     strip: "bg-amber-500",
   },
   {
     id: "red",
     label: "Rose Red",
-    dot: "bg-rose-500 border-rose-400 shadow-xs shadow-rose-500/40",
-    editorBg: "bg-rose-50/80 dark:bg-rose-950/40 border-rose-200/90 dark:border-rose-800/80 shadow-rose-500/5",
-    cardBg: "bg-rose-50/60 dark:bg-rose-950/30 border-rose-200/70 dark:border-rose-900/50",
+    dot: "bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-rose-300 dark:border-rose-400 shadow-sm shadow-rose-500/40",
+    checkColor: "text-white",
+    editorBg: "bg-rose-50/90 dark:bg-rose-950/50 border-rose-300/90 dark:border-rose-800/90 shadow-rose-500/10",
+    cardBg: "bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60",
     strip: "bg-rose-500",
   },
   {
     id: "purple",
     label: "Royal Purple",
-    dot: "bg-purple-500 border-purple-400 shadow-xs shadow-purple-500/40",
-    editorBg: "bg-purple-50/80 dark:bg-purple-950/40 border-purple-200/90 dark:border-purple-800/80 shadow-purple-500/5",
-    cardBg: "bg-purple-50/60 dark:bg-purple-950/30 border-purple-200/70 dark:border-purple-900/50",
+    dot: "bg-gradient-to-br from-purple-400 to-purple-600 border-2 border-purple-300 dark:border-purple-400 shadow-sm shadow-purple-500/40",
+    checkColor: "text-white",
+    editorBg: "bg-purple-50/90 dark:bg-purple-950/50 border-purple-300/90 dark:border-purple-800/90 shadow-purple-500/10",
+    cardBg: "bg-purple-50/70 dark:bg-purple-950/40 border-purple-200 dark:border-purple-900/60",
     strip: "bg-purple-500",
   },
   {
     id: "teal",
     label: "Teal Cyan",
-    dot: "bg-teal-500 border-teal-400 shadow-xs shadow-teal-500/40",
-    editorBg: "bg-teal-50/80 dark:bg-teal-950/40 border-teal-200/90 dark:border-teal-800/80 shadow-teal-500/5",
-    cardBg: "bg-teal-50/60 dark:bg-teal-950/30 border-teal-200/70 dark:border-teal-900/50",
+    dot: "bg-gradient-to-br from-cyan-400 to-teal-500 border-2 border-cyan-300 dark:border-cyan-400 shadow-sm shadow-teal-500/40",
+    checkColor: "text-white",
+    editorBg: "bg-teal-50/90 dark:bg-teal-950/50 border-teal-300/90 dark:border-teal-800/90 shadow-teal-500/10",
+    cardBg: "bg-teal-50/70 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900/60",
     strip: "bg-teal-500",
   },
 ];
@@ -1990,7 +1998,7 @@ export function NotesClientView({
                                     key={c.id}
                                     type="button"
                                     onClick={() => handleBulkAction("color", c.id)}
-                                    className={`h-6 rounded-lg border border-slate-600 ${c.dot} hover:scale-110 transition-transform`}
+                                    className={`h-7 rounded-lg border border-slate-600/80 ${c.dot} hover:scale-110 transition-transform shadow-xs`}
                                     title={c.label}
                                   />
                                 ))}
@@ -2371,15 +2379,20 @@ export function NotesClientView({
                         {/* Top Action Bar */}
                         <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800 flex-wrap">
                           {/* Color Palette & Auto-save status */}
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 shadow-2xs">
+                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                            {/* Professional Responsive Color Rounds Picker */}
+                            <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-slate-100/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 shadow-xs backdrop-blur-md">
+                              <div className="flex items-center gap-1 mr-0.5 text-slate-400 hidden xs:flex" title="Color Theme">
+                                <Palette className="h-3.5 w-3.5" />
+                              </div>
                               {NOTE_COLORS.map((c) => {
                                 const isSelected = (editorColor || "default") === c.id;
                                 return (
                                   <button
                                     key={c.id}
                                     type="button"
-                                    title={c.label}
+                                    title={`Set note color to ${c.label}`}
+                                    aria-label={c.label}
                                     onClick={() => {
                                       setEditorColor(c.id);
                                       setActiveNote((prev: any) => (prev ? { ...prev, color: c.id } : prev));
@@ -2392,32 +2405,40 @@ export function NotesClientView({
                                       updateNote(activeNote.publicId, { color: c.id });
                                       toast.success(`Color set to ${c.label}`);
                                     }}
-                                    className={`h-4.5 w-4.5 rounded-full border transition-all duration-200 cursor-pointer ${c.dot} ${
+                                    className={`h-6 w-6 sm:h-7 sm:w-7 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 relative ${c.dot} ${
                                       isSelected
-                                        ? "scale-125 ring-2 ring-primary ring-offset-2 ring-offset-background border-white dark:border-slate-900 shadow-md"
-                                        : "hover:scale-110 opacity-80 hover:opacity-100"
+                                        ? "scale-115 ring-2 ring-primary ring-offset-2 ring-offset-background shadow-md z-10"
+                                        : "hover:scale-115 opacity-85 hover:opacity-100"
                                     }`}
-                                  />
+                                  >
+                                    {isSelected && (
+                                      <Check className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${c.checkColor || "text-white"} stroke-[3] drop-shadow-xs animate-in zoom-in-75 duration-150`} />
+                                    )}
+                                  </button>
                                 );
                               })}
                             </div>
 
-                            {/* Auto-Save Indicator */}
-                            <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                            <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+
+                            {/* Auto-Save Indicator Badge */}
+                            <div className="flex items-center">
                               {saveStatus === "saving" && (
-                                <span className="flex items-center gap-1 text-amber-500 font-medium">
-                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 shadow-2xs">
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   Saving...
                                 </span>
                               )}
                               {saveStatus === "saved" && (
-                                <span className="flex items-center gap-1 text-emerald-500 font-medium">
-                                  <Check className="h-3 w-3" />
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 shadow-2xs">
+                                  <Check className="h-3.5 w-3.5 stroke-[2.5]" />
                                   Saved
                                 </span>
                               )}
                               {saveStatus === "unsaved" && (
-                                <span className="text-slate-400">Unsaved changes</span>
+                                <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-slate-400 bg-slate-500/10 border border-slate-500/20 shadow-2xs">
+                                  Unsaved changes
+                                </span>
                               )}
                             </div>
                           </div>

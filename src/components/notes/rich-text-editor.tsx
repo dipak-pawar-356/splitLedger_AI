@@ -626,10 +626,10 @@ export function RichTextEditor({
   };
 
   return (
-    <div className="relative flex flex-col h-full border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
+    <div className="relative flex flex-col h-full border border-slate-200/80 dark:border-slate-800/80 rounded-2xl overflow-hidden bg-white/90 dark:bg-slate-900/60 backdrop-blur-xs shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
       {/* Editor Toolbar */}
       {!readOnly && (
-        <div className="flex items-center gap-1 flex-wrap p-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 backdrop-blur-xs select-none">
+        <div className="flex items-center gap-1 flex-wrap p-2 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/90 dark:bg-slate-900/75 text-slate-700 dark:text-slate-200 backdrop-blur-xs select-none">
           {/* Text Styling */}
           <Button
             type="button"
