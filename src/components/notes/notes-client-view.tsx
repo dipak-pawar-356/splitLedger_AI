@@ -113,7 +113,7 @@ import { NoteLinkedEntitiesWidget } from "@/components/notes/note-linked-entitie
 import { NoteAttachmentsWidget } from "@/components/notes/note-attachments-widget";
 import { NoteCommentsWidget } from "@/components/notes/note-comments-widget";
 import { DailyFinancialJournalView } from "@/components/notes/daily-financial-journal-view";
-import { extractExpensesFromNote } from "@/lib/notes/financial-note-analyzer";
+import { extractExpensesFromNote, aggregateFinancialNotes } from "@/lib/notes/financial-note-analyzer";
 import { NoteActivityLogDialog } from "@/components/notes/note-activity-log-dialog";
 import { QuickNoteDialog } from "@/components/notes/quick-note-dialog";
 import { toast } from "sonner";
@@ -218,6 +218,20 @@ export function NotesClientView({
   const activeNoteTotalExpenses = useMemo(() => {
     return activeNoteExpenses.reduce((sum, e) => sum + e.amount, 0);
   }, [activeNoteExpenses]);
+
+  // Live real-time aggregation across all notes with immediate synchronization on note edits
+  const liveFinancialAnalytics = useMemo(() => {
+    const list = notesData?.notes || [];
+    const allExpenses: any[] = [];
+    list.forEach((n: any) => {
+      const content = n.id === activeNote?.id ? editorContent : (n.content || n.plainText || "");
+      const title = n.id === activeNote?.id ? editorTitle : (n.title || "");
+      const created = n.createdAt ? new Date(n.createdAt) : new Date();
+      const exps = extractExpensesFromNote(content, created, n.id, title);
+      allExpenses.push(...exps);
+    });
+    return aggregateFinancialNotes(allExpenses);
+  }, [notesData?.notes, activeNote?.id, editorContent, editorTitle]);
   const [widgetsLayout, setWidgetsLayout] = useState<"tabs" | "grid">("tabs");
 
   // Bulk Selection State
@@ -1578,7 +1592,7 @@ export function NotesClientView({
           {viewMode === "journal" && <DailyFinancialJournalView />}
 
           {/* VIEW: STATS DASHBOARD */}
-          {viewMode === "stats" && <NotesStatsDashboard stats={stats} financialAnalytics={financialAnalytics} />}
+          {viewMode === "stats" && <NotesStatsDashboard stats={stats} financialAnalytics={liveFinancialAnalytics || financialAnalytics} />}
 
           {/* VIEW: TIMELINE */}
           {viewMode === "timeline" && (

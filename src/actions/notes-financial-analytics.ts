@@ -37,13 +37,13 @@ export async function getFinancialNotesAnalysisAction(): Promise<FinancialNotesA
     const allExpenses: ExtractedNoteExpense[] = [];
 
     userNotes.forEach((n) => {
-      const textToAnalyze = n.plainText || n.content || "";
+      const textToAnalyze = n.content || n.plainText || "";
       const extracted = extractExpensesFromNote(textToAnalyze, n.createdAt, n.id, n.title);
       allExpenses.push(...extracted);
     });
 
     return aggregateFinancialNotes(allExpenses);
-  }, { ttlMs: 10000 }); // 10 second cache or instant on invalidation
+  }, { ttlMs: 10000, tags: [`user:${user.id}`, "notes", "dashboard"] }); // 10 second cache or instant on invalidation
 }
 
 /**

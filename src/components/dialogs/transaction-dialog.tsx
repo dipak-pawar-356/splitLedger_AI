@@ -18,26 +18,59 @@ import { toast } from "sonner";
 
 const CURRENCIES = ["INR"];
 const TRANSACTION_TYPES = [
-  { value: "paid", label: "Paid" },
-  { value: "received", label: "Received" },
-  { value: "lent", label: "Lent" },
-  { value: "borrowed", label: "Borrowed" },
+  { value: "paid", label: "Expense (Debit / Paid)" },
+  { value: "received", label: "Income / Salary / Credit (Received)" },
+  { value: "lent", label: "Lent (Money Given)" },
+  { value: "borrowed", label: "Borrowed (Money Taken)" },
   { value: "repaid", label: "Repaid" },
   { value: "adjustment", label: "Adjustment" },
 ];
 const PAYMENT_METHODS = ["Cash", "Bank Transfer", "Credit Card", "Debit Card", "UPI", "Other"];
 const STATUSES = ["pending", "completed", "cancelled"];
-const EXPENSE_CATEGORIES = [
-  { value: "food", label: "Food & Dining" },
-  { value: "transport", label: "Transportation" },
-  { value: "shopping", label: "Shopping" },
-  { value: "entertainment", label: "Entertainment" },
-  { value: "utilities", label: "Utilities" },
-  { value: "rent", label: "Rent" },
-  { value: "health", label: "Healthcare" },
-  { value: "education", label: "Education" },
-  { value: "travel", label: "Travel" },
-  { value: "other", label: "Other" },
+
+const INCOME_PRESETS = [
+  { label: "Salary", category: "Salary", desc: "Monthly Salary" },
+  { label: "Freelance", category: "Freelance", desc: "Freelance Payment" },
+  { label: "Bonus", category: "Bonus", desc: "Performance Bonus" },
+  { label: "Refund", category: "Refund", desc: "Refund Received" },
+  { label: "Cashback", category: "Cashback", desc: "Cashback Reward" },
+  { label: "Interest", category: "Interest", desc: "Bank Interest / Dividend" },
+  { label: "Business Income", category: "Business Income", desc: "Client Invoice / Sales" },
+  { label: "Gift Received", category: "Gift Received", desc: "Gift from family/friends" },
+  { label: "Other Credit", category: "Other Credit", desc: "Miscellaneous Credit" },
+];
+
+const EXPENSE_PRESETS = [
+  { label: "Food & Dining", category: "Food & Dining", desc: "Food & Dining" },
+  { label: "Transportation", category: "Transportation", desc: "Fuel / Commute / Cab" },
+  { label: "Groceries", category: "Groceries", desc: "Household Groceries" },
+  { label: "Shopping", category: "Shopping", desc: "Personal Shopping" },
+  { label: "Utilities", category: "Utilities", desc: "Electricity / Water / Bill" },
+  { label: "Rent", category: "Rent", desc: "House Rent" },
+  { label: "Healthcare", category: "Healthcare", desc: "Medical & Health" },
+  { label: "Entertainment", category: "Entertainment", desc: "Movies / Outing" },
+];
+
+const ALL_CATEGORIES = [
+  { value: "Salary", label: "Salary (Income)" },
+  { value: "Freelance", label: "Freelance (Income)" },
+  { value: "Bonus", label: "Bonus (Income)" },
+  { value: "Refund", label: "Refund (Income)" },
+  { value: "Cashback", label: "Cashback (Income)" },
+  { value: "Interest", label: "Interest / Investment (Income)" },
+  { value: "Business Income", label: "Business Income" },
+  { value: "Gift Received", label: "Gift Received" },
+  { value: "Food & Dining", label: "Food & Dining" },
+  { value: "Transportation", label: "Transportation" },
+  { value: "Groceries", label: "Groceries" },
+  { value: "Shopping", label: "Shopping" },
+  { value: "Utilities", label: "Utilities" },
+  { value: "Rent", label: "Rent" },
+  { value: "Healthcare", label: "Healthcare" },
+  { value: "Education", label: "Education" },
+  { value: "Travel", label: "Travel" },
+  { value: "Entertainment", label: "Entertainment" },
+  { value: "Other", label: "Other" },
 ];
 
 interface TransactionDialogProps {
@@ -61,6 +94,8 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
     control,
     formState: { errors },
     reset,
+    setValue,
+    watch,
   } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
@@ -71,12 +106,17 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
       date: new Date(),
       contactId: contactId,
       groupId: groupId,
+      categoryName: "",
       paymentMethod: "",
       status: "completed",
       receiptUrl: "",
       notes: "",
     },
   });
+
+  const currentType = watch("type");
+  const currentCat = watch("categoryName");
+  const activePresets = currentType === "received" ? INCOME_PRESETS : EXPENSE_PRESETS;
 
   const onSubmit = async (data: TransactionFormData) => {
     setIsLoading(true);
@@ -106,7 +146,12 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
         receiptUrl = uploadData.url;
       }
 
-      const result = await createTransaction({ ...data, receiptUrl });
+      const result = await createTransaction({
+        ...data,
+        receiptUrl,
+        categoryName: data.categoryName && data.categoryName !== "none" ? data.categoryName : undefined,
+        isSyncedToDashboard: true,
+      });
       console.log("Transaction created:", result);
 
       toast.success("Transaction created successfully!");
@@ -185,6 +230,35 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
               {errors.amount && (
                 <p className="text-sm text-red-600 dark:text-red-400">{errors.amount.message}</p>
               )}
+            </div>
+          </div>
+
+          {/* Quick Presets for Income or Expenses */}
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                {currentType === "received" ? "Suggested Income Presets:" : "Suggested Expense Presets:"}
+              </span>
+              <span className="text-[11px] text-slate-400">Tap to auto-fill</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {activePresets.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    setValue("categoryName", preset.category);
+                    setValue("description", preset.desc);
+                  }}
+                  className={`px-2.5 py-1 text-xs rounded-lg border transition-all font-medium ${
+                    currentCat === preset.category
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                      : "bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -315,16 +389,20 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
           <div className="space-y-2">
             <Label htmlFor="category">Category</Label>
             <Controller
-              name="categoryId"
+              name="categoryName"
               control={control}
               render={({ field }) => (
-                <Select value={field.value?.toString() || ""} onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)} disabled={isLoading}>
+                <Select
+                  value={field.value || "none"}
+                  onValueChange={(val) => field.onChange(val === "none" ? "" : val)}
+                  disabled={isLoading}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No category</SelectItem>
-                    {EXPENSE_CATEGORIES.map((category) => (
+                    <SelectItem value="none">No category</SelectItem>
+                    {ALL_CATEGORIES.map((category) => (
                       <SelectItem key={category.value} value={category.value}>
                         {category.label}
                       </SelectItem>

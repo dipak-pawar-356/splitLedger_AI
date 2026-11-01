@@ -38,6 +38,7 @@ export const transactionSchema = z.object({
   date: z.union([z.date(), z.string()]).optional(),
   contactId: z.number().optional().nullable(),
   categoryId: z.number().optional().nullable(),
+  categoryName: z.string().optional().or(z.literal("")),
   groupId: z.number().optional().nullable(),
   paidBy: z.number().optional().nullable(),
   paidByContact: z.number().optional().nullable(),

@@ -410,25 +410,18 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           )
         ),
 
-      // 4. All Time Income, Expense & Total Transactions Count
+      // 4. All Time Income, Expense & Total Transactions Count (True Lifetime Calculations)
       db
         .select({
-          income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
-          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'paid' THEN ${transactions.amount} ELSE 0 END), 0)`,
           totalCount: sql<number>`COUNT(*)`,
         })
         .from(transactions)
-        .leftJoin(contacts, eq(transactions.contactId, contacts.id))
         .where(
           and(
             eq(transactions.userId, user.id),
-            eq(transactions.isDeleted, false),
-            or(
-              isNull(transactions.contactId),
-              and(eq(transactions.isSyncedToDashboard, true), eq(contacts.isDeleted, false))
-            ),
-            period !== "all_time" ? gte(transactions.date, startDate) : sql`1=1`,
-            period !== "all_time" ? lte(transactions.date, endDate) : sql`1=1`
+            eq(transactions.isDeleted, false)
           )
         ),
 
@@ -603,7 +596,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           return [] as any[];
         }),
 
-      // 13. Recent Transactions (Latest 8 with paymentMethod - synced or non-contact only)
+      // 13. Recent Transactions (Latest active transactions across the user's ledger)
       db
         .select({
           id: transactions.id,
@@ -628,17 +621,11 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         .where(
           and(
             eq(transactions.userId, user.id),
-            eq(transactions.isDeleted, false),
-            or(
-              isNull(transactions.contactId),
-              and(eq(transactions.isSyncedToDashboard, true), eq(contacts.isDeleted, false))
-            ),
-            period !== "all_time" ? gte(transactions.date, startDate) : sql`1=1`,
-            period !== "all_time" ? lte(transactions.date, endDate) : sql`1=1`
+            eq(transactions.isDeleted, false)
           )
         )
-        .orderBy(desc(transactions.date))
-        .limit(5),
+        .orderBy(desc(transactions.date), desc(transactions.id))
+        .limit(8),
 
       // 14. Recent Activity Logs (Strictly 5 records for dashboard)
       db
@@ -830,8 +817,8 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
       // 23. All Transactions in Active Period (personal, contact, group)
       db
         .select({
-          totalIncome: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
-          totalExpense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          totalIncome: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          totalExpense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'paid' THEN ${transactions.amount} ELSE 0 END), 0)`,
           count: sql<number>`COUNT(*)`,
         })
         .from(transactions)
@@ -847,8 +834,8 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
       // 24. All Transactions in Prior Period (for trend comparison)
       db
         .select({
-          totalIncome: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'lent', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
-          totalExpense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          totalIncome: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          totalExpense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'paid' THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
         .where(
@@ -863,7 +850,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
       // 25. Exact Previous Calendar Month Expenses
       db
         .select({
-          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'paid' THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
         .where(
@@ -878,7 +865,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
       // 26. Exact Prior Month Expenses (for historical comparison)
       db
         .select({
-          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('paid', 'borrowed') THEN ${transactions.amount} ELSE 0 END), 0)`,
+          expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'paid' THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
         .where(
@@ -1066,6 +1053,11 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
     const totalExpenses = allTxPeriodExpense + periodNotesExpense;
     const prevTotalIncome = allTxPrevIncome;
     const prevTotalExpenses = allTxPrevExpense + prevPeriodNotesExpense;
+
+    // True Lifetime Income & Expenses across all entries
+    const lifetimeIncome = (allTimeIncomeExp[0]?.income || 0) / 100;
+    const allTimeNotesTotal = (allNotesExtractedExpenses || []).reduce((s: number, e: any) => s + e.amount, 0);
+    const lifetimeExpenses = ((allTimeIncomeExp[0]?.expense || 0) / 100) + allTimeNotesTotal;
 
     const netSavings = totalIncome - totalExpenses;
     const prevNetSavings = prevTotalIncome - prevTotalExpenses;
@@ -1514,6 +1506,8 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         netBalance: netBalanceRupees,
         totalIncome,
         totalExpenses,
+        lifetimeIncome,
+        lifetimeExpenses,
         monthlyContactIncome,
         monthlyContactExpense: totalExpenses,
         savings: netSavings,

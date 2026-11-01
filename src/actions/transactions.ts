@@ -48,6 +48,7 @@ export interface CreateTransactionInput {
   date?: Date | string;
   contactId?: number | null;
   categoryId?: number | null;
+  categoryName?: string | null;
   groupId?: number | null;
   paymentMethod?: string | null;
   status?: "pending" | "completed" | "cancelled";
@@ -71,6 +72,7 @@ export interface UpdateTransactionInput {
   date?: Date | string;
   contactId?: number | null;
   categoryId?: number | null;
+  categoryName?: string | null;
   groupId?: number | null;
   paymentMethod?: string | null;
   status?: "pending" | "completed" | "cancelled";
@@ -203,6 +205,40 @@ export async function createTransaction(data: CreateTransactionInput) {
     const isContactTx = Boolean(data.contactId);
     const isSynced = data.isSyncedToDashboard !== undefined ? Boolean(data.isSyncedToDashboard) : !isContactTx;
 
+    // Resolve or find/create category by categoryName if categoryId not directly supplied
+    let resolvedCategoryId = data.categoryId || null;
+    if (!resolvedCategoryId && data.categoryName && data.categoryName.trim()) {
+      const cleanCatName = data.categoryName.trim();
+      const [existingCat] = await db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(
+          and(
+            or(eq(categories.userId, user.id), eq(categories.isDefault, true)),
+            sql`LOWER(${categories.name}) = LOWER(${cleanCatName})`
+          )
+        )
+        .limit(1)
+        .catch(() => []);
+
+      if (existingCat) {
+        resolvedCategoryId = existingCat.id;
+      } else {
+        const [newCat] = await db
+          .insert(categories)
+          .values({
+            name: cleanCatName,
+            userId: user.id,
+            isDefault: false,
+          })
+          .returning({ id: categories.id })
+          .catch(() => []);
+        if (newCat) {
+          resolvedCategoryId = newCat.id;
+        }
+      }
+    }
+
     // 1. Insert Transaction
     const [transaction] = await db
       .insert(transactions)
@@ -211,7 +247,7 @@ export async function createTransaction(data: CreateTransactionInput) {
         userId: user.id,
         contactId: data.contactId || null,
         groupId: data.groupId || null,
-        categoryId: data.categoryId || null,
+        categoryId: resolvedCategoryId,
         type: data.type,
         amount: amountInPaise,
         currency: data.currency || "INR",

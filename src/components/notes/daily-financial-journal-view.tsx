@@ -479,6 +479,49 @@ export function DailyFinancialJournalView() {
             </div>
           </Card>
 
+          {/* Extracted Journal Expenses (Smart Financial Keep) */}
+          <Card className="rounded-2xl border border-emerald-500/30 shadow-sm p-4 space-y-3 bg-gradient-to-br from-card via-card to-emerald-500/[0.02]">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-emerald-500" />
+                Extracted Note Expenses ({journalData?.extractedExpenses?.length || 0})
+              </h4>
+              {journalData?.dailyExpenseSummary?.notesExpense > 0 && (
+                <Badge variant="outline" className="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+                  {formatCurrency(journalData.dailyExpenseSummary.notesExpense)}
+                </Badge>
+              )}
+            </div>
+
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {journalData?.extractedExpenses?.map((exp: any, idx: number) => (
+                <div
+                  key={exp.id || idx}
+                  className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-500/20 bg-white dark:bg-slate-900 text-xs hover:border-emerald-500/40 transition-colors"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 shrink-0">
+                      {exp.category}
+                    </Badge>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                      {exp.description}
+                    </span>
+                  </div>
+                  <span className="font-mono font-bold text-slate-900 dark:text-slate-100 shrink-0 ml-2">
+                    {formatCurrency(exp.amount)}
+                  </span>
+                </div>
+              ))}
+
+              {(!journalData?.extractedExpenses || journalData.extractedExpenses.length === 0) && (
+                <div className="py-6 text-center text-slate-400 text-xs bg-slate-50/50 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                  <Sparkles className="h-5 w-5 mx-auto text-slate-300 dark:text-slate-600 mb-1" />
+                  <p className="font-medium text-slate-600 dark:text-slate-400">No note expenses extracted for this date</p>
+                </div>
+              )}
+            </div>
+          </Card>
+
           {/* Daily Notes List */}
           <Card className="rounded-2xl border shadow-sm p-4 space-y-3 bg-card">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">

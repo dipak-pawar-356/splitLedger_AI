@@ -105,5 +105,28 @@ Date: 01/11/2026
     expect(octSummary?.highestExpense?.amount).toBe(6000);
     expect(novSummary?.lowestExpense?.amount).toBe(20);
   });
+
+  it("handles single-line notes with date prefix and multiple consecutive expenses", () => {
+    // Exactly matches user note shown in screenshot:
+    // "01/11/2026 Bus Travel - 500 Flipkart Order - 375 Tea - 20 Grocery - 1500"
+    const singleLineNote = "01/11/2026 Bus Travel - 500 Flipkart Order - 375 Tea - 20 Grocery - 1500";
+    const expenses = extractExpensesFromNote(singleLineNote, new Date(2026, 9, 27));
+
+    expect(expenses).toHaveLength(4);
+    expect(expenses[0].description).toBe("Bus Travel");
+    expect(expenses[0].amount).toBe(500);
+    expect(expenses[0].date).toBe("2026-11-01");
+    expect(expenses[0].month).toBe("November");
+    expect(expenses[0].year).toBe(2026);
+
+    expect(expenses[1].description).toBe("Flipkart Order");
+    expect(expenses[1].amount).toBe(375);
+
+    expect(expenses[2].description).toBe("Tea");
+    expect(expenses[2].amount).toBe(20);
+
+    expect(expenses[3].description).toBe("Grocery");
+    expect(expenses[3].amount).toBe(1500);
+  });
 });
 

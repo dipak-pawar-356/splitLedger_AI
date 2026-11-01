@@ -186,19 +186,19 @@ export function TransactionApprovalCard({
     proposal.type === "received"
       ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800"
       : proposal.type === "lent"
-      ? "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800"
-      : proposal.type === "borrowed"
-      ? "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-800"
-      : "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800";
+        ? "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800"
+        : proposal.type === "borrowed"
+          ? "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-800"
+          : "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800";
 
   const typeLabel =
     proposal.type === "received"
       ? "Income Receipt"
       : proposal.type === "lent"
-      ? "Money Lent / Sent"
-      : proposal.type === "borrowed"
-      ? "Money Borrowed"
-      : "Expense Debit";
+        ? "Money Lent / Sent"
+        : proposal.type === "borrowed"
+          ? "Money Borrowed"
+          : "Expense Debit";
 
   const isCardApproved = isApproved || proposal.status === "approved" || initialProposal.status === "approved";
   const isCardCancelled = isCancelled || proposal.status === "cancelled" || initialProposal.status === "cancelled";
@@ -705,10 +705,10 @@ export function TransactionApprovalCardGroup({
         prev.map((item) =>
           selectedIds.has(item.tempId)
             ? {
-                ...item,
-                status: "approved",
-                createdPublicId: resultMap.get(item.tempId) || item.createdPublicId,
-              }
+              ...item,
+              status: "approved",
+              createdPublicId: resultMap.get(item.tempId) || item.createdPublicId,
+            }
             : item
         )
       );

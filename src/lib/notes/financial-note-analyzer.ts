@@ -142,7 +142,7 @@ export function parseDateString(dateStr: string, fallbackDate: Date = new Date()
     const year = parseInt(isoMatch[1], 10);
     const month = parseInt(isoMatch[2], 10) - 1;
     const day = parseInt(isoMatch[3], 10);
-    const d = new Date(year, month, day);
+    const d = new Date(year, month, day, 12, 0, 0);
     if (!isNaN(d.getTime())) return d;
   }
 
@@ -152,7 +152,7 @@ export function parseDateString(dateStr: string, fallbackDate: Date = new Date()
     const day = parseInt(dmyMatch[1], 10);
     const month = parseInt(dmyMatch[2], 10) - 1;
     const year = parseInt(dmyMatch[3], 10);
-    const d = new Date(year, month, day);
+    const d = new Date(year, month, day, 12, 0, 0);
     if (!isNaN(d.getTime())) return d;
   }
 
@@ -243,7 +243,7 @@ function isFalsePositiveNumber(line: string, amount: number): boolean {
 }
 
 /**
- * Convert HTML content to plain text with preserved line breaks
+ * Convert HTML content to plain text with preserved line breaks and intelligent item splitting
  */
 export function htmlToCleanLines(htmlOrText: string): string[] {
   if (!htmlOrText) return [];
@@ -263,10 +263,55 @@ export function htmlToCleanLines(htmlOrText: string): string[] {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'");
 
-  return text
+  const initialLines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
+
+  const cleanLines: string[] = [];
+
+  for (const rawLine of initialLines) {
+    let line = rawLine.trim();
+    if (!line) continue;
+
+    // 1. If line starts with a date followed by text, e.g. "01/11/2026 1. Bus Travel - 500" or "01/11/2026 Bus Travel - 500"
+    const datePrefixMatch = line.match(/^((?:date\s*[:=-]?\s*)?(?:\d{1,2}[-/.]\d{1,2}[-/.]\d{4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}))\s+(.+)$/i);
+    if (datePrefixMatch) {
+      cleanLines.push(datePrefixMatch[1].trim());
+      line = datePrefixMatch[2].trim();
+    }
+
+    // 2. If line contains multiple numbered items on one line, e.g. "1. Bus Travel - 500 2. Flipkart Order - 375"
+    if (/(?:\d+[\.\)]\s+.*?){2,}/.test(line)) {
+      const parts = line.split(/(?<=\S)\s+(?=\d+[\.\)]\s+)/).map((p) => p.trim()).filter(Boolean);
+      cleanLines.push(...parts);
+      continue;
+    }
+
+    // 3. If line contains comma-separated expenses e.g. "Bus Travel - 500, Flipkart Order - 375"
+    if (/(?:[A-Za-z\s]+[-:]\s*\d+)\s*,\s*(?:[A-Za-z\s]+[-:]\s*\d+)/.test(line)) {
+      const parts = line.split(/\s*,\s*(?=[A-Za-z0-9])/).map((p) => p.trim()).filter(Boolean);
+      cleanLines.push(...parts);
+      continue;
+    }
+
+    // 4. If line contains multiple space-separated expenses without commas or numbering,
+    // e.g. "Bus Travel - 500 Flipkart Order - 375 Tea - 20 Grocery - 1500"
+    if (/(?:[-:]\s*₹?\s*\d+.*?){2,}/.test(line)) {
+      const parts = line
+        .split(/(?<=\b\d+(?:\.\d{1,2})?(?:\s*(?:rs|inr|\/-))?)\s+(?=[A-Za-z][^-\n:]*?[-:]\s*₹?\s*\d+)/i)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (parts.length > 1) {
+        cleanLines.push(...parts);
+        continue;
+      }
+    }
+
+    cleanLines.push(line);
+  }
+
+  return cleanLines;
 }
 
 /**
