@@ -69,3 +69,4 @@ describe("Unified Financial Aggregation Engine", () => {
     expect(metrics.previousMonthExpense.amount).toBe(8000);
   });
 });
+

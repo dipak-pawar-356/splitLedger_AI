@@ -40,6 +40,15 @@ interface DashboardSummaryCardsProps {
       trend: "up" | "down" | "neutral";
       comparisonText: string;
     };
+    currentMonthExpense?: {
+      amount: number;
+      prevMonthAmount: number;
+      difference: number;
+      differenceFormatted: string;
+      percentChange: number;
+      trend: "up" | "down" | "neutral";
+      trendFormatted: string;
+    };
   };
   trends: {
     spendingTrend: number;
@@ -158,11 +167,11 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
 
       {/* Row 2: Total Expenses, Previous Month Expense, Savings, Pending Settlements */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Row 2 - Card 1: Total Expenses */}
+        {/* Row 2 - Card 1: Current Month Expense */}
         <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs p-4 hover:border-purple-500/50 transition-all bg-card cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
             <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 dark:text-slate-300">
-              Total Expenses
+              Current Month Expense
             </span>
             <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
               <TrendingDown className="h-4 w-4" />
@@ -171,11 +180,17 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
           <div className="text-2xl font-black text-slate-900 dark:text-slate-100 truncate tracking-tight">
             <AnimatedCounter value={formatCurrency(totalExpenses)} />
           </div>
-          <div className="flex items-center justify-between mt-1 text-[11px]">
-            <span className="text-slate-400">Total spent in active period</span>
-            {trends.spendingTrend !== 0 && (
-              <span className={trends.spendingTrend > 0 ? "text-rose-600 font-semibold" : "text-emerald-600 font-semibold"}>
-                {trends.spendingTrend > 0 ? `+${trends.spendingTrend}%` : `${trends.spendingTrend}%`}
+          <div className="flex items-center justify-between mt-1 text-[11px] min-w-0">
+            <span className="text-slate-400 truncate">
+              Diff: {summary.currentMonthExpense?.differenceFormatted || (totalExpenses - (prevMonth?.amount || 0) >= 0 ? `+${formatCurrency(totalExpenses - (prevMonth?.amount || 0))}` : `-${formatCurrency(Math.abs(totalExpenses - (prevMonth?.amount || 0)))}`)}
+            </span>
+            {(summary.currentMonthExpense?.trendFormatted || trends.spendingTrend !== 0) && (
+              <span className={`font-semibold shrink-0 ml-1.5 ${
+                (summary.currentMonthExpense?.trend === "up" || trends.spendingTrend > 0)
+                  ? "text-rose-600 dark:text-rose-400"
+                  : "text-emerald-600 dark:text-emerald-400"
+              }`}>
+                {summary.currentMonthExpense?.trendFormatted || (trends.spendingTrend > 0 ? `↑ ${trends.spendingTrend}%` : `↓ ${Math.abs(trends.spendingTrend)}%`)}
               </span>
             )}
           </div>

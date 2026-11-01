@@ -106,3 +106,4 @@ Date: 01/11/2026
     expect(novSummary?.lowestExpense?.amount).toBe(20);
   });
 });
+

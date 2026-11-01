@@ -566,3 +566,4 @@ export function aggregateFinancialNotes(
     allExpenses,
   };
 }
+

@@ -1121,6 +1121,44 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
       comparisonText: prevMonthComparisonText,
     };
 
+    // Current Month Expense Calculations vs Previous Month
+    const monthExpenseDifference = totalExpenses - prevMonthTotalExpense;
+    let currentMonthTrendPercent = 0;
+    let currentMonthTrendDirection: "up" | "down" | "neutral" = "neutral";
+    let currentMonthTrendFormatted = "0%";
+    if (prevMonthTotalExpense > 0) {
+      currentMonthTrendPercent = Math.round(
+        ((totalExpenses - prevMonthTotalExpense) / prevMonthTotalExpense) * 100
+      );
+      if (currentMonthTrendPercent > 0) {
+        currentMonthTrendDirection = "up";
+        currentMonthTrendFormatted = `↑ ${currentMonthTrendPercent}%`;
+      } else if (currentMonthTrendPercent < 0) {
+        currentMonthTrendDirection = "down";
+        currentMonthTrendFormatted = `↓ ${Math.abs(currentMonthTrendPercent)}%`;
+      }
+    } else if (totalExpenses > 0) {
+      currentMonthTrendDirection = "up";
+      currentMonthTrendFormatted = "↑ 100%";
+    }
+
+    const diffAbs = Math.abs(monthExpenseDifference);
+    const diffFormatted = monthExpenseDifference > 0
+      ? `+₹${diffAbs.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : monthExpenseDifference < 0
+      ? `-₹${diffAbs.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `₹0.00`;
+
+    const currentMonthExpenseData = {
+      amount: totalExpenses,
+      prevMonthAmount: prevMonthTotalExpense,
+      difference: monthExpenseDifference,
+      differenceFormatted: diffFormatted,
+      percentChange: currentMonthTrendPercent,
+      trend: currentMonthTrendDirection,
+      trendFormatted: currentMonthTrendFormatted,
+    };
+
     // Contact Receivables and Payables (from reflected transactions only)
     const contactsReceivablePaise = contactsQuery.reduce((acc, c) => acc + (Number(c.balance) > 0 ? Number(c.balance) : 0), 0);
     const contactsPayablePaise = contactsQuery.reduce((acc, c) => acc + (Number(c.balance) < 0 ? Math.abs(Number(c.balance)) : 0), 0);
@@ -1486,6 +1524,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         pendingSettlementsCount: totalPendingCount,
         myGroupsCount: activeGroupsRaw.length,
         previousMonthExpense: previousMonthExpenseData,
+        currentMonthExpense: currentMonthExpenseData,
       },
       trends: {
         spendingTrend,
@@ -1561,7 +1600,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
       unreadNotificationsCount: Number(unreadNotifsQuery[0]?.count || 0),
     };
     },
-    { ttlMs: 15 * 1000, tags: [`user:${user.id}`, "dashboard"] }
+    { ttlMs: 15 * 1000, tags: [`user:${user.id}`, "dashboard", "notes", "transactions"] }
   );
   });
 } catch (error) {

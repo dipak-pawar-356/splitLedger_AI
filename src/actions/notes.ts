@@ -6,6 +6,7 @@ import { eq, and, or, ilike, desc, asc, sql, inArray, isNull } from "drizzle-orm
 import { requireAuth } from "@/lib/auth";
 import { generatePublicId, formatDate } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
+import { appCache } from "@/lib/cache";
 
 function calculateStatsText(content: string) {
   const plainText = content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
@@ -15,9 +16,18 @@ function calculateStatsText(content: string) {
   return { plainText, words, chars, readingTime };
 }
 
-function safeRevalidatePath(path: string) {
+function safeRevalidatePath(path: string, userId?: number) {
   try {
     revalidatePath(path);
+    if (path.includes("/dashboard/notes") || path.includes("/dashboard")) {
+      revalidatePath("/dashboard");
+      revalidatePath("/dashboard/notes");
+      if (userId) {
+        appCache.invalidateTags([`user:${userId}`, "dashboard", "notes"]);
+      } else {
+        appCache.invalidateTags(["dashboard", "notes"]);
+      }
+    }
   } catch (_) {}
 }
 
@@ -489,6 +499,7 @@ export async function autoSaveNote(
       .where(eq(notes.id, existing.id))
       .returning();
 
+    safeRevalidatePath("/dashboard/notes", user.id);
     return updated;
   });
 }

@@ -802,58 +802,58 @@ export function TransactionApprovalCardGroup({
           </div>
 
           <div className="space-y-2 pt-0.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Button
-                type="button"
-                size="sm"
-                className="w-full h-9 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xs cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                onClick={handleApproveAll}
-                disabled={isBulkApproving}
-              >
-                {isBulkApproving ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1 text-emerald-100 shrink-0" />
-                )}
-                <span className="truncate">Approve All ({activeDrafts.length})</span>
-              </Button>
+            {/* Primary Action: Full-width high-priority Approve All */}
+            <Button
+              type="button"
+              size="sm"
+              className="w-full h-9.5 text-xs sm:text-sm font-bold rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xs cursor-pointer transition-all flex items-center justify-center gap-2"
+              onClick={handleApproveAll}
+              disabled={isBulkApproving}
+            >
+              {isBulkApproving ? (
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 text-emerald-100 shrink-0" />
+              )}
+              <span>Approve All ({activeDrafts.length}) • ₹{totalAmount.toLocaleString("en-IN")}</span>
+            </Button>
 
+            {/* Secondary Controls: 3-column clean utility row */}
+            <div className="grid grid-cols-3 gap-1.5">
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="w-full h-9 text-xs font-semibold rounded-xl text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                className="w-full h-8 px-1 text-[11px] font-semibold rounded-xl text-emerald-700 dark:text-emerald-400 border-emerald-300/80 dark:border-emerald-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer transition-all flex items-center justify-center gap-1"
                 onClick={handleApproveSelected}
                 disabled={isBulkApproving || selectedDrafts.length === 0}
               >
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                <span className="truncate">Approve Selected ({selectedDrafts.length})</span>
+                <CheckCircle2 className="h-3 w-3 shrink-0 opacity-70" />
+                <span className="truncate">Selected ({selectedDrafts.length})</span>
               </Button>
-            </div>
 
-            <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="w-full h-8.5 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all flex items-center justify-center gap-1.5 px-3"
+                className="w-full h-8 px-1 text-[11px] font-semibold rounded-xl text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all flex items-center justify-center gap-1"
                 onClick={() => setForceEditAll((prev) => !prev)}
                 disabled={isBulkApproving}
               >
-                <Edit3 className="h-3.5 w-3.5 text-primary shrink-0" />
-                <span className="truncate">{forceEditAll ? "Done Editing" : "Edit Individually"}</span>
+                <Edit3 className="h-3 w-3 text-primary shrink-0" />
+                <span className="truncate">{forceEditAll ? "Done" : "Edit All"}</span>
               </Button>
 
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="w-full h-8.5 text-xs font-semibold rounded-xl text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer transition-all flex items-center justify-center gap-1.5 px-3"
+                className="w-full h-8 px-1 text-[11px] font-semibold rounded-xl text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer transition-all flex items-center justify-center gap-1"
                 onClick={handleDiscardAll}
                 disabled={isBulkApproving}
               >
-                <X className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">Reject All</span>
+                <X className="h-3 w-3 shrink-0" />
+                <span className="truncate">Reject</span>
               </Button>
             </div>
           </div>
