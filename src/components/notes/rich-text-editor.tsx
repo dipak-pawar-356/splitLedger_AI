@@ -626,10 +626,10 @@ export function RichTextEditor({
   };
 
   return (
-    <div className="relative flex flex-col h-full border border-slate-200/80 dark:border-slate-800/80 rounded-2xl overflow-hidden bg-white/90 dark:bg-slate-900/60 backdrop-blur-xs shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
+    <div className="relative flex flex-col h-full border border-slate-200/80 dark:border-slate-800/80 rounded-2xl overflow-hidden bg-white/60 dark:bg-slate-950/40 backdrop-blur-xs shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
       {/* Editor Toolbar */}
       {!readOnly && (
-        <div className="flex items-center gap-1 flex-wrap p-2 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/90 dark:bg-slate-900/75 text-slate-700 dark:text-slate-200 backdrop-blur-xs select-none">
+        <div className="flex items-center gap-1 flex-wrap p-2 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 backdrop-blur-xs select-none">
           {/* Text Styling */}
           <Button
             type="button"
@@ -1236,7 +1236,7 @@ export function RichTextEditor({
       </Dialog>
 
       {/* Footer Info & Auto-Save Indicator */}
-      <div className="flex items-center justify-between px-4 py-2 text-xs border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 text-slate-500 select-none">
+      <div className="flex items-center justify-between px-4 py-2 text-xs border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/50 text-slate-500 select-none">
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <span className="flex items-center gap-1 text-[11px]">
             <FileText className="h-3.5 w-3.5 text-slate-400 shrink-0" />

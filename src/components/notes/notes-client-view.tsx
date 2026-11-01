@@ -145,64 +145,64 @@ const NOTE_COLORS = [
   {
     id: "default",
     label: "Default Slate",
-    dot: "bg-slate-200 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-500",
-    checkColor: "text-slate-700 dark:text-slate-100",
-    editorBg: "bg-card border-slate-200 dark:border-slate-800",
-    cardBg: "bg-card border-slate-200 dark:border-slate-800",
+    dot: "bg-slate-400 dark:bg-slate-500 border-2 border-slate-300 dark:border-slate-400 shadow-xs",
+    checkColor: "text-white dark:text-slate-100",
+    editorBg: "bg-card border-slate-200/90 dark:border-slate-800/90",
+    cardBg: "bg-card border-slate-200/90 dark:border-slate-800/90",
     strip: "bg-slate-400 dark:bg-slate-600",
   },
   {
     id: "blue",
     label: "Ocean Blue",
-    dot: "bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-blue-300 dark:border-blue-400 shadow-sm shadow-blue-500/40",
+    dot: "bg-blue-500 border-2 border-blue-300 dark:border-blue-300 shadow-sm shadow-blue-500/50",
     checkColor: "text-white",
-    editorBg: "bg-blue-50/90 dark:bg-blue-950/50 border-blue-300/90 dark:border-blue-800/90 shadow-blue-500/10",
-    cardBg: "bg-blue-50/70 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/60",
+    editorBg: "bg-blue-50/90 dark:bg-blue-950/80 border-blue-300 dark:border-blue-700/80 shadow-md shadow-blue-500/10",
+    cardBg: "bg-blue-50/80 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800/70",
     strip: "bg-blue-500",
   },
   {
     id: "green",
     label: "Emerald Green",
-    dot: "bg-gradient-to-br from-emerald-400 to-emerald-600 border-2 border-emerald-300 dark:border-emerald-400 shadow-sm shadow-emerald-500/40",
+    dot: "bg-emerald-500 border-2 border-emerald-300 dark:border-emerald-300 shadow-sm shadow-emerald-500/50",
     checkColor: "text-white",
-    editorBg: "bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-300/90 dark:border-emerald-800/90 shadow-emerald-500/10",
-    cardBg: "bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60",
+    editorBg: "bg-emerald-50/90 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-700/80 shadow-md shadow-emerald-500/10",
+    cardBg: "bg-emerald-50/80 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/70",
     strip: "bg-emerald-500",
   },
   {
     id: "yellow",
     label: "Amber Gold",
-    dot: "bg-gradient-to-br from-amber-300 to-amber-500 border-2 border-amber-200 dark:border-amber-300 shadow-sm shadow-amber-500/40",
-    checkColor: "text-amber-950",
-    editorBg: "bg-amber-50/90 dark:bg-amber-950/50 border-amber-300/90 dark:border-amber-800/90 shadow-amber-500/10",
-    cardBg: "bg-amber-50/70 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60",
+    dot: "bg-amber-400 border-2 border-amber-200 dark:border-amber-200 shadow-sm shadow-amber-500/50",
+    checkColor: "text-amber-950 font-bold",
+    editorBg: "bg-amber-50/90 dark:bg-amber-950/80 border-amber-300 dark:border-amber-700/80 shadow-md shadow-amber-500/10",
+    cardBg: "bg-amber-50/80 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800/70",
     strip: "bg-amber-500",
   },
   {
     id: "red",
     label: "Rose Red",
-    dot: "bg-gradient-to-br from-rose-400 to-rose-600 border-2 border-rose-300 dark:border-rose-400 shadow-sm shadow-rose-500/40",
+    dot: "bg-rose-500 border-2 border-rose-300 dark:border-rose-300 shadow-sm shadow-rose-500/50",
     checkColor: "text-white",
-    editorBg: "bg-rose-50/90 dark:bg-rose-950/50 border-rose-300/90 dark:border-rose-800/90 shadow-rose-500/10",
-    cardBg: "bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60",
+    editorBg: "bg-rose-50/90 dark:bg-rose-950/80 border-rose-300 dark:border-rose-700/80 shadow-md shadow-rose-500/10",
+    cardBg: "bg-rose-50/80 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800/70",
     strip: "bg-rose-500",
   },
   {
     id: "purple",
     label: "Royal Purple",
-    dot: "bg-gradient-to-br from-purple-400 to-purple-600 border-2 border-purple-300 dark:border-purple-400 shadow-sm shadow-purple-500/40",
+    dot: "bg-purple-500 border-2 border-purple-300 dark:border-purple-300 shadow-sm shadow-purple-500/50",
     checkColor: "text-white",
-    editorBg: "bg-purple-50/90 dark:bg-purple-950/50 border-purple-300/90 dark:border-purple-800/90 shadow-purple-500/10",
-    cardBg: "bg-purple-50/70 dark:bg-purple-950/40 border-purple-200 dark:border-purple-900/60",
+    editorBg: "bg-purple-50/90 dark:bg-purple-950/80 border-purple-300 dark:border-purple-700/80 shadow-md shadow-purple-500/10",
+    cardBg: "bg-purple-50/80 dark:bg-purple-950/60 border-purple-200 dark:border-purple-800/70",
     strip: "bg-purple-500",
   },
   {
     id: "teal",
     label: "Teal Cyan",
-    dot: "bg-gradient-to-br from-cyan-400 to-teal-500 border-2 border-cyan-300 dark:border-cyan-400 shadow-sm shadow-teal-500/40",
+    dot: "bg-cyan-500 border-2 border-cyan-300 dark:border-cyan-300 shadow-sm shadow-cyan-500/50",
     checkColor: "text-white",
-    editorBg: "bg-teal-50/90 dark:bg-teal-950/50 border-teal-300/90 dark:border-teal-800/90 shadow-teal-500/10",
-    cardBg: "bg-teal-50/70 dark:bg-teal-950/40 border-teal-200 dark:border-teal-900/60",
+    editorBg: "bg-teal-50/90 dark:bg-teal-950/80 border-teal-300 dark:border-teal-700/80 shadow-md shadow-teal-500/10",
+    cardBg: "bg-teal-50/80 dark:bg-teal-950/60 border-teal-200 dark:border-teal-800/70",
     strip: "bg-teal-500",
   },
 ];
@@ -2381,42 +2381,45 @@ export function NotesClientView({
                           {/* Color Palette & Auto-save status */}
                           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                             {/* Professional Responsive Color Rounds Picker */}
-                            <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-slate-100/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 shadow-xs backdrop-blur-md">
-                              <div className="flex items-center gap-1 mr-0.5 text-slate-400 hidden xs:flex" title="Color Theme">
-                                <Palette className="h-3.5 w-3.5" />
+                            <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-slate-100/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 shadow-xs backdrop-blur-md shrink-0">
+                              <div className="flex items-center gap-1 mr-0.5 text-slate-400 shrink-0" title="Color Theme">
+                                <Palette className="h-4 w-4" />
+                                <span className="text-[11px] font-semibold hidden md:inline text-slate-400">Color</span>
                               </div>
-                              {NOTE_COLORS.map((c) => {
-                                const isSelected = (editorColor || "default") === c.id;
-                                return (
-                                  <button
-                                    key={c.id}
-                                    type="button"
-                                    title={`Set note color to ${c.label}`}
-                                    aria-label={c.label}
-                                    onClick={() => {
-                                      setEditorColor(c.id);
-                                      setActiveNote((prev: any) => (prev ? { ...prev, color: c.id } : prev));
-                                      setNotesData((prev: any) => ({
-                                        ...prev,
-                                        notes: (prev?.notes || []).map((n: any) =>
-                                          n.publicId === activeNote?.publicId ? { ...n, color: c.id } : n
-                                        ),
-                                      }));
-                                      updateNote(activeNote.publicId, { color: c.id });
-                                      toast.success(`Color set to ${c.label}`);
-                                    }}
-                                    className={`h-6 w-6 sm:h-7 sm:w-7 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 relative ${c.dot} ${
-                                      isSelected
-                                        ? "scale-115 ring-2 ring-primary ring-offset-2 ring-offset-background shadow-md z-10"
-                                        : "hover:scale-115 opacity-85 hover:opacity-100"
-                                    }`}
-                                  >
-                                    {isSelected && (
-                                      <Check className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${c.checkColor || "text-white"} stroke-[3] drop-shadow-xs animate-in zoom-in-75 duration-150`} />
-                                    )}
-                                  </button>
-                                );
-                              })}
+                              <div className="flex items-center gap-1.5 sm:gap-2">
+                                {NOTE_COLORS.map((c) => {
+                                  const isSelected = (editorColor || "default") === c.id;
+                                  return (
+                                    <button
+                                      key={c.id}
+                                      type="button"
+                                      title={`Set note color to ${c.label}`}
+                                      aria-label={c.label}
+                                      onClick={() => {
+                                        setEditorColor(c.id);
+                                        setActiveNote((prev: any) => (prev ? { ...prev, color: c.id } : prev));
+                                        setNotesData((prev: any) => ({
+                                          ...prev,
+                                          notes: (prev?.notes || []).map((n: any) =>
+                                            n.publicId === activeNote?.publicId ? { ...n, color: c.id } : n
+                                          ),
+                                        }));
+                                        updateNote(activeNote.publicId, { color: c.id });
+                                        toast.success(`Color set to ${c.label}`);
+                                      }}
+                                      className={`h-7 w-7 sm:h-8 sm:w-8 min-w-[28px] min-h-[28px] sm:min-w-[32px] sm:min-h-[32px] rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 relative ${c.dot} ${
+                                        isSelected
+                                          ? "scale-110 ring-2 ring-white dark:ring-white ring-offset-2 ring-offset-slate-900 shadow-md z-10"
+                                          : "hover:scale-110 opacity-90 hover:opacity-100 hover:shadow-xs"
+                                      }`}
+                                    >
+                                      {isSelected && (
+                                        <Check className={`h-4 w-4 sm:h-4.5 sm:w-4.5 ${c.checkColor || "text-white"} stroke-[3.5] drop-shadow-xs animate-in zoom-in-75 duration-150`} />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
 
                             <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />

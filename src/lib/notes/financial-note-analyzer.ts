@@ -784,6 +784,89 @@ export function htmlToCleanLines(htmlOrText: string): string[] {
 }
 
 /**
+ * Clean and sanitize note content for exports, stats, and text rendering.
+ * Decodes all HTML entities (including &nbsp; and &amp;nbsp;), splits run-on transactions,
+ * adds clean line spacing before date blocks, and ensures trailing padding.
+ */
+export function cleanNoteContentText(content: string): string {
+  if (!content) return "";
+
+  // 1. Convert HTML block tags to newlines and decode all entities (including nested &amp;nbsp;)
+  let text = content
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<\/tr>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;nbsp;/gi, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#160;/gi, " ")
+    .replace(/\u00a0/g, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&nbsp;/gi, " ");
+
+  // 2. Split lines and process multi-transaction lines
+  const rawLines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const formattedLines: string[] = [];
+
+  for (const rawLine of rawLines) {
+    let line = rawLine.replace(/[ \t]+/g, " ").trim();
+    if (!line) continue;
+
+    // Check if line contains date prefix followed by item: e.g. "01/10/2026 Chips - 20"
+    const datePrefixMatch = line.match(/^((?:date\s*[:=-]?\s*)?(?:\d{1,2}[-/.]\d{1,2}[-/.]\d{4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}))\s+(.+)$/i);
+    if (datePrefixMatch) {
+      formattedLines.push(datePrefixMatch[1].trim());
+      line = datePrefixMatch[2].trim();
+    }
+
+    // Split multiple numbered items: e.g. "1. Chips - 20 2. Petrol - 500"
+    if (/(?:\d+[\.\)]\s+.*?){2,}/.test(line)) {
+      const parts = line.split(/(?<=\S)\s+(?=\d+[\.\)]\s+)/).map((p) => p.trim()).filter(Boolean);
+      formattedLines.push(...parts);
+      continue;
+    }
+
+    // Split multiple space-separated or comma-separated transactions:
+    // e.g. "Recharge - 399 Groceries - 1850" or "Chips - 20, Petrol - 500"
+    if (/(?:[-:]\s*₹?\s*\d+.*?){2,}/.test(line)) {
+      const parts = line
+        .split(/(?<=\b\d+(?:\.\d{1,2})?(?:\s*(?:rs|inr|\/-))?)(?:\s|&nbsp;|\u00a0)+(?=[A-Za-z][^-\n:]*?[-:]\s*₹?\s*\d+)/i)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (parts.length > 1) {
+        formattedLines.push(...parts);
+        continue;
+      }
+    }
+
+    formattedLines.push(line);
+  }
+
+  // 3. Format lines with proper spacing between date sections and clean spacing after last transition
+  const finalResult: string[] = [];
+  const dateRegex = /^(?:\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4})$/i;
+
+  for (let i = 0; i < formattedLines.length; i++) {
+    const cur = formattedLines[i];
+    const isDateHeader = dateRegex.test(cur) || /^[A-Z][a-z]+\s+\d{4}$/.test(cur);
+
+    if (isDateHeader && finalResult.length > 0 && finalResult[finalResult.length - 1] !== "") {
+      finalResult.push(""); // blank line before date block
+    }
+    finalResult.push(cur);
+  }
+
+  // Always ensure generous trailing spacing after the last transition
+  return finalResult.join("\n") + "\n\n";
+}
+
+/**
  * Parse an individual note line to extract a financial entry:
  * - "Chips - 20"
  * - "Petrol - 500"

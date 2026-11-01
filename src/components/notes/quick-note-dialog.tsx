@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Zap, Plus, Pin, Star, Loader2 } from "lucide-react";
+import { Zap, Plus, Pin, Star, Loader2, Check } from "lucide-react";
 import { createNote, linkNoteToEntity } from "@/actions/notes";
 import { toast } from "sonner";
 
@@ -28,12 +28,13 @@ interface QuickNoteDialogProps {
 }
 
 const NOTE_COLORS = [
-  { id: "default", bg: "bg-slate-100 dark:bg-slate-800", label: "Default" },
-  { id: "blue", bg: "bg-blue-100 dark:bg-blue-900/60", label: "Blue" },
-  { id: "green", bg: "bg-emerald-100 dark:bg-emerald-900/60", label: "Emerald" },
-  { id: "yellow", bg: "bg-amber-100 dark:bg-amber-900/60", label: "Amber" },
-  { id: "red", bg: "bg-rose-100 dark:bg-rose-900/60", label: "Rose" },
-  { id: "purple", bg: "bg-purple-100 dark:bg-purple-900/60", label: "Purple" },
+  { id: "default", dot: "bg-slate-400 dark:bg-slate-500 border-2 border-slate-300 dark:border-slate-400", checkColor: "text-white dark:text-slate-100", label: "Default" },
+  { id: "blue", dot: "bg-blue-500 border-2 border-blue-300 dark:border-blue-300 shadow-xs shadow-blue-500/50", checkColor: "text-white", label: "Ocean Blue" },
+  { id: "green", dot: "bg-emerald-500 border-2 border-emerald-300 dark:border-emerald-300 shadow-xs shadow-emerald-500/50", checkColor: "text-white", label: "Emerald" },
+  { id: "yellow", dot: "bg-amber-400 border-2 border-amber-200 dark:border-amber-200 shadow-xs shadow-amber-500/50", checkColor: "text-amber-950 font-bold", label: "Amber" },
+  { id: "red", dot: "bg-rose-500 border-2 border-rose-300 dark:border-rose-300 shadow-xs shadow-rose-500/50", checkColor: "text-white", label: "Rose" },
+  { id: "purple", dot: "bg-purple-500 border-2 border-purple-300 dark:border-purple-300 shadow-xs shadow-purple-500/50", checkColor: "text-white", label: "Purple" },
+  { id: "teal", dot: "bg-cyan-500 border-2 border-cyan-300 dark:border-cyan-300 shadow-xs shadow-cyan-500/50", checkColor: "text-white", label: "Teal" },
 ];
 
 export function QuickNoteDialog({
@@ -160,22 +161,30 @@ export function QuickNoteDialog({
               </select>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold text-slate-500">Note Accent Color</Label>
-              <div className="flex items-center gap-1.5 h-8">
-                {NOTE_COLORS.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    title={c.label}
-                    onClick={() => setColor(c.id)}
-                    className={"h-5 w-5 rounded-full border transition-all " + c.bg + " " + (
-                      color === c.id
-                        ? "scale-125 ring-2 ring-primary ring-offset-1 border-primary"
-                        : "border-slate-300 dark:border-slate-700 hover:scale-110"
-                    )}
-                  />
-                ))}
+              <div className="flex items-center gap-2 h-9">
+                {NOTE_COLORS.map((c) => {
+                  const isSelected = color === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      title={c.label}
+                      aria-label={c.label}
+                      onClick={() => setColor(c.id)}
+                      className={`h-7 w-7 min-w-[28px] min-h-[28px] rounded-full flex items-center justify-center transition-all duration-150 cursor-pointer shrink-0 relative ${c.dot} ${
+                        isSelected
+                          ? "scale-110 ring-2 ring-white dark:ring-white ring-offset-2 ring-offset-slate-900 shadow-md z-10"
+                          : "hover:scale-110 opacity-90 hover:opacity-100"
+                      }`}
+                    >
+                      {isSelected && (
+                        <Check className={`h-4 w-4 ${c.checkColor || "text-white"} stroke-[3.5] drop-shadow-xs animate-in zoom-in-75 duration-150`} />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
