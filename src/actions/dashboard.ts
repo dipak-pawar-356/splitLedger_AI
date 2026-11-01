@@ -1017,29 +1017,41 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
     const contactSavings = monthlyContactIncome - monthlyContactExpense;
     const prevContactSavings = prevContactIncome - prevContactExpense;
 
-    // Extract notes-derived financial expenses (Smart Keep / Financial Journal)
+    // Extract notes-derived financial entries (Smart Keep / Financial Journal)
     const allNotesExtractedExpenses = (activeNotesForExpenses || []).flatMap((n: any) =>
       extractExpensesFromNote(n.content, n.createdAt ? new Date(n.createdAt) : new Date(), n.id, n.title)
     );
 
     let periodNotesExpense = 0;
+    let periodNotesIncome = 0;
     let prevPeriodNotesExpense = 0;
+    let prevPeriodNotesIncome = 0;
     let exactPrevMonthNotesExpense = 0;
     let exactPriorMonthNotesExpense = 0;
+    let allTimeNotesExpenseTotal = 0;
+    let allTimeNotesIncomeTotal = 0;
 
     allNotesExtractedExpenses.forEach((exp) => {
       const expDate = new Date(exp.date);
+      const isOutflow = exp.type === "expense" || exp.type === "payable";
+      const isInflow = exp.type === "income" || exp.type === "receivable";
+
+      if (isOutflow) allTimeNotesExpenseTotal += exp.amount;
+      if (isInflow) allTimeNotesIncomeTotal += exp.amount;
+
       if (expDate >= startDate && expDate <= endDate) {
-        periodNotesExpense += exp.amount;
+        if (isOutflow) periodNotesExpense += exp.amount;
+        if (isInflow) periodNotesIncome += exp.amount;
       }
       if (expDate >= prevStartDate && expDate <= prevEndDate) {
-        prevPeriodNotesExpense += exp.amount;
+        if (isOutflow) prevPeriodNotesExpense += exp.amount;
+        if (isInflow) prevPeriodNotesIncome += exp.amount;
       }
       if (expDate >= exactPrevMonthStart && expDate <= exactPrevMonthEnd) {
-        exactPrevMonthNotesExpense += exp.amount;
+        if (isOutflow) exactPrevMonthNotesExpense += exp.amount;
       }
       if (expDate >= exactPriorMonthStart && expDate <= exactPriorMonthEnd) {
-        exactPriorMonthNotesExpense += exp.amount;
+        if (isOutflow) exactPriorMonthNotesExpense += exp.amount;
       }
     });
 
@@ -1049,15 +1061,14 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
     const allTxPrevIncome = (prevPeriodAllTxSummary[0]?.totalIncome || 0) / 100;
     const allTxPrevExpense = (prevPeriodAllTxSummary[0]?.totalExpense || 0) / 100;
 
-    const totalIncome = allTxPeriodIncome;
+    const totalIncome = allTxPeriodIncome + periodNotesIncome;
     const totalExpenses = allTxPeriodExpense + periodNotesExpense;
-    const prevTotalIncome = allTxPrevIncome;
+    const prevTotalIncome = allTxPrevIncome + prevPeriodNotesIncome;
     const prevTotalExpenses = allTxPrevExpense + prevPeriodNotesExpense;
 
     // True Lifetime Income & Expenses across all entries
-    const lifetimeIncome = (allTimeIncomeExp[0]?.income || 0) / 100;
-    const allTimeNotesTotal = (allNotesExtractedExpenses || []).reduce((s: number, e: any) => s + e.amount, 0);
-    const lifetimeExpenses = ((allTimeIncomeExp[0]?.expense || 0) / 100) + allTimeNotesTotal;
+    const lifetimeIncome = ((allTimeIncomeExp[0]?.income || 0) / 100) + allTimeNotesIncomeTotal;
+    const lifetimeExpenses = ((allTimeIncomeExp[0]?.expense || 0) / 100) + allTimeNotesExpenseTotal;
 
     const netSavings = totalIncome - totalExpenses;
     const prevNetSavings = prevTotalIncome - prevTotalExpenses;

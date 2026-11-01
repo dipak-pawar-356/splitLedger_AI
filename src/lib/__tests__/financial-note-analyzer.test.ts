@@ -128,5 +128,87 @@ Date: 01/11/2026
     expect(expenses[3].description).toBe("Grocery");
     expect(expenses[3].amount).toBe(1500);
   });
+
+  it("extracts a complete month's financial history written in a single note across multiple dates", () => {
+    const fullMonthNote = `
+October 2026
+
+01/10/2026
+Chips - 20
+Petrol - 500
+Flipkart Order - 300
+
+04/10/2026
+Mess - 40
+Tea - 60
+
+10/10/2026
+Received Salary - 25000
+
+12/10/2026
+Received From Kunal - 1500
+
+15/10/2026
+Electric Bill - 1200
+
+22/10/2026
+Paid Rahul - 500
+
+30/10/2026
+Recharge - 399
+Groceries - 1850
+    `;
+
+    const entries = extractExpensesFromNote(fullMonthNote, new Date(2026, 9, 1));
+    expect(entries).toHaveLength(11);
+
+    // Verify Date distribution
+    const oct01 = entries.filter((e) => e.date === "2026-10-01");
+    expect(oct01).toHaveLength(3);
+    expect(oct01.reduce((s, e) => s + e.amount, 0)).toBe(820);
+
+    const oct04 = entries.filter((e) => e.date === "2026-10-04");
+    expect(oct04).toHaveLength(2);
+    expect(oct04.reduce((s, e) => s + e.amount, 0)).toBe(100);
+
+    const oct10 = entries.filter((e) => e.date === "2026-10-10");
+    expect(oct10).toHaveLength(1);
+    expect(oct10[0].type).toBe("income");
+    expect(oct10[0].amount).toBe(25000);
+
+    const oct12 = entries.filter((e) => e.date === "2026-10-12");
+    expect(oct12).toHaveLength(1);
+    expect(oct12[0].type).toBe("receivable");
+    expect(oct12[0].amount).toBe(1500);
+    expect(oct12[0].contactName).toBe("Kunal");
+
+    const oct15 = entries.filter((e) => e.date === "2026-10-15");
+    expect(oct15).toHaveLength(1);
+    expect(oct15[0].type).toBe("expense");
+    expect(oct15[0].amount).toBe(1200);
+
+    const oct22 = entries.filter((e) => e.date === "2026-10-22");
+    expect(oct22).toHaveLength(1);
+    expect(oct22[0].type).toBe("payable");
+    expect(oct22[0].amount).toBe(500);
+    expect(oct22[0].contactName).toBe("Rahul");
+
+    const oct30 = entries.filter((e) => e.date === "2026-10-30");
+    expect(oct30).toHaveLength(2);
+    expect(oct30.reduce((s, e) => s + e.amount, 0)).toBe(399 + 1850);
+
+    // Aggregate monthly analytics
+    const analytics = aggregateFinancialNotes(entries);
+    const octSummary = analytics.monthlySummaries.find((s) => s.monthKey === "2026-10");
+    expect(octSummary).toBeDefined();
+
+    expect(octSummary?.totalExpense).toBe(4869);
+    expect(octSummary?.totalIncome).toBe(26500);
+    expect(octSummary?.totalReceivable).toBe(1500);
+    expect(octSummary?.totalPayable).toBe(500);
+    expect(octSummary?.netCashflow).toBe(21631);
+    expect(octSummary?.highestIncome?.amount).toBe(25000);
+    expect(octSummary?.highestExpense?.amount).toBe(1850);
+  });
 });
 

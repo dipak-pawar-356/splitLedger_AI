@@ -248,34 +248,48 @@ export function NotesStatsDashboard({ stats, financialAnalytics }: NotesStatsDas
 
           {/* 4 Financial Journal Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {/* Card 1: All-Time Note Expenses */}
-            <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                All-Time Journal Expenses
+            {/* Card 1: All-Time Note Expenses & Incomes */}
+            <div className="group relative p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 space-y-1 cursor-pointer">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                <span>All-Time Expenses</span>
+                <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                  +{formatCurrency(financialAnalytics.allTimeTotalIncome || 0)} In
+                </span>
               </span>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
-                {formatCurrency(financialAnalytics.allTimeTotalAmount)}
+              <div className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
+                {formatCurrency(financialAnalytics.allTimeTotalExpense || financialAnalytics.allTimeTotalAmount)}
               </div>
-              <p className="text-[11px] text-slate-400">
-                Across {financialAnalytics.totalExpensesCount} point-wise entries
+              <p className="text-[11px] text-slate-400 flex items-center justify-between">
+                <span>{financialAnalytics.totalTransactionsCount || financialAnalytics.totalExpensesCount} total entries</span>
+                <span className={`font-semibold ${(financialAnalytics.allTimeNetCashflow || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                  Net: {formatCurrency(financialAnalytics.allTimeNetCashflow || 0)}
+                </span>
               </p>
             </div>
 
-            {/* Card 2: Current Month Expenses */}
-            <div className="p-4 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/60 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                {financialAnalytics.currentMonth?.monthName || "Current Month"}
+            {/* Card 2: Current Month Expenses & Incomes */}
+            <div className="group relative p-4 rounded-2xl bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/60 hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 space-y-1 cursor-pointer">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                <span>{financialAnalytics.currentMonth?.monthName || "Current Month"}</span>
+                {(financialAnalytics.currentMonth?.totalIncome || 0) > 0 && (
+                  <span className="text-[10px] font-mono text-emerald-600 font-bold">
+                    +{formatCurrency(financialAnalytics.currentMonth?.totalIncome || 0)} In
+                  </span>
+                )}
               </span>
-              <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                {formatCurrency(financialAnalytics.currentMonth?.totalAmount || 0)}
+              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                {formatCurrency(financialAnalytics.currentMonth?.totalExpense || financialAnalytics.currentMonth?.totalAmount || 0)}
               </div>
-              <p className="text-[11px] text-slate-400">
-                {financialAnalytics.currentMonth?.expenseCount || 0} note entries this month
+              <p className="text-[11px] text-slate-400 flex items-center justify-between">
+                <span>{financialAnalytics.currentMonth?.totalTransactionsCount || financialAnalytics.currentMonth?.expenseCount || 0} entries this month</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  Avg: {formatCurrency(financialAnalytics.currentMonth?.averageDailyExpense || financialAnalytics.currentMonth?.averageExpense || 0)}/day
+                </span>
               </p>
             </div>
 
             {/* Card 3: Previous Month Comparison */}
-            <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 space-y-1">
+            <div className="group relative p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/5 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 space-y-1 cursor-pointer">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   {financialAnalytics.previousMonth?.monthName || "Previous Month"}
@@ -291,8 +305,8 @@ export function NotesStatsDashboard({ stats, financialAnalytics }: NotesStatsDas
                   </span>
                 )}
               </div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
-                {formatCurrency(financialAnalytics.previousMonth?.totalAmount || 0)}
+              <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                {formatCurrency(financialAnalytics.previousMonth?.totalExpense || financialAnalytics.previousMonth?.totalAmount || 0)}
               </div>
               <p className="text-[11px] text-slate-400">
                 {financialAnalytics.trend?.comparisonText || "Baseline journal records"}
@@ -300,15 +314,18 @@ export function NotesStatsDashboard({ stats, financialAnalytics }: NotesStatsDas
             </div>
 
             {/* Card 4: Top Category & High/Low Stats */}
-            <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Top Category & Average
+            <div className="group relative p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/5 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 space-y-1 cursor-pointer">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                <span>Top Category</span>
+                <span className="text-[10px] font-mono text-primary font-bold">
+                  Max: {formatCurrency(financialAnalytics.highestOverallExpense?.amount || 0)}
+                </span>
               </span>
-              <div className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate">
+              <div className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 truncate tracking-tight">
                 {financialAnalytics.mostUsedCategory || "General"}
               </div>
               <p className="text-[11px] text-slate-400 truncate">
-                Avg: {formatCurrency(financialAnalytics.currentMonth?.averageExpense || 0)} • Max: {formatCurrency(financialAnalytics.highestOverallExpense?.amount || 0)}
+                Avg: {formatCurrency(financialAnalytics.currentMonth?.averageExpense || 0)} • High Income: {formatCurrency(financialAnalytics.highestOverallIncome?.amount || 0)}
               </p>
             </div>
           </div>
@@ -321,40 +338,66 @@ export function NotesStatsDashboard({ stats, financialAnalytics }: NotesStatsDas
                 <span>Monthly Journal Breakdown & Records</span>
               </h4>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 {financialAnalytics.monthlySummaries.slice(0, 4).map((m) => (
                   <div
                     key={m.monthKey}
-                    className="p-3.5 rounded-2xl bg-card border border-slate-200/70 dark:border-slate-800 space-y-2 hover:border-emerald-500/40 transition-colors"
+                    className="group p-4 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 space-y-2.5 hover:border-emerald-500/50 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-300"
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
                         {m.monthName}
                       </span>
-                      <span className="font-mono font-bold text-xs text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(m.totalAmount)}
-                      </span>
+                      <div className="flex items-center gap-2 font-mono text-xs font-bold">
+                        {m.totalIncome > 0 && (
+                          <span className="text-emerald-600 dark:text-emerald-400">
+                            +{formatCurrency(m.totalIncome)}
+                          </span>
+                        )}
+                        <span className="text-rose-600 dark:text-rose-400">
+                          -{formatCurrency(m.totalExpense || m.totalAmount)}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>{m.expenseCount} entries recorded</span>
-                      <span>Avg {formatCurrency(m.averageExpense)} / item</span>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5 border-t border-slate-100 dark:border-slate-800/80">
+                      <span>{m.totalTransactionsCount || m.expenseCount} entries recorded</span>
+                      <span className={`font-semibold ${m.netCashflow >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                        Net: {m.netCashflow >= 0 ? "+" : ""}{formatCurrency(m.netCashflow)}
+                      </span>
                     </div>
 
                     {m.items && m.items.length > 0 && (
                       <div className="divide-y divide-slate-100 dark:divide-slate-800/60 pt-1 text-xs">
-                        {m.items.slice(0, 3).map((item) => (
-                          <div key={item.id} className="py-1 flex items-center justify-between gap-2">
+                        {m.items.slice(0, 4).map((item) => (
+                          <div key={item.id} className="py-1.5 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-1.5 truncate">
-                              <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal shrink-0">
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] px-1 py-0 font-normal shrink-0 ${
+                                  item.type === "income"
+                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-300"
+                                    : item.type === "receivable"
+                                    ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-300"
+                                    : item.type === "payable"
+                                    ? "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border-purple-300"
+                                    : "bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300 border-slate-300"
+                                }`}
+                              >
                                 {item.category}
                               </Badge>
-                              <span className="text-slate-700 dark:text-slate-300 truncate">
+                              <span className="text-slate-700 dark:text-slate-300 truncate font-medium">
                                 {item.description}
                               </span>
                             </div>
-                            <span className="font-mono text-slate-900 dark:text-slate-100 font-semibold shrink-0">
-                              {formatCurrency(item.amount)}
+                            <span
+                              className={`font-mono text-xs font-bold shrink-0 ${
+                                item.type === "income" || item.type === "receivable"
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : "text-rose-600 dark:text-rose-400"
+                              }`}
+                            >
+                              {item.type === "income" || item.type === "receivable" ? "+" : "-"}{formatCurrency(item.amount)}
                             </span>
                           </div>
                         ))}

@@ -331,87 +331,119 @@ export function DailyFinancialJournalView() {
 
         {/* Real-time Daily Financial KPI Cards (2 Columns on Mobile, 4 on Desktop, Never 1 Stretching) */}
         {journalData && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 pt-1">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5 pt-1">
             {/* 1. Income */}
-            <div className="p-3 rounded-2xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 flex flex-col justify-between">
-              <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 block mb-1 flex items-center gap-1">
-                <ArrowDownLeft className="h-3 w-3" /> Income Received
+            <div className="group relative p-3.5 rounded-2xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/5 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 flex flex-col justify-between cursor-pointer">
+              <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <ArrowDownLeft className="h-3.5 w-3.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
+                  Income Received
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               </span>
-              <span className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-300">
+              <span className="text-base sm:text-lg font-black text-emerald-700 dark:text-emerald-300 tracking-tight">
                 {formatCurrency(journalData.income || 0)}
               </span>
             </div>
 
             {/* 2. Expense */}
-            <div className="p-3 rounded-2xl border border-rose-200/60 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 flex flex-col justify-between">
-              <span className="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 block mb-1 flex items-center gap-1">
-                <ArrowUpRight className="h-3 w-3" /> Expense Paid
+            <div className="group relative p-3.5 rounded-2xl border border-rose-200/60 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 hover:border-rose-500/60 hover:shadow-lg hover:shadow-rose-500/10 dark:hover:shadow-rose-500/5 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 flex flex-col justify-between cursor-pointer">
+              <span className="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <ArrowUpRight className="h-3.5 w-3.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
+                  Expense Paid
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
               </span>
-              <span className="text-base sm:text-lg font-bold text-rose-700 dark:text-rose-300">
+              <span className="text-base sm:text-lg font-black text-rose-700 dark:text-rose-300 tracking-tight">
                 {formatCurrency(journalData.expense || 0)}
               </span>
             </div>
 
             {/* 3. Net Cashflow */}
-            <div className="p-3 rounded-2xl border border-blue-200/60 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 flex flex-col justify-between">
-              <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 block mb-1 flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" /> Net Cashflow
+            <div className="group relative p-3.5 rounded-2xl border border-blue-200/60 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/10 dark:hover:shadow-blue-500/5 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 flex flex-col justify-between cursor-pointer">
+              <span className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <TrendingUp className="h-3.5 w-3.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
+                  Net Cashflow
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
               </span>
               <span
-                className={`text-base sm:text-lg font-bold ${
+                className={`text-base sm:text-lg font-black tracking-tight ${
                   (journalData.net || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                 }`}
               >
-                {formatCurrency(journalData.net || 0)}
+                {(journalData.net || 0) >= 0 ? "+" : ""}{formatCurrency(journalData.net || 0)}
               </span>
             </div>
 
             {/* 4. Receivables */}
-            <div className="p-3 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/20 flex flex-col justify-between">
-              <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 block mb-1 flex items-center gap-1">
-                <HandCoins className="h-3 w-3" /> Receivables
+            <div className="group relative p-3.5 rounded-2xl border border-amber-200/60 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/20 hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/10 dark:hover:shadow-amber-500/5 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 flex flex-col justify-between cursor-pointer">
+              <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <HandCoins className="h-3.5 w-3.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
+                  Receivables
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
               </span>
-              <span className="text-base sm:text-lg font-bold text-amber-700 dark:text-amber-300">
-                {formatCurrency(journalData.receivables || 0)}
+              <span className="text-base sm:text-lg font-black text-amber-700 dark:text-amber-300 tracking-tight">
+                {formatCurrency(journalData.receivable || 0)}
               </span>
             </div>
 
             {/* 5. Payables */}
-            <div className="p-3 rounded-2xl border border-purple-200/60 dark:border-purple-900/40 bg-purple-50/40 dark:bg-purple-950/20 flex flex-col justify-between">
-              <span className="text-[10px] uppercase font-bold text-purple-600 dark:text-purple-400 block mb-1 flex items-center gap-1">
-                <CreditCard className="h-3 w-3" /> Payables
+            <div className="group relative p-3.5 rounded-2xl border border-purple-200/60 dark:border-purple-900/40 bg-purple-50/40 dark:bg-purple-950/20 hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-500/10 dark:hover:shadow-purple-500/5 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 flex flex-col justify-between cursor-pointer">
+              <span className="text-[10px] uppercase font-bold text-purple-600 dark:text-purple-400 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <CreditCard className="h-3.5 w-3.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
+                  Payables
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
               </span>
-              <span className="text-base sm:text-lg font-bold text-purple-700 dark:text-purple-300">
-                {formatCurrency(journalData.payables || 0)}
+              <span className="text-base sm:text-lg font-black text-purple-700 dark:text-purple-300 tracking-tight">
+                {formatCurrency(journalData.payable || 0)}
               </span>
             </div>
 
             {/* 6. Transactions Count */}
-            <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col justify-between">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1 flex items-center gap-1">
-                <IndianRupee className="h-3 w-3" /> Transactions
+            <div className="group relative p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 flex flex-col justify-between cursor-pointer">
+              <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <IndianRupee className="h-3.5 w-3.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
+                  Transactions
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               </span>
-              <span className="text-base sm:text-lg font-bold text-primary">
+              <span className="text-base sm:text-lg font-black text-primary tracking-tight">
                 {journalData.txCount || 0} items
               </span>
             </div>
 
             {/* 7. Notes Recorded */}
-            <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col justify-between">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1 flex items-center gap-1">
-                <FileText className="h-3 w-3" /> Notes
+            <div className="group relative p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-blue-500/60 hover:shadow-lg hover:shadow-blue-500/10 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 flex flex-col justify-between cursor-pointer">
+              <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <FileText className="h-3.5 w-3.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
+                  Notes
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
               </span>
-              <span className="text-base sm:text-lg font-bold text-blue-600 dark:text-blue-400">
-                {journalData.notes?.length || 0} recorded
+              <span className="text-base sm:text-lg font-black text-blue-600 dark:text-blue-400 tracking-tight">
+                {journalData.notesCount ?? (journalData.notes?.length || 0)} recorded
               </span>
             </div>
 
             {/* 8. Tasks Due */}
-            <div className="p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col justify-between">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1 flex items-center gap-1">
-                <ListChecks className="h-3 w-3" /> Tasks
+            <div className="group relative p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-emerald-500/60 hover:shadow-lg hover:shadow-emerald-500/10 hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 flex flex-col justify-between cursor-pointer">
+              <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <ListChecks className="h-3.5 w-3.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
+                  Tasks
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               </span>
-              <span className="text-base sm:text-lg font-bold text-emerald-600 dark:text-emerald-400">
+              <span className="text-base sm:text-lg font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
                 {journalData.tasksCount || 0} active
               </span>
             </div>
@@ -479,44 +511,102 @@ export function DailyFinancialJournalView() {
             </div>
           </Card>
 
-          {/* Extracted Journal Expenses (Smart Financial Keep) */}
-          <Card className="rounded-2xl border border-emerald-500/30 shadow-sm p-4 space-y-3 bg-gradient-to-br from-card via-card to-emerald-500/[0.02]">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-emerald-500" />
-                Extracted Note Expenses ({journalData?.extractedExpenses?.length || 0})
+          {/* Extracted Financial Entries (Smart Date-Wise Financial Journal) */}
+          <Card className="rounded-2xl border border-primary/20 shadow-sm p-4 space-y-3 bg-gradient-to-br from-card via-card to-primary/[0.02]">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Date-Wise Extracted Entries ({journalData?.extractedExpenses?.length || 0})
               </h4>
-              {journalData?.dailyExpenseSummary?.notesExpense > 0 && (
-                <Badge variant="outline" className="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
-                  {formatCurrency(journalData.dailyExpenseSummary.notesExpense)}
-                </Badge>
-              )}
+              <div className="flex items-center gap-1.5">
+                {journalData?.income > 0 && (
+                  <Badge variant="outline" className="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+                    +{formatCurrency(journalData.income)}
+                  </Badge>
+                )}
+                {journalData?.expense > 0 && (
+                  <Badge variant="outline" className="font-mono text-[10px] font-bold text-rose-600 dark:text-rose-400 border-rose-500/30 bg-rose-500/10">
+                    -{formatCurrency(journalData.expense)}
+                  </Badge>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {journalData?.extractedExpenses?.map((exp: any, idx: number) => (
-                <div
-                  key={exp.id || idx}
-                  className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-500/20 bg-white dark:bg-slate-900 text-xs hover:border-emerald-500/40 transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 shrink-0">
-                      {exp.category}
-                    </Badge>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                      {exp.description}
-                    </span>
+              {journalData?.extractedExpenses?.map((exp: any, idx: number) => {
+                const isIncome = exp.type === "income" || exp.type === "receivable";
+                const isExpense = exp.type === "expense" || exp.type === "payable";
+
+                return (
+                  <div
+                    key={exp.id || idx}
+                    className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs hover:border-primary/40 hover:shadow-xs transition-all space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        {/* Flow Type Badge */}
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0 ${
+                            exp.type === "income"
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                              : exp.type === "receivable"
+                              ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                              : exp.type === "payable"
+                              ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30"
+                              : exp.type === "transfer"
+                              ? "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30"
+                              : "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                          }`}
+                        >
+                          {exp.type || "expense"}
+                        </Badge>
+
+                        {/* Category Badge */}
+                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                          {exp.category}
+                        </Badge>
+
+                        {/* Contact Badge if present */}
+                        {exp.contactName && (
+                          <Badge variant="outline" className="text-[10px] border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+                            👤 {exp.contactName}
+                          </Badge>
+                        )}
+
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                          {exp.description}
+                        </span>
+                      </div>
+
+                      <span
+                        className={`font-mono font-bold text-xs shrink-0 ml-2 ${
+                          isIncome
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : isExpense
+                            ? "text-rose-600 dark:text-rose-400"
+                            : "text-blue-600 dark:text-blue-400"
+                        }`}
+                      >
+                        {isIncome ? "+" : isExpense ? "-" : ""}{formatCurrency(exp.amount)}
+                      </span>
+                    </div>
+
+                    {/* Ambiguity Note if low confidence */}
+                    {exp.isAmbiguous && (
+                      <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                        <span>⚠️ Needs clarification:</span>
+                        <span className="truncate">{exp.ambiguityReason || "Classification confidence below 70%"}</span>
+                      </div>
+                    )}
                   </div>
-                  <span className="font-mono font-bold text-slate-900 dark:text-slate-100 shrink-0 ml-2">
-                    {formatCurrency(exp.amount)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
 
               {(!journalData?.extractedExpenses || journalData.extractedExpenses.length === 0) && (
                 <div className="py-6 text-center text-slate-400 text-xs bg-slate-50/50 dark:bg-slate-900/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
                   <Sparkles className="h-5 w-5 mx-auto text-slate-300 dark:text-slate-600 mb-1" />
-                  <p className="font-medium text-slate-600 dark:text-slate-400">No note expenses extracted for this date</p>
+                  <p className="font-medium text-slate-600 dark:text-slate-400">No financial entries detected for this date</p>
                 </div>
               )}
             </div>

@@ -256,11 +256,7 @@ export async function askFinancialAssistant(question: string): Promise<AIAssista
       return {
         answer,
         insights,
-        keyMetrics: [
-          { label: "Proposed Amount", value: `₹${totalAmt.toLocaleString("en-IN")}` },
-          { label: "Detected Items", value: `${txCount} item${txCount > 1 ? "s" : ""}` },
-          { label: "Approval Status", value: "Awaiting User Approval" },
-        ],
+        keyMetrics: [],
         actionSuggestions: [
           { label: "View Ledger", url: "/dashboard/transactions" },
           { label: "Monthly Budget", url: "/dashboard/ai" },

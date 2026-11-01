@@ -1220,10 +1220,28 @@ export async function getDailyFinancialJournal(dateStr?: string) {
   return await withDbRetry(async () => {
     const now = new Date();
     const todayLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const targetDateStr = dateStr || todayLocalStr;
+    
+    // Normalize target date to canonical YYYY-MM-DD
+    let normalizedTargetDateStr = todayLocalStr;
+    if (dateStr) {
+      const clean = dateStr.trim();
+      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(clean)) {
+        const [y, m, d] = clean.split("-").map(Number);
+        normalizedTargetDateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      } else if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{4}$/.test(clean)) {
+        const parts = clean.split(/[-/.]/).map(Number);
+        const [d, m, y] = parts;
+        normalizedTargetDateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      } else {
+        const parsed = new Date(clean);
+        if (!isNaN(parsed.getTime())) {
+          normalizedTargetDateStr = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
+        }
+      }
+    }
 
     // Parse targetDate parts for flexible matching (e.g. 2026-11-01 -> 01/11/2026 or 1/11/2026)
-    const [tYear, tMonth, tDay] = targetDateStr.split("-").map(Number);
+    const [tYear, tMonth, tDay] = normalizedTargetDateStr.split("-").map(Number);
     const dmyPattern1 = `${String(tDay).padStart(2, "0")}/${String(tMonth).padStart(2, "0")}/${tYear}`;
     const dmyPattern2 = `${tDay}/${tMonth}/${tYear}`;
     const dmyPattern3 = `${String(tDay).padStart(2, "0")}-${String(tMonth).padStart(2, "0")}-${tYear}`;
@@ -1259,7 +1277,7 @@ export async function getDailyFinancialJournal(dateStr?: string) {
     for (const t of txList) {
       const d = new Date(t.date);
       const dLocalStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      if (dLocalStr === targetDateStr) {
+      if (dLocalStr === normalizedTargetDateStr) {
         matchingTxns.push(t);
         const amt = (t.amount || 0) / 100;
         if (t.type === "received" || t.type === "repaid") {
@@ -1274,7 +1292,7 @@ export async function getDailyFinancialJournal(dateStr?: string) {
       }
     }
 
-    // Fetch notes and extract expenses
+    // Fetch notes and extract multi-flow financial entries
     const allNotes = await db
       .select({
         id: notes.id,
@@ -1292,54 +1310,77 @@ export async function getDailyFinancialJournal(dateStr?: string) {
 
     const matchingNotes: any[] = [];
     const matchingExpenses: any[] = [];
+    let notesIncomeTotal = 0;
     let notesExpenseTotal = 0;
+    let notesReceivableTotal = 0;
+    let notesPayableTotal = 0;
     const categoriesUsedSet = new Set<string>();
 
     allNotes.forEach((n) => {
       const noteDate = new Date(n.createdAt);
-      const noteDateLocalStr = `${noteDate.getFullYear()}-${String(noteDate.getMonth() + 1).padStart(2, "0")}-${String(noteDate.getDate()).padStart(2, "0")}`;
-      
       const content = n.content || n.plainText || "";
       const exps = extractExpensesFromNote(content, noteDate, n.id, n.title);
       
-      const dayExps = exps.filter((e) => e.date === targetDateStr);
-      
-      const hasDateInText = content.includes(dmyPattern1) || content.includes(dmyPattern2) || content.includes(dmyPattern3) || content.includes(targetDateStr);
-      const isDateMatched = noteDateLocalStr === targetDateStr || dayExps.length > 0 || hasDateInText;
+      const dayEntries = exps.filter((e) => e.date === normalizedTargetDateStr);
 
-      if (isDateMatched) {
+      if (dayEntries.length > 0) {
         matchingNotes.push({
           ...n,
-          extractedExpensesCount: dayExps.length,
-          extractedExpensesAmount: dayExps.reduce((s, e) => s + e.amount, 0),
+          extractedExpensesCount: dayEntries.length,
+          extractedExpensesAmount: dayEntries.reduce((s, e) => s + e.amount, 0),
         });
+      } else {
+        // If note has NO internal dates, only match if note's creation date is today
+        const hasExplicitDates = /((?:\d{1,2}[-/.]\d{1,2}[-/.]\d{4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2})|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,4})/i.test(content);
+        const noteDateLocalStr = `${noteDate.getFullYear()}-${String(noteDate.getMonth() + 1).padStart(2, "0")}-${String(noteDate.getDate()).padStart(2, "0")}`;
+        if (!hasExplicitDates && noteDateLocalStr === normalizedTargetDateStr) {
+          matchingNotes.push({
+            ...n,
+            extractedExpensesCount: 0,
+            extractedExpensesAmount: 0,
+          });
+        }
       }
 
-      dayExps.forEach((e) => {
+      dayEntries.forEach((e) => {
         matchingExpenses.push(e);
-        notesExpenseTotal += e.amount;
+        if (e.type === "income") {
+          notesIncomeTotal += e.amount;
+        } else if (e.type === "receivable") {
+          notesIncomeTotal += e.amount;
+          notesReceivableTotal += e.amount;
+        } else if (e.type === "payable") {
+          notesExpenseTotal += e.amount;
+          notesPayableTotal += e.amount;
+        } else if (e.type === "expense") {
+          notesExpenseTotal += e.amount;
+        }
         categoriesUsedSet.add(e.category);
       });
     });
 
+    const totalIncome = income + notesIncomeTotal;
     const totalExpense = txExpense + notesExpenseTotal;
-    const net = income - totalExpense;
+    const totalReceivable = receivable + notesReceivableTotal;
+    const totalPayable = payable + notesPayableTotal;
+    const net = totalIncome - totalExpense;
+    const totalTxCount = matchingTxns.length + matchingExpenses.length;
 
     // Fetch saved reflection for this date
     const [journalReflection] = await db
       .select()
       .from(dailyJournals)
-      .where(and(eq(dailyJournals.userId, user.id), eq(dailyJournals.date, targetDateStr)))
+      .where(and(eq(dailyJournals.userId, user.id), eq(dailyJournals.date, normalizedTargetDateStr)))
       .limit(1);
 
     return {
-      date: targetDateStr,
-      income,
+      date: normalizedTargetDateStr,
+      income: totalIncome,
       expense: totalExpense,
-      receivable,
-      payable,
+      receivable: totalReceivable,
+      payable: totalPayable,
       net,
-      txCount: matchingTxns.length,
+      txCount: totalTxCount,
       transactions: matchingTxns,
       notesCount: matchingNotes.length,
       notes: matchingNotes,
@@ -1349,7 +1390,7 @@ export async function getDailyFinancialJournal(dateStr?: string) {
         transactionsExpense: txExpense,
         notesExpense: notesExpenseTotal,
         totalExpense,
-        itemsCount: matchingTxns.length + matchingExpenses.length,
+        itemsCount: totalTxCount,
       },
       reflection: journalReflection || null,
     };
