@@ -418,7 +418,7 @@ export async function askFinancialAssistant(
         } else if (txCount === 1) {
           const item = finalTransactions[0];
           const paymentMethodPrompt = !extractPaymentMethodInQuery(question)
-            ? "\n\n*What payment method was used? Choose below or tap Approve to proceed with UPI.*"
+            ? "\n\nWhat payment method was used?"
             : "";
 
           if (item.type === "received") {
@@ -435,11 +435,11 @@ export async function askFinancialAssistant(
         }
 
         const paymentSuggestions = [
-          { label: "⚡ UPI", url: "action:payment:UPI" },
-          { label: "💵 Cash", url: "action:payment:Cash" },
-          { label: "💳 Card", url: "action:payment:Card" },
-          { label: "🏦 Bank", url: "action:payment:Bank" },
-          { label: "⏭️ Skip", url: "action:payment:Skip" },
+          { label: "UPI", url: "action:payment:UPI" },
+          { label: "Cash", url: "action:payment:Cash" },
+          { label: "Card", url: "action:payment:Card" },
+          { label: "Bank", url: "action:payment:Bank" },
+          { label: "Skip", url: "action:payment:Skip" },
         ];
 
         const insights = txCount === 1

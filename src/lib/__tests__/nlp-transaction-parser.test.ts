@@ -358,6 +358,70 @@ describe("NLP Conversational Transaction Parser", () => {
       expect(bare.hasTransactions).toBe(false);
       expect(bare.isIncomplete).toBe(true);
       expect(bare.clarificationMessage).toBe("I detected ₹500 but couldn't identify what this transaction was for.");
+
+      // 8. Never merge independent transactions: 'create transactions\nChips 20\nPetrol 500\nFlipkart 300'
+      const separateItems = parseConversationalMessage(
+        "create transactions\nChips 20\nPetrol 500\nFlipkart 300",
+        mockContext,
+        { requireExplicitTrigger: true }
+      );
+      expect(separateItems.hasTransactions).toBe(true);
+      expect(separateItems.transactions).toHaveLength(3);
+      expect(separateItems.transactions[0].amount).toBe(20);
+      expect(separateItems.transactions[0].title).toBe("Chips");
+      expect(separateItems.transactions[1].amount).toBe(500);
+      expect(separateItems.transactions[1].title).toBe("Petrol");
+      expect(separateItems.transactions[2].amount).toBe(300);
+      expect(separateItems.transactions[2].title).toContain("Flipkart");
+
+      // 9. Amount-first independent transactions: 'create transactions\n20 water bottle\n50 bus travel\n100 tea'
+      const amountFirst = parseConversationalMessage(
+        "create transactions\n20 water bottle\n50 bus travel\n100 tea",
+        mockContext,
+        { requireExplicitTrigger: true }
+      );
+      expect(amountFirst.hasTransactions).toBe(true);
+      expect(amountFirst.transactions).toHaveLength(3);
+      expect(amountFirst.transactions[0].amount).toBe(20);
+      expect(amountFirst.transactions[0].title).toBe("Water bottle");
+      expect(amountFirst.transactions[1].amount).toBe(50);
+      expect(amountFirst.transactions[1].title).toBe("Bus Travel Fare");
+      expect(amountFirst.transactions[2].amount).toBe(100);
+      expect(amountFirst.transactions[2].title).toBe("Tea");
+
+      // 10. Multi-type separate cards: 2 Income + 2 Expense
+      const incomeExpense = parseConversationalMessage(
+        "create transactions\nSalary 25000\nReceived from Kunal 1500\nPetrol 500\nRecharge 399",
+        mockContext,
+        { requireExplicitTrigger: true }
+      );
+      expect(incomeExpense.hasTransactions).toBe(true);
+      expect(incomeExpense.transactions).toHaveLength(4);
+      expect(incomeExpense.transactions[0].type).toBe("received"); // Income
+      expect(incomeExpense.transactions[1].type).toBe("received"); // Income
+      expect(incomeExpense.transactions[2].type).toBe("paid");     // Expense
+      expect(incomeExpense.transactions[3].type).toBe("paid");     // Expense
+
+      // 11. Receivables: "Rahul owes me 500", "Need to take 500 from Rahul"
+      const owesMe = parseConversationalMessage("create transaction\nRahul owes me 500", mockContext, { requireExplicitTrigger: true });
+      expect(owesMe.hasTransactions).toBe(true);
+      expect(owesMe.transactions).toHaveLength(1);
+      expect(owesMe.transactions[0].type).toBe("lent"); // Receivable
+      expect(owesMe.transactions[0].amount).toBe(500);
+      expect(owesMe.transactions[0].contactName).toContain("Rahul");
+
+      // 12. Payables: "Need to pay electricity bill 1200", "Need to pay EMI 15000", "Need to pay rent 20000"
+      const payBill = parseConversationalMessage("create transaction\nNeed to pay electricity bill 1200", mockContext, { requireExplicitTrigger: true });
+      expect(payBill.hasTransactions).toBe(true);
+      expect(payBill.transactions).toHaveLength(1);
+      expect(payBill.transactions[0].type).toBe("borrowed"); // Payable
+      expect(payBill.transactions[0].amount).toBe(1200);
+
+      const payEmi = parseConversationalMessage("create transaction\nNeed to pay EMI 15000", mockContext, { requireExplicitTrigger: true });
+      expect(payEmi.hasTransactions).toBe(true);
+      expect(payEmi.transactions).toHaveLength(1);
+      expect(payEmi.transactions[0].type).toBe("borrowed"); // Payable
+      expect(payEmi.transactions[0].amount).toBe(15000);
     });
   });
 });

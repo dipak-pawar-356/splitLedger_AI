@@ -193,12 +193,12 @@ export function TransactionApprovalCard({
 
   const typeLabel =
     proposal.type === "received"
-      ? "Income Receipt"
+      ? "Income"
       : proposal.type === "lent"
-        ? "Money Lent / Sent"
+        ? "Receivable"
         : proposal.type === "borrowed"
-          ? "Money Borrowed"
-          : "Expense Debit";
+          ? "Payable"
+          : "Expense";
 
   const isCardApproved = isApproved || proposal.status === "approved" || initialProposal.status === "approved";
   const isCardCancelled = isCancelled || proposal.status === "cancelled" || initialProposal.status === "cancelled";
@@ -475,10 +475,10 @@ export function TransactionApprovalCard({
                 onChange={(e) => setEditType(e.target.value as any)}
                 className="w-full h-8 px-2 rounded-xl border border-input bg-background font-medium text-xs"
               >
-                <option value="paid">Expense (Debit)</option>
-                <option value="received">Income (Credit)</option>
-                <option value="lent">Money Lent to Peer</option>
-                <option value="borrowed">Money Borrowed</option>
+                <option value="paid">Expense</option>
+                <option value="received">Income</option>
+                <option value="lent">Receivable</option>
+                <option value="borrowed">Payable</option>
               </select>
             </div>
 
