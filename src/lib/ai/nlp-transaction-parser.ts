@@ -555,11 +555,11 @@ function matchContact(
   }
 
   // Natural language contact extraction for unregistered peers
-  // e.g. "from Kunal", "to Rahul", "paid Rahul", "take from Kartik", "collect from Amol", "receive Rohit"
+  // e.g. "from Kunal", "to Rahul", "paid Rahul", "take from Kartik", "collect from Amol", "receive Kartik", "Rahul owes me"
   const namePatterns = [
-    /(?:from|to|pay|paid|give|gave|return|returned|collect\s+from|take\s+from|receive\s+from|receive)\s+([A-Z][a-z]+)/,
-    /([A-Z][a-z]+)\s+(?:paid\s+me|owes\s+me|returned|has\s+to\s+give)/i,
-    /(?:need\s+to\s+pay|need\s+to\s+take\s+from|need\s+to\s+give|need\s+to\s+return|need\s+to\s+receive|need\s+to\s+collect\s+from)\s+([A-Za-z]+)/i,
+    /(?:collect\s+from|take\s+from|receive\s+from|receive|pay\s+to|paid\s+to|paid|give\s+to|gave\s+to|gave|return\s+to|returned\s+to|from|to)\s+([A-Za-z]+)/i,
+    /([A-Za-z]+)\s+(?:paid\s+me|owes\s+me|owe\s+me|returned|has\s+to\s+give)/i,
+    /(?:need\s+to\s+pay|need\s+to\s+take\s+from|need\s+to\s+give|need\s+to\s+return|need\s+to\s+receive\s+from|need\s+to\s+receive|need\s+to\s+collect\s+from|need\s+to\s+collect)\s+([A-Za-z]+)/i,
   ];
 
   for (const pat of namePatterns) {
@@ -569,7 +569,7 @@ function matchContact(
       const forbiddenWords = [
         "salary", "petrol", "chips", "tea", "bill", "flipkart", "amazon", "recharge",
         "groceries", "mess", "hotel", "coffee", "food", "bus", "train", "water", "bottle",
-        "order", "wifi", "rent", "emi"
+        "order", "wifi", "rent", "emi", "electricity", "electric"
       ];
       if (!forbiddenWords.includes(rawName.toLowerCase()) && rawName.length >= 3) {
         const capitalized = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
@@ -810,32 +810,76 @@ function segmentMultiTransactionMessage(message: string): string[] {
 }
 
 /**
+ * Detects if the message explicitly starts with "create transaction" or "create transactions" (Mode 2 Trigger)
+ */
+export function detectTransactionTrigger(message: string): {
+  isTriggered: boolean;
+  cleanMessage: string;
+} {
+  const trimmed = message.trim();
+  // Mode 2 Trigger: message must start with "create transaction" or "create transactions" (or variations like "create transition")
+  const triggerMatch = trimmed.match(/^(?:please\s+)?create\s+trans(?:action|ition)s?(?:\s*[:\-\n]|\s+|$)/i);
+  if (triggerMatch) {
+    const clean = trimmed.slice(triggerMatch[0].length).trim();
+    return { isTriggered: true, cleanMessage: clean };
+  }
+
+  // Also match conversational prompt: "I make expances below details so create transition Chips - 20..."
+  const preambleMatch = trimmed.match(/^(?:i\s+(?:made|make|have|did)\s+exp[ae]n[cs]es?[\s\S]*?so\s+create\s+trans(?:action|ition)s?[:\s\-]*)/i);
+  if (preambleMatch) {
+    const clean = trimmed.slice(preambleMatch[0].length).trim();
+    return { isTriggered: true, cleanMessage: clean };
+  }
+
+  return { isTriggered: false, cleanMessage: trimmed };
+}
+
+/**
  * Main parser: Analyzes message, extracts one or multiple transaction proposals
  */
 export function parseConversationalMessage(
   message: string,
-  context?: NLPParserContext
+  context?: NLPParserContext,
+  options?: { requireExplicitTrigger?: boolean }
 ): ParseResult {
   const trimmed = message.trim();
   if (!trimmed) {
     return { hasTransactions: false, transactions: [], isIncomplete: false };
   }
 
+  // If explicit trigger required and trigger is absent, return no transactions (Mode 1 Financial Assistant)
+  let textToParse = trimmed;
+  if (options?.requireExplicitTrigger) {
+    const trigger = detectTransactionTrigger(trimmed);
+    if (!trigger.isTriggered) {
+      return { hasTransactions: false, transactions: [], isIncomplete: false };
+    }
+    textToParse = trigger.cleanMessage;
+    if (!textToParse) {
+      return {
+        hasTransactions: false,
+        transactions: [],
+        isIncomplete: true,
+        clarificationMessage: `Please tell me the transaction details.\n\nExamples:\n• Petrol 500\n• Salary 25000\n• Need to pay Rahul 500\n• Received from Kunal 1000`,
+      };
+    }
+  }
+
   // 1. Check for single bare number (e.g. "500", "₹500", "500 rs")
-  const bareNumberMatch = trimmed.match(/^[-–—]?\s*(?:₹|rs\.?|inr)?\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|rupees?|\/-)?$/i);
+  const bareNumberMatch = textToParse.match(/^[-–—]?\s*(?:₹|rs\.?|inr)?\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|rupees?|\/-)?$/i);
   if (bareNumberMatch) {
     const amt = parseFloat(bareNumberMatch[1].replace(/,/g, ""));
     return {
       hasTransactions: false,
       transactions: [],
       isIncomplete: true,
-      clarificationMessage: `I detected an amount of ₹${amt.toLocaleString("en-IN")} but couldn't identify the purpose.\n\nWhat was this transaction for?`,
+      clarificationMessage: `I detected ₹${amt.toLocaleString("en-IN")} but couldn't identify what this transaction was for.`,
     };
   }
 
   // 2. Check for generic intent without details (e.g. "Created transaction", "add transaction")
   const genericIntentRegex = /^(?:please\s+)?(?:created?|add|log|record|make|new)\s+(?:a\s+)?(?:trans(?:action|ition)|exp[ae]n[cs]e|income|bill)s?$/i;
-  if (genericIntentRegex.test(trimmed)) {
+  if (genericIntentRegex.test(textToParse)) {
     return {
       hasTransactions: false,
       transactions: [],
@@ -845,7 +889,7 @@ export function parseConversationalMessage(
   }
 
   // Exclude pure questions that do not propose a transaction
-  const lower = trimmed.toLowerCase();
+  const lower = textToParse.toLowerCase();
   const isQuestion =
     lower.endsWith("?") ||
     lower.startsWith("what ") ||
@@ -879,7 +923,7 @@ export function parseConversationalMessage(
   }
 
   // Segment message into separate independent transaction clauses
-  const lines = segmentMultiTransactionMessage(trimmed);
+  const lines = segmentMultiTransactionMessage(textToParse);
 
   const proposals: ProposedTransaction[] = [];
   let detectedIncomplete = false;

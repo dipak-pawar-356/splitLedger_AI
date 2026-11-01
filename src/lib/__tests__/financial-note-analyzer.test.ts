@@ -177,6 +177,51 @@ Groceries - 1850
     expect(octSummary?.highestExpense?.amount).toBe(1850);
   });
 
+  it("handles non-breaking spaces and multiple transactions on a single line: 'Recharge - 399&nbsp; Groceries - 1850'", () => {
+    const rawNoteWithNbsp = `
+October 2026
+
+01/10/2026
+Chips - 20
+Petrol - 500
+Flipkart Order - 300
+
+04/10/2026
+Mess - 40
+Tea - 60
+
+10/10/2026
+Received Salary - 25000
+
+12/10/2026
+Received From Kunal - 1500
+
+15/10/2026
+Electric Bill - 1200
+
+22/10/2026
+Paid Rahul - 500
+
+30/10/2026
+Recharge - 399&nbsp; Groceries - 1850
+    `;
+
+    const entries = extractExpensesFromNote(rawNoteWithNbsp, new Date(2026, 9, 1));
+    expect(entries).toHaveLength(11);
+
+    const oct30 = entries.filter((e) => e.date === "2026-10-30");
+    expect(oct30).toHaveLength(2);
+    expect(oct30[0].description).toBe("Recharge");
+    expect(oct30[0].amount).toBe(399);
+    expect(oct30[1].description).toBe("Groceries");
+    expect(oct30[1].amount).toBe(1850);
+
+    const summary = getNoteFinancialSummary(entries, "October 2026");
+    expect(summary.totalIncome).toBe(26500);
+    expect(summary.totalExpense).toBe(4869);
+    expect(summary.netCashflow).toBe(21631);
+  });
+
   it("classifies advanced natural language statements into Income, Expense, Receivable, and Payable", () => {
     const naturalNote = `
 01/10/2026

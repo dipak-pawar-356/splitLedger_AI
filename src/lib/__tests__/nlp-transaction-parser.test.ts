@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseConversationalMessage } from "@/lib/ai/nlp-transaction-parser";
+import { parseConversationalMessage, detectTransactionTrigger } from "@/lib/ai/nlp-transaction-parser";
 
 describe("NLP Conversational Transaction Parser", () => {
   const mockContext = {
@@ -269,6 +269,96 @@ describe("NLP Conversational Transaction Parser", () => {
     expect(res.hasTransactions).toBe(false);
     expect(res.isIncomplete).toBe(true);
     expect(res.clarificationMessage).toContain("Examples");
+  });
+
+  describe("STRICT OPERATING MODES: Financial Assistant Mode vs Transaction Creation Mode", () => {
+    it("Mode 1 (Financial Assistant): Financial queries must NEVER trigger transaction drafts", () => {
+      const mode1Queries = [
+        "How much did I spend this month?",
+        "What is my health score?",
+        "Who owes me money?",
+        "Explain my dashboard.",
+        "Why is my savings negative?",
+        "Show my reports.",
+        "How much petrol did I spend?",
+        "What are my pending settlements?",
+      ];
+
+      for (const q of mode1Queries) {
+        const trigger = detectTransactionTrigger(q);
+        expect(trigger.isTriggered).toBe(false);
+
+        const res = parseConversationalMessage(q, mockContext, { requireExplicitTrigger: true });
+        expect(res.hasTransactions).toBe(false);
+        expect(res.transactions).toHaveLength(0);
+      }
+    });
+
+    it("Mode 2 (Transaction Creation): Triggered only when message starts with 'create transaction(s)'", () => {
+      // 1. Single expense
+      const single = parseConversationalMessage("create transaction\nPetrol 500", mockContext, { requireExplicitTrigger: true });
+      expect(single.hasTransactions).toBe(true);
+      expect(single.transactions).toHaveLength(1);
+      expect(single.transactions[0].amount).toBe(500);
+      expect(single.transactions[0].title).toBe("Petrol");
+      expect(single.transactions[0].type).toBe("paid");
+
+      // 2. 3 draft cards
+      const three = parseConversationalMessage("create transactions\nTea 20\nBus 50\nRecharge 399", mockContext, { requireExplicitTrigger: true });
+      expect(three.hasTransactions).toBe(true);
+      expect(three.transactions).toHaveLength(3);
+      expect(three.transactions[0].amount).toBe(20);
+      expect(three.transactions[1].amount).toBe(50);
+      expect(three.transactions[2].amount).toBe(399);
+
+      // 3. 2 income cards
+      const income = parseConversationalMessage("create transactions\nSalary 25000\nReceived From Kunal 1500", mockContext, { requireExplicitTrigger: true });
+      expect(income.hasTransactions).toBe(true);
+      expect(income.transactions).toHaveLength(2);
+      expect(income.transactions[0].type).toBe("received");
+      expect(income.transactions[1].type).toBe("received");
+
+      // 4. 1 payable and 1 receivable
+      const debts = parseConversationalMessage("create transactions\nNeed to pay Rahul 500\nNeed to collect from Kartik 1000", mockContext, { requireExplicitTrigger: true });
+      expect(debts.hasTransactions).toBe(true);
+      expect(debts.transactions).toHaveLength(2);
+      expect(debts.transactions[0].type).toBe("borrowed"); // Payable
+      expect(debts.transactions[1].type).toBe("lent");     // Receivable
+
+      // 5. Mixed 4 distinct cards
+      const mixed = parseConversationalMessage(
+        "create transactions\nPetrol 500\nSalary 25000\nNeed to pay Rahul 500\nNeed to receive Kunal 800",
+        mockContext,
+        { requireExplicitTrigger: true }
+      );
+      expect(mixed.hasTransactions).toBe(true);
+      expect(mixed.transactions).toHaveLength(4);
+      expect(mixed.transactions[0].type).toBe("paid");      // Expense
+      expect(mixed.transactions[1].type).toBe("received");  // Income
+      expect(mixed.transactions[2].type).toBe("borrowed");  // Payable
+      expect(mixed.transactions[3].type).toBe("lent");      // Receivable
+
+      // 6. Inline multi-transaction sentence: 'I make expances below details so create transition Chips - 20 Petrol - 500 Flipkart Order - 300'
+      const inlineMultiple = parseConversationalMessage(
+        "I make expances below details so create transition Chips - 20 Petrol - 500 Flipkart Order - 300",
+        mockContext,
+        { requireExplicitTrigger: true }
+      );
+      expect(inlineMultiple.hasTransactions).toBe(true);
+      expect(inlineMultiple.transactions).toHaveLength(3);
+      expect(inlineMultiple.transactions[0].amount).toBe(20);
+      expect(inlineMultiple.transactions[0].title).toBe("Chips");
+      expect(inlineMultiple.transactions[1].amount).toBe(500);
+      expect(inlineMultiple.transactions[1].title).toBe("Petrol");
+      expect(inlineMultiple.transactions[2].amount).toBe(300);
+      expect(inlineMultiple.transactions[2].title).toBe("Flipkart Order");
+
+      // 7. Bare amount clarification
+      const bare = parseConversationalMessage("create transaction\n500", mockContext, { requireExplicitTrigger: true });
+      expect(bare.hasTransactions).toBe(false);
+      expect(bare.isIncomplete).toBe(true);
+      expect(bare.clarificationMessage).toBe("I detected ₹500 but couldn't identify what this transaction was for.");
+    });
   });
 });
 

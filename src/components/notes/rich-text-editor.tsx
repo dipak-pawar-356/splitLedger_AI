@@ -14,6 +14,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
+import {
   Bold,
   Italic,
   Underline,
@@ -26,6 +38,10 @@ import {
   Quote,
   Highlighter,
   Link as LinkIcon,
+  Link2,
+  Check,
+  X,
+  ExternalLink,
   Minus,
   RotateCcw,
   RotateCw,
@@ -112,6 +128,13 @@ export function RichTextEditor({
   // Floating Table Quick Actions
   const [hoveredTable, setHoveredTable] = useState<HTMLTableElement | null>(null);
 
+  // Attractive In-Editor Link Dialog State
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkText, setLinkText] = useState("");
+  const [linkNewTab, setLinkNewTab] = useState(true);
+  const savedRangeRef = useRef<Range | null>(null);
+
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== initialContent) {
       editorRef.current.innerHTML = initialContent || "";
@@ -189,11 +212,64 @@ export function RichTextEditor({
     el.focus();
   };
 
-  const addLink = () => {
-    const url = prompt("Enter link URL (e.g. https://example.com):");
-    if (url) {
-      const formatted = url.startsWith("http://") || url.startsWith("https://") ? url : `https://${url}`;
-      execCommand("createLink", formatted);
+  const openLinkDialog = () => {
+    if (readOnly) return;
+    const sel = window.getSelection();
+    let selText = "";
+    if (sel && sel.rangeCount > 0) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+      selText = sel.toString().trim();
+    } else {
+      savedRangeRef.current = null;
+    }
+
+    setLinkText(selText);
+    setLinkUrl(selText.startsWith("http://") || selText.startsWith("https://") ? selText : "");
+    setLinkNewTab(true);
+    setLinkDialogOpen(true);
+  };
+
+  const handleInsertLink = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!linkUrl.trim()) {
+      toast.error("Please enter a link destination URL");
+      return;
+    }
+
+    let formattedUrl = linkUrl.trim();
+    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://") && !formattedUrl.startsWith("mailto:") && !formattedUrl.startsWith("tel:")) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+
+    const displayText = linkText.trim() || formattedUrl;
+
+    // Restore text selection in editor
+    if (savedRangeRef.current) {
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(savedRangeRef.current);
+    } else if (editorRef.current) {
+      editorRef.current.focus();
+    }
+
+    const targetAttr = linkNewTab ? ' target="_blank" rel="noopener noreferrer"' : "";
+    const cleanDisplay = displayText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const linkHtml = `<a href="${formattedUrl}"${targetAttr} class="text-blue-500 dark:text-blue-400 underline font-medium hover:text-blue-600 dark:hover:text-blue-300 transition-colors cursor-pointer" title="Ctrl + Click to open link in new tab (${formattedUrl})">${cleanDisplay}</a>&nbsp;`;
+
+    execCommand("insertHTML", linkHtml);
+    setLinkDialogOpen(false);
+    toast.success("Link added! Hold Ctrl + Click to open in a new tab.");
+  };
+
+  const handleEditorClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest("a");
+    if (anchor && anchor.href) {
+      if (e.ctrlKey || e.metaKey || readOnly) {
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(anchor.href, "_blank", "noopener,noreferrer");
+      }
     }
   };
 
@@ -474,7 +550,7 @@ export function RichTextEditor({
       return;
     } else if (isModifier && e.key.toLowerCase() === "k") {
       e.preventDefault();
-      addLink();
+      openLinkDialog();
       return;
     }
 
@@ -821,7 +897,7 @@ export function RichTextEditor({
             className="h-8 w-8 p-0 hover:bg-slate-200 dark:hover:bg-slate-800"
             title="Add Link (Ctrl+K)"
             aria-label="Add Link"
-            onClick={addLink}
+            onClick={openLinkDialog}
           >
             <LinkIcon className="h-4 w-4 text-blue-500" />
           </Button>
@@ -911,6 +987,7 @@ export function RichTextEditor({
       <div
         ref={editorRef}
         contentEditable={!readOnly}
+        onClick={handleEditorClick}
         onInput={handleInput}
         onKeyDown={handleKeyDown}
         onKeyUp={updateActiveFormats}
@@ -1065,6 +1142,98 @@ export function RichTextEditor({
           </button>
         </div>
       )}
+
+      {/* Attractive In-Editor Link Dialog */}
+      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+        <DialogContent className="max-w-md rounded-2xl p-5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl">
+          <form onSubmit={handleInsertLink} className="space-y-4">
+            <DialogHeader className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500 dark:bg-blue-500/20">
+                  <Link2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Insert Web Link
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500">
+                    Add a clickable reference link. Ctrl + Click to open in a new tab.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-3 py-1">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Destination URL
+                </Label>
+                <div className="relative">
+                  <Input
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    placeholder="https://example.com"
+                    autoFocus
+                    className="h-9 text-xs rounded-xl pr-8 bg-slate-50 dark:bg-slate-950 font-mono"
+                  />
+                  {linkUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setLinkUrl("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Display Text (Optional)
+                </Label>
+                <Input
+                  value={linkText}
+                  onChange={(e) => setLinkText(e.target.value)}
+                  placeholder="e.g. Invoices, Project Roadmap, Receipt"
+                  className="h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-950"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox
+                  id="link-new-tab"
+                  checked={linkNewTab}
+                  onCheckedChange={(checked) => setLinkNewTab(Boolean(checked))}
+                />
+                <Label htmlFor="link-new-tab" className="text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+                  Open link in new browser tab
+                </Label>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setLinkDialogOpen(false)}
+                className="text-xs rounded-xl h-8"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="text-xs rounded-xl h-8 gap-1.5 bg-blue-600 hover:bg-blue-500 text-white"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>Insert Link</span>
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Footer Info & Auto-Save Indicator */}
       <div className="flex items-center justify-between px-4 py-2 text-xs border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 text-slate-500 select-none">

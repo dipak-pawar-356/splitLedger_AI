@@ -12,7 +12,11 @@ import { calculateComprehensiveHealthScore, predictFutureExpenses } from "@/lib/
 import { SPLITLEDGER_MASTER_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { createTransaction } from "@/actions/transactions";
 import { revalidatePath } from "next/cache";
-import { parseConversationalMessage, ProposedTransaction } from "@/lib/ai/nlp-transaction-parser";
+import {
+  parseConversationalMessage,
+  detectTransactionTrigger,
+  ProposedTransaction,
+} from "@/lib/ai/nlp-transaction-parser";
 
 function safeRevalidate(path: string) {
   try {
@@ -328,111 +332,150 @@ export async function askFinancialAssistant(
     }
 
     // =========================================================================
-    // 1. CHECK FOR CONVERSATIONAL TRANSACTION INTENT (Awaiting User Approval)
+    // 1. STRICT OPERATING MODES: Financial Assistant Mode vs Transaction Creation Mode
     // =========================================================================
-    const [userContacts, userCategories] = await Promise.all([
-      db
-        .select({ id: contacts.id, name: contacts.name, phone: contacts.phone, email: contacts.email })
-        .from(contacts)
-        .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)))
-        .catch(() => []),
-      db
-        .select({ id: categories.id, name: categories.name, icon: categories.icon })
-        .from(categories)
-        .where(or(eq(categories.userId, user.id), eq(categories.isDefault, true)))
-        .catch(() => []),
-    ]);
+    // Check if user is explicitly appending to active drafts ("Also add tea 30", "And add tea 30")
+    const isAppending = /^(?:also\s+add|and\s+add|plus\s+add|also|and\s+|plus\s+)/i.test(question);
+    const hasActiveDrafts = Boolean(pendingDrafts && pendingDrafts.length > 0);
 
-    const parseRes = parseConversationalMessage(question, {
-      categories: userCategories,
-      contacts: userContacts,
-      groups: ctx.groups?.all?.map((g: any) => ({ id: g.id, name: g.name })) || [],
-    });
+    // Detect explicit trigger: Message must begin with "create transaction" or "create transactions"
+    const trigger = detectTransactionTrigger(question);
 
-    if (parseRes.hasTransactions && parseRes.transactions.length > 0) {
-      const enriched: ProposedTransaction[] = [];
-      for (const t of parseRes.transactions) {
-        const dup = await checkPossibleDuplicate(user.id, t.amount, t.title, t.categoryId, t.contactId);
-        enriched.push({
-          ...t,
-          isPossibleDuplicate: dup.isDuplicate,
-          duplicateInfo: dup.existing,
-        });
+    // MODE 1: Financial Assistant Mode (Default)
+    // Unless the user explicitly starts with "create transaction(s)" or is appending to active drafts,
+    // the AI MUST NOT create transaction drafts. It behaves purely as a personal financial assistant.
+    const isTransactionCreationMode = trigger.isTriggered || (hasActiveDrafts && isAppending);
+
+    if (isTransactionCreationMode) {
+      const [userContacts, userCategories] = await Promise.all([
+        db
+          .select({ id: contacts.id, name: contacts.name, phone: contacts.phone, email: contacts.email })
+          .from(contacts)
+          .where(and(eq(contacts.userId, user.id), eq(contacts.isDeleted, false)))
+          .catch(() => []),
+        db
+          .select({ id: categories.id, name: categories.name, icon: categories.icon })
+          .from(categories)
+          .where(or(eq(categories.userId, user.id), eq(categories.isDefault, true)))
+          .catch(() => []),
+      ]);
+
+      const textToExtract = trigger.isTriggered
+        ? trigger.cleanMessage
+        : question.replace(/^(?:also\s+add|and\s+add|plus\s+add|also|and\s+|plus\s+)/i, "").trim();
+
+      if (!textToExtract) {
+        return {
+          answer: `Please tell me the transaction details.\n\nExamples:\n• Petrol 500\n• Salary 25000\n• Need to pay Rahul 500\n• Received from Kunal 1000`,
+          insights: ["Please specify the items and amounts you want to record."],
+          keyMetrics: [],
+          actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
       }
 
-      // Check if user is appending to existing pending drafts ("Also add tea 30", "And add tea 30")
-      const isAppending = /^(?:also\s+add|and\s+add|plus\s+add|also|and\s+|plus\s+)/i.test(question);
-      let finalTransactions: ProposedTransaction[] = enriched;
-      if (isAppending && pendingDrafts && pendingDrafts.length > 0) {
-        finalTransactions = [...pendingDrafts, ...enriched];
+      // Check for bare number (e.g. "create transaction 500")
+      const bareNumberMatch = textToExtract.match(/^[-–—]?\s*(?:₹|rs\.?|inr)?\s*([0-9]+(?:,[0-9]+)*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|rupees?|\/-)?$/i);
+      if (bareNumberMatch) {
+        const amt = parseFloat(bareNumberMatch[1].replace(/,/g, ""));
+        return {
+          answer: `I detected ₹${amt.toLocaleString("en-IN")} but couldn't identify what this transaction was for.`,
+          insights: ["Missing description or category for the detected amount."],
+          keyMetrics: [{ label: "Detected Amount", value: `₹${amt.toLocaleString("en-IN")}` }],
+          actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
       }
 
-      const txCount = finalTransactions.length;
-      const totalAmt = finalTransactions.reduce((s, x) => s + x.amount, 0);
+      const parseRes = parseConversationalMessage(textToExtract, {
+        categories: userCategories,
+        contacts: userContacts,
+        groups: ctx.groups?.all?.map((g: any) => ({ id: g.id, name: g.name })) || [],
+      });
 
-      let answer = "";
-      if (isAppending && pendingDrafts && pendingDrafts.length > 0) {
-        answer = `Added **${enriched.map((x) => x.title).join(", ")}** to your drafts!\n\nYou now have **${txCount} pending transactions** totaling **₹${totalAmt.toLocaleString("en-IN")}**.\n\nTo keep you in control, no database changes have been made yet. Review them below and tap **Approve All (${txCount})** or approve each individually.`;
-      } else if (txCount === 1) {
-        const item = finalTransactions[0];
-        const paymentMethodPrompt = !extractPaymentMethodInQuery(question)
-          ? "\n\n*What payment method was used? Choose below or tap Approve to proceed with UPI.*"
-          : "";
-
-        if (item.type === "received") {
-          answer = `Got it! I've drafted an income receipt of **₹${item.amount.toLocaleString("en-IN")}**${item.contactName ? ` from **${item.contactName}**` : ""} categorized under **${item.categoryName}**.\n\nTo ensure your ledger stays accurate, nothing has been saved yet. Please review the details below and tap **Approve & Create** to add it to your records.${paymentMethodPrompt}`;
-        } else if (item.type === "lent") {
-          answer = `Understood! I've prepared a record for **₹${item.amount.toLocaleString("en-IN")}** given to **${item.contactName || "your friend"}** (${item.categoryName}).\n\nNothing is logged yet. Once you confirm the card below, your mutual balance and personal ledger will be updated immediately.${paymentMethodPrompt}`;
-        } else if (item.type === "borrowed") {
-          answer = `Noted! I've prepared a payable record of **₹${item.amount.toLocaleString("en-IN")}** owed to **${item.contactName || "your contact"}**.\n\nPlease review the proposal below and tap **Approve & Create** to log it.${paymentMethodPrompt}`;
-        } else {
-          answer = `I've prepared a draft for your **₹${item.amount.toLocaleString("en-IN")}** expense on **${item.title}** categorized under **${item.categoryName}** (${item.formattedDate} via ${item.paymentMethod || "UPI"}).\n\nTo keep you in complete control, no database changes have been made yet. Review the card below and tap **Approve & Create** to save it!${paymentMethodPrompt}`;
+      if (parseRes.hasTransactions && parseRes.transactions.length > 0) {
+        const enriched: ProposedTransaction[] = [];
+        for (const t of parseRes.transactions) {
+          const dup = await checkPossibleDuplicate(user.id, t.amount, t.title, t.categoryId, t.contactId);
+          enriched.push({
+            ...t,
+            isPossibleDuplicate: dup.isDuplicate,
+            duplicateInfo: dup.existing,
+          });
         }
-      } else {
-        answer = `I found **${txCount} transactions** in your message totaling **₹${totalAmt.toLocaleString("en-IN")}**.\n\nI've analyzed and categorized each item for you below with context notes. You can make adjustments, approve them individually, or tap **Approve All (${txCount})** to add them to your ledger in a single click!`;
+
+        let finalTransactions: ProposedTransaction[] = enriched;
+        if (isAppending && pendingDrafts && pendingDrafts.length > 0) {
+          finalTransactions = [...pendingDrafts, ...enriched];
+        }
+
+        const txCount = finalTransactions.length;
+        const totalAmt = finalTransactions.reduce((s, x) => s + x.amount, 0);
+
+        let answer = "";
+        if (isAppending && pendingDrafts && pendingDrafts.length > 0) {
+          answer = `Added **${enriched.map((x) => x.title).join(", ")}** to your drafts!\n\nYou now have **${txCount} pending transactions** totaling **₹${totalAmt.toLocaleString("en-IN")}**.\n\nTo keep you in control, no database changes have been made yet. Review them below and tap **Approve All (${txCount})** or approve each individually.`;
+        } else if (txCount === 1) {
+          const item = finalTransactions[0];
+          const paymentMethodPrompt = !extractPaymentMethodInQuery(question)
+            ? "\n\n*What payment method was used? Choose below or tap Approve to proceed with UPI.*"
+            : "";
+
+          if (item.type === "received") {
+            answer = `Got it! I've drafted an income receipt of **₹${item.amount.toLocaleString("en-IN")}**${item.contactName ? ` from **${item.contactName}**` : ""} categorized under **${item.categoryName}**.\n\nTo ensure your ledger stays accurate, nothing has been saved yet. Please review the details below and tap **Approve & Create** to add it to your records.${paymentMethodPrompt}`;
+          } else if (item.type === "lent") {
+            answer = `Understood! I've prepared a receivable record for **₹${item.amount.toLocaleString("en-IN")}** to collect from **${item.contactName || "your friend"}** (${item.categoryName}).\n\nNothing is logged yet. Once you confirm the card below, your mutual balance and personal ledger will be updated immediately.${paymentMethodPrompt}`;
+          } else if (item.type === "borrowed") {
+            answer = `Noted! I've prepared a payable record of **₹${item.amount.toLocaleString("en-IN")}** owed to **${item.contactName || "your contact"}**.\n\nPlease review the proposal below and tap **Approve & Create** to log it.${paymentMethodPrompt}`;
+          } else {
+            answer = `I've prepared a draft for your **₹${item.amount.toLocaleString("en-IN")}** expense on **${item.title}** categorized under **${item.categoryName}** (${item.formattedDate} via ${item.paymentMethod || "UPI"}).\n\nTo keep you in complete control, no database changes have been made yet. Review the card below and tap **Approve & Create** to save it!${paymentMethodPrompt}`;
+          }
+        } else {
+          answer = `I found **${txCount} transactions** in your message totaling **₹${totalAmt.toLocaleString("en-IN")}**.\n\nI've analyzed and categorized each item for you below with context notes. You can make adjustments, approve them individually, or tap **Approve All (${txCount})** to add them to your ledger in a single click!`;
+        }
+
+        const paymentSuggestions = [
+          { label: "⚡ UPI", url: "action:payment:UPI" },
+          { label: "💵 Cash", url: "action:payment:Cash" },
+          { label: "💳 Card", url: "action:payment:Card" },
+          { label: "🏦 Bank", url: "action:payment:Bank" },
+          { label: "⏭️ Skip", url: "action:payment:Skip" },
+        ];
+
+        const insights = txCount === 1
+          ? [
+              `Classified under "${finalTransactions[0].categoryName}" (${finalTransactions[0].paymentMethod || "UPI"})`,
+              `Transaction scheduled for ${finalTransactions[0].formattedDate}`,
+              finalTransactions[0].contactName ? `Assigned to contact ${finalTransactions[0].contactName}` : finalTransactions[0].groupName ? `Linked to group "${finalTransactions[0].groupName}"` : "Personal expense ledger",
+            ]
+          : [
+              `Extracted ${txCount} distinct transactions totaling ₹${totalAmt.toLocaleString("en-IN")}`,
+              `Auto-classified across categories: ${Array.from(new Set(finalTransactions.map((x) => x.categoryName))).join(", ")}`,
+              "Awaiting your explicit confirmation before writing to database",
+            ];
+
+        return {
+          answer,
+          insights,
+          keyMetrics: [],
+          actionSuggestions: txCount === 1 && !extractPaymentMethodInQuery(question) ? paymentSuggestions : [
+            { label: "View Ledger", url: "/dashboard/transactions" },
+            { label: "Monthly Budget", url: "/dashboard/ai" },
+          ],
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          detectedTransactions: finalTransactions,
+        };
       }
 
-      const paymentSuggestions = [
-        { label: "⚡ UPI", url: "action:payment:UPI" },
-        { label: "💵 Cash", url: "action:payment:Cash" },
-        { label: "💳 Card", url: "action:payment:Card" },
-        { label: "🏦 Net Banking", url: "action:payment:Net Banking" },
-        { label: "⏭️ Skip", url: "action:payment:Skip" },
-      ];
-
-      const insights = txCount === 1
-        ? [
-            `Classified under "${finalTransactions[0].categoryName}" (${finalTransactions[0].paymentMethod || "UPI"})`,
-            `Transaction scheduled for ${finalTransactions[0].formattedDate}`,
-            finalTransactions[0].contactName ? `Assigned to contact ${finalTransactions[0].contactName}` : finalTransactions[0].groupName ? `Linked to group "${finalTransactions[0].groupName}"` : "Personal expense ledger",
-          ]
-        : [
-            `Extracted ${txCount} distinct transactions totaling ₹${totalAmt.toLocaleString("en-IN")}`,
-            `Auto-classified across categories: ${Array.from(new Set(finalTransactions.map((x) => x.categoryName))).join(", ")}`,
-            "Awaiting your explicit confirmation before writing to database",
-          ];
-
-      return {
-        answer,
-        insights,
-        keyMetrics: [],
-        actionSuggestions: txCount === 1 && !extractPaymentMethodInQuery(question) ? paymentSuggestions : [
-          { label: "View Ledger", url: "/dashboard/transactions" },
-          { label: "Monthly Budget", url: "/dashboard/ai" },
-        ],
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        detectedTransactions: finalTransactions,
-      };
-    }
-
-    if (parseRes.isIncomplete && parseRes.clarificationMessage) {
-      return {
-        answer: parseRes.clarificationMessage,
-        insights: ["Please specify the amount in ₹ (e.g., 'Bought chips for ₹20' or 'Spent ₹500 on petrol')."],
-        keyMetrics: [{ label: "Input Status", value: "Missing Amount" }],
-        actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
+      if (parseRes.isIncomplete && parseRes.clarificationMessage) {
+        return {
+          answer: parseRes.clarificationMessage,
+          insights: ["Please specify the amount in ₹ (e.g. 'Petrol 500' or 'Salary 25000')."],
+          keyMetrics: [{ label: "Input Status", value: "Missing Details" }],
+          actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+      }
     }
 
     // Helper to filter transactions by keyword in category or title

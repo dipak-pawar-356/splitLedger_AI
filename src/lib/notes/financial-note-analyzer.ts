@@ -721,12 +721,16 @@ export function htmlToCleanLines(htmlOrText: string): string[] {
     .replace(/<\/li>/gi, "\n")
     .replace(/<\/tr>/gi, "\n")
     .replace(/<[^>]+>/g, " ") // remove all remaining tags
+    .replace(/&amp;nbsp;/gi, " ")
     .replace(/&nbsp;/gi, " ")
+    .replace(/&#160;/gi, " ")
+    .replace(/\u00a0/g, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
     .replace(/&gt;/gi, ">")
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'");
+    .replace(/&#39;/gi, "'")
+    .replace(/&nbsp;/gi, " ");
 
   const initialLines = text
     .split(/\r?\n/)
@@ -761,10 +765,10 @@ export function htmlToCleanLines(htmlOrText: string): string[] {
     }
 
     // 4. If line contains multiple space-separated expenses without commas or numbering,
-    // e.g. "Bus Travel - 500 Flipkart Order - 375 Tea - 20 Grocery - 1500"
+    // e.g. "Bus Travel - 500 Flipkart Order - 375 Tea - 20 Grocery - 1500" or "Recharge - 399 Groceries - 1850"
     if (/(?:[-:]\s*₹?\s*\d+.*?){2,}/.test(line)) {
       const parts = line
-        .split(/(?<=\b\d+(?:\.\d{1,2})?(?:\s*(?:rs|inr|\/-))?)\s+(?=[A-Za-z][^-\n:]*?[-:]\s*₹?\s*\d+)/i)
+        .split(/(?<=\b\d+(?:\.\d{1,2})?(?:\s*(?:rs|inr|\/-))?)(?:\s|&nbsp;|\u00a0)+(?=[A-Za-z][^-\n:]*?[-:]\s*₹?\s*\d+)/i)
         .map((p) => p.trim())
         .filter(Boolean);
       if (parts.length > 1) {
