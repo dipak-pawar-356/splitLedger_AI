@@ -141,69 +141,103 @@ interface NotesClientViewProps {
   financialAnalytics?: any;
 }
 
-const NOTE_COLORS = [
+export interface NoteColorOption {
+  id: string;
+  label: string;
+  colorHex: string;
+  borderHex: string;
+  shadowColor: string;
+  checkColor: string;
+  dot: string;
+  editorBg: string;
+  cardBg: string;
+  strip: string;
+}
+
+const NOTE_COLORS: NoteColorOption[] = [
   {
     id: "default",
     label: "Default Slate",
-    dot: "bg-slate-400 dark:bg-slate-500 border-2 border-slate-300 dark:border-slate-400 shadow-xs",
-    checkColor: "text-white dark:text-slate-100",
+    colorHex: "#64748b",
+    borderHex: "#94a3b8",
+    shadowColor: "rgba(100, 116, 139, 0.45)",
+    dot: "bg-slate-500 border-2 border-slate-300 dark:border-slate-400",
+    checkColor: "text-white",
     editorBg: "bg-card border-slate-200/90 dark:border-slate-800/90",
     cardBg: "bg-card border-slate-200/90 dark:border-slate-800/90",
-    strip: "bg-slate-400 dark:bg-slate-600",
+    strip: "bg-slate-500",
   },
   {
     id: "blue",
     label: "Ocean Blue",
+    colorHex: "#3b82f6",
+    borderHex: "#93c5fd",
+    shadowColor: "rgba(59, 130, 246, 0.55)",
     dot: "bg-blue-500 border-2 border-blue-300 dark:border-blue-300 shadow-sm shadow-blue-500/50",
     checkColor: "text-white",
-    editorBg: "bg-blue-50/90 dark:bg-blue-950/80 border-blue-300 dark:border-blue-700/80 shadow-md shadow-blue-500/10",
-    cardBg: "bg-blue-50/80 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800/70",
+    editorBg: "bg-blue-50/90 dark:bg-blue-950/80 border-blue-400 dark:border-blue-700/80 shadow-md shadow-blue-500/10",
+    cardBg: "bg-blue-50/80 dark:bg-blue-950/60 border-blue-300 dark:border-blue-800/70",
     strip: "bg-blue-500",
   },
   {
     id: "green",
     label: "Emerald Green",
+    colorHex: "#10b981",
+    borderHex: "#6ee7b7",
+    shadowColor: "rgba(16, 185, 129, 0.55)",
     dot: "bg-emerald-500 border-2 border-emerald-300 dark:border-emerald-300 shadow-sm shadow-emerald-500/50",
     checkColor: "text-white",
-    editorBg: "bg-emerald-50/90 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-700/80 shadow-md shadow-emerald-500/10",
-    cardBg: "bg-emerald-50/80 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/70",
+    editorBg: "bg-emerald-50/90 dark:bg-emerald-950/80 border-emerald-400 dark:border-emerald-700/80 shadow-md shadow-emerald-500/10",
+    cardBg: "bg-emerald-50/80 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800/70",
     strip: "bg-emerald-500",
   },
   {
     id: "yellow",
     label: "Amber Gold",
-    dot: "bg-amber-400 border-2 border-amber-200 dark:border-amber-200 shadow-sm shadow-amber-500/50",
-    checkColor: "text-amber-950 font-bold",
-    editorBg: "bg-amber-50/90 dark:bg-amber-950/80 border-amber-300 dark:border-amber-700/80 shadow-md shadow-amber-500/10",
-    cardBg: "bg-amber-50/80 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800/70",
+    colorHex: "#f59e0b",
+    borderHex: "#fde047",
+    shadowColor: "rgba(245, 158, 11, 0.55)",
+    dot: "bg-amber-500 border-2 border-amber-200 dark:border-amber-200 shadow-sm shadow-amber-500/50",
+    checkColor: "text-slate-950 font-black",
+    editorBg: "bg-amber-50/90 dark:bg-amber-950/80 border-amber-400 dark:border-amber-700/80 shadow-md shadow-amber-500/10",
+    cardBg: "bg-amber-50/80 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800/70",
     strip: "bg-amber-500",
   },
   {
     id: "red",
     label: "Rose Red",
+    colorHex: "#ef4444",
+    borderHex: "#fca5a5",
+    shadowColor: "rgba(239, 68, 68, 0.55)",
     dot: "bg-rose-500 border-2 border-rose-300 dark:border-rose-300 shadow-sm shadow-rose-500/50",
     checkColor: "text-white",
-    editorBg: "bg-rose-50/90 dark:bg-rose-950/80 border-rose-300 dark:border-rose-700/80 shadow-md shadow-rose-500/10",
-    cardBg: "bg-rose-50/80 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800/70",
+    editorBg: "bg-rose-50/90 dark:bg-rose-950/80 border-rose-400 dark:border-rose-700/80 shadow-md shadow-rose-500/10",
+    cardBg: "bg-rose-50/80 dark:bg-rose-950/60 border-rose-300 dark:border-rose-800/70",
     strip: "bg-rose-500",
   },
   {
     id: "purple",
     label: "Royal Purple",
+    colorHex: "#8b5cf6",
+    borderHex: "#c4b5fd",
+    shadowColor: "rgba(139, 92, 246, 0.55)",
     dot: "bg-purple-500 border-2 border-purple-300 dark:border-purple-300 shadow-sm shadow-purple-500/50",
     checkColor: "text-white",
-    editorBg: "bg-purple-50/90 dark:bg-purple-950/80 border-purple-300 dark:border-purple-700/80 shadow-md shadow-purple-500/10",
-    cardBg: "bg-purple-50/80 dark:bg-purple-950/60 border-purple-200 dark:border-purple-800/70",
+    editorBg: "bg-purple-50/90 dark:bg-purple-950/80 border-purple-400 dark:border-purple-700/80 shadow-md shadow-purple-500/10",
+    cardBg: "bg-purple-50/80 dark:bg-purple-950/60 border-purple-300 dark:border-purple-800/70",
     strip: "bg-purple-500",
   },
   {
     id: "teal",
     label: "Teal Cyan",
+    colorHex: "#06b6d4",
+    borderHex: "#67e8f9",
+    shadowColor: "rgba(6, 182, 212, 0.55)",
     dot: "bg-cyan-500 border-2 border-cyan-300 dark:border-cyan-300 shadow-sm shadow-cyan-500/50",
     checkColor: "text-white",
-    editorBg: "bg-teal-50/90 dark:bg-teal-950/80 border-teal-300 dark:border-teal-700/80 shadow-md shadow-teal-500/10",
-    cardBg: "bg-teal-50/80 dark:bg-teal-950/60 border-teal-200 dark:border-teal-800/70",
-    strip: "bg-teal-500",
+    editorBg: "bg-teal-50/90 dark:bg-teal-950/80 border-teal-400 dark:border-teal-700/80 shadow-md shadow-teal-500/10",
+    cardBg: "bg-teal-50/80 dark:bg-teal-950/60 border-teal-300 dark:border-teal-800/70",
+    strip: "bg-cyan-500",
   },
 ];
 
@@ -1991,14 +2025,19 @@ export function NotesClientView({
                                 <span className="hidden sm:inline">Color</span>
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-40 rounded-xl p-1.5 bg-slate-900 border-slate-700 text-white">
-                              <div className="grid grid-cols-3 gap-1.5 p-1">
+                            <DropdownMenuContent className="w-44 rounded-xl p-2 bg-slate-900 border-slate-700 text-white shadow-xl">
+                              <div className="grid grid-cols-4 gap-2 p-1">
                                 {NOTE_COLORS.map((c) => (
                                   <button
                                     key={c.id}
                                     type="button"
                                     onClick={() => handleBulkAction("color", c.id)}
-                                    className={`h-7 rounded-lg border border-slate-600/80 ${c.dot} hover:scale-110 transition-transform shadow-xs`}
+                                    style={{
+                                      backgroundColor: c.colorHex,
+                                      borderColor: c.borderHex,
+                                      boxShadow: `0 2px 6px ${c.shadowColor}`,
+                                    }}
+                                    className="h-8 w-8 rounded-full border-2 hover:scale-115 transition-transform cursor-pointer shrink-0"
                                     title={c.label}
                                   />
                                 ))}
@@ -2078,6 +2117,11 @@ export function NotesClientView({
                             <div
                               key={note.id}
                               onClick={() => handleSelectNote(note)}
+                              style={
+                                noteColorConfig.id !== "default"
+                                  ? { borderColor: noteColorConfig.borderHex }
+                                  : undefined
+                              }
                               className={`p-3 rounded-2xl border cursor-pointer transition-all relative overflow-hidden group ${
                                 noteColorConfig.cardBg
                               } ${
@@ -2087,7 +2131,10 @@ export function NotesClientView({
                               } ${isQuick ? "border-l-4 border-l-amber-500" : ""}`}
                             >
                               {note.color && note.color !== "default" && (
-                                <div className={`absolute top-0 left-0 right-0 h-1 ${noteColorConfig.strip}`} />
+                                <div
+                                  className="absolute top-0 left-0 right-0 h-1.5"
+                                  style={{ backgroundColor: noteColorConfig.colorHex }}
+                                />
                               )}
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -2365,34 +2412,54 @@ export function NotesClientView({
                 </div>
 
                 {activeNote ? (
-                  <>
-                    <Card
-                      className={`rounded-2xl border shadow-sm p-4 space-y-4 transition-all duration-300 ${
-                        getNoteColorConfig(editorColor).editorBg
-                      } ${
-                        isFullscreen
-                          ? "fixed inset-0 z-50 rounded-none overflow-y-auto p-6 bg-background max-w-none m-0"
-                          : ""
-                      }`}
-                    >
-                      <div className="space-y-3">
-                        {/* Top Action Bar */}
-                        <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800 flex-wrap">
+                  (() => {
+                    const activeColorConfig = getNoteColorConfig(editorColor);
+                    return (
+                      <>
+                        <Card
+                        style={
+                          activeColorConfig.id !== "default"
+                            ? { borderColor: activeColorConfig.borderHex }
+                            : undefined
+                        }
+                        className={`rounded-2xl border shadow-sm p-4 space-y-4 transition-all duration-300 relative overflow-hidden ${
+                          activeColorConfig.editorBg
+                        } ${
+                          isFullscreen
+                            ? "fixed inset-0 z-50 rounded-none overflow-y-auto p-6 bg-background max-w-none m-0"
+                            : ""
+                        }`}
+                      >
+                        {activeColorConfig.id !== "default" && (
+                          <div
+                            className="h-1.5 -mx-4 -mt-4 mb-3 shrink-0"
+                            style={{ backgroundColor: activeColorConfig.colorHex }}
+                          />
+                        )}
+                        <div className="space-y-3">
+                        {/* Top Action Bar - Mobile Responsive & Professional Layout */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
                           {/* Color Palette & Auto-save status */}
-                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                            {/* Professional Responsive Color Rounds Picker */}
-                            <div className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-slate-100/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 shadow-xs backdrop-blur-md shrink-0">
+                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
+                            {/* Professional Responsive Color Rounds Radio Picker */}
+                            <div
+                              role="radiogroup"
+                              aria-label="Note theme color"
+                              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-full bg-slate-100/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 shadow-xs backdrop-blur-md shrink-0 max-w-full overflow-x-auto no-scrollbar"
+                            >
                               <div className="flex items-center gap-1 mr-0.5 text-slate-400 shrink-0" title="Color Theme">
-                                <Palette className="h-4 w-4" />
+                                <Palette className="h-4 w-4 text-slate-400" />
                                 <span className="text-[11px] font-semibold hidden md:inline text-slate-400">Color</span>
                               </div>
-                              <div className="flex items-center gap-1.5 sm:gap-2">
+                              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                                 {NOTE_COLORS.map((c) => {
                                   const isSelected = (editorColor || "default") === c.id;
                                   return (
                                     <button
                                       key={c.id}
                                       type="button"
+                                      role="radio"
+                                      aria-checked={isSelected}
                                       title={`Set note color to ${c.label}`}
                                       aria-label={c.label}
                                       onClick={() => {
@@ -2407,14 +2474,23 @@ export function NotesClientView({
                                         updateNote(activeNote.publicId, { color: c.id });
                                         toast.success(`Color set to ${c.label}`);
                                       }}
-                                      className={`h-7 w-7 sm:h-8 sm:w-8 min-w-[28px] min-h-[28px] sm:min-w-[32px] sm:min-h-[32px] rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 relative ${c.dot} ${
+                                      style={{
+                                        backgroundColor: c.colorHex,
+                                        borderColor: isSelected ? "#ffffff" : c.borderHex,
+                                        boxShadow: isSelected
+                                          ? `0 0 0 2px #0f172a, 0 0 0 4.5px ${c.colorHex}, 0 4px 12px ${c.shadowColor}`
+                                          : `0 2px 6px ${c.shadowColor}`,
+                                      }}
+                                      className={`h-7 w-7 sm:h-8 sm:w-8 min-w-[28px] min-h-[28px] sm:min-w-[32px] sm:min-h-[32px] rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 relative border-2 ${
                                         isSelected
-                                          ? "scale-110 ring-2 ring-white dark:ring-white ring-offset-2 ring-offset-slate-900 shadow-md z-10"
-                                          : "hover:scale-110 opacity-90 hover:opacity-100 hover:shadow-xs"
+                                          ? "scale-110 z-10"
+                                          : "hover:scale-115 opacity-90 hover:opacity-100"
                                       }`}
                                     >
                                       {isSelected && (
-                                        <Check className={`h-4 w-4 sm:h-4.5 sm:w-4.5 ${c.checkColor || "text-white"} stroke-[3.5] drop-shadow-xs animate-in zoom-in-75 duration-150`} />
+                                        <Check
+                                          className={`h-4 w-4 sm:h-4.5 sm:w-4.5 ${c.checkColor} stroke-[3.5] drop-shadow-md animate-in zoom-in-75 duration-150`}
+                                        />
                                       )}
                                     </button>
                                   );
@@ -2425,7 +2501,7 @@ export function NotesClientView({
                             <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
 
                             {/* Auto-Save Indicator Badge */}
-                            <div className="flex items-center">
+                            <div className="flex items-center shrink-0">
                               {saveStatus === "saving" && (
                                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 shadow-2xs">
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2447,7 +2523,7 @@ export function NotesClientView({
                           </div>
 
                           {/* Quick Actions & More Dropdown */}
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center justify-between sm:justify-end gap-1 w-full sm:w-auto overflow-x-auto no-scrollbar">
                             {/* Re-expand notes list button if collapsed */}
                             {!isNotesListOpen && (
                               <Button
@@ -3091,7 +3167,9 @@ export function NotesClientView({
                       </div>
                     )}
                   </>
-                ) : (
+                );
+              })()
+            ) : (
                   <Card className="rounded-2xl border shadow-sm p-12 text-center text-slate-400 text-xs h-full min-h-[400px] flex flex-col items-center justify-center">
                     <FileText className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-3" />
                     <p className="font-bold text-base text-slate-700 dark:text-slate-300">No Note Selected</p>

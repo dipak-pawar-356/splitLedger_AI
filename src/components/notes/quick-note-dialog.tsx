@@ -28,13 +28,13 @@ interface QuickNoteDialogProps {
 }
 
 const NOTE_COLORS = [
-  { id: "default", dot: "bg-slate-400 dark:bg-slate-500 border-2 border-slate-300 dark:border-slate-400", checkColor: "text-white dark:text-slate-100", label: "Default" },
-  { id: "blue", dot: "bg-blue-500 border-2 border-blue-300 dark:border-blue-300 shadow-xs shadow-blue-500/50", checkColor: "text-white", label: "Ocean Blue" },
-  { id: "green", dot: "bg-emerald-500 border-2 border-emerald-300 dark:border-emerald-300 shadow-xs shadow-emerald-500/50", checkColor: "text-white", label: "Emerald" },
-  { id: "yellow", dot: "bg-amber-400 border-2 border-amber-200 dark:border-amber-200 shadow-xs shadow-amber-500/50", checkColor: "text-amber-950 font-bold", label: "Amber" },
-  { id: "red", dot: "bg-rose-500 border-2 border-rose-300 dark:border-rose-300 shadow-xs shadow-rose-500/50", checkColor: "text-white", label: "Rose" },
-  { id: "purple", dot: "bg-purple-500 border-2 border-purple-300 dark:border-purple-300 shadow-xs shadow-purple-500/50", checkColor: "text-white", label: "Purple" },
-  { id: "teal", dot: "bg-cyan-500 border-2 border-cyan-300 dark:border-cyan-300 shadow-xs shadow-cyan-500/50", checkColor: "text-white", label: "Teal" },
+  { id: "default", label: "Default", colorHex: "#64748b", borderHex: "#94a3b8", shadowColor: "rgba(100, 116, 139, 0.45)", checkColor: "text-white" },
+  { id: "blue", label: "Ocean Blue", colorHex: "#3b82f6", borderHex: "#93c5fd", shadowColor: "rgba(59, 130, 246, 0.55)", checkColor: "text-white" },
+  { id: "green", label: "Emerald", colorHex: "#10b981", borderHex: "#6ee7b7", shadowColor: "rgba(16, 185, 129, 0.55)", checkColor: "text-white" },
+  { id: "yellow", label: "Amber", colorHex: "#f59e0b", borderHex: "#fde047", shadowColor: "rgba(245, 158, 11, 0.55)", checkColor: "text-slate-950 font-black" },
+  { id: "red", label: "Rose", colorHex: "#ef4444", borderHex: "#fca5a5", shadowColor: "rgba(239, 68, 68, 0.55)", checkColor: "text-white" },
+  { id: "purple", label: "Purple", colorHex: "#8b5cf6", borderHex: "#c4b5fd", shadowColor: "rgba(139, 92, 246, 0.55)", checkColor: "text-white" },
+  { id: "teal", label: "Teal", colorHex: "#06b6d4", borderHex: "#67e8f9", shadowColor: "rgba(6, 182, 212, 0.55)", checkColor: "text-white" },
 ];
 
 export function QuickNoteDialog({
@@ -163,24 +163,33 @@ export function QuickNoteDialog({
 
             <div className="space-y-1.5">
               <Label className="text-[11px] font-semibold text-slate-500">Note Accent Color</Label>
-              <div className="flex items-center gap-2 h-9">
+              <div role="radiogroup" aria-label="Note accent color" className="flex items-center gap-2 h-9 overflow-x-auto no-scrollbar py-0.5">
                 {NOTE_COLORS.map((c) => {
                   const isSelected = color === c.id;
                   return (
                     <button
                       key={c.id}
                       type="button"
+                      role="radio"
+                      aria-checked={isSelected}
                       title={c.label}
                       aria-label={c.label}
                       onClick={() => setColor(c.id)}
-                      className={`h-7 w-7 min-w-[28px] min-h-[28px] rounded-full flex items-center justify-center transition-all duration-150 cursor-pointer shrink-0 relative ${c.dot} ${
+                      style={{
+                        backgroundColor: c.colorHex,
+                        borderColor: isSelected ? "#ffffff" : c.borderHex,
+                        boxShadow: isSelected
+                          ? `0 0 0 2px #0f172a, 0 0 0 4px ${c.colorHex}, 0 4px 10px ${c.shadowColor}`
+                          : `0 2px 4px ${c.shadowColor}`,
+                      }}
+                      className={`h-7 w-7 min-w-[28px] min-h-[28px] rounded-full flex items-center justify-center transition-all duration-150 cursor-pointer shrink-0 relative border-2 ${
                         isSelected
-                          ? "scale-110 ring-2 ring-white dark:ring-white ring-offset-2 ring-offset-slate-900 shadow-md z-10"
-                          : "hover:scale-110 opacity-90 hover:opacity-100"
+                          ? "scale-110 z-10"
+                          : "hover:scale-115 opacity-90 hover:opacity-100"
                       }`}
                     >
                       {isSelected && (
-                        <Check className={`h-4 w-4 ${c.checkColor || "text-white"} stroke-[3.5] drop-shadow-xs animate-in zoom-in-75 duration-150`} />
+                        <Check className={`h-4 w-4 ${c.checkColor} stroke-[3.5] drop-shadow-md animate-in zoom-in-75 duration-150`} />
                       )}
                     </button>
                   );
