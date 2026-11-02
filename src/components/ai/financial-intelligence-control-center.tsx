@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { FinancialIntelligenceData, getPeriodDateRange } from "@/actions/financial-intelligence";
+import { FinancialIntelligenceData } from "@/actions/financial-intelligence";
+import { PeriodFilter, getPeriodDateRange } from "@/lib/financial-period";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,19 +32,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-export type PeriodFilter =
-  | "today"
-  | "yesterday"
-  | "this_week"
-  | "last_week"
-  | "current_month"
-  | "last_month"
-  | "current_quarter"
-  | "last_quarter"
-  | "current_year"
-  | "last_year"
-  | "all_time"
-  | "custom";
+export type { PeriodFilter };
 
 interface FinancialIntelligenceControlCenterProps {
   data: FinancialIntelligenceData;

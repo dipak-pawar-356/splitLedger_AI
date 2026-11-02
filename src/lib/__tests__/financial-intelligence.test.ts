@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getPeriodDateRange } from "@/actions/financial-intelligence";
+import { getPeriodDateRange } from "@/lib/financial-period";
 
 describe("Financial Intelligence, Health Score & Budget Engine", () => {
   describe("Period Engine: getPeriodDateRange Date Calculations", () => {

@@ -160,17 +160,17 @@ export function FinancialForecastingEnterpriseView({
   const runningBalanceData = useMemo(() => {
     return controlCenter.runningBalanceHistory.length > 0
       ? controlCenter.runningBalanceHistory.map((r) => ({
-          month: r.date,
-          Balance: r.balance,
-          Income: r.income,
-          Expense: r.expense,
-        }))
+        month: r.date,
+        Balance: r.balance,
+        Income: r.income,
+        Expense: r.expense,
+      }))
       : chartFlowData.map((c) => ({
-          month: c.month,
-          Balance: c.Net,
-          Income: c.Inflow,
-          Expense: c.Outflow,
-        }));
+        month: c.month,
+        Balance: c.Net,
+        Income: c.Inflow,
+        Expense: c.Outflow,
+      }));
   }, [controlCenter.runningBalanceHistory, chartFlowData]);
 
   const categoryPieData = useMemo(() => {
@@ -301,11 +301,10 @@ export function FinancialForecastingEnterpriseView({
                       role="radio"
                       aria-checked={isSelected}
                       onClick={() => setSelectedPeriod(tab.key)}
-                      className={`relative px-3 py-1.5 min-h-[30px] rounded-xl text-xs font-bold transition-colors ${
-                        isSelected
+                      className={`relative px-3 py-1.5 min-h-[30px] rounded-xl text-xs font-bold transition-colors ${isSelected
                           ? "text-primary-foreground"
                           : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-                      }`}
+                        }`}
                     >
                       {isSelected && (
                         <motion.div
@@ -478,13 +477,12 @@ export function FinancialForecastingEnterpriseView({
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Verified MoM Delta</p>
             <span
-              className={`text-base font-black font-mono tabular-nums shrink-0 ${
-                controlCenter.categoryGrowth.monthlyGrowthPct !== null
+              className={`text-base font-black font-mono tabular-nums shrink-0 ${controlCenter.categoryGrowth.monthlyGrowthPct !== null
                   ? controlCenter.categoryGrowth.monthlyGrowthPct > 0
                     ? "text-rose-600"
                     : "text-emerald-600"
                   : "text-slate-400"
-              }`}
+                }`}
             >
               {controlCenter.categoryGrowth.monthlyGrowthPct !== null
                 ? `${controlCenter.categoryGrowth.monthlyGrowthPct > 0 ? "+" : ""}${controlCenter.categoryGrowth.monthlyGrowthPct}%`
@@ -559,11 +557,10 @@ export function FinancialForecastingEnterpriseView({
                     role="radio"
                     aria-checked={isSelected}
                     onClick={() => setActiveChartTab(tab.key as any)}
-                    className={`relative px-3 py-1 min-h-[28px] rounded-xl text-xs font-bold transition-colors ${
-                      isSelected
+                    className={`relative px-3 py-1 min-h-[28px] rounded-xl text-xs font-bold transition-colors ${isSelected
                         ? "text-primary-foreground"
                         : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-                    }`}
+                      }`}
                   >
                     {isSelected && (
                       <motion.div
