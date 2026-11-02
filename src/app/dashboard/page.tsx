@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
+import { createPageMetadata } from "@/lib/seo/config";
 import { getDashboardData, type DashboardOptions } from "@/actions/dashboard";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { DashboardDateFilter } from "@/components/dashboard/dashboard-date-filter";
@@ -22,6 +24,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { TransactionDialog } from "@/components/dialogs/transaction-dialog";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Personal Finance Dashboard | SplitLedger AI",
+  description:
+    "Real-time personal finance dashboard, expense tracking, group settlements, receivables, and payables.",
+  path: "/dashboard",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

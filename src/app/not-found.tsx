@@ -2,15 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SplitLedgerAiIcon } from "@/components/ai/split-ledger-ai-icon";
 import { Home, ArrowLeft } from "lucide-react";
+import { createPageMetadata } from "@/lib/seo/config";
 
-export const metadata: Metadata = {
-  title: "404 - Page Not Found",
-  robots: {
-    index: false,
-    follow: false,
-    nocache: true,
-  },
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "404 — Ledger Record Not Found",
+  description: "The financial ledger record or destination you are seeking cannot be located or has been archived.",
+  path: "/404",
+  noIndex: true,
+});
 
 export default function NotFound() {
   return (

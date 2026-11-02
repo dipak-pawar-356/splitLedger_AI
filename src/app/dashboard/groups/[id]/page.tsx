@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { getGroupFinancialDetails } from "@/actions/group-financials";
 import { getGroupActivityTimeline } from "@/actions/activity";
@@ -61,6 +63,14 @@ import { ExpenseActivationPromptCard } from "@/components/group/expense-activati
 import { GroupRouteErrorView } from "@/components/group/group-route-error-view";
 import { hasDelegatedGroupPermission } from "@/lib/security/rbac";
 import { GroupExpensesLedger } from "@/components/group/group-expenses-ledger";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Group Financial Overview & Settlement Hub | SplitLedger AI",
+  description:
+    "Comprehensive group expense breakdown, who-pays-whom settlement matrix, and real-time ledger balance.",
+  path: "/dashboard/groups",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

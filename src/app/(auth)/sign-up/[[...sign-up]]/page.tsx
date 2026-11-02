@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import { SignUp } from "@clerk/nextjs";
+import { createPageMetadata } from "@/lib/seo/config";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Create Your Free SplitLedger AI Account",
+  description: "Join SplitLedger AI to track personal expenses, split group bills with friends, and settle balances with dynamic UPI QR codes.",
+  path: "/sign-up",
+  noIndex: true,
+});
 
 export default function SignUpPage() {
   return (

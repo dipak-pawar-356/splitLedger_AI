@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { contacts, transactions, categories, users } from "@/lib/db/schema/schema";
@@ -6,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ContactProfileView } from "@/components/contacts/contact-profile-view";
 import { notFound } from "next/navigation";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Contact Profile & Balance Statement | SplitLedger AI",
+  description:
+    "Individual contact details, cumulative balance statement, debt history, and settlement ledger.",
+  path: "/dashboard/contacts",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

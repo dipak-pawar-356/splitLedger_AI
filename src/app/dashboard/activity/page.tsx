@@ -1,9 +1,19 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { groups, groupMembers } from "@/lib/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { getUserActivityTimeline } from "@/actions/activity";
 import { ActivityTimelineView } from "@/components/activity/activity-timeline-view";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Financial Audit Trail & Activity Log | SplitLedger AI",
+  description:
+    "Tamper-evident financial activity feed, transaction creation history, split changes, and member invitations.",
+  path: "/dashboard/activity",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { groups, groupMembers, transactions, settlements, users, expenseSplits, groupJoinRequests } from "@/lib/db/schema/schema";
@@ -17,6 +19,14 @@ import { GroupDialog } from "@/components/dialogs/group-dialog";
 import { GroupSettingsMenu } from "@/components/group/group-settings-menu";
 import { UniqueGroupInvitationDialog } from "@/components/group/unique-group-invitation-dialog";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Group Expense Split Calculator & Shared Balances | SplitLedger AI",
+  description:
+    "Organize shared expenses across flatmates, trips, and projects with real-time balance netting and instant settlement.",
+  path: "/dashboard/groups",
+  noIndex: true,
+});
 
 export const dynamic = 'force-dynamic';
 

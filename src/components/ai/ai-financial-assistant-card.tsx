@@ -26,7 +26,10 @@ import {
   FileSpreadsheet, 
   CornerDownLeft,
   Lock,
-  ArrowRight
+  FileText,
+  BarChart3,
+  CreditCard,
+  PlusCircle
 } from "lucide-react";
 import { askFinancialAssistant, AIAssistantResponse } from "@/actions/ai-assistant";
 import { FormattedAIAnswer, formatInlineText } from "@/components/ai/formatted-ai-answer";
@@ -51,60 +54,92 @@ interface PromptQuery {
   badge: string;
 }
 
-interface CapabilityPrompt {
+interface WelcomeSuggestion {
   id: string;
-  title: string;
+  label: string;
   description: string;
   query: string;
+  isCreateMode?: boolean;
   icon: React.ComponentType<{ className?: string; size?: number | string }>;
-  badge: string;
 }
 
-const FINANCIAL_CAPABILITIES: CapabilityPrompt[] = [
+export const WELCOME_SUGGESTION_CARDS: WelcomeSuggestion[] = [
   {
-    id: "cap-log",
-    title: "Log Expense via Natural Text",
-    description: "Convert freeform text directly into audited ledger entries",
-    query: "20 rs for water bottle and 50 rs for travel by bus",
+    id: "create-transactions",
+    label: "Create Transactions",
+    description: "Record new entries",
+    query: "create transition ",
+    isCreateMode: true,
     icon: Receipt,
-    badge: "Smart Entry",
   },
   {
-    id: "cap-receivables",
-    title: "Track Net Receivables",
-    description: "Audit who owes money across all shared groups & friends",
-    query: "Who owes me money across all my groups?",
-    icon: Users,
-    badge: "Receivables",
+    id: "explain-reports",
+    label: "Explain Reports",
+    description: "Monthly statements",
+    query: "Explain my financial reports",
+    icon: FileSpreadsheet,
   },
   {
-    id: "cap-spending",
-    title: "Analyze Monthly Burn Rate",
-    description: "Review category distributions, peak transactions & velocity",
-    query: "How much did I spend this month and what was my largest expense?",
+    id: "review-expenses",
+    label: "Review Expenses",
+    description: "Recent spending trends",
+    query: "Review my recent expenses and top categories",
     icon: TrendingUp,
-    badge: "Analytics",
   },
   {
-    id: "cap-settlements",
-    title: "Debt Netting & Simplification",
-    description: "Calculate optimal repayment flow to settle group balances",
-    query: "Show pending group settlements and who I need to pay",
+    id: "budget-help",
+    label: "Budget Help",
+    description: "Spending limits & progress",
+    query: "Help me review my active budgets",
     icon: Scale,
-    badge: "Settlement",
+  },
+  {
+    id: "receivables",
+    label: "Receivables",
+    description: "Who owes you money",
+    query: "Who owes me money?",
+    icon: Users,
+  },
+  {
+    id: "payables",
+    label: "Payables",
+    description: "Who you need to pay",
+    query: "Who do I owe money to?",
+    icon: CreditCard,
+  },
+  {
+    id: "notes",
+    label: "Notes",
+    description: "Financial memos & logs",
+    query: "Explain my financial notes",
+    icon: FileText,
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    description: "Cashflow & velocity",
+    query: "Explain my financial analytics",
+    icon: BarChart3,
+  },
+  {
+    id: "dashboard-help",
+    label: "Dashboard Help",
+    description: "Ledger navigation",
+    query: "Help me understand my dashboard values",
+    icon: HelpCircle,
   },
 ];
 
 const PROMPT_CATEGORIES = [
-  { id: "all", label: "All Audit Inquiries" },
-  { id: "spending", label: "Spending & Burn Rate" },
+  { id: "all", label: "All Financial Inquiries" },
+  { id: "spending", label: "Spending & Outflows" },
   { id: "friends", label: "Receivables & Groups" },
-  { id: "forecast", label: "Health & Forecasting" },
-  { id: "reports", label: "Reports & GST Audit" },
+  { id: "forecast", label: "Health & Forecasts" },
+  { id: "reports", label: "Reports & Statements" },
 ] as const;
 
 const PROMPT_LIBRARY: PromptQuery[] = [
-  // Spending & Velocity
+  // Spending & Outflows
   { id: "p1", category: "spending", icon: "📊", text: "Why did I spend so much this month?", badge: "Overview" },
   { id: "p2", category: "spending", icon: "💎", text: "What was my largest transaction?", badge: "Peak" },
   { id: "p3", category: "spending", icon: "📉", text: "What was my lowest recorded expense?", badge: "Minimum" },
@@ -129,14 +164,14 @@ const PROMPT_LIBRARY: PromptQuery[] = [
   { id: "p18", category: "forecast", icon: "🛡️", text: "What is my financial health score?", badge: "Health" },
   { id: "p19", category: "forecast", icon: "🎯", text: "Predict next month's spending", badge: "Forecast" },
   { id: "p20", category: "forecast", icon: "💳", text: "Where is my money going?", badge: "Distribution" },
-  { id: "p21", category: "forecast", icon: "💡", text: "Give me AI financial recommendations", badge: "Advice" },
+  { id: "p21", category: "forecast", icon: "💡", text: "Give me financial recommendations", badge: "Advice" },
   { id: "p22", category: "forecast", icon: "📉", text: "How can I reduce my expenses?", badge: "Savings" },
 
   // Reports & Tax
   { id: "p23", category: "reports", icon: "📑", text: "Summarize my financial report", badge: "Executive" },
-  { id: "p24", category: "reports", icon: "🏛️", text: "Show my business vs personal tax breakdown", badge: "Tax Audit" },
+  { id: "p24", category: "reports", icon: "🏛️", text: "Show my business vs personal tax breakdown", badge: "Tax Breakdown" },
   { id: "p25", category: "reports", icon: "🧾", text: "What is my estimated GST input tax credit?", badge: "GST" },
-  { id: "p26", category: "reports", icon: "🔒", text: "Explain data encryption and security", badge: "Security" },
+  { id: "p26", category: "reports", icon: "🔒", text: "Explain security and encryption", badge: "Security" },
   { id: "p27", category: "reports", icon: "👤", text: "Show my profile summary", badge: "Profile" },
 ];
 
@@ -154,14 +189,15 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
 
   const shouldReduceMotion = useReducedMotion();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Initial welcome message from SplitLedger In-House Assistant
+  // Initial welcome message from SplitLedger Financial Assistant
   const [messages, setMessages] = useState<ChatTurn[]>([
     {
       id: "turn_welcome",
       role: "assistant",
-      content: "Welcome to SplitLedger Financial Intelligence. I am your dedicated in-house chartered assistant, connected directly to your live ledger records with real-time INR (₹) precision. You can type or paste any expense, payment, or ledger question below (e.g. 'Paid 450 rs for dinner with Amit', 'Who owes me money?', 'Analyze my highest expenses this month').",
+      content: "Hello! How can I help you with your finances today?",
       timestamp: "Ready",
     },
   ]);
@@ -216,7 +252,8 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
         (t) => t.status !== "approved" && t.status !== "cancelled"
       );
 
-      const res = await askFinancialAssistant(trimmed, activeDrafts);
+      const conversationHistory = messages.map((m) => ({ role: m.role, content: m.content }));
+      const res = await askFinancialAssistant(trimmed, activeDrafts, conversationHistory);
       const assistantTurn: ChatTurn = {
         id: `turn_ai_${Date.now()}`,
         role: "assistant",
@@ -226,13 +263,13 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
       };
       setMessages((prev) => [...prev, assistantTurn]);
     } catch (e: any) {
-      toast.error(e?.message || "Failed to retrieve financial intelligence");
+      toast.error("Financial records temporarily unavailable. Please try again in a moment.");
       setMessages((prev) => [
         ...prev,
         {
           id: `turn_err_${Date.now()}`,
           role: "assistant",
-          content: "I experienced a secure connection timeout accessing your ledger. Please re-submit your financial query.",
+          content: "I couldn't retrieve your latest financial records right now. Please try again in a moment.",
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
@@ -241,12 +278,23 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
     }
   };
 
+  const handleSuggestionClick = (item: WelcomeSuggestion) => {
+    if (item.isCreateMode) {
+      setQuery("create transition ");
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    } else {
+      handleSend(item.query);
+    }
+  };
+
   const handleResetChat = () => {
     setMessages([
       {
         id: `turn_welcome_${Date.now()}`,
         role: "assistant",
-        content: "New financial audit session initiated. Ask any question about your spending velocity, shared groups, net balances, or forecasts.",
+        content: "Hello! How can I help you with your finances today?",
         timestamp: "Ready",
       },
     ]);
@@ -255,7 +303,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
 
   return (
     <Card className="rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-sm overflow-hidden bg-card transition-all duration-300 hover:shadow-md flex flex-col">
-      {/* 1. Premium Chartered Financial Workspace Header */}
+      {/* 1. Simplified Professional Header */}
       <CardHeader className="border-b border-slate-200/80 dark:border-slate-800 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white pb-4 p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
           <div className="flex items-center gap-3">
@@ -264,46 +312,29 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
               <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-950 animate-pulse" />
             </div>
             <div>
-              <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2 text-white tracking-tight">
-                <span>SplitLedger Financial Intelligence</span>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base sm:text-lg font-bold text-white tracking-tight">
+                  SplitLedger Financial Assistant
+                </CardTitle>
                 <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold py-0 px-2 tracking-wider uppercase">
-                  Chartered Core
+                  Active
                 </Badge>
-              </CardTitle>
+              </div>
               <CardDescription className="text-xs text-slate-300 font-medium flex items-center gap-2 mt-0.5">
                 <span className="flex items-center gap-1 text-slate-300">
                   <Lock className="h-3 w-3 text-emerald-400" />
-                  <span>256-Bit Encrypted Session</span>
+                  <span>Secure Session</span>
                 </span>
                 <span className="text-slate-500">•</span>
-                <span>Connected to Live Ledger (INR ₹)</span>
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Connected
+                </span>
               </CardDescription>
             </div>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-            <Badge variant="secondary" className="bg-indigo-500/15 text-indigo-200 text-[11px] font-bold py-1 px-2.5 shrink-0 flex items-center gap-1.5 border border-indigo-400/30 font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Live Ledger Analysis</span>
-            </Badge>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowPromptPanel((prev) => !prev)}
-              className="h-8 rounded-xl text-[11px] gap-1 font-semibold text-slate-300 hover:text-white hover:bg-white/10"
-              aria-label={showPromptPanel ? "Hide financial inquiry directory" : "Show financial inquiry directory"}
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-400" aria-hidden="true" />
-              <span>{showPromptPanel ? "Hide Directory" : "Query Directory"}</span>
-              {showPromptPanel ? (
-                <ChevronUp className="h-3 w-3 opacity-60" aria-hidden="true" />
-              ) : (
-                <ChevronDown className="h-3 w-3 opacity-60" aria-hidden="true" />
-              )}
-            </Button>
-
             <Button
               type="button"
               variant="ghost"
@@ -311,114 +342,16 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
               onClick={handleResetChat}
               title="Reset conversation"
               aria-label="Start new conversation thread"
-              className="h-8 w-8 p-0 rounded-xl text-slate-300 hover:text-white hover:bg-white/10"
+              className="h-8 rounded-xl text-xs gap-1.5 text-slate-300 hover:text-white hover:bg-white/10"
             >
               <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>New Session</span>
             </Button>
           </div>
         </div>
       </CardHeader>
 
       <CardContent className="p-4 sm:p-6 space-y-5 flex-1 flex flex-col bg-slate-50/30 dark:bg-slate-950/20">
-        {/* 2. Categorized Financial Inquiry Directory Panel */}
-        <AnimatePresence>
-          {showPromptPanel && (
-            <motion.div
-              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-              animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, height: "auto" }}
-              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="overflow-hidden"
-            >
-              <div className="p-4 rounded-2xl bg-card border border-slate-200/90 dark:border-slate-800 space-y-3.5 shadow-xs">
-                {/* Search Bar for Prompts */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
-                    <Input
-                      value={promptSearchQuery}
-                      onChange={(e) => setPromptSearchQuery(e.target.value)}
-                      placeholder="Search 25+ chartered queries (e.g. food, debts, burn rate, forecast, tax)..."
-                      className="pl-8.5 pr-8 h-9 text-xs rounded-xl bg-background border-slate-200 dark:border-slate-800 shadow-2xs"
-                      aria-label="Search prompt library"
-                    />
-                    {promptSearchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setPromptSearchQuery("")}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        aria-label="Clear search"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <span className="text-[11px] font-mono tabular-nums text-slate-400 font-semibold shrink-0">
-                    {filteredPrompts.length} Inquiries Available
-                  </span>
-                </div>
-
-                {/* Category Filter Pills */}
-                <div 
-                  role="radiogroup" 
-                  aria-label="Filter prompts by category"
-                  className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none no-scrollbar"
-                >
-                  {PROMPT_CATEGORIES.map((cat) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={promptCategory === cat.id}
-                      onClick={() => setPromptCategory(cat.id)}
-                      className={`px-3 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-all shrink-0 cursor-pointer ${
-                        promptCategory === cat.id
-                          ? "bg-slate-900 dark:bg-indigo-600 text-white shadow-xs"
-                          : "bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400/40 hover:text-slate-900 dark:hover:text-slate-200"
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Prompts Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-52 overflow-y-auto pr-1">
-                  {filteredPrompts.length > 0 ? (
-                    filteredPrompts.map((p) => (
-                      <motion.button
-                        key={p.id}
-                        type="button"
-                        whileHover={shouldReduceMotion ? {} : { y: -1, scale: 1.01 }}
-                        whileTap={shouldReduceMotion ? {} : { scale: 0.98 }}
-                        onClick={() => handleSend(p.text)}
-                        disabled={isLoading}
-                        className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 border border-slate-200/70 dark:border-slate-800 hover:border-indigo-400/40 text-left transition-colors flex items-start justify-between gap-2 shadow-2xs group cursor-pointer"
-                        aria-label={`Ask query: ${p.text}`}
-                      >
-                        <div className="flex items-start gap-2 min-w-0">
-                          <span className="text-sm shrink-0 mt-0.5" aria-hidden="true">{p.icon}</span>
-                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
-                            {p.text}
-                          </span>
-                        </div>
-                        <Badge variant="outline" className="text-[9px] font-mono shrink-0 text-slate-400 border-slate-200 dark:border-slate-800">
-                          {p.badge}
-                        </Badge>
-                      </motion.button>
-                    ))
-                  ) : (
-                    <div className="col-span-full py-6 text-center text-xs text-slate-400">
-                      No matching inquiries found for &quot;{promptSearchQuery}&quot;. Type a custom query below.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* 3. Multi-Turn Financial Conversation Stream */}
         <div 
           ref={chatScrollContainerRef}
@@ -454,68 +387,66 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                 <div className="max-w-[98%] sm:max-w-[92%] space-y-1.5 w-full">
                   <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
                     <SplitLedgerAiIcon size={13} className="text-indigo-500" />
-                    <span className="font-bold text-slate-700 dark:text-slate-300">SplitLedger Financial Intelligence</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">SplitLedger Financial Assistant</span>
                     <span>•</span>
                     <span>{msg.timestamp}</span>
                   </div>
 
                   <div className="p-3.5 sm:p-5 rounded-2xl rounded-tl-xs bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3.5 sm:space-y-4">
-                    {/* Verified Status Banner */}
+                    {/* Assistant Status Banner */}
                     <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-800/80 pb-2.5">
                       <div className="flex items-center gap-2">
                         <div className="p-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
                           <SplitLedgerAiIcon size={14} />
                         </div>
-                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono">
-                          Ledger Intelligence Briefing
+                        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                          SplitLedger Financial Assistant
                         </span>
                       </div>
-                      <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-300 dark:border-emerald-800 bg-emerald-500/5 font-semibold font-mono">
-                        Audit Verified
-                      </Badge>
+                      <span className="text-[10px] text-slate-400 font-mono font-medium">
+                        {msg.response?.detectedTransactions && msg.response.detectedTransactions.length > 0 ? "Transaction Creation" : "Financial Support"}
+                      </span>
                     </div>
 
-                    {/* Rich Formatted Answer (Clean, zero raw asterisks) */}
-                    <FormattedAIAnswer content={msg.content} />
-
-                    {/* Interactive Capabilities Hub (Visible on welcome message) */}
-                    {index === 0 && messages.length === 1 && (
-                      <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800/80 space-y-2">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                          Interactive Financial Capabilities
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          {FINANCIAL_CAPABILITIES.map((cap) => {
-                            const IconComp = cap.icon;
-                            return (
-                              <button
-                                key={cap.id}
-                                type="button"
-                                onClick={() => handleSend(cap.query)}
-                                disabled={isLoading}
-                                className="p-3 rounded-xl bg-card hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30 border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400/40 text-left transition-all duration-150 flex flex-col justify-between group cursor-pointer shadow-2xs hover:-translate-y-0.5 active:translate-y-0"
-                              >
-                                <div className="flex items-start justify-between w-full">
-                                  <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
-                                    <IconComp size={15} />
-                                  </div>
-                                  <Badge variant="outline" className="text-[9px] font-mono text-slate-400 border-slate-200 dark:border-slate-800">
-                                    {cap.badge}
-                                  </Badge>
-                                </div>
-                                <div className="mt-2">
-                                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                    {cap.title}
-                                  </p>
-                                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                                    {cap.description}
-                                  </p>
-                                </div>
-                              </button>
-                            );
-                          })}
+                    {/* Render Rich Answer or Clean Empty State */}
+                    {msg.content.includes("No matching financial records were found") ? (
+                      <div className="p-3.5 rounded-xl bg-card border border-slate-200/80 dark:border-slate-800 space-y-3">
+                        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                          <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+                          <span className="text-xs font-medium">No matching financial records were found for your request.</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setQuery("create transition ");
+                              setTimeout(() => inputRef.current?.focus(), 50);
+                            }}
+                            className="text-xs h-7.5 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-400/30"
+                          >
+                            Create Transactions
+                          </Button>
+                          <Link href="/dashboard">
+                            <Button variant="outline" size="sm" className="text-xs h-7.5 px-3">
+                              View Dashboard
+                            </Button>
+                          </Link>
+                          <Link href="/dashboard/reports">
+                            <Button variant="outline" size="sm" className="text-xs h-7.5 px-3">
+                              Reports
+                            </Button>
+                          </Link>
+                          <Link href="/dashboard/notes">
+                            <Button variant="outline" size="sm" className="text-xs h-7.5 px-3">
+                              Notes
+                            </Button>
+                          </Link>
                         </div>
                       </div>
+                    ) : (
+                      <FormattedAIAnswer content={msg.content} />
                     )}
 
                     {/* Conversational Transaction Approval Workflow (Explicit User Approval Required) */}
@@ -528,7 +459,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                       </div>
                     )}
 
-                    {/* Key Metrics Grid (rendered only when no transaction approval cards exist) */}
+                    {/* Key Metrics Grid (rendered only when no transaction approval cards exist and real metrics exist) */}
                     {msg.response && msg.response.keyMetrics && msg.response.keyMetrics.length > 0 && (!msg.response.detectedTransactions || msg.response.detectedTransactions.length === 0) && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5 pt-2 border-t border-slate-200/70 dark:border-slate-800/80">
                         {msg.response.keyMetrics.map((m, idx) => (
@@ -547,11 +478,11 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                       </div>
                     )}
 
-                    {/* Explanatory Insights (rendered only when no transaction approval cards exist) */}
+                    {/* Explanatory Insights (rendered only when no transaction approval cards exist and real insights exist) */}
                     {msg.response && msg.response.insights && msg.response.insights.length > 0 && (!msg.response.detectedTransactions || msg.response.detectedTransactions.length === 0) && (
                       <div className="space-y-1.5 pt-2 border-t border-slate-200/70 dark:border-slate-800/80">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block font-mono">
-                          Key Ledger Takeaways
+                          Key Takeaways
                         </span>
                         <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
                           {msg.response.insights.map((ins, iIdx) => (
@@ -567,29 +498,66 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                     {/* Action Suggestion Buttons & Payment Method Quick Chips */}
                     {msg.response && msg.response.actionSuggestions && msg.response.actionSuggestions.length > 0 && (
                       <div className="flex items-center gap-1.5 sm:gap-2 pt-2 border-t border-slate-200/70 dark:border-slate-800/80 flex-wrap">
-                        {msg.response.actionSuggestions.map((act, aIdx) =>
-                          act.url.startsWith("action:payment:") ? (
-                            <Button
-                              key={aIdx}
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const val = act.url.replace("action:payment:", "");
-                                handleSend(val);
-                              }}
-                              className="rounded-xl text-xs h-8 sm:h-7.5 px-3 gap-1.5 font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-400/30 cursor-pointer shadow-2xs touch-press transition-all"
-                            >
-                              <span>{act.label}</span>
-                            </Button>
-                          ) : (
+                        {msg.response.actionSuggestions.map((act, aIdx) => {
+                          if (act.url.startsWith("action:payment:")) {
+                            return (
+                              <Button
+                                key={aIdx}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const val = act.url.replace("action:payment:", "");
+                                  handleSend(val);
+                                }}
+                                className="rounded-xl text-xs h-8 sm:h-7.5 px-3 gap-1.5 font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-400/30 cursor-pointer shadow-2xs touch-press transition-all"
+                              >
+                                <span>{act.label}</span>
+                              </Button>
+                            );
+                          }
+                          if (act.url.startsWith("action:input:")) {
+                            return (
+                              <Button
+                                key={aIdx}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const val = act.url.replace("action:input:", "");
+                                  setQuery(val);
+                                  setTimeout(() => inputRef.current?.focus(), 50);
+                                }}
+                                className="rounded-xl text-xs h-8 sm:h-7.5 px-3 gap-1.5 font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-400/30 cursor-pointer shadow-2xs touch-press transition-all"
+                              >
+                                <PlusCircle className="h-3 w-3" />
+                                <span>{act.label}</span>
+                              </Button>
+                            );
+                          }
+                          if (act.url.startsWith("action:send:")) {
+                            return (
+                              <Button
+                                key={aIdx}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const val = act.url.replace("action:send:", "");
+                                  handleSend(val);
+                                }}
+                                className="rounded-xl text-xs h-8 sm:h-7.5 px-3 gap-1.5 font-semibold hover:border-indigo-400/50 touch-press"
+                              >
+                                <span>{act.label}</span>
+                              </Button>
+                            );
+                          }
+                          return (
                             <Link key={aIdx} href={act.url}>
                               <Button variant="outline" size="sm" className="rounded-xl text-xs h-8 sm:h-7.5 px-3 gap-1.5 font-semibold hover:border-indigo-400/50 touch-press">
                                 <span>{act.label}</span>
                                 <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
                               </Button>
                             </Link>
-                          )
-                        )}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -606,7 +574,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
               </div>
               <div className="p-3.5 px-4 rounded-2xl rounded-tl-xs bg-card border border-slate-200/90 dark:border-slate-800 shadow-xs text-xs text-slate-600 dark:text-slate-300 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="font-medium">Reconciling ledger records and computing financial analysis...</span>
+                <span className="font-medium">Accessing verified ledger records...</span>
               </div>
             </div>
           )}
@@ -620,7 +588,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
           {showAutocomplete && autocompleteSuggestions.length > 0 && (
             <div className="absolute bottom-full mb-2 left-0 right-0 z-20 p-2 rounded-2xl bg-card border border-slate-200 dark:border-slate-800 shadow-xl space-y-1 animate-in fade-in slide-in-from-bottom-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 block font-mono">
-                Suggested Ledger Inquiries
+                Suggested Financial Inquiries
               </span>
               {autocompleteSuggestions.map((s) => (
                 <button
@@ -655,13 +623,14 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
             <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" aria-hidden="true" />
               <Input
+                ref={inputRef}
                 value={query}
                 onFocus={() => setShowAutocomplete(true)}
                 onChange={(e) => {
                   setQuery(e.target.value);
                   setShowAutocomplete(true);
                 }}
-                placeholder="Ask any financial inquiry (e.g. 'Paid ₹450 for lunch with Rahul', 'Who owes me?', 'Monthly forecast')..."
+                placeholder="Ask a financial question, or type 'create transition Petrol 500'..."
                 className="rounded-2xl text-base sm:text-sm bg-background h-12 pl-10 pr-10 border-slate-200/90 dark:border-slate-800 focus-visible:ring-indigo-500/30 focus-visible:ring-2 shadow-xs"
                 disabled={isLoading}
                 aria-label="Ask a financial question"
@@ -687,7 +656,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
               size="sm"
               className="rounded-2xl h-12 w-12 sm:w-auto px-0 sm:px-5 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white font-bold gap-2 text-xs shadow-xs hover:shadow-md transition-all shrink-0 cursor-pointer touch-press flex items-center justify-center"
               disabled={isLoading || !query.trim()}
-              aria-label={isLoading ? "Reconciling ledger records" : "Send query to financial assistant"}
+              aria-label={isLoading ? "Accessing financial records" : "Send query to financial assistant"}
             >
               {isLoading ? (
                 <>
@@ -711,10 +680,10 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
             </span>
             {[
               "Why did I spend so much this month?",
-              "Who owes me money?",
-              "What is my health score?",
-              "Predict next month",
-              "Where is my money going?"
+              "Where did my money go?",
+              "How much did I save?",
+              "Which friend owes me the highest amount?",
+              "Did I overspend?"
             ].map((q, idx) => (
               <button
                 key={idx}

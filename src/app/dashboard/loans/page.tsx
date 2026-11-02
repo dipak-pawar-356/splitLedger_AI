@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-// import { requireAuth } from "@/lib/auth";
-// import { getLoanDashboardSummary } from "@/actions/loans";
-// import { LoansDashboardView } from "@/components/loans/loans-dashboard-view";
+import { createPageMetadata } from "@/lib/seo/config";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Debt & Loan Tracker | SplitLedger AI",
+  description:
+    "Track informal loans, interest calculations, EMI payment schedules, and settlement history.",
+  path: "/dashboard/loans",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

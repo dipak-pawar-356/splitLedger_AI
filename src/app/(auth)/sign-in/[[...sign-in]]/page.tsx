@@ -1,4 +1,13 @@
+import type { Metadata } from "next";
 import { SignIn } from "@clerk/nextjs";
+import { createPageMetadata } from "@/lib/seo/config";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Sign In to Your Financial Ledger",
+  description: "Securely sign in to your SplitLedger AI personal finance and shared expense management account.",
+  path: "/sign-in",
+  noIndex: true,
+});
 
 export default function SignInPage() {
   return (

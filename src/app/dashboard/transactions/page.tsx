@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { transactions, contacts, categories, groups, users } from "@/lib/db/schema/schema";
@@ -32,6 +34,14 @@ import Link from "next/link";
 import { TransactionDialog } from "@/components/dialogs/transaction-dialog";
 import { TransactionsClientView } from "@/components/transaction/transactions-client-view";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Expense Tracker & Transaction Ledger | SplitLedger AI",
+  description:
+    "Record, categorize, and audit financial transactions with receipt attachments, tax tagging, and multi-currency tracking.",
+  path: "/dashboard/transactions",
+  noIndex: true,
+});
 
 export const dynamic = 'force-dynamic';
 

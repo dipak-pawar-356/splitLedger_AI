@@ -887,11 +887,12 @@ export async function renderNotificationTemplate(
   templateString: string,
   variables: Record<string, string | number>
 ): Promise<string> {
-  let rendered = templateString;
+  let rendered = sanitizeText(templateString);
   for (const [key, value] of Object.entries(variables)) {
     const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp(`{{\\s*${escapedKey}\\s*}}`, "g");
-    rendered = rendered.replace(regex, String(value));
+    const safeValue = sanitizeText(String(value));
+    rendered = rendered.replace(regex, safeValue);
   }
   return rendered;
 }

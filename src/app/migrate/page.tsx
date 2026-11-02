@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { runDatabaseMigration } from "@/actions/migrate";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,14 +9,13 @@ import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: "Database Migration Console",
-  robots: {
-    index: false,
-    follow: false,
-    nocache: true,
-  },
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "Database Migration Console | SplitLedger AI",
+  description:
+    "System administrator database schema migration and synchronization console.",
+  path: "/migrate",
+  noIndex: true,
+});
 
 export default async function MigratePage() {
   try {
@@ -59,11 +59,8 @@ export default async function MigratePage() {
               <p className="text-red-800 dark:text-red-200 font-medium">✗ Migration Failed</p>
               <p className="text-sm text-red-600 dark:text-red-400 mt-2">{result.error || "Unknown error"}</p>
             </div>
-            <Button
-              onClick={() => window.location.reload()}
-              className="w-full mt-4"
-            >
-              Retry Migration
+            <Button asChild className="w-full mt-4">
+              <a href="/migrate">Retry Migration</a>
             </Button>
           </CardContent>
         </Card>

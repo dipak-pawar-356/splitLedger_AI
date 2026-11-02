@@ -1,1 +1,1 @@
-export { default, dynamic } from "@/app/dashboard/groups/[id]/settlements/page";
+export { default, dynamic, metadata } from "@/app/dashboard/groups/[id]/settlements/page";

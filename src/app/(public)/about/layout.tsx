@@ -3,7 +3,7 @@ import { createPageMetadata, SITE_CONFIG } from "@/lib/seo/config";
 import { JsonLd, createBreadcrumbSchema } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = createPageMetadata({
-  title: "About Us — Engineering the Future of Financial Ledgers",
+  title: "About SplitLedger AI — The Next Generation Financial Ledger Platform",
   description:
     "Learn about SplitLedger AI's mission to eliminate financial friction with intelligent graph accounting, automated debt simplification, and real-time ledger intelligence.",
   path: "/about",
@@ -12,6 +12,8 @@ export const metadata: Metadata = createPageMetadata({
     "Financial SaaS Mission",
     "Smart Accounting Team",
     "Debt Simplification Engineering",
+    "FinTech Innovation India",
+    "Next Gen Ledger Platform",
   ],
 });
 

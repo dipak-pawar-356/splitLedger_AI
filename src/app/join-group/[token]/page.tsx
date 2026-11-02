@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { db } from "@/lib/db";
 import { groups, invitations } from "@/lib/db/schema/schema";
 import { eq, and, or } from "drizzle-orm";
@@ -9,14 +10,13 @@ import { isDbIntegerId } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Join Group Ledger",
-  robots: {
-    index: false,
-    follow: false,
-    nocache: true,
-  },
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "Join Group Ledger | SplitLedger AI",
+  description:
+    "Join a shared expense group to collaborate on group ledgers, trips, and shared bills.",
+  path: "/join-group",
+  noIndex: true,
+});
 
 export default async function JoinGroupPage({
   params,

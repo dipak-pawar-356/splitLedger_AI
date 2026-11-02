@@ -1,9 +1,19 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { categories, groups, groupMembers } from "@/lib/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { getComprehensiveAnalytics } from "@/actions/analytics";
 import { AnalyticsClientView } from "@/components/analytics/analytics-client-view";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Cashflow & Expense Analytics | SplitLedger AI",
+  description:
+    "Interactive financial analytics, category breakdowns, month-over-month trends, and burn rate visualization.",
+  path: "/dashboard/analytics",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

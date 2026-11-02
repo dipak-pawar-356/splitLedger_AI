@@ -25,8 +25,26 @@ export function PublicFooter() {
             </p>
           </div>
 
-          {/* Links: Privacy, Terms, Cookies, Copyright, Contact, GitHub, LinkedIn */}
+          {/* Links: Features, Pricing, About, Privacy, Terms, Cookies, Copyright, Contact, GitHub, LinkedIn */}
           <nav className="flex flex-wrap items-center justify-center gap-6" aria-label="Footer Navigation">
+            <Link
+              href="/features"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
+            >
+              Features
+            </Link>
+            <Link
+              href="/pricing"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/about"
+              className="link-underline hover:text-slate-900 dark:hover:text-white transition-colors duration-200"
+            >
+              About
+            </Link>
             <Link
               href="/privacy"
               className="link-underline hover:text-slate-900 dark:hover:text-white transition-colors duration-200"

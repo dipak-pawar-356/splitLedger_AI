@@ -306,14 +306,6 @@ export function FinancialIntelligenceClientView({
               className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
               <AIFinancialAssistantCard categories={categories} />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AIInsightsFeed insights={data.aiInsights} />
-                <SmartRecommendationsView
-                  recommendations={data.recommendations}
-                  onOpenBudgetDialog={handleCreateBudget}
-                  onEditBudget={handleEditBudget}
-                />
-              </div>
             </motion.div>
           )}
 

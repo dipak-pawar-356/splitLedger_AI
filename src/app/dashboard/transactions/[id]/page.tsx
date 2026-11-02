@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { 
   getTransaction, 
@@ -41,6 +43,14 @@ import { TransactionTimeline } from "@/components/transaction/transaction-timeli
 import { ReceiptManager } from "@/components/transaction/receipt-manager";
 import { TransactionComments } from "@/components/transaction/transaction-comments";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Transaction Details & Audit Record | SplitLedger AI",
+  description:
+    "Transaction receipt audit details, split breakdown, category mapping, and revision history.",
+  path: "/dashboard/transactions",
+  noIndex: true,
+});
 
 export const dynamic = 'force-dynamic';
 

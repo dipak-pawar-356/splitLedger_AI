@@ -1,7 +1,17 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { getAllSettings } from "@/actions/settings";
 import { getAccountOverview } from "@/actions/account";
 import { SettingsCenterClientView } from "@/components/settings/settings-center-client-view";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Application Preferences & Ledger Configuration | SplitLedger AI",
+  description:
+    "Configure visual themes, INR currency standards, dashboard layouts, group policies, and notification channels.",
+  path: "/dashboard/settings",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

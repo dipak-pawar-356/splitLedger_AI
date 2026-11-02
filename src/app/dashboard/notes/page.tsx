@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import {
   getNotes,
@@ -8,6 +10,14 @@ import {
 } from "@/actions/notes";
 import { getFinancialNotesAnalysisAction } from "@/actions/notes-financial-analytics";
 import { NotesClientView } from "@/components/notes/notes-client-view";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Financial Notes & Daily Journal | SplitLedger AI",
+  description:
+    "Record daily financial reflections, expense memos, budget goals, and audit trails tied to your ledger.",
+  path: "/dashboard/notes",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

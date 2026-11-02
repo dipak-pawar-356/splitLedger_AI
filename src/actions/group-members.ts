@@ -3,7 +3,7 @@
 import { db } from "@/lib/db";
 import { groupMembers, contacts, users, groups, settlements, auditLogs, groupJoinRequests } from "@/lib/db/schema/schema";
 import { eq, and, or, sql } from "drizzle-orm";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, isUserSystemAdmin } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, AuthorizationError, ConflictError, DatabaseError } from "@/lib/errors";
 import { formatCurrency, generatePublicId, isDbIntegerId } from "@/lib/utils";
@@ -201,11 +201,7 @@ export async function removeGroupMember(memberId: number, groupIdOrPublicId: num
     }
 
     // Verify caller is admin or owner or has delegated permissions
-    const isSystemAdmin =
-      user.email === "dipakspawaras17@gmail.com" ||
-      user.email === "dipakspawar@coep.sveri.ac.in" ||
-      user.email === "pawardipaksa@gmail.com" ||
-      user.email === "dipak@splitledger.ai";
+    const isSystemAdmin = isUserSystemAdmin(user);
 
     const isOwner = Number(group.createdBy) === Number(user.id) || isSystemAdmin;
 

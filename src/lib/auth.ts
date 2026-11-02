@@ -11,13 +11,13 @@ const DEV_USER = {
   id: 1,
   publicId: "usr_dev_default",
   clerkUserId: "user_dev_default",
-  email: "dipak@splitledger.ai",
+  email: "dipakpawaras3747@gmail.com",
   name: "Dipak Pawar",
   avatar: null,
   defaultCurrency: "INR",
   theme: "system",
   emailVerified: true,
-  upiId: "dipak@okhdfcbank",
+  upiId: "dipakpawaras19-1@oksbi",
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -98,7 +98,7 @@ export const getCurrentUser = reactCache(async () => {
           }
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     let userId: string | null = null;
     try {
@@ -110,7 +110,7 @@ export const getCurrentUser = reactCache(async () => {
           if (clerkAuth?.userId) {
             userId = clerkAuth.userId;
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // 2. Second priority: forwarded header from middleware
@@ -173,12 +173,12 @@ export const getCurrentUser = reactCache(async () => {
           if (resp.ok) {
             clerkUser = await resp.json();
           }
-        } catch (_) {}
+        } catch (_) { }
       }
 
       const emailObj = clerkUser?.email_addresses?.[0];
       const userEmail = emailObj?.email_address || clerkUser?.emailAddresses?.[0]?.emailAddress || `user-${userId}@example.com`;
-      const userName = clerkUser 
+      const userName = clerkUser
         ? `${clerkUser.first_name || clerkUser.firstName || ''} ${clerkUser.last_name || clerkUser.lastName || ''}`.trim() || clerkUser.username || "User"
         : "User";
 
@@ -205,7 +205,7 @@ export const getCurrentUser = reactCache(async () => {
             userId: newUser.id,
             accountStatus: "active",
           }).onConflictDoNothing();
-        } catch (_) {}
+        } catch (_) { }
       }
 
       return newUser || DEV_USER;
@@ -226,6 +226,18 @@ export const requireAuth = reactCache(async () => {
   return user;
 });
 
+export function isUserSystemAdmin(user?: { email?: string | null; id?: number | null } | null): boolean {
+  if (!user?.email) return false;
+  const adminEmails = (
+    process.env.ADMIN_EMAILS ||
+    "dipak@splitledger.ai,admin@splitledger.ai,dipakspawaras17@gmail.com,dipakspawar@coep.sveri.ac.in,pawardipaksa@gmail.com"
+  )
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return adminEmails.includes(user.email.toLowerCase());
+}
+
 export const requireAdmin = reactCache(async () => {
   const user = await requireAuth();
 
@@ -233,12 +245,7 @@ export const requireAdmin = reactCache(async () => {
     return user;
   }
 
-  const adminEmails = (process.env.ADMIN_EMAILS || "dipak@splitledger.ai,admin@splitledger.ai")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-
-  const isEmailAdmin = !!user.email && adminEmails.includes(user.email.toLowerCase());
+  const isEmailAdmin = isUserSystemAdmin(user);
 
   if (!isEmailAdmin) {
     throw new AuthorizationError("Administrative privileges required to access this resource.");

@@ -1,5 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 
+// Mock rate limiting for unit tests
+vi.mock("@/lib/security/rate-limit", () => ({
+  assertRateLimit: vi.fn(),
+  RATE_LIMITS: {
+    ai: {
+      assistant: { limit: 1000, windowMs: 60000 },
+    },
+  },
+}));
+
 // Mock requireAuth
 vi.mock("@/lib/auth", () => ({
   requireAuth: vi.fn().mockResolvedValue({
@@ -252,5 +262,134 @@ describe("AI Financial Assistant Verified Q&A System", () => {
   it("returns zero-hallucination notice when data does not exist", async () => {
     const res = await askFinancialAssistant("How much did I spend on luxury yacht?");
     expect(res.answer).toContain("I couldn't find any verified data for that request.");
+    expect(res.answer).toContain("No matching financial records were found for your request.");
+  });
+
+  it("does not automatically create transactions for 'Petrol 500' and instructs to use 'create transition'", async () => {
+    const res = await askFinancialAssistant("Petrol 500");
+    expect(res.answer).toContain("I can help you record this.");
+    expect(res.answer).toContain("create transition");
+    expect(res.answer).toContain("Petrol 500");
+    expect(res.detectedTransactions?.length || 0).toBe(0);
+  });
+
+  it("does not automatically create transactions for 'Salary 25000' and instructs to use 'create transition'", async () => {
+    const res = await askFinancialAssistant("Salary 25000");
+    expect(res.answer).toContain("I can help you record this.");
+    expect(res.answer).toContain("create transition");
+    expect(res.answer).toContain("Salary 25000");
+    expect(res.detectedTransactions?.length || 0).toBe(0);
+  });
+
+  it("enters transaction creation mode when prefixed with 'create transition Petrol 500'", async () => {
+    const res = await askFinancialAssistant("create transition Petrol 500");
+    expect(res.detectedTransactions).toBeDefined();
+    expect(res.detectedTransactions!.length).toBe(1);
+    expect(res.detectedTransactions![0].title).toBe("Petrol");
+    expect(res.detectedTransactions![0].amount).toBe(500);
+  });
+
+  it("answers 'Dashboard help' in Mode 1 Financial Support mode", async () => {
+    const res = await askFinancialAssistant("Dashboard help");
+    expect(res.answer).toContain("dashboard values");
+    expect(res.actionSuggestions.some((a) => a.label === "View Dashboard")).toBe(true);
+  });
+
+  it("answers 'Budget help' in Mode 1 Financial Support mode", async () => {
+    const res = await askFinancialAssistant("Budget help");
+    expect(res.answer).toContain("budget");
+  });
+
+  describe("Personal Financial Advisor Explanations & Strict Month Awareness", () => {
+    it("answers 'Why did I spend so much this month?' with conversational financial advisor explanation", async () => {
+      const res = await askFinancialAssistant("Why did I spend so much this month?");
+      expect(res.answer).toContain("₹8,000.00");
+      expect(res.answer).toContain("Top Spending Drivers");
+      expect(res.answer).toContain("Groceries");
+      expect(res.answer).toContain("Advisor Takeaway");
+      expect(res.keyMetrics.some((m) => m.label === "Spent This Month" && m.value === "₹8,000.00")).toBe(true);
+      expect(res.keyMetrics.some((m) => m.label === "Top Category" && m.value === "Groceries")).toBe(true);
+    });
+
+    it("handles follow-up question 'Why?' using conversation history", async () => {
+      const history = [
+        { role: "user" as const, content: "How much did I spend this month?" },
+        { role: "assistant" as const, content: "This month you spent ₹8,000.00 across 3 transactions." },
+      ];
+      const res = await askFinancialAssistant("Why?", undefined, history);
+      expect(res.answer).toContain("Top Spending Drivers");
+      expect(res.answer).toContain("Groceries");
+      expect(res.answer).toContain("Advisor Takeaway");
+    });
+
+    it("handles follow-up query 'Show only food expenses'", async () => {
+      const res = await askFinancialAssistant("Show only food expenses");
+      expect(res.answer).toContain("Food & Dining");
+      expect(res.answer).toContain("Swiggy Dinner");
+      expect(res.keyMetrics.some((m) => m.label === "Food & Dining Total")).toBe(true);
+    });
+
+    it("answers 'How many expenses did I add this month?' with exact count", async () => {
+      const res = await askFinancialAssistant("How many expenses did I add this month?");
+      expect(res.answer).toContain("3 expenses");
+      expect(res.answer).toContain("₹8,000.00");
+      expect(res.keyMetrics.some((m) => m.label === "Expenses Added" && m.value === "3")).toBe(true);
+    });
+
+    it("answers 'How much salary did I receive?' with real data", async () => {
+      const res = await askFinancialAssistant("How much salary did I receive?");
+      expect(res.answer).toContain("salary");
+      expect(res.keyMetrics.some((m) => m.label === "Salary This Month")).toBe(true);
+    });
+
+    it("answers 'Did I overspend?' analyzing budget utilization", async () => {
+      const res = await askFinancialAssistant("Did I overspend?");
+      expect(res.answer).toContain("budget");
+      expect(res.keyMetrics.some((m) => m.label.includes("Budget") || m.label === "Status")).toBe(true);
+    });
+
+    it("answers 'How much cash flow do I have?' with verified inflows and outflows", async () => {
+      const res = await askFinancialAssistant("How much cash flow do I have?");
+      expect(res.answer).toContain("cashflow");
+      expect(res.keyMetrics.some((m) => m.label === "Net Cash Flow")).toBe(true);
+    });
+
+    it("answers 'Which friend owes me the highest amount?' resolving the top debtor person", async () => {
+      const res = await askFinancialAssistant("Which friend owes me the highest amount?");
+      expect(res.answer).toContain("Aarav Sharma");
+      expect(res.answer).toContain("Summer Trip");
+      expect(res.keyMetrics.some((m) => m.label === "Top Debtor" && m.value === "Aarav Sharma")).toBe(true);
+    });
+
+    it("answers 'Which settlement is pending?' listing pending group settlements", async () => {
+      const res = await askFinancialAssistant("Which settlement is pending?");
+      expect(res.answer).toContain("pending settlement");
+      expect(res.answer).toContain("Aarav Sharma");
+      expect(res.keyMetrics.some((m) => m.label === "Receivables")).toBe(true);
+    });
+
+    it("answers 'Which group spent the most?' with top group metrics", async () => {
+      const res = await askFinancialAssistant("Which group spent the most?");
+      expect(res.answer).toContain("Summer Trip");
+      expect(res.answer).toContain("₹8,000.00");
+      expect(res.keyMetrics.some((m) => m.label === "Top Group" && m.value === "Summer Trip")).toBe(true);
+    });
+
+    it("answers 'How much did I save?' with net savings and savings rate", async () => {
+      const res = await askFinancialAssistant("How much did I save?");
+      expect(res.answer).toContain("savings");
+      expect(res.keyMetrics.some((m) => m.label === "Net Savings")).toBe(true);
+    });
+
+    it("supports temporal queries: 'last month', 'this year', 'last year'", async () => {
+      const resLastMonth = await askFinancialAssistant("How much did I spend last month?");
+      expect(resLastMonth.answer).toContain("last month");
+
+      const resThisYear = await askFinancialAssistant("How much did I spend this year?");
+      expect(resThisYear.answer).toContain(new Date().getFullYear().toString());
+
+      const resLastYear = await askFinancialAssistant("How much did I spend last year?");
+      expect(resLastYear.answer).toContain((new Date().getFullYear() - 1).toString());
+    });
   });
 });

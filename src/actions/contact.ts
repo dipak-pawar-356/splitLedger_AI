@@ -233,8 +233,7 @@ export async function submitContactRequest(data: SubmitContactInput) {
   } catch (error) {
     if (error instanceof ValidationError) throw error;
     console.error("[submitContactRequest Error]:", error);
-    const detailMsg = error instanceof Error ? error.message : "Internal database error";
-    throw new DatabaseError(`Failed to submit contact request: ${detailMsg}`, { originalError: error });
+    throw new DatabaseError("Failed to submit contact request. Please try again later.", { originalError: error });
   }
 }
 

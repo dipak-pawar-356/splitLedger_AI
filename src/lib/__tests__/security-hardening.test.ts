@@ -13,6 +13,10 @@ import {
   maskBankAccount,
   threatMonitor,
 } from "@/lib/security";
+import { escapeCsvValue } from "@/lib/export/export-engine";
+import { isUserSystemAdmin } from "@/lib/auth";
+import { handleError, ValidationError, ConflictError, ServerError } from "@/lib/errors";
+import { assertRateLimit, resetRateLimit } from "@/lib/security/rate-limit";
 
 describe("Security Hardening & Enterprise Access Control (Part IV-C2)", () => {
   describe("SECTION 3 & 4: Granular Group RBAC Matrix", () => {
@@ -175,6 +179,88 @@ describe("Security Hardening & Enterprise Access Control (Part IV-C2)", () => {
       const criticalEvents = threatMonitor.getRecentEvents({ severity: "critical" });
       expect(criticalEvents.length).toBe(1);
       expect(criticalEvents[0].type).toBe("privilege_escalation");
+    });
+  });
+
+  describe("SECTION 22: CSV / Spreadsheet Formula Injection Prevention (CWE-1236)", () => {
+    it("should prepend single quote to neutralize executable formula prefixes", () => {
+      expect(escapeCsvValue("=SUM(A1:A10)")).toBe("'=SUM(A1:A10)");
+      expect(escapeCsvValue("+cmd|' /C calc'!A0")).toBe("'+cmd|' /C calc'!A0");
+      expect(escapeCsvValue("-1+1")).toBe("'-1+1");
+      expect(escapeCsvValue("@import")).toBe("'@import");
+      expect(escapeCsvValue("\tcalc")).toBe("'\tcalc");
+      expect(escapeCsvValue("\rcalc")).toBe("'\rcalc");
+    });
+
+    it("should safely quote values containing commas or newlines without altering safe strings", () => {
+      expect(escapeCsvValue("Grocery, vegetables")).toBe('"Grocery, vegetables"');
+      expect(escapeCsvValue("Dinner at Taj")).toBe("Dinner at Taj");
+      expect(escapeCsvValue(null)).toBe("");
+      expect(escapeCsvValue(undefined)).toBe("");
+    });
+  });
+
+  describe("SECTION 23: Centralized System Admin Authorization", () => {
+    it("should verify admin status based on verified email and ADMIN_EMAILS environment variable", () => {
+      const regularUser = { id: 10, email: "john@example.com" };
+      expect(isUserSystemAdmin(regularUser)).toBe(false);
+
+      // Default hardcoded backup admin or configured admin email
+      const adminUser = { id: 1, email: "dipak@splitledger.ai" };
+      expect(isUserSystemAdmin(adminUser)).toBe(true);
+
+      expect(isUserSystemAdmin(null)).toBe(false);
+      expect(isUserSystemAdmin({ id: 2, email: "" })).toBe(false);
+    });
+  });
+
+  describe("SECTION 24: Error Masking & Information Leakage Prevention", () => {
+    it("should sanitize database unique constraint errors without leaking table schemas", () => {
+      const rawDbError = new Error("unique constraint 'users_email_unique' failed on schema public");
+      const handled = handleError(rawDbError);
+
+      expect(handled).toBeInstanceOf(ConflictError);
+      expect(handled.message).toBe("A record with these details already exists.");
+      expect(handled.message).not.toContain("users_email_unique");
+      expect(handled.message).not.toContain("public");
+    });
+
+    it("should sanitize foreign key constraint errors", () => {
+      const rawDbError = new Error("foreign key constraint 'fk_group_id' violated");
+      const handled = handleError(rawDbError);
+
+      expect(handled).toBeInstanceOf(ValidationError);
+      expect(handled.message).toBe("Invalid reference to related data.");
+      expect(handled.message).not.toContain("fk_group_id");
+    });
+
+    it("should mask unexpected errors with generic message while maintaining correlation ID", () => {
+      const unexpectedError = new Error("Connection lost to pg-pool-east.internal:5432 with password red*****");
+      const handled = handleError(unexpectedError);
+
+      expect(handled).toBeInstanceOf(ServerError);
+      expect(handled.message).toBe("An unexpected server error occurred.");
+      expect(handled.message).not.toContain("5432");
+      expect(handled.correlationId).toBeDefined();
+    });
+  });
+
+  describe("SECTION 25: Action & Mutation Rate Limiting", () => {
+    const testId = `test_rate_user_${Date.now()}`;
+
+    beforeEach(() => {
+      resetRateLimit(testId);
+    });
+
+    it("should allow calls within limit and block when threshold is exceeded", () => {
+      const config = { limit: 3, windowMs: 10000 };
+
+      expect(() => assertRateLimit(testId, config)).not.toThrow();
+      expect(() => assertRateLimit(testId, config)).not.toThrow();
+      expect(() => assertRateLimit(testId, config)).not.toThrow();
+
+      expect(() => assertRateLimit(testId, config)).toThrow(ValidationError);
+      expect(() => assertRateLimit(testId, config)).toThrow(/Too many requests/);
     });
   });
 });

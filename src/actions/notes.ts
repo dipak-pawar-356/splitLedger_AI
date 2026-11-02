@@ -1672,12 +1672,16 @@ export async function updateNoteTask(
 
   return await withDbRetry(async () => {
     const [existing] = await db
-      .select()
+      .select({
+        id: noteChecklists.id,
+        noteId: noteChecklists.noteId,
+      })
       .from(noteChecklists)
-      .where(eq(noteChecklists.publicId, taskPublicId))
+      .innerJoin(notes, eq(noteChecklists.noteId, notes.id))
+      .where(and(eq(noteChecklists.publicId, taskPublicId), eq(notes.userId, user.id)))
       .limit(1);
 
-    if (!existing) throw new Error("Task not found");
+    if (!existing) throw new Error("Task not found or unauthorized");
 
     const updateFields: any = {};
     if (data.title !== undefined) updateFields.title = data.title;
@@ -1721,12 +1725,23 @@ export async function duplicateNoteTask(taskPublicId: string) {
 
   return await withDbRetry(async () => {
     const [existing] = await db
-      .select()
+      .select({
+        id: noteChecklists.id,
+        noteId: noteChecklists.noteId,
+        title: noteChecklists.title,
+        description: noteChecklists.description,
+        priority: noteChecklists.priority,
+        dueDate: noteChecklists.dueDate,
+        subtasks: noteChecklists.subtasks,
+        taskNotes: noteChecklists.taskNotes,
+        order: noteChecklists.order,
+      })
       .from(noteChecklists)
-      .where(eq(noteChecklists.publicId, taskPublicId))
+      .innerJoin(notes, eq(noteChecklists.noteId, notes.id))
+      .where(and(eq(noteChecklists.publicId, taskPublicId), eq(notes.userId, user.id)))
       .limit(1);
 
-    if (!existing) throw new Error("Task not found");
+    if (!existing) throw new Error("Task not found or unauthorized");
 
     const publicId = generatePublicId("ntsk");
     const [dup] = await db
@@ -1757,12 +1772,13 @@ export async function deleteNoteTask(taskPublicId: string) {
 
   return await withDbRetry(async () => {
     const [existing] = await db
-      .select()
+      .select({ id: noteChecklists.id })
       .from(noteChecklists)
-      .where(eq(noteChecklists.publicId, taskPublicId))
+      .innerJoin(notes, eq(noteChecklists.noteId, notes.id))
+      .where(and(eq(noteChecklists.publicId, taskPublicId), eq(notes.userId, user.id)))
       .limit(1);
 
-    if (!existing) throw new Error("Task not found");
+    if (!existing) throw new Error("Task not found or unauthorized");
 
     await db.delete(noteChecklists).where(eq(noteChecklists.id, existing.id));
     safeRevalidatePath("/dashboard/notes");
@@ -1774,11 +1790,19 @@ export async function reorderNoteTasks(notePublicId: string, orderedPublicIds: s
   const user = await requireAuth();
 
   return await withDbRetry(async () => {
+    const [note] = await db
+      .select({ id: notes.id })
+      .from(notes)
+      .where(and(eq(notes.publicId, notePublicId), eq(notes.userId, user.id)))
+      .limit(1);
+
+    if (!note) throw new Error("Note not found or unauthorized");
+
     for (let i = 0; i < orderedPublicIds.length; i++) {
       await db
         .update(noteChecklists)
         .set({ order: i })
-        .where(eq(noteChecklists.publicId, orderedPublicIds[i]));
+        .where(and(eq(noteChecklists.publicId, orderedPublicIds[i]), eq(noteChecklists.noteId, note.id)));
     }
     safeRevalidatePath("/dashboard/notes");
     return { success: true };
@@ -2081,12 +2105,13 @@ export async function togglePinComment(commentPublicId: string) {
 
   return await withDbRetry(async () => {
     const [cmt] = await db
-      .select()
+      .select({ id: noteComments.id, isPinned: noteComments.isPinned })
       .from(noteComments)
-      .where(eq(noteComments.publicId, commentPublicId))
+      .innerJoin(notes, eq(noteComments.noteId, notes.id))
+      .where(and(eq(noteComments.publicId, commentPublicId), eq(notes.userId, user.id)))
       .limit(1);
 
-    if (!cmt) throw new Error("Comment not found");
+    if (!cmt) throw new Error("Comment not found or unauthorized");
 
     const [updated] = await db
       .update(noteComments)
@@ -2104,12 +2129,13 @@ export async function toggleResolveComment(commentPublicId: string) {
 
   return await withDbRetry(async () => {
     const [cmt] = await db
-      .select()
+      .select({ id: noteComments.id, isResolved: noteComments.isResolved })
       .from(noteComments)
-      .where(eq(noteComments.publicId, commentPublicId))
+      .innerJoin(notes, eq(noteComments.noteId, notes.id))
+      .where(and(eq(noteComments.publicId, commentPublicId), eq(notes.userId, user.id)))
       .limit(1);
 
-    if (!cmt) throw new Error("Comment not found");
+    if (!cmt) throw new Error("Comment not found or unauthorized");
 
     const [updated] = await db
       .update(noteComments)
@@ -2127,12 +2153,13 @@ export async function reactToComment(commentPublicId: string, emoji: string) {
 
   return await withDbRetry(async () => {
     const [cmt] = await db
-      .select()
+      .select({ id: noteComments.id, reactions: noteComments.reactions })
       .from(noteComments)
-      .where(eq(noteComments.publicId, commentPublicId))
+      .innerJoin(notes, eq(noteComments.noteId, notes.id))
+      .where(and(eq(noteComments.publicId, commentPublicId), eq(notes.userId, user.id)))
       .limit(1);
 
-    if (!cmt) throw new Error("Comment not found");
+    if (!cmt) throw new Error("Comment not found or unauthorized");
 
     const reactions = (cmt.reactions as Record<string, number[]>) || {};
     const userList = reactions[emoji] || [];

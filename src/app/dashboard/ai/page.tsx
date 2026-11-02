@@ -1,9 +1,19 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { categories, groups, groupMembers } from "@/lib/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { getFinancialIntelligence } from "@/actions/financial-intelligence";
 import { FinancialIntelligenceClientView } from "@/components/ai/financial-intelligence-client-view";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "AI Expense Assistant & Financial Intelligence | SplitLedger AI",
+  description:
+    "Intelligent conversational financial assistant, automated transaction parsing, spend anomaly detection, and savings insights.",
+  path: "/dashboard/ai",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

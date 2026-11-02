@@ -1,18 +1,12 @@
 import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 
-export const metadata: Metadata = {
-  title: "Authentication",
-  robots: {
-    index: false,
-    follow: false,
-    nocache: true,
-    googleBot: {
-      index: false,
-      follow: false,
-      noarchive: true,
-    },
-  },
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "Authentication & Secure Session",
+  description: "Secure authentication portal for SplitLedger AI personal finance and shared expense accounts.",
+  path: "/sign-in",
+  noIndex: true,
+});
 
 export default function AuthLayout({
   children,

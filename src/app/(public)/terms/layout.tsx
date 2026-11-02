@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { createPageMetadata } from "@/lib/seo/config";
-import { JsonLd, createBreadcrumbSchema } from "@/lib/seo/structured-data";
+import { JsonLd, createBreadcrumbSchema, createTermsSchema } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = createPageMetadata({
-  title: "Terms of Service — Transparent Financial Agreements",
+  title: "Terms of Service — Transparent Accounting Standards",
   description:
     "Review the SplitLedger AI Terms of Service governing the use of our smart financial management platform, group debt netting, and settlement tools.",
   path: "/terms",
@@ -12,6 +12,7 @@ export const metadata: Metadata = createPageMetadata({
     "Terms of Use",
     "Financial SaaS Agreement",
     "SplitLedger Legal",
+    "User Agreement",
   ],
 });
 
@@ -23,10 +24,13 @@ export default function TermsLayout({
   return (
     <>
       <JsonLd
-        data={createBreadcrumbSchema([
-          { name: "Home", path: "/" },
-          { name: "Terms of Service", path: "/terms" },
-        ])}
+        data={[
+          createBreadcrumbSchema([
+            { name: "Home", path: "/" },
+            { name: "Terms of Service", path: "/terms" },
+          ]),
+          createTermsSchema(),
+        ]}
       />
       {children}
     </>

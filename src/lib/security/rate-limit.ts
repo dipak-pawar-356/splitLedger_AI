@@ -5,6 +5,8 @@
  * server actions, authentication attempts, AI queries, exports, and uploads.
  */
 
+import { ValidationError } from "@/lib/errors";
+
 interface RateLimitStore {
   count: number;
   resetTime: number;
@@ -71,7 +73,6 @@ export function assertRateLimit(
   const result = checkRateLimit(identifier, config.limit, config.windowMs);
   if (!result.allowed) {
     const secondsRemaining = Math.max(1, Math.ceil((result.resetTime - Date.now()) / 1000));
-    const { ValidationError } = require("@/lib/errors");
     throw new ValidationError(
       errorMessage || `Too many requests. Please wait ${secondsRemaining} seconds before trying again.`
     );

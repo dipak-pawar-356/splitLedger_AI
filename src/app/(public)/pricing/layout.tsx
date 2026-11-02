@@ -3,7 +3,7 @@ import { createPageMetadata, SITE_CONFIG } from "@/lib/seo/config";
 import { JsonLd, createBreadcrumbSchema, createFaqSchema } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = createPageMetadata({
-  title: "Pricing & Plans — Transparent Financial Ledger Solutions",
+  title: "Pricing & Subscription Plans — SplitLedger AI Free & Pro",
   description:
     "Choose the right SplitLedger AI plan for your personal finance or team expense management. Free forever community tier with premium automated audit reports and unlimited groups.",
   path: "/pricing",
@@ -13,6 +13,7 @@ export const metadata: Metadata = createPageMetadata({
     "Group Accounting Plans",
     "SaaS Expense Management",
     "Split Ledger Subscription",
+    "SplitLedger Pro",
   ],
 });
 
@@ -50,10 +51,9 @@ const pricingProductSchema = {
     },
     {
       "@type": "Offer",
-      name: "Pro Ledger Edition",
-      price: "299",
+      name: "Pro Edition",
+      price: "199",
       priceCurrency: "INR",
-      priceValidUntil: "2027-12-31",
       availability: "https://schema.org/InStock",
       url: `${SITE_CONFIG.url}/pricing`,
     },

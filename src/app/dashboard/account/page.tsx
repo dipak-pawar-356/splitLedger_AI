@@ -1,6 +1,16 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { getAccountOverview } from "@/actions/account";
 import { AccountCenterClientView } from "@/components/account/account-center-client-view";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Account Details & Session Security | SplitLedger AI",
+  description:
+    "Centralized hub for authentication, credentials, 2FA, active sessions, and personal data archive.",
+  path: "/dashboard/account",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

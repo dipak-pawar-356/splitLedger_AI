@@ -77,7 +77,7 @@ export function createWebSiteSchema() {
 }
 
 /**
- * Schema.org SoftwareApplication / FinancialService
+ * Schema.org SoftwareApplication / FinancialProduct
  */
 export function createSoftwareApplicationSchema() {
   return {
@@ -143,5 +143,107 @@ export function createFaqSchema(faqs: Array<{ question: string; answer: string }
         text: faq.answer,
       },
     })),
+  };
+}
+
+/**
+ * Schema.org HowTo for splitting group expenses (Google Rich Snippet)
+ */
+export function createHowToSplitExpensesSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: "How to Split and Settle Group Expenses with SplitLedger AI",
+    description: "Step-by-step guide to create shared groups, record multi-person expenses, and settle balances instantly via UPI QR codes.",
+    totalTime: "PT2M",
+    step: [
+      {
+        "@type": "HowToStep",
+        position: 1,
+        name: "Create a Shared Ledger Group",
+        text: "Create a group for your household, trip, or event and invite members via link or email.",
+        url: `${SITE_CONFIG.url}/features#step-group`,
+      },
+      {
+        "@type": "HowToStep",
+        position: 2,
+        name: "Record Group Expenses",
+        text: "Log bills using natural conversational commands (e.g. 'create transition Petrol 500') or manual entry with custom split rules.",
+        url: `${SITE_CONFIG.url}/features#step-expenses`,
+      },
+      {
+        "@type": "HowToStep",
+        position: 3,
+        name: "Automatic Debt Simplification",
+        text: "SplitLedger AI runs graph minimization to simplify circular debts into the minimum number of direct payments.",
+        url: `${SITE_CONFIG.url}/features#step-netting`,
+      },
+      {
+        "@type": "HowToStep",
+        position: 4,
+        name: "Settle Instantly with UPI QR",
+        text: "Scan the generated NPCI-standard UPI QR code in Google Pay, PhonePe, or Paytm for zero-custody settlement.",
+        url: `${SITE_CONFIG.url}/features#step-upi`,
+      },
+    ],
+  };
+}
+
+/**
+ * Schema.org ContactPage Schema
+ */
+export function createContactPageSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    name: "Contact SplitLedger AI",
+    url: `${SITE_CONFIG.url}/contact`,
+    description: "Get in touch with SplitLedger AI customer support, engineering, and enterprise sales.",
+    mainEntity: {
+      "@type": "Organization",
+      name: SITE_CONFIG.name,
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer service",
+        email: "support@splitledger.ai",
+        availableLanguage: ["English", "Hindi"],
+      },
+    },
+  };
+}
+
+/**
+ * Schema.org PrivacyPolicy Schema
+ */
+export function createPrivacyPolicySchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "SplitLedger AI Privacy Policy",
+    url: `${SITE_CONFIG.url}/privacy`,
+    description: "Comprehensive data protection, encryption standards, and privacy commitments for SplitLedger AI users.",
+    isPartOf: {
+      "@type": "WebSite",
+      name: SITE_CONFIG.name,
+      url: SITE_CONFIG.url,
+    },
+  };
+}
+
+/**
+ * Schema.org TermsOfService Schema
+ */
+export function createTermsSchema() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "SplitLedger AI Terms of Service",
+    url: `${SITE_CONFIG.url}/terms`,
+    description: "Terms and conditions governing account usage, shared ledgers, and settlement features on SplitLedger AI.",
+    isPartOf: {
+      "@type": "WebSite",
+      name: SITE_CONFIG.name,
+      url: SITE_CONFIG.url,
+    },
   };
 }

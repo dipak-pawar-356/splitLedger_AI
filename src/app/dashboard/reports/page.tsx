@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { categories, groups, contacts } from "@/lib/db/schema/schema";
@@ -7,6 +9,14 @@ import {
   getReportAnalytics
 } from "@/actions/reports";
 import { ReportsClientView } from "@/components/reports/reports-client-view";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Expense Reports & Analytics Statements | SplitLedger AI",
+  description:
+    "Generate comprehensive expense reports, monthly summaries, tax breakdown spreadsheets, and printable PDF statements.",
+  path: "/dashboard/reports",
+  noIndex: true,
+});
 
 export const dynamic = 'force-dynamic';
 

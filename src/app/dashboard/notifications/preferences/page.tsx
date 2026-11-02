@@ -1,10 +1,20 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { getDetailedNotificationPreferences } from "@/actions/notifications";
 import { NotificationPreferencesClientView } from "@/components/notifications/preferences/notification-preferences-client-view";
 import Link from "next/link";
 import { ArrowLeft, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Notification Preferences & Delivery Rules | SplitLedger AI",
+  description:
+    "Customize email notifications, in-app alerts, daily digest delivery, and quiet hours.",
+  path: "/dashboard/notifications/preferences",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

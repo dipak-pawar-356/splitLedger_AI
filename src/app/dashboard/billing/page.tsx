@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CreditCard, FileText, Check, AlertCircle, TrendingUp, Settings, Download, Plus } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Subscription Management & Billing | SplitLedger AI",
+  description:
+    "Manage SplitLedger AI subscriptions, invoice history, payment methods, and account upgrades.",
+  path: "/dashboard/billing",
+  noIndex: true,
+});
 
 export const dynamic = 'force-dynamic';
 

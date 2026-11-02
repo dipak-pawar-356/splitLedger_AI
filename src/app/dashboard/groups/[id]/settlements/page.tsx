@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { groups, groupMembers, settlements, users, contacts, groupJoinRequests } from "@/lib/db/schema/schema";
@@ -14,6 +16,14 @@ import { GroupUpiSettlementHub } from "@/components/settlement/group-upi-settlem
 
 import { GroupRouteErrorView } from "@/components/group/group-route-error-view";
 import { PendingGroupAccessView } from "@/components/group/pending-group-access-view";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Group Settlements & UPI Payments | SplitLedger AI",
+  description:
+    "Record debt settlements, generate UPI QR payment links, and verify group payments.",
+  path: "/dashboard/groups",
+  noIndex: true,
+});
 
 export const dynamic = 'force-dynamic';
 

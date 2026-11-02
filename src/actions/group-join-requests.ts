@@ -9,7 +9,7 @@ import {
   auditLogs
 } from "@/lib/db/schema/schema";
 import { eq, and, sql, desc, or } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "@/lib/auth";
+import { requireAuth, getCurrentUser, isUserSystemAdmin } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError, ConflictError } from "@/lib/errors";
 import { generatePublicId, generateAuditId, isDbIntegerId } from "@/lib/utils";
@@ -304,11 +304,7 @@ export async function getPendingJoinRequestsForGroupAction(groupId: number) {
 
     if (!group) throw new NotFoundError("Group");
 
-    const isSystemAdmin =
-      user.email === "dipakspawaras17@gmail.com" ||
-      user.email === "dipakspawar@coep.sveri.ac.in" ||
-      user.email === "pawardipaksa@gmail.com" ||
-      user.email === "dipakspawaras19@gmail.com";
+    const isSystemAdmin = isUserSystemAdmin(user);
 
     const isOwner = group.createdBy === user.id || isSystemAdmin;
     if (!isOwner) {
@@ -419,11 +415,7 @@ export async function approveJoinRequestAction(data: {
 
     if (!group) return { success: false as const, error: "Group not found" };
 
-    const isSystemAdmin =
-      user.email === "dipakspawaras17@gmail.com" ||
-      user.email === "dipakspawar@coep.sveri.ac.in" ||
-      user.email === "pawardipaksa@gmail.com" ||
-      user.email === "dipak@splitledger.ai";
+    const isSystemAdmin = isUserSystemAdmin(user);
 
     const isOwner = Number(group.createdBy) === Number(user.id) || isSystemAdmin;
 
@@ -613,11 +605,7 @@ export async function activateMemberExpenseParticipationAction(data: {
 
     if (!group) return { success: false as const, error: "Group not found" };
 
-    const isSystemAdmin =
-      user.email === "dipakspawaras17@gmail.com" ||
-      user.email === "dipakspawar@coep.sveri.ac.in" ||
-      user.email === "pawardipaksa@gmail.com" ||
-      user.email === "dipak@splitledger.ai";
+    const isSystemAdmin = isUserSystemAdmin(user);
 
     const isOwner = group.createdBy === user.id || isSystemAdmin;
     let canActivate = isOwner;
@@ -783,11 +771,7 @@ export async function rejectJoinRequestAction(data: {
 
     if (!group) throw new NotFoundError("Group");
 
-    const isSystemAdmin =
-      user.email === "dipakspawaras17@gmail.com" ||
-      user.email === "dipakspawar@coep.sveri.ac.in" ||
-      user.email === "pawardipaksa@gmail.com" ||
-      user.email === "dipak@splitledger.ai";
+    const isSystemAdmin = isUserSystemAdmin(user);
 
     const isOwner = Number(group.createdBy) === Number(user.id) || isSystemAdmin;
     let canReject = isOwner;

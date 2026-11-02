@@ -1,8 +1,18 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { getTripDashboardSummary } from "@/actions/trips";
 import { TripsDashboardView } from "@/components/trips/trips-dashboard-view";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Trip Expense Management & Travel Budget Planner | SplitLedger AI",
+  description:
+    "Track travel budgets, itinerary spending, group trip splits, and currency conversion during vacations and group tours.",
+  path: "/dashboard/trips",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

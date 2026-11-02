@@ -211,7 +211,8 @@ export async function approveBatchConversationalTransactions(
  */
 export async function askFinancialAssistant(
   question: string,
-  pendingDrafts?: ProposedTransaction[]
+  pendingDrafts?: ProposedTransaction[],
+  conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>
 ): Promise<AIAssistantResponse> {
   try {
     const user = await requireAuth();
@@ -230,7 +231,7 @@ export async function askFinancialAssistant(
     }
 
     const safeQuestion = scan.sanitizedText;
-    const ctx = await getFinancialKnowledgeContext(user.id);
+    const ctx = await getFinancialKnowledgeContext(user.id, true);
     const qLower = safeQuestion.toLowerCase().trim();
     const now = new Date();
 
@@ -238,10 +239,30 @@ export async function askFinancialAssistant(
     const expensesTx = allTx.filter((t) => t.type === "paid" || t.type === "borrowed");
     const incomeTx = allTx.filter((t) => t.type === "received" || t.type === "lent" || t.type === "repaid");
 
-    const currentMonthExpenses = ctx.transactions?.totalSpentThisMonth ?? 0;
-    const currentMonthIncome = ctx.transactions?.totalIncomeThisMonth ?? 0;
-    const netSavings = ctx.transactions?.netSavingsThisMonth ?? 0;
-    const savingsRate = ctx.transactions?.savingsRatePct ?? 0;
+    // Strict current calendar month detection (e.g. November 2026)
+    const currentYear = now.getFullYear();
+    const currentMonthIndex = now.getMonth();
+    const currentMonthName = now.toLocaleDateString("en-IN", { month: "long" });
+
+    const thisMonthExpensesTx = expensesTx.filter((t) => {
+      const d = new Date(t.date);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonthIndex;
+    });
+
+    const thisMonthIncomeTx = incomeTx.filter((t) => {
+      const d = new Date(t.date);
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonthIndex;
+    });
+
+    // Use strictly verified this-month calculations, falling back to ctx.transactions if set (e.g. In mocks)
+    const calculatedThisMonthSpend = thisMonthExpensesTx.reduce((sum, t) => sum + t.amount / 100, 0);
+    const currentMonthExpenses = calculatedThisMonthSpend > 0 ? calculatedThisMonthSpend : (ctx.transactions?.totalSpentThisMonth ?? 0);
+
+    const calculatedThisMonthIncome = thisMonthIncomeTx.reduce((sum, t) => sum + t.amount / 100, 0);
+    const currentMonthIncome = calculatedThisMonthIncome > 0 ? calculatedThisMonthIncome : (ctx.transactions?.totalIncomeThisMonth ?? 0);
+
+    const netSavings = currentMonthIncome - currentMonthExpenses;
+    const savingsRate = currentMonthIncome > 0 ? Math.max(0, Math.round((netSavings / currentMonthIncome) * 100)) : (ctx.transactions?.savingsRatePct ?? 0);
 
     // =========================================================================
     // 0. CHAT MEMORY: IN-CONVERSATION DRAFT MANAGEMENT (Updates, Removals, Payment Methods)
@@ -403,10 +424,14 @@ export async function askFinancialAssistant(
 
       if (!textToExtract) {
         return {
-          answer: `Please tell me the transaction details.\n\nExamples:\n• Petrol 500\n• Salary 25000\n• Need to pay Rahul 500\n• Received from Kunal 1000`,
+          answer: `I am ready to record your transaction.\n\nPlease provide the details after the command.\n\nExamples:\n• create transition Petrol 500\n• create transition Salary 25000\n• create transition Need to pay Rahul 500\n• create transition Need to receive Kartik 800`,
           insights: ["Please specify the items and amounts you want to record."],
           keyMetrics: [],
-          actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+          actionSuggestions: [
+            { label: "View Dashboard", url: "/dashboard" },
+            { label: "Reports", url: "/dashboard/reports" },
+            { label: "Notes", url: "/dashboard/notes" },
+          ],
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         };
       }
@@ -516,6 +541,34 @@ export async function askFinancialAssistant(
       }
     }
 
+    // =========================================================================
+    // STRICT MODE SWITCHING: Financial Support Assistant (Mode 1) vs Transaction Creation (Mode 2)
+    // If user message is an expense/transaction entry without "create transition",
+    // DO NOT create transactions automatically.
+    // Instead respond politely with instructions on how to use "create transition".
+    // =========================================================================
+    if (!isTransactionCreationMode) {
+      const isInformationalInquiry = /^(?:how|what|why|who|when|where|explain|show|analyze|list|summarize|compare|predict|forecast|help|can\s+you|is\s+there|do\s+i|tell\s+me|check|status|health)\b|\?$/i.test(qLower);
+      const candidateParse = parseConversationalMessage(safeQuestion);
+
+      if (!isInformationalInquiry && candidateParse.hasTransactions && candidateParse.transactions.length > 0) {
+        const cleanPrompt = safeQuestion.trim().replace(/^[\r\n]+|[\r\n]+$/g, "");
+        return {
+          answer: `I can help you record this.\n\nTo create ledger entries, please begin your message with:\n\ncreate transition\n\nExample:\n\ncreate transition\n${cleanPrompt}`,
+          insights: [],
+          keyMetrics: [],
+          actionSuggestions: [
+            { label: `create transition ${cleanPrompt}`, url: `action:input:create transition ${cleanPrompt}` },
+            { label: "View Dashboard", url: "/dashboard" },
+            { label: "Reports", url: "/dashboard/reports" },
+            { label: "Notes", url: "/dashboard/notes" },
+          ],
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          detectedTransactions: [],
+        };
+      }
+    }
+
     // Helper to filter transactions by keyword in category or title
     const filterByKeywords = (keywords: string[]) => {
       return expensesTx.filter((t) => {
@@ -540,10 +593,356 @@ export async function askFinancialAssistant(
     ];
 
     // =========================================================================
-    // 1. TEMPORAL QUERIES (This Month, Today, Yesterday, This Week, Last Week, Specific Months)
+    // 1. TEMPORAL & FINANCIAL ADVISOR QUERIES
     // =========================================================================
 
-    // 1.0 THIS MONTH'S SPENDING
+    // Follow-up context resolution from conversation history
+    const lastUserTurn = conversationHistory && conversationHistory.length > 0
+      ? [...conversationHistory].reverse().find((m) => m.role === "user")?.content.toLowerCase() || ""
+      : "";
+    const isWhyFollowUp = qLower === "why" || qLower === "why?" || qLower === "why is it so high" || qLower === "why did that happen" || qLower === "why so high";
+    const isWhereFollowUp = qLower === "where" || qLower === "where?" || qLower === "where did it go";
+
+    // 1.0a WHY DID I SPEND SO MUCH THIS MONTH? (PERSONAL FINANCIAL ADVISOR EXPLANATION)
+    const isWhySpendQuery =
+      isWhyFollowUp ||
+      qLower.includes("why did i spend so much") ||
+      qLower.includes("why did i spend this much") ||
+      qLower.includes("why is my spending so high") ||
+      qLower.includes("why are my expenses so high") ||
+      qLower.includes("why so much spend") ||
+      qLower.includes("why is this month so expensive");
+
+    if (isWhySpendQuery) {
+      const monthCatMap: Record<string, number> = {};
+      const sourceTxList = thisMonthExpensesTx.length > 0 ? thisMonthExpensesTx : ctx.transactions.currentMonth;
+      for (const t of sourceTxList) {
+        const cat = t.categoryName || "General";
+        const amt = t.amount / 100;
+        monthCatMap[cat] = (monthCatMap[cat] || 0) + amt;
+      }
+      const catTotals = Object.keys(monthCatMap).length > 0 ? monthCatMap : ctx.transactions.categoryTotals;
+      const sortedCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+      const topCat = sortedCats[0];
+      const topCatSpend = topCat ? topCat[1] : 0;
+      const topCatPct = currentMonthExpenses > 0 ? Math.round((topCatSpend / currentMonthExpenses) * 100) : 0;
+
+      const sortedThisMonthTx = [...sourceTxList].sort((a, b) => b.amount - a.amount);
+      const largestTx = sortedThisMonthTx[0] || (ctx.transactions.highestTransaction ? {
+        title: ctx.transactions.highestTransaction.title,
+        amount: ctx.transactions.highestTransaction.amount * 100,
+        date: ctx.transactions.highestTransaction.date,
+        categoryName: "Top Expense"
+      } : null);
+
+      const lastMonthTotal = (ctx.transactions?.lastMonth || []).reduce((s, t) => s + t.amount / 100, 0);
+      let comparisonText = "";
+      if (lastMonthTotal > 0) {
+        const diff = currentMonthExpenses - lastMonthTotal;
+        const pctDiff = Math.round((diff / lastMonthTotal) * 100);
+        comparisonText = diff >= 0
+          ? `Compared to last month's spend of **${formatCurrency(lastMonthTotal, "INR")}**, your outflow increased by **${pctDiff}%** (+${formatCurrency(diff, "INR")}).`
+          : `Compared to last month's spend of **${formatCurrency(lastMonthTotal, "INR")}**, your outflow decreased by **${Math.abs(pctDiff)}%** (-${formatCurrency(Math.abs(diff), "INR")}).`;
+      }
+
+      const catBreakdownLines = sortedCats.slice(0, 3).map(([cat, amt]) => {
+        const pct = currentMonthExpenses > 0 ? Math.round((amt / currentMonthExpenses) * 100) : 0;
+        return `• **${cat}:** ${formatCurrency(amt, "INR")} (${pct}% of monthly spend)`;
+      }).join("\n");
+
+      const notableTxLine = largestTx
+        ? `• **Notable Large Expense:** Your single largest transaction this month was **${largestTx.title}** for **${formatCurrency(largestTx.amount / 100, "INR")}**${largestTx.categoryName ? ` (${largestTx.categoryName})` : ""}.`
+        : "";
+
+      let takeaway = "";
+      if (topCat && topCatPct >= 50) {
+        takeaway = `Over half of your monthly expenses (${topCatPct}%) went toward **${topCat[0]}**. Restricting non-essential purchases in this category for the remainder of ${currentMonthName} will rapidly normalize your burn rate.`;
+      } else if (topCat) {
+        takeaway = `Your spending is mainly driven by **${topCat[0]}** (${topCatPct}%). Keeping a daily cap on this category can help safeguard your savings for the rest of the month.`;
+      } else {
+        takeaway = `Your expenses are evenly distributed. Review your daily entries to maintain budget discipline.`;
+      }
+
+      const txCount = sourceTxList.length;
+
+      const answer = `This month (**${currentMonthName} ${currentYear}**), you have spent a total of **${formatCurrency(currentMonthExpenses, "INR")}** across **${txCount} transaction${txCount === 1 ? "" : "s"}**.\n\n` +
+        `**Top Spending Drivers:**\n${catBreakdownLines}\n\n` +
+        (notableTxLine ? `${notableTxLine}\n\n` : "") +
+        (comparisonText ? `**Monthly Comparison:**\n${comparisonText}\n\n` : "") +
+        `💡 **Advisor Takeaway:**\n${takeaway}`;
+
+      return {
+        answer,
+        insights: [
+          `Total current month outflow: ${formatCurrency(currentMonthExpenses, "INR")} across ${txCount} transactions.`,
+          topCat ? `Main spending driver: ${topCat[0]} (${formatCurrency(topCat[1], "INR")} - ${topCatPct}% of monthly spend).` : "No categorized spending drivers.",
+          largestTx ? `Peak transaction: ${largestTx.title} (${formatCurrency(largestTx.amount / 100, "INR")}).` : "No peak transactions logged.",
+          takeaway,
+        ],
+        keyMetrics: [
+          { label: "Spent This Month", value: formatCurrency(currentMonthExpenses, "INR") },
+          { label: "Top Category", value: topCat ? topCat[0] : "General" },
+          { label: "Top Category Spend", value: formatCurrency(topCat ? topCat[1] : 0, "INR") },
+          { label: "Transactions", value: `${txCount}` },
+        ],
+        actionSuggestions: [
+          { label: "View Analytics", url: "/dashboard/analytics" },
+          { label: "View Ledger", url: "/dashboard/transactions" },
+          { label: "Check Budgets", url: "/dashboard/budgets" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 1.0b SHOW ONLY CATEGORY EXPENSES (e.g. "Show only food expenses", "Show only groceries")
+    const categoryKeywordsMap: Record<string, { label: string; keywords: string[] }> = {
+      food: { label: "Food & Dining", keywords: ["food", "dining", "restaurant", "swiggy", "zomato", "cafe", "khana", "lunch", "dinner", "breakfast", "meal"] },
+      groceries: { label: "Groceries", keywords: ["grocery", "groceries", "kirana", "supermarket", "blinkit", "zepto", "instamart", "dmart", "bigbasket", "supplies"] },
+      travel: { label: "Travel & Transport", keywords: ["travel", "transport", "transportation", "uber", "ola", "metro", "bus", "train", "flight", "auto", "cab", "rickshaw"] },
+      fuel: { label: "Petrol & Fuel", keywords: ["petrol", "fuel", "diesel", "cng", "gas station"] },
+      shopping: { label: "Shopping", keywords: ["shopping", "amazon", "flipkart", "myntra", "clothes", "apparel", "retail", "electronics"] },
+      utilities: { label: "Bills & Utilities", keywords: ["bill", "bills", "electricity", "utility", "utilities", "wifi", "internet", "gas", "recharge", "rent"] },
+      entertainment: { label: "Entertainment", keywords: ["entertainment", "movie", "movies", "netflix", "cinema", "spotify", "hotstar", "game"] },
+    };
+
+    const isShowOnly = qLower.startsWith("show only ") || qLower.startsWith("only ") || (qLower.startsWith("show ") && qLower.includes("only"));
+    let targetCatInfo: { label: string; keywords: string[] } | null = null;
+
+    if (isShowOnly) {
+      for (const [_, info] of Object.entries(categoryKeywordsMap)) {
+        if (info.keywords.some((k) => qLower.includes(k))) {
+          targetCatInfo = info;
+          break;
+        }
+      }
+    }
+
+    if (targetCatInfo) {
+      const activeSource = thisMonthExpensesTx.length > 0 ? thisMonthExpensesTx : (ctx.transactions?.all || []);
+      const matchedTx = activeSource.filter((t) => {
+        const text = `${t.categoryName || ""} ${t.title || ""} ${t.description || ""}`.toLowerCase();
+        return targetCatInfo!.keywords.some((k) => text.includes(k));
+      });
+      const totalAmt = matchedTx.reduce((s, t) => s + t.amount / 100, 0);
+
+      if (matchedTx.length === 0) {
+        return {
+          answer: `You have no recorded expenses for **${targetCatInfo.label}** in this period.`,
+          insights: [`Zero transactions found matching "${targetCatInfo.label}".`],
+          keyMetrics: [
+            { label: `${targetCatInfo.label} Total`, value: "₹0.00" },
+            { label: "Transactions", value: "0" },
+          ],
+          actionSuggestions: [
+            { label: "Create Transaction", url: `action:input:create transition ${targetCatInfo.label} ` },
+            { label: "View Ledger", url: "/dashboard/transactions" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const listItems = matchedTx.map((t) => {
+        const dateStr = new Date(t.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+        return `• **${t.title || t.description || "Expense"}:** ${formatCurrency(t.amount / 100, "INR")} (${dateStr})`;
+      }).join("\n");
+
+      return {
+        answer: `Here are your **${targetCatInfo.label}** expenses for this month totaling **${formatCurrency(totalAmt, "INR")}** across **${matchedTx.length} transaction${matchedTx.length === 1 ? "" : "s"}**:\n\n${listItems}`,
+        insights: [
+          `Total ${targetCatInfo.label} Outflow: ${formatCurrency(totalAmt, "INR")}`,
+          `Recorded Entries: ${matchedTx.length}`,
+          currentMonthExpenses > 0 ? `Represents ${Math.round((totalAmt / currentMonthExpenses) * 100)}% of your monthly spend.` : "Keep tracking your daily expenses.",
+        ],
+        keyMetrics: [
+          { label: `${targetCatInfo.label} Total`, value: formatCurrency(totalAmt, "INR") },
+          { label: "Transactions", value: `${matchedTx.length}` },
+        ],
+        actionSuggestions: [
+          { label: "View Ledger", url: "/dashboard/transactions" },
+          { label: "Check Budgets", url: "/dashboard/budgets" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 1.0c HOW MANY EXPENSES DID I ADD THIS MONTH?
+    if (
+      qLower.includes("how many expenses did i add this month") ||
+      qLower.includes("how many expenses this month") ||
+      qLower.includes("how many transactions this month") ||
+      qLower.includes("how many expenses did i add") ||
+      qLower.includes("count of expenses this month") ||
+      qLower.includes("number of expenses this month") ||
+      qLower.includes("number of transactions this month")
+    ) {
+      const txCount = thisMonthExpensesTx.length > 0 ? thisMonthExpensesTx.length : ctx.transactions.currentMonth.length;
+      const sortedCategories = Object.entries(ctx.transactions.categoryTotals).sort((a, b) => b[1] - a[1]);
+      const topCat = sortedCategories[0];
+
+      return {
+        answer: `This month (**${currentMonthName} ${currentYear}**), you have added **${txCount} expense${txCount === 1 ? "" : "s"}** totaling **${formatCurrency(currentMonthExpenses, "INR")}**.${topCat ? ` Your most frequent category is **${topCat[0]}** (${formatCurrency(topCat[1], "INR")}).` : ""}`,
+        insights: [
+          `Total transactions added this month: ${txCount}`,
+          `Total outflow: ${formatCurrency(currentMonthExpenses, "INR")}`,
+          `Active categories: ${sortedCategories.length}`,
+        ],
+        keyMetrics: [
+          { label: "Expenses Added", value: `${txCount}` },
+          { label: "Spent This Month", value: formatCurrency(currentMonthExpenses, "INR") },
+          { label: "Top Category", value: topCat ? topCat[0] : "General" },
+        ],
+        actionSuggestions: [
+          { label: "View Ledger", url: "/dashboard/transactions" },
+          { label: "View Analytics", url: "/dashboard/analytics" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 1.0d DID I OVERSPEND? / HAVE I OVERSPENT?
+    if (
+      qLower.includes("did i overspend") ||
+      qLower.includes("have i overspent") ||
+      qLower.includes("am i overspending") ||
+      qLower.includes("am i spending too much") ||
+      qLower.includes("did i spend too much") ||
+      qLower.includes("overspent")
+    ) {
+      const budgetAllocated = ctx.budgets.totalAllocatedBudget;
+      const budgetSpent = ctx.budgets.totalBudgetSpent;
+      const budgetUtil = ctx.budgets.overallUtilizationPct;
+      const breached = ctx.budgets.breachedBudgets || [];
+
+      if (breached.length > 0) {
+        return {
+          answer: `Yes, you have overspent in **${breached.length} budget categor${breached.length === 1 ? "y" : "ies"}**:\n\n${breached.map(b => `• **${b.name}:** Exceeded limit (${formatCurrency(b.spent, "INR")} spent of ${formatCurrency(b.amount, "INR")} budget)`).join("\n")}\n\nOverall, you have used **${budgetUtil}%** of your total allocated budget.`,
+          insights: [
+            `Breached budgets: ${breached.map(b => b.name).join(", ")}`,
+            `Overall budget utilization: ${budgetUtil}%`,
+          ],
+          keyMetrics: [
+            { label: "Status", value: "Over Budget" },
+            { label: "Budget Utilization", value: `${budgetUtil}%` },
+            { label: "Breached Budgets", value: `${breached.length}` },
+          ],
+          actionSuggestions: [
+            { label: "Review Budgets", url: "/dashboard/budgets" },
+            { label: "View Analytics", url: "/dashboard/analytics" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      } else if (budgetAllocated > 0) {
+        const isHighUtil = budgetUtil > 80;
+        return {
+          answer: isHighUtil
+            ? `You have not exceeded your overall budget yet, but you are close: you have utilized **${budgetUtil}%** of your total budget (**${formatCurrency(budgetSpent, "INR")}** of **${formatCurrency(budgetAllocated, "INR")}**).`
+            : `No, you have not overspent. You are on track with your budget, having utilized **${budgetUtil}%** (**${formatCurrency(budgetSpent, "INR")}** of **${formatCurrency(budgetAllocated, "INR")}**).`,
+          insights: [
+            `Total budget: ${formatCurrency(budgetAllocated, "INR")}`,
+            `Total spent: ${formatCurrency(budgetSpent, "INR")}`,
+            `Utilization: ${budgetUtil}%`,
+          ],
+          keyMetrics: [
+            { label: "Status", value: isHighUtil ? "Near Limit" : "On Track" },
+            { label: "Utilization", value: `${budgetUtil}%` },
+            { label: "Budget Remaining", value: formatCurrency(Math.max(0, budgetAllocated - budgetSpent), "INR") },
+          ],
+          actionSuggestions: [
+            { label: "View Budgets", url: "/dashboard/budgets" },
+            { label: "View Ledger", url: "/dashboard/transactions" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        const dailyBurn = currentMonthExpenses / Math.max(1, now.getDate());
+        const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
+        const projected = Math.round(dailyBurn * daysInMonth);
+
+        return {
+          answer: currentMonthIncome > 0 && currentMonthExpenses > currentMonthIncome
+            ? `Your recorded expenses this month (**${formatCurrency(currentMonthExpenses, "INR")}**) currently exceed your logged income (**${formatCurrency(currentMonthIncome, "INR")}**), resulting in a net deficit of **${formatCurrency(Math.abs(netSavings), "INR")}**.`
+            : `You have not set an explicit budget limit yet. Your current month spending is **${formatCurrency(currentMonthExpenses, "INR")}** (averaging ~${formatCurrency(dailyBurn, "INR")}/day, projected to reach **${formatCurrency(projected, "INR")}** by month-end).`,
+          insights: [
+            `Current Outflow: ${formatCurrency(currentMonthExpenses, "INR")}`,
+            `Daily Velocity: ~${formatCurrency(dailyBurn, "INR")}/day`,
+            `Setting an official budget helps automate overspending alerts.`,
+          ],
+          keyMetrics: [
+            { label: "Current Spend", value: formatCurrency(currentMonthExpenses, "INR") },
+            { label: "Daily Burn", value: `${formatCurrency(dailyBurn, "INR")}/day` },
+            { label: "Budget Status", value: "No Budget Set" },
+          ],
+          actionSuggestions: [
+            { label: "Set Budget", url: "/dashboard/budgets" },
+            { label: "View Analytics", url: "/dashboard/analytics" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
+
+    // 1.0e HOW MUCH SALARY DID I RECEIVE?
+    if (
+      qLower.includes("how much salary did i receive") ||
+      qLower.includes("salary income") ||
+      qLower.includes("did i receive salary") ||
+      qLower.includes("how much salary") ||
+      qLower.includes("my salary") ||
+      qLower.includes("salary received")
+    ) {
+      const salaryTx = allTx.filter((t) => {
+        const text = `${t.title || ""} ${t.description || ""} ${t.categoryName || ""}`.toLowerCase();
+        return (t.type === "received" || text.includes("salary")) && text.includes("salary");
+      });
+      const thisMonthSalaryTx = salaryTx.filter((t) => {
+        const d = new Date(t.date);
+        return d.getFullYear() === currentYear && d.getMonth() === currentMonthIndex;
+      });
+
+      const thisMonthSalaryTotal = thisMonthSalaryTx.reduce((sum, t) => sum + t.amount / 100, 0);
+      const allTimeSalaryTotal = salaryTx.reduce((sum, t) => sum + t.amount / 100, 0);
+
+      if (thisMonthSalaryTotal > 0) {
+        return {
+          answer: `This month (**${currentMonthName} ${currentYear}**), you received **${formatCurrency(thisMonthSalaryTotal, "INR")}** in salary income across **${thisMonthSalaryTx.length} payment${thisMonthSalaryTx.length === 1 ? "" : "s"}**.\n\nAll-time recorded salary totals **${formatCurrency(allTimeSalaryTotal, "INR")}**.`,
+          insights: [
+            `Current Month Salary: ${formatCurrency(thisMonthSalaryTotal, "INR")}`,
+            `Total Monthly Income: ${formatCurrency(currentMonthIncome, "INR")}`,
+            `All-time Salary Logged: ${formatCurrency(allTimeSalaryTotal, "INR")}`,
+          ],
+          keyMetrics: [
+            { label: "Salary This Month", value: formatCurrency(thisMonthSalaryTotal, "INR") },
+            { label: "Total Inflow", value: formatCurrency(currentMonthIncome, "INR") },
+            { label: "Payments", value: `${thisMonthSalaryTx.length}` },
+          ],
+          actionSuggestions: [
+            { label: "View Transactions", url: "/dashboard/transactions" },
+            { label: "View Reports", url: "/dashboard/reports" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      } else {
+        return {
+          answer: `No salary payments have been recorded in your ledger for **${currentMonthName} ${currentYear}** yet.\n\nYour total recorded income for this month is **${formatCurrency(currentMonthIncome, "INR")}**${allTimeSalaryTotal > 0 ? ` (All-time recorded salary: **${formatCurrency(allTimeSalaryTotal, "INR")}**)` : ""}.`,
+          insights: [
+            `No salary entries found for ${currentMonthName} ${currentYear}.`,
+            `Total verified monthly income: ${formatCurrency(currentMonthIncome, "INR")}.`,
+          ],
+          keyMetrics: [
+            { label: "Salary This Month", value: "₹0.00" },
+            { label: "Total Income", value: formatCurrency(currentMonthIncome, "INR") },
+            { label: "Status", value: "No Salary Logged" },
+          ],
+          actionSuggestions: [
+            { label: "Create Transaction", url: "action:input:create transition Salary " },
+            { label: "View Dashboard", url: "/dashboard" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
+
+    // 1.0f THIS MONTH'S SPENDING (SUMMARY)
     if (
       qLower.includes("spend this month") ||
       qLower.includes("spent this month") ||
@@ -551,7 +950,6 @@ export async function askFinancialAssistant(
       qLower.includes("this month expense") ||
       qLower.includes("this month's expense") ||
       qLower.includes("how much did i spend this month") ||
-      qLower.includes("why did i spend so much") ||
       qLower.includes("overview of my monthly expenses") ||
       qLower.includes("is mahine ka kharcha") ||
       (qLower.includes("this month") && (qLower.includes("spend") || qLower.includes("spent") || qLower.includes("much") || qLower.includes("expense") || qLower.includes("outflow") || qLower.includes("cost")))
@@ -559,18 +957,19 @@ export async function askFinancialAssistant(
       const sortedCategories = Object.entries(ctx.transactions.categoryTotals).sort((a, b) => b[1] - a[1]);
       const topCat = sortedCategories[0];
       const dailyVelocity = currentMonthExpenses / Math.max(1, now.getDate());
+      const txCount = thisMonthExpensesTx.length > 0 ? thisMonthExpensesTx.length : ctx.transactions.currentMonth.length;
 
       return {
-        answer: `This month (**${now.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}**), you have spent **${formatCurrency(currentMonthExpenses, "INR")}** across **${ctx.transactions.currentMonth.length} transaction${ctx.transactions.currentMonth.length === 1 ? "" : "s"}** (Daily Average: ~${formatCurrency(dailyVelocity, "INR")}/day).\n\n• **Highest Category:** ${topCat ? `${topCat[0]} (${formatCurrency(topCat[1], "INR")})` : "Uncategorized"}\n• **Net Savings:** ${netSavings >= 0 ? "+" : ""}${formatCurrency(netSavings, "INR")} (${savingsRate}% rate)\n• **Pending Receivables:** ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
+        answer: `This month (**${currentMonthName} ${currentYear}**), you have spent **${formatCurrency(currentMonthExpenses, "INR")}** across **${txCount} transaction${txCount === 1 ? "" : "s"}** (Daily Average: ~${formatCurrency(dailyVelocity, "INR")}/day).\n\n• **Highest Category:** ${topCat ? `${topCat[0]} (${formatCurrency(topCat[1], "INR")})` : "Uncategorized"}\n• **Net Savings:** ${netSavings >= 0 ? "+" : ""}${formatCurrency(netSavings, "INR")} (${savingsRate}% rate)\n• **Pending Receivables:** ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
         insights: [
-          `Total Outflow: ${formatCurrency(currentMonthExpenses, "INR")} across ${ctx.transactions.currentMonth.length} transactions.`,
+          `Total Outflow: ${formatCurrency(currentMonthExpenses, "INR")} across ${txCount} transactions.`,
           `Daily spending velocity: ~${formatCurrency(dailyVelocity, "INR")}/day (${now.getDate()} days elapsed).`,
           topCat ? `Top category: ${topCat[0]} (${formatCurrency(topCat[1], "INR")} - ${Math.round((topCat[1] / Math.max(1, currentMonthExpenses)) * 100)}% of monthly spend).` : "No categorized expenses yet this month.",
           `Net Savings: ${formatCurrency(netSavings, "INR")} (${savingsRate}% savings rate on ${formatCurrency(currentMonthIncome, "INR")} income).`,
         ],
         keyMetrics: [
           { label: "Spent This Month", value: formatCurrency(currentMonthExpenses, "INR") },
-          { label: "Transactions", value: `${ctx.transactions.currentMonth.length}` },
+          { label: "Transactions", value: `${txCount}` },
           { label: "Daily Average", value: formatCurrency(dailyVelocity, "INR") },
           { label: "Net Savings", value: formatCurrency(netSavings, "INR") },
         ],
@@ -681,7 +1080,149 @@ export async function askFinancialAssistant(
       };
     }
 
-    // 1.5 SPECIFIC MONTH SPENDING (e.g., "August", "July", "spend in August")
+    // 1.5 LAST MONTH'S SPENDING (STANDALONE DEDICATED QUERY)
+    if (
+      (qLower.includes("last month") || qLower.includes("pichle mahine")) &&
+      !qLower.includes("vs") &&
+      !qLower.includes("compare")
+    ) {
+      const lastMonthDate = new Date(currentYear, currentMonthIndex - 1, 1);
+      const lmYear = lastMonthDate.getFullYear();
+      const lmMonthIdx = lastMonthDate.getMonth();
+      const lmMonthName = lastMonthDate.toLocaleDateString("en-IN", { month: "long" });
+
+      const lmTx = expensesTx.filter((t) => {
+        const d = new Date(t.date);
+        return d.getFullYear() === lmYear && d.getMonth() === lmMonthIdx;
+      });
+      const lmTotal = lmTx.length > 0
+        ? lmTx.reduce((s, t) => s + t.amount / 100, 0)
+        : (ctx.transactions?.lastMonth || []).reduce((s, t) => s + t.amount / 100, 0);
+
+      return {
+        answer: `In **${lmMonthName} ${lmYear}** (last month), your total recorded spending was **${formatCurrency(lmTotal, "INR")}** across **${lmTx.length || (ctx.transactions?.lastMonth?.length || 0)} transaction(s)**.`,
+        insights: [
+          `Last month outflow: ${formatCurrency(lmTotal, "INR")}`,
+          lmTotal > 0 ? "Verified from historical database records." : `Zero transactions logged for ${lmMonthName}.`,
+        ],
+        keyMetrics: [
+          { label: `${lmMonthName} Spend`, value: formatCurrency(lmTotal, "INR") },
+          { label: "Transactions", value: `${lmTx.length || (ctx.transactions?.lastMonth?.length || 0)}` },
+        ],
+        actionSuggestions: [
+          { label: "View Monthly Report", url: "/dashboard/reports" },
+          { label: "Compare with This Month", url: "action:send:Compare this month with last month" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 1.6 THIS YEAR'S SPENDING
+    if (qLower.includes("this year") || qLower.includes("is saal")) {
+      const yearTx = expensesTx.filter((t) => new Date(t.date).getFullYear() === currentYear);
+      const yearTotal = yearTx.reduce((s, t) => s + t.amount / 100, 0);
+
+      return {
+        answer: `In **${currentYear}**, your total recorded spending is **${formatCurrency(yearTotal, "INR")}** across **${yearTx.length} transaction${yearTx.length === 1 ? "" : "s"}**.`,
+        insights: [
+          `Total ${currentYear} outflow: ${formatCurrency(yearTotal, "INR")}`,
+          `Total transactions in ${currentYear}: ${yearTx.length}`,
+        ],
+        keyMetrics: [
+          { label: `${currentYear} Outflow`, value: formatCurrency(yearTotal, "INR") },
+          { label: "Transactions", value: `${yearTx.length}` },
+        ],
+        actionSuggestions: [
+          { label: "View Annual Report", url: "/dashboard/reports" },
+          { label: "View Analytics", url: "/dashboard/analytics" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 1.7 LAST YEAR'S SPENDING
+    if (qLower.includes("last year") || qLower.includes("pichle saal")) {
+      const lastYear = currentYear - 1;
+      const lyTx = expensesTx.filter((t) => new Date(t.date).getFullYear() === lastYear);
+      const lyTotal = lyTx.reduce((s, t) => s + t.amount / 100, 0);
+
+      return {
+        answer: `In **${lastYear}**, your total recorded spending was **${formatCurrency(lyTotal, "INR")}** across **${lyTx.length} transaction${lyTx.length === 1 ? "" : "s"}**.`,
+        insights: [
+          `Total ${lastYear} outflow: ${formatCurrency(lyTotal, "INR")}`,
+          lyTotal > 0 ? "Calculated from historical verified ledger records." : `No expenses logged for ${lastYear}.`,
+        ],
+        keyMetrics: [
+          { label: `${lastYear} Outflow`, value: formatCurrency(lyTotal, "INR") },
+          { label: "Transactions", value: `${lyTx.length}` },
+        ],
+        actionSuggestions: [{ label: "View Reports", url: "/dashboard/reports" }],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 1.8 SPECIFIC DATE SPENDING (e.g., "15th October", "25 Nov", "1st November")
+    const specificDateMatch = qLower.match(/\b([0-9]{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+([0-9]{4}))?\b/i);
+    if (specificDateMatch && !qLower.includes("between") && !qLower.includes("from") && !qLower.includes("to")) {
+      const day = parseInt(specificDateMatch[1], 10);
+      const mStr = specificDateMatch[2].slice(0, 3).toLowerCase();
+      const yr = specificDateMatch[3] ? parseInt(specificDateMatch[3], 10) : currentYear;
+      const mIdx = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(mStr);
+      if (mIdx !== -1) {
+        const specificDateTx = expensesTx.filter((t) => {
+          const d = new Date(t.date);
+          return d.getFullYear() === yr && d.getMonth() === mIdx && d.getDate() === day;
+        });
+        const specificTotal = specificDateTx.reduce((s, t) => s + t.amount / 100, 0);
+        const formattedTarget = `${day} ${monthNames[mIdx].charAt(0).toUpperCase() + monthNames[mIdx].slice(1)} ${yr}`;
+
+        return {
+          answer: `On **${formattedTarget}**, you recorded **${specificDateTx.length} expense${specificDateTx.length === 1 ? "" : "s"}** totaling **${formatCurrency(specificTotal, "INR")}**.`,
+          insights: specificDateTx.length > 0
+            ? specificDateTx.map((t) => `• ${t.title || t.description}: ${formatCurrency(t.amount / 100, "INR")} (${t.categoryName || "General"})`)
+            : [`No expenses logged on ${formattedTarget}.`],
+          keyMetrics: [
+            { label: formattedTarget, value: formatCurrency(specificTotal, "INR") },
+            { label: "Transactions", value: `${specificDateTx.length}` },
+          ],
+          actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
+
+    // 1.9 DATE RANGE SPENDING (e.g., "Between 1st and 10th November")
+    const dateRangeMatch = qLower.match(/(?:between|from)\s+([0-9]{1,2})(?:st|nd|rd|th)?\s+(?:to|and)\s+([0-9]{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)/i);
+    if (dateRangeMatch) {
+      const startDay = parseInt(dateRangeMatch[1], 10);
+      const endDay = parseInt(dateRangeMatch[2], 10);
+      const mStr = dateRangeMatch[3].slice(0, 3).toLowerCase();
+      const mIdx = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(mStr);
+      if (mIdx !== -1) {
+        const rangeTx = expensesTx.filter((t) => {
+          const d = new Date(t.date);
+          return d.getFullYear() === currentYear && d.getMonth() === mIdx && d.getDate() >= startDay && d.getDate() <= endDay;
+        });
+        const rangeTotal = rangeTx.reduce((s, t) => s + t.amount / 100, 0);
+        const monthLabel = monthNames[mIdx].charAt(0).toUpperCase() + monthNames[mIdx].slice(1);
+
+        return {
+          answer: `Between **${startDay} ${monthLabel}** and **${endDay} ${monthLabel} ${currentYear}**, your recorded spending was **${formatCurrency(rangeTotal, "INR")}** across **${rangeTx.length} transaction${rangeTx.length === 1 ? "" : "s"}**.`,
+          insights: [
+            `Date range total: ${formatCurrency(rangeTotal, "INR")}`,
+            `Transactions logged: ${rangeTx.length}`,
+          ],
+          keyMetrics: [
+            { label: `${startDay}-${endDay} ${monthLabel}`, value: formatCurrency(rangeTotal, "INR") },
+            { label: "Transactions", value: `${rangeTx.length}` },
+          ],
+          actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
+
+    // 1.10 SPECIFIC MONTH SPENDING (e.g., "August", "July", "spend in October")
     const matchedMonth = monthNames.find((m) => qLower.includes(m));
     if (matchedMonth && !qLower.includes("vs") && !qLower.includes("compare")) {
       const mIdx = monthNames.indexOf(matchedMonth);
@@ -703,7 +1244,7 @@ export async function askFinancialAssistant(
       };
     }
 
-    // 1.6 MONTH-OVER-MONTH COMPARISON (e.g. "Compare July vs August" or "Compare this month vs last month")
+    // 1.11 MONTH-OVER-MONTH COMPARISON (e.g. "Compare July vs August" or "Compare this month vs last month")
     if (qLower.includes("compare") || qLower.includes("vs") || qLower.includes("versus")) {
       let m1Name = "Previous Month";
       let m2Name = "Current Month";
@@ -884,7 +1425,10 @@ export async function askFinancialAssistant(
       qLower.includes("highest debtor") ||
       qLower.includes("top debtor") ||
       qLower.includes("kiske paas sabse") ||
-      qLower.includes("who owes me the most")
+      qLower.includes("who owes me the most") ||
+      qLower.includes("owes me the highest") ||
+      qLower.includes("friend owes me") ||
+      (qLower.includes("highest amount") && qLower.includes("owe"))
     ) {
       const topDebtor = ctx.settlements.debtorRanking[0];
       if (!topDebtor) {
@@ -935,7 +1479,15 @@ export async function askFinancialAssistant(
     }
 
     // 3.2 SHOW PENDING SETTLEMENTS / WHO OWES ME
-    if (qLower.includes("pending settlement") || qLower.includes("who owes me") || qLower.includes("unsettled") || qLower.includes("paisa lena")) {
+    if (
+      qLower.includes("pending settlement") ||
+      qLower.includes("settlement is pending") ||
+      qLower.includes("settlements are pending") ||
+      qLower.includes("which settlement") ||
+      qLower.includes("who owes me") ||
+      qLower.includes("unsettled") ||
+      qLower.includes("paisa lena")
+    ) {
       const net = ctx.settlements.netDues;
       const debtorList = ctx.settlements.debtorRanking.slice(0, 4);
       const debtorLines = debtorList.length > 0
@@ -1597,6 +2149,9 @@ export async function askFinancialAssistant(
       qLower.includes("save rate") ||
       qLower.includes("how much did i save") ||
       qLower.includes("how much have i saved") ||
+      qLower.includes("how much i saved") ||
+      qLower.includes("am i saving enough") ||
+      qLower.includes("did i save") ||
       qLower.includes("my savings") ||
       qLower.includes("total savings") ||
       qLower.includes("how much income did i receive") ||
@@ -1887,10 +2442,10 @@ export async function askFinancialAssistant(
       (qLower.includes("security") && !qLower.includes("score"))
     ) {
       return {
-        answer: `SplitLedger AI PRO operates with bank-grade security and zero-knowledge ledger guarantees to protect your financial transactions and collaborative settlements:`,
+        answer: `SplitLedger Financial Assistant operates with bank-grade security and zero-knowledge ledger guarantees to protect your financial transactions and collaborative settlements:`,
         insights: [
-          "• Data Encryption: 256-bit AES encryption at rest and TLS 1.3 transit encryption across all PostgreSQL records.",
-          "• Authentication & 2FA: Protected by Clerk multi-factor authentication with session timeouts and verified device tracking.",
+          "• Data Encryption: 256-bit AES encryption at rest and TLS 1.3 transit encryption across all financial records.",
+          "• Authentication & 2FA: Protected by multi-factor authentication with session timeouts and verified device tracking.",
           "• Tamper-Proof Audit Trail: Every transaction, split edit, and settlement confirmation is immutably logged with timestamps.",
           "• Direct UPI QR Verification: Settlement QR codes generate strict NPCI-compliant payment strings directly to verified user VPAs with zero intermediary custody.",
           "• Privacy Guarantee: Your personal and shared expenses are strictly isolated and never shared, sold, or used for external advertising.",
@@ -2096,7 +2651,303 @@ export async function askFinancialAssistant(
     }
 
     // =========================================================================
-    // 8.9 GREETINGS
+    // 8.9 FINANCIAL SUPPORT INQUIRIES & EXPLANATIONS (Mode 1 Support Features)
+    // =========================================================================
+
+    // 8.9.1 DASHBOARD HELP & DASHBOARD VALUES
+    if (
+      qLower.includes("dashboard help") ||
+      qLower.includes("explain dashboard") ||
+      qLower.includes("dashboard value") ||
+      qLower.includes("dashboard overview") ||
+      qLower === "dashboard"
+    ) {
+      if (allTx.length === 0) {
+        return {
+          answer: "No matching financial records were found for your request.\n\nYour dashboard displays your live financial standing once you record transactions. It aggregates total monthly spend, active receivables, payables, and group settlements.",
+          insights: [],
+          keyMetrics: [],
+          actionSuggestions: [
+            { label: "Create Transactions", url: "action:input:create transition " },
+            { label: "View Dashboard", url: "/dashboard" },
+            { label: "Reports", url: "/dashboard/reports" },
+            { label: "Notes", url: "/dashboard/notes" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      return {
+        answer: `Here is an explanation of your dashboard values:\n\n• **Monthly Spend:** ${formatCurrency(currentMonthExpenses, "INR")} recorded this month across ${ctx.transactions.currentMonth?.length || 0} transactions.\n• **Net Receivables:** ${formatCurrency(ctx.settlements.receivablesTotal, "INR")} owed to you from group members and contacts.\n• **Net Payables:** ${formatCurrency(ctx.settlements.payablesTotal, "INR")} pending for you to settle.\n• **Active Groups:** ${ctx.groups.all.length} shared expense groups.\n\nAll metrics update dynamically as verified entries are approved.`,
+        insights: [
+          `Total Recorded Expenses: ${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}`,
+          `Net Balance: ${formatCurrency(ctx.settlements.receivablesTotal - ctx.settlements.payablesTotal, "INR")}`,
+        ],
+        keyMetrics: [
+          { label: "This Month", value: formatCurrency(currentMonthExpenses, "INR") },
+          { label: "Receivables", value: formatCurrency(ctx.settlements.receivablesTotal, "INR") },
+          { label: "Payables", value: formatCurrency(ctx.settlements.payablesTotal, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "View Dashboard", url: "/dashboard" },
+          { label: "Reports", url: "/dashboard/reports" },
+          { label: "Notes", url: "/dashboard/notes" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 8.9.2 EXPLAIN REPORTS
+    if (
+      qLower.includes("explain report") ||
+      qLower.includes("explain my report") ||
+      qLower.includes("review report")
+    ) {
+      if (allTx.length === 0) {
+        return {
+          answer: "No matching financial records were found for your request.\n\nReports generate monthly spending breakdowns, category distributions, GST tax summaries, and PDF exports once transactions are recorded.",
+          insights: [],
+          keyMetrics: [],
+          actionSuggestions: [
+            { label: "Create Transactions", url: "action:input:create transition " },
+            { label: "View Dashboard", url: "/dashboard" },
+            { label: "Reports", url: "/dashboard/reports" },
+            { label: "Notes", url: "/dashboard/notes" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      return {
+        answer: `Here is an overview of your financial reports:\n\n• **Current Month Outflow:** ${formatCurrency(currentMonthExpenses, "INR")}\n• **Current Month Inflow:** ${formatCurrency(currentMonthIncome, "INR")}\n• **Net Savings:** ${formatCurrency(netSavings, "INR")} (${savingsRate}%)\n• **Recorded Entries:** ${ctx.transactions.totalCount} verified transactions.\n\nYou can export a complete PDF ledger report or inspect tax and category breakdowns in the Reports section.`,
+        insights: [
+          `Personal Outflow: ${formatCurrency(ctx.transactions.personalExpensesTotal, "INR")}`,
+          `Group Outflow: ${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}`,
+        ],
+        keyMetrics: [
+          { label: "Month Outflow", value: formatCurrency(currentMonthExpenses, "INR") },
+          { label: "Month Inflow", value: formatCurrency(currentMonthIncome, "INR") },
+          { label: "Savings Rate", value: `${savingsRate}%` },
+        ],
+        actionSuggestions: [
+          { label: "View Reports", url: "/dashboard/reports" },
+          { label: "View Analytics", url: "/dashboard/analytics" },
+          { label: "Notes", url: "/dashboard/notes" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 8.9.3 BUDGET HELP & HELP WITH BUDGETING
+    if (
+      qLower.includes("budget help") ||
+      qLower.includes("help with budget") ||
+      qLower.includes("review budget") ||
+      qLower.includes("active budget") ||
+      qLower === "budgets" ||
+      qLower === "budget"
+    ) {
+      const activeBudgets = ctx.budgets.activeBudgets || [];
+      if (activeBudgets.length === 0) {
+        return {
+          answer: "No matching financial records were found for your request.\n\nYou currently have no active category budgets configured. You can set monthly spending targets in the Budgets section to track your spending limits.",
+          insights: [],
+          keyMetrics: [],
+          actionSuggestions: [
+            { label: "Set Up Budgets", url: "/dashboard/budgets" },
+            { label: "View Dashboard", url: "/dashboard" },
+            { label: "Reports", url: "/dashboard/reports" },
+            { label: "Notes", url: "/dashboard/notes" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const allocated = ctx.budgets.totalAllocatedBudget || 0;
+      const spent = ctx.budgets.totalBudgetSpent || 0;
+      const util = ctx.budgets.overallUtilizationPct || 0;
+
+      return {
+        answer: `You have **${activeBudgets.length} active budget${activeBudgets.length === 1 ? "" : "s"}** with **${formatCurrency(allocated, "INR")}** total allocation. So far, you have utilized **${formatCurrency(spent, "INR")}** (${util}% of total budget).`,
+        insights: ctx.budgets.breachedBudgets?.length > 0
+          ? [`${ctx.budgets.breachedBudgets.length} budget(s) have exceeded target limits.`]
+          : ["All active budgets are currently within allocated limits."],
+        keyMetrics: [
+          { label: "Total Budget", value: formatCurrency(allocated, "INR") },
+          { label: "Budget Spent", value: formatCurrency(spent, "INR") },
+          { label: "Utilization", value: `${util}%` },
+        ],
+        actionSuggestions: [
+          { label: "Manage Budgets", url: "/dashboard/budgets" },
+          { label: "View Analytics", url: "/dashboard/analytics" },
+          { label: "Reports", url: "/dashboard/reports" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 8.9.4 EXPLAIN NOTES & FINANCIAL NOTES
+    if (
+      qLower.includes("explain notes") ||
+      qLower.includes("explain note") ||
+      qLower.includes("financial notes") ||
+      qLower.includes("my notes") ||
+      qLower === "notes" ||
+      qLower === "note"
+    ) {
+      const recentNotes = ctx.notes?.recentNotes || [];
+      if (recentNotes.length === 0) {
+        return {
+          answer: "No matching financial records were found for your request.\n\nYou have no recorded financial notes or memos. You can attach notes to expenses or save ledger memos in the Notes section.",
+          insights: [],
+          keyMetrics: [],
+          actionSuggestions: [
+            { label: "Create Note", url: "/dashboard/notes" },
+            { label: "View Dashboard", url: "/dashboard" },
+            { label: "Reports", url: "/dashboard/reports" },
+            { label: "Create Transactions", url: "action:input:create transition " },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      return {
+        answer: `You have **${recentNotes.length} financial note${recentNotes.length === 1 ? "" : "s"}** recorded in your ledger. Notes capture transaction context, payment reminders, and settlement memos.`,
+        insights: recentNotes.slice(0, 3).map((n: any) => `• ${n.title || n.content || "Note entry"}`),
+        keyMetrics: [
+          { label: "Total Notes", value: `${recentNotes.length}` },
+        ],
+        actionSuggestions: [
+          { label: "Open Notes", url: "/dashboard/notes" },
+          { label: "View Dashboard", url: "/dashboard" },
+          { label: "Reports", url: "/dashboard/reports" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 8.9.5 EXPLAIN ANALYTICS
+    if (
+      qLower.includes("explain analytics") ||
+      qLower.includes("financial analytics") ||
+      qLower === "analytics"
+    ) {
+      if (allTx.length === 0) {
+        return {
+          answer: "No matching financial records were found for your request.\n\nAnalytics provides spending velocity, category distributions, monthly comparisons, and burn rate once transactions are recorded.",
+          insights: [],
+          keyMetrics: [],
+          actionSuggestions: [
+            { label: "Create Transactions", url: "action:input:create transition " },
+            { label: "View Dashboard", url: "/dashboard" },
+            { label: "Reports", url: "/dashboard/reports" },
+            { label: "Notes", url: "/dashboard/notes" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const topCatEntry = Object.entries(ctx.transactions.categoryTotals || {}).sort((a, b) => b[1] - a[1])[0];
+      const topCatText = topCatEntry ? `${topCatEntry[0]} (${formatCurrency(topCatEntry[1], "INR")})` : "None";
+
+      return {
+        answer: `Here is a summary of your financial analytics:\n\n• **Monthly Spend Velocity:** ${formatCurrency(currentMonthExpenses, "INR")} recorded this month.\n• **Top Spending Category:** ${topCatText}.\n• **Savings Rate:** ${savingsRate}% net savings from recorded income.\n• **Receivables vs Payables:** Net ${formatCurrency(ctx.settlements.receivablesTotal - ctx.settlements.payablesTotal, "INR")}.`,
+        insights: [
+          `All-time total expenses: ${formatCurrency(ctx.transactions.allTimeTotalExpenses, "INR")}`,
+          `Preferred payment method: ${ctx.transactions.mostUsedPaymentMethod || "UPI"}`,
+        ],
+        keyMetrics: [
+          { label: "Monthly Spend", value: formatCurrency(currentMonthExpenses, "INR") },
+          { label: "Savings Rate", value: `${savingsRate}%` },
+        ],
+        actionSuggestions: [
+          { label: "View Analytics", url: "/dashboard/analytics" },
+          { label: "Reports", url: "/dashboard/reports" },
+          { label: "Notes", url: "/dashboard/notes" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 8.9.6 EXPLAIN CALCULATIONS
+    if (
+      qLower.includes("explain calculation") ||
+      qLower.includes("how are calculations done") ||
+      qLower.includes("how do calculations work") ||
+      qLower.includes("calculation method")
+    ) {
+      return {
+        answer: `SplitLedger uses exact, double-entry mathematical reconciliation for all calculations:\n\n• **Net Balance:** Calculated as (Total Receivables - Total Payables).\n• **Group Settlements:** Uses debt-simplification algorithms to minimize total transactions across group members without altering anyone's net balance.\n• **Split Distribution:** Supports Equal, Percentage, Exact Amount, and Share-based splits with zero penny loss.\n• **Savings Rate:** Calculated as ((Total Inflow - Total Outflow) / Total Inflow) × 100.\n\nAll arithmetic is computed strictly in paise precision to prevent rounding discrepancies.`,
+        insights: [
+          "Calculations update automatically when transactions or settlements are confirmed.",
+          "Every balance change is recorded in an immutable ledger trail.",
+        ],
+        keyMetrics: [
+          { label: "Precision", value: "Exact Paise" },
+          { label: "Method", value: "Debt Netting" },
+        ],
+        actionSuggestions: [
+          { label: "Settlement Center", url: "/dashboard/settlements" },
+          { label: "View Dashboard", url: "/dashboard" },
+          { label: "Reports", url: "/dashboard/reports" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 8.9.7 EXPLAIN GROUPS & GROUP HELP
+    if (
+      qLower.includes("explain group") ||
+      qLower.includes("how do groups work") ||
+      qLower.includes("group help")
+    ) {
+      return {
+        answer: `Groups allow you to share expenses with friends, roommates, or colleagues:\n\n• **Shared Expenses:** Add an expense and split it equally, by percentage, or exact amounts.\n• **Debt Simplification:** The system automatically reduces circular debts so members settle in the fewest possible payments.\n• **Live Balances:** Each member sees exactly who they owe or who owes them at any time.\n• **Direct Settlement:** Settle balances via direct UPI QR code or mark as settled.\n\nYou currently have **${ctx.groups.all.length} active group${ctx.groups.all.length === 1 ? "" : "s"}**.`,
+        insights: [
+          `Total Group Expenses: ${formatCurrency(ctx.transactions.groupExpensesTotal, "INR")}`,
+          `Outstanding Group Receivables: ${formatCurrency(ctx.settlements.receivablesTotal, "INR")}`,
+        ],
+        keyMetrics: [
+          { label: "Active Groups", value: `${ctx.groups.all.length}` },
+          { label: "Group Spend", value: formatCurrency(ctx.transactions.groupExpensesTotal, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "View Groups", url: "/dashboard/groups" },
+          { label: "Settlements", url: "/dashboard/settlements" },
+          { label: "Reports", url: "/dashboard/reports" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 8.9.8 SPLITLEDGER FEATURES & APPLICATION HELP
+    if (
+      qLower.includes("splitledger feature") ||
+      qLower.includes("what can you do") ||
+      qLower.includes("how to use") ||
+      qLower.includes("help with feature")
+    ) {
+      return {
+        answer: `SplitLedger is a comprehensive financial ledger system with core capabilities:\n\n• **Ledger & Transactions:** Record personal and group expenses with multi-category classification.\n• **Transaction Creation Mode:** Begin messages with \`create transition\` to draft and approve entries.\n• **Settlement Optimization:** Automatic debt netting across shared groups with direct UPI settlements.\n• **Budgets & Analytics:** Set spending limits, track category burn rates, and monitor savings velocity.\n• **Reports & Exports:** Generate monthly statements, tax breakdown sheets, and audit PDFs.\n• **Notes & Receipts:** Attach memos and upload receipts to ledger entries.`,
+        insights: [
+          "To record transactions, always start your message with: create transition",
+          "For inquiries, ask questions naturally anytime.",
+        ],
+        keyMetrics: [
+          { label: "Session", value: "Secure" },
+          { label: "Status", value: "Connected" },
+        ],
+        actionSuggestions: [
+          { label: "View Dashboard", url: "/dashboard" },
+          { label: "Reports", url: "/dashboard/reports" },
+          { label: "Notes", url: "/dashboard/notes" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // =========================================================================
+    // 8.10 GREETINGS
     // =========================================================================
     if (
       qLower === "hi" ||
@@ -2108,19 +2959,16 @@ export async function askFinancialAssistant(
       qLower.startsWith("hello ")
     ) {
       return {
-        answer: "Namaste! I am SplitLedger AI PRO, your Financial Copilot. How can I assist your personal or group finances today?",
-        insights: [
-          "Ask me about this month's spending, who owes you money, or your financial health score.",
-          "You can also ask 'Who am I?' for a complete verified profile breakdown.",
-        ],
-        keyMetrics: [
-          { label: "Financial Copilot", value: "PRO" },
-          { label: "Ledger Status", value: "Synchronized" },
-        ],
+        answer: "Hello! I am your SplitLedger Financial Assistant.\n\nWhat can I help you with today?",
+        insights: [],
+        keyMetrics: [],
         actionSuggestions: [
-          { label: "View Ledger", url: "/dashboard/transactions" },
-          { label: "Settlement Center", url: "/dashboard/settlements" },
-          { label: "Analytics", url: "/dashboard/analytics" },
+          { label: "Create Transactions", url: "action:input:create transition " },
+          { label: "Explain Reports", url: "action:send:Explain my financial reports" },
+          { label: "Review Expenses", url: "action:send:Review my recent expenses and top categories" },
+          { label: "Receivables", url: "action:send:Who owes me money?" },
+          { label: "Payables", url: "action:send:Who do I owe money to?" },
+          { label: "Budget Help", url: "action:send:Help me review my active budgets" },
         ],
         timestamp: new Date().toISOString(),
       };
@@ -2130,38 +2978,27 @@ export async function askFinancialAssistant(
     // 9. DEFAULT / MISSING DATA HANDLER
     // =========================================================================
     return {
-      answer: "I couldn't find any verified data for that request. There are currently no recorded transactions matching your request.",
-      insights: [
-        "SplitLedger AI PRO operates strictly on verified PostgreSQL ledger records without hallucinating data.",
-        "You can try asking: 'How much did I spend this month?', 'Who owes me the most?', or 'Show my profile summary'.",
-      ],
-      keyMetrics: [
-        { label: "Monthly Spend", value: formatCurrency(currentMonthExpenses, "INR") },
-        { label: "Receivables", value: formatCurrency(ctx.settlements.receivablesTotal, "INR") },
-        { label: "Verified Records", value: `${ctx.transactions.totalCount}` },
-      ],
+      answer: "No matching financial records were found for your request. I couldn't find any verified data for that request.",
+      insights: [],
+      keyMetrics: [],
       actionSuggestions: [
-        { label: "Add Expense", url: "/dashboard/transactions" },
-        { label: "View Analytics", url: "/dashboard/analytics" },
-        { label: "Settlement Center", url: "/dashboard/settlements" },
+        { label: "Create Transactions", url: "action:input:create transition " },
+        { label: "View Dashboard", url: "/dashboard" },
+        { label: "Reports", url: "/dashboard/reports" },
+        { label: "Notes", url: "/dashboard/notes" },
       ],
       timestamp: new Date().toISOString(),
     };
   } catch (error: any) {
     console.error("AI Assistant Error:", error);
     return {
-      answer: "I encountered a momentary connection interruption while querying the ledger database. Please try your question again in a moment, or check your connection.",
-      insights: [
-        "Your financial records remain secure in the ledger.",
-        "SplitLedger AI PRO will reconnect automatically on your next request.",
-      ],
-      keyMetrics: [
-        { label: "Status", value: "Reconnecting" },
-        { label: "Ledger Security", value: "Verified" },
-      ],
+      answer: "I couldn't retrieve your latest financial records right now. Please try again in a moment.",
+      insights: [],
+      keyMetrics: [],
       actionSuggestions: [
-        { label: "View Ledger", url: "/dashboard/transactions" },
-        { label: "Refresh Dashboard", url: "/dashboard" },
+        { label: "View Dashboard", url: "/dashboard" },
+        { label: "Reports", url: "/dashboard/reports" },
+        { label: "Notes", url: "/dashboard/notes" },
       ],
       timestamp: new Date().toISOString(),
     };

@@ -76,6 +76,22 @@ export default clerkMiddleware(async (auth, request) => {
   response.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
   response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
 
+  const cspHeader = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com https://*.clerk.accounts.dev https://clerk.splitledger.ai https://*.clerk.com",
+    "worker-src 'self' blob:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://img.clerk.com https://*.clerk.com https:",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "connect-src 'self' https://*.clerk.accounts.dev https://clerk.splitledger.ai https://*.clerk.com https://api.clerk.com https://*.neon.tech wss://*.neon.tech https://res.cloudinary.com",
+    "frame-src 'self' https://challenges.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+  response.headers.set("Content-Security-Policy", cspHeader);
+
   // Prevent caching of sensitive financial views and authenticated API payloads
   const pathname = request.nextUrl.pathname;
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/api")) {

@@ -587,6 +587,20 @@ function generatePaymentRailsSVG(
 // CLEAN CSV EXPORT GENERATOR
 // ============================================================================
 
+export function escapeCsvValue(val: any): string {
+  if (val === null || val === undefined) return "";
+  let str = String(val);
+  // Neutralize CSV / Spreadsheet formula injection (OWASP ASVS / CWE-1236)
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  str = str.replace(/"/g, '""');
+  if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+    str = `"${str}"`;
+  }
+  return str;
+}
+
 export function generateCSVExport(data: ExportReportData): string {
   const headers = [
     "Transaction ID",
@@ -608,17 +622,8 @@ export function generateCSVExport(data: ExportReportData): string {
     "Created By",
   ];
 
-  const escapeCSV = (val: any): string => {
-    if (val === null || val === undefined) return "";
-    let str = String(val).replace(/"/g, '""');
-    if (str.includes(",") || str.includes("\n") || str.includes('"')) {
-      str = `"${str}"`;
-    }
-    return str;
-  };
-
   const rows: string[] = [];
-  rows.push(headers.map(escapeCSV).join(","));
+  rows.push(headers.map(escapeCsvValue).join(","));
 
   for (const tx of data.transactions) {
     const amountInRupees = (tx.amount / 100).toFixed(2);
@@ -644,7 +649,7 @@ export function generateCSVExport(data: ExportReportData): string {
       tx.createdByName || "User",
     ];
 
-    rows.push(row.map(escapeCSV).join(","));
+    rows.push(row.map(escapeCsvValue).join(","));
   }
 
   return rows.join("\n");

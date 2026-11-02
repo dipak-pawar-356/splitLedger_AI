@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, profiles, transactions, groups, contacts, settlements } from "@/lib/db/schema/schema";
@@ -10,19 +11,13 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: "Admin System Console",
-  robots: {
-    index: false,
-    follow: false,
-    nocache: true,
-    googleBot: {
-      index: false,
-      follow: false,
-      noarchive: true,
-    },
-  },
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "Admin System Console | SplitLedger AI",
+  description:
+    "System administrator console for database monitoring, health checks, and user administration.",
+  path: "/admin",
+  noIndex: true,
+});
 
 export default async function AdminPage() {
   let user;

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,14 +13,13 @@ interface PageProps {
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Secure Settlement Payment",
-  robots: {
-    index: false,
-    follow: false,
-    nocache: true,
-  },
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "Secure Settlement Payment | SplitLedger AI",
+  description:
+    "Direct and secure UPI payment gateway for group expense settlements.",
+  path: "/pay",
+  noIndex: true,
+});
 
 export default async function PublicPaymentPage({ params }: PageProps) {
   const { token } = await params;

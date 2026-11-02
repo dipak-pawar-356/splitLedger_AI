@@ -21,8 +21,10 @@ import {
   Receipt,
   Scale,
   Lock,
-  ArrowRight,
-  Sparkles
+  FileText,
+  BarChart3,
+  HelpCircle,
+  PlusCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { SUGGESTED_QUICK_QUESTIONS } from "@/lib/ai/prompts";
@@ -42,54 +44,86 @@ interface Message {
   detectedTransactions?: ProposedTransaction[];
 }
 
-interface CapabilityPrompt {
+interface WelcomeSuggestion {
   id: string;
-  title: string;
+  label: string;
   description: string;
   query: string;
+  isCreateMode?: boolean;
   icon: React.ComponentType<{ className?: string; size?: number | string }>;
-  badge: string;
 }
 
-const FINANCIAL_CAPABILITIES: CapabilityPrompt[] = [
+export const WELCOME_SUGGESTION_CARDS: WelcomeSuggestion[] = [
   {
-    id: "cap-log",
-    title: "Log Expense via Natural Text",
-    description: "Convert informal phrases into structured transactions",
-    query: "Paid 650 rs for dinner with Amit and Rahul in Goa trip",
+    id: "create-transactions",
+    label: "Create Transactions",
+    description: "Record new entries",
+    query: "create transition ",
+    isCreateMode: true,
     icon: Receipt,
-    badge: "Smart Entry",
   },
   {
-    id: "cap-receivables",
-    title: "Track Net Receivables",
-    description: "Identify outstanding balances across all shared groups",
-    query: "Who owes me money across all my groups?",
-    icon: Users,
-    badge: "Receivables",
+    id: "explain-reports",
+    label: "Explain Reports",
+    description: "Monthly statements",
+    query: "Explain my financial reports",
+    icon: FileSpreadsheet,
   },
   {
-    id: "cap-spending",
-    title: "Analyze Monthly Burn Rate",
-    description: "Audit top spending categories, peaks, and velocity",
-    query: "Analyze my spending velocity and top expenses this month",
+    id: "review-expenses",
+    label: "Review Expenses",
+    description: "Recent spending trends",
+    query: "Review my recent expenses and top categories",
     icon: TrendingUp,
-    badge: "Analytics",
   },
   {
-    id: "cap-settlements",
-    title: "Debt Netting & Simplification",
-    description: "Review pending settlements and optimal pay paths",
-    query: "Show pending group settlements and who I need to pay",
+    id: "budget-help",
+    label: "Budget Help",
+    description: "Spending limits & progress",
+    query: "Help me review my active budgets",
     icon: Scale,
-    badge: "Settlement",
+  },
+  {
+    id: "receivables",
+    label: "Receivables",
+    description: "Who owes you money",
+    query: "Who owes me money?",
+    icon: Users,
+  },
+  {
+    id: "payables",
+    label: "Payables",
+    description: "Who you need to pay",
+    query: "Who do I owe money to?",
+    icon: CreditCard,
+  },
+  {
+    id: "notes",
+    label: "Notes",
+    description: "Financial memos & logs",
+    query: "Explain my financial notes",
+    icon: FileText,
+  },
+  {
+    id: "analytics",
+    label: "Analytics",
+    description: "Cashflow & velocity",
+    query: "Explain my financial analytics",
+    icon: BarChart3,
+  },
+  {
+    id: "dashboard-help",
+    label: "Dashboard Help",
+    description: "Ledger navigation",
+    query: "Help me understand my dashboard values",
+    icon: HelpCircle,
   },
 ];
 
 const INITIAL_GREETING: Message = {
   id: "welcome_financial_assistant",
   role: "assistant",
-  content: "Welcome to SplitLedger Financial Intelligence. I am your private in-house chartered assistant, connected directly to your live ledger records with real-time INR (₹) precision. How may I assist your accounts or group settlements today?",
+  content: "Hello! How can I help you with your finances today?",
   timestamp: "Ready",
 };
 
@@ -99,6 +133,7 @@ export function FloatingAIAssistant() {
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [messages, setMessages] = useState<Message[]>([INITIAL_GREETING]);
 
   useEffect(() => {
@@ -131,7 +166,8 @@ export function FloatingAIAssistant() {
         (t) => t.status !== "approved" && t.status !== "cancelled"
       );
 
-      const response = await askFinancialAssistant(query.trim(), activeDrafts);
+      const conversationHistory = messages.map((m) => ({ role: m.role, content: m.content }));
+      const response = await askFinancialAssistant(query.trim(), activeDrafts, conversationHistory);
       const assistantMsg: Message = {
         id: `ai_${Date.now()}`,
         role: "assistant",
@@ -144,18 +180,29 @@ export function FloatingAIAssistant() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
-      toast.error("Financial Assistant service is temporarily unreachable.");
+      toast.error("Financial records temporarily unavailable. Please try again in a moment.");
       setMessages((prev) => [
         ...prev,
         {
           id: `ai_err_${Date.now()}`,
           role: "assistant",
-          content: "I encountered a secure connection timeout accessing your ledger. Please re-submit your financial query.",
+          content: "I couldn't retrieve your latest financial records right now. Please try again in a moment.",
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSuggestionClick = (item: WelcomeSuggestion) => {
+    if (item.isCreateMode) {
+      setInputQuery("create transition ");
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    } else {
+      handleSend(item.query);
     }
   };
 
@@ -171,12 +218,12 @@ export function FloatingAIAssistant() {
 
   return (
     <>
-      {/* Floating Financial Intelligence Trigger Button (Bottom Right) */}
+      {/* Floating Financial Assistant Trigger Button (Bottom Right) */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
           className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 h-12 px-3.5 sm:px-4 rounded-full bg-slate-900/95 dark:bg-slate-950 text-white shadow-xl hover:shadow-2xl border border-indigo-500/30 hover:border-indigo-400/60 transition-all duration-200 flex items-center gap-2.5 group cursor-pointer active:scale-95 touch-press backdrop-blur-md"
-          aria-label="Open SplitLedger Financial Intelligence Assistant"
+          aria-label="Open SplitLedger Financial Assistant"
         >
           <div className="relative flex items-center justify-center w-7 h-7 rounded-lg bg-indigo-600/20 border border-indigo-400/30 text-indigo-300 group-hover:text-indigo-200 transition-colors">
             <SplitLedgerAiIcon size={16} />
@@ -184,10 +231,10 @@ export function FloatingAIAssistant() {
           </div>
           <div className="flex flex-col text-left pr-1 hidden sm:flex">
             <span className="text-[11px] font-bold tracking-tight text-slate-100 flex items-center gap-1">
-              Financial Intelligence
+              SplitLedger Assistant
             </span>
             <span className="text-[9px] font-mono text-emerald-400/90 tracking-wider uppercase">
-              Live Ledger • Ready
+              Connected • Active
             </span>
           </div>
         </button>
@@ -205,7 +252,7 @@ export function FloatingAIAssistant() {
 
           <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-auto sm:bottom-6 sm:right-6 w-full sm:w-[480px] md:w-[500px] shadow-2xl rounded-t-[28px] sm:rounded-3xl overflow-hidden border-t sm:border border-slate-200/90 dark:border-slate-800 bg-card animate-in fade-in slide-in-from-bottom-4 duration-250 ease-out flex flex-col max-h-[92vh] sm:max-h-[85vh]">
             <Card className="border-0 shadow-none rounded-none flex flex-col h-full bg-card">
-              {/* Premium Financial Workspace Header */}
+              {/* Simplified Professional Header */}
               <CardHeader className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white flex flex-col border-b border-slate-800/80 shrink-0">
                 {/* Mobile Drawer Grab Bar Indicator */}
                 <div className="sm:hidden w-12 h-1 bg-white/20 rounded-full mx-auto mb-2 shrink-0" />
@@ -217,19 +264,24 @@ export function FloatingAIAssistant() {
                       <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-950" />
                     </div>
                     <div>
-                      <CardTitle className="text-xs sm:text-sm font-bold flex items-center gap-2 text-white tracking-tight">
-                        <span>SplitLedger Financial Intelligence</span>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-xs sm:text-sm font-bold text-white tracking-tight">
+                          SplitLedger Financial Assistant
+                        </CardTitle>
                         <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[9px] py-0 px-1.5 font-mono font-bold uppercase tracking-wider">
                           Active
                         </Badge>
-                      </CardTitle>
+                      </div>
                       <CardDescription className="text-[10px] text-slate-300 font-medium flex items-center gap-1.5 mt-0.5">
                         <span className="flex items-center gap-1 text-slate-300">
                           <Lock className="h-2.5 w-2.5 text-emerald-400" />
-                          <span>Encrypted Session</span>
+                          <span>Secure Session</span>
                         </span>
                         <span className="text-slate-500">•</span>
-                        <span>INR (₹) Real-time Ledger</span>
+                        <span className="text-emerald-400 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          Connected
+                        </span>
                       </CardDescription>
                     </div>
                   </div>
@@ -238,7 +290,7 @@ export function FloatingAIAssistant() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      title="Reset Audit Thread"
+                      title="Reset Session"
                       className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer touch-press"
                       onClick={resetChat}
                       aria-label="Reset conversation"
@@ -256,15 +308,6 @@ export function FloatingAIAssistant() {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                </div>
-
-                {/* Sub-Header Financial Status Bar */}
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-300 font-mono">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-emerald-300 font-medium">Live Financial Analysis</span>
-                  </div>
-                  <span className="text-slate-400 text-[9.5px]">Zero Third-Party Model Training</span>
                 </div>
               </CardHeader>
 
@@ -291,7 +334,7 @@ export function FloatingAIAssistant() {
                         <span className="text-[9px] text-slate-400 block text-right px-1 font-mono">{msg.timestamp}</span>
                       </div>
                     ) : (
-                      /* Assistant Financial Briefing Card */
+                      /* Assistant Financial Card */
                       <div className="w-full max-w-[96%] space-y-2">
                         <div className="p-3.5 sm:p-4 rounded-2xl rounded-tl-xs bg-card border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
                           {/* Header of Assistant Response */}
@@ -300,56 +343,52 @@ export function FloatingAIAssistant() {
                               <div className="p-1 rounded-md bg-indigo-500/10 text-indigo-500 dark:text-indigo-400">
                                 <SplitLedgerAiIcon size={14} />
                               </div>
-                              <span className="text-[11px] font-bold tracking-tight text-slate-800 dark:text-slate-200 uppercase">
-                                Ledger Intelligence Briefing
+                              <span className="text-[11px] font-bold tracking-tight text-slate-800 dark:text-slate-200">
+                                SplitLedger Financial Assistant
                               </span>
                             </div>
-                            <span className="text-[9.5px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-semibold">
-                              Audit Verified
+                            <span className="text-[9.5px] font-mono text-slate-400 font-medium">
+                              {msg.detectedTransactions && msg.detectedTransactions.length > 0 ? "Transaction Creation" : "Financial Support"}
                             </span>
                           </div>
 
-                          {/* Render Rich Answer */}
-                          <FormattedAIAnswer content={msg.content} />
-
-                          {/* Welcome State: Interactive Financial Capability Hub (Only shown on welcome message) */}
-                          {index === 0 && messages.length === 1 && (
-                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                                Interactive Financial Capabilities
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {FINANCIAL_CAPABILITIES.map((cap) => {
-                                  const IconComp = cap.icon;
-                                  return (
-                                    <button
-                                      key={cap.id}
-                                      type="button"
-                                      onClick={() => handleSend(cap.query)}
-                                      disabled={loading}
-                                      className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400/40 text-left transition-all duration-150 flex flex-col justify-between group cursor-pointer shadow-2xs hover:-translate-y-0.5 active:translate-y-0"
-                                    >
-                                      <div className="flex items-start justify-between w-full">
-                                        <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
-                                          <IconComp size={14} />
-                                        </div>
-                                        <Badge variant="outline" className="text-[9px] font-mono text-slate-400 border-slate-200 dark:border-slate-800">
-                                          {cap.badge}
-                                        </Badge>
-                                      </div>
-                                      <div className="mt-1.5">
-                                        <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                          {cap.title}
-                                        </p>
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                                          {cap.description}
-                                        </p>
-                                      </div>
-                                    </button>
-                                  );
-                                })}
+                          {/* Render Rich Answer or Clean Empty State */}
+                          {msg.content.includes("No matching financial records were found") ? (
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
+                              <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                <FileText className="h-4 w-4 text-slate-400 shrink-0" />
+                                <span className="text-xs font-medium">No matching financial records were found for your request.</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInputQuery("create transition ");
+                                    inputRef.current?.focus();
+                                  }}
+                                  className="text-[10.5px] px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold cursor-pointer transition-colors"
+                                >
+                                  Create Transactions
+                                </button>
+                                <Link href="/dashboard">
+                                  <button type="button" className="text-[10.5px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium cursor-pointer transition-colors">
+                                    View Dashboard
+                                  </button>
+                                </Link>
+                                <Link href="/dashboard/reports">
+                                  <button type="button" className="text-[10.5px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium cursor-pointer transition-colors">
+                                    Reports
+                                  </button>
+                                </Link>
+                                <Link href="/dashboard/notes">
+                                  <button type="button" className="text-[10.5px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium cursor-pointer transition-colors">
+                                    Notes
+                                  </button>
+                                </Link>
                               </div>
                             </div>
+                          ) : (
+                            <FormattedAIAnswer content={msg.content} />
                           )}
 
                           {/* Conversational Transaction Approval Workflow */}
@@ -361,7 +400,7 @@ export function FloatingAIAssistant() {
                             </div>
                           )}
 
-                          {/* Render metrics only when NO detected transaction cards exist */}
+                          {/* Render metrics only when NO detected transaction cards exist AND metrics exist */}
                           {msg.metrics && msg.metrics.length > 0 && (!msg.detectedTransactions || msg.detectedTransactions.length === 0) && (
                             <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
                               {msg.metrics.map((m, idx) => (
@@ -378,7 +417,7 @@ export function FloatingAIAssistant() {
                             <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800 space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
                               <p className="font-bold text-[10px] text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 uppercase font-mono tracking-wider">
                                 <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                                Key Ledger Takeaways
+                                Key Takeaways
                               </p>
                               <ul className="list-disc pl-3.5 space-y-0.5 text-[10.5px]">
                                 {msg.insights.map((ins, idx) => (
@@ -388,23 +427,58 @@ export function FloatingAIAssistant() {
                             </div>
                           )}
 
-                          {/* Render action suggestions & payment method quick chips */}
+                          {/* Render action suggestions & quick chips */}
                           {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                              {msg.actionSuggestions.map((act, idx) =>
-                                act.url.startsWith("action:payment:") ? (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => {
-                                      const val = act.url.replace("action:payment:", "");
-                                      handleSend(val);
-                                    }}
-                                    className="text-[11px] px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
-                                  >
-                                    <span>{act.label}</span>
-                                  </button>
-                                ) : (
+                              {msg.actionSuggestions.map((act, idx) => {
+                                if (act.url.startsWith("action:payment:")) {
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => {
+                                        const val = act.url.replace("action:payment:", "");
+                                        handleSend(val);
+                                      }}
+                                      className="text-[11px] px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
+                                    >
+                                      <span>{act.label}</span>
+                                    </button>
+                                  );
+                                }
+                                if (act.url.startsWith("action:input:")) {
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => {
+                                        const val = act.url.replace("action:input:", "");
+                                        setInputQuery(val);
+                                        inputRef.current?.focus();
+                                      }}
+                                      className="text-[10.5px] px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
+                                    >
+                                      <PlusCircle className="h-3 w-3" />
+                                      <span>{act.label}</span>
+                                    </button>
+                                  );
+                                }
+                                if (act.url.startsWith("action:send:")) {
+                                  return (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => {
+                                        const val = act.url.replace("action:send:", "");
+                                        handleSend(val);
+                                      }}
+                                      className="text-[10.5px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium flex items-center gap-1 transition-colors cursor-pointer"
+                                    >
+                                      <span>{act.label}</span>
+                                    </button>
+                                  );
+                                }
+                                return (
                                   <Link key={idx} href={act.url}>
                                     <button
                                       type="button"
@@ -414,8 +488,8 @@ export function FloatingAIAssistant() {
                                       <ArrowUpRight className="h-2.5 w-2.5 text-slate-400" />
                                     </button>
                                   </Link>
-                                )
-                              )}
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -429,7 +503,7 @@ export function FloatingAIAssistant() {
                 {loading && (
                   <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300 p-3 bg-card rounded-2xl w-fit animate-in fade-in duration-200 border border-slate-200/80 dark:border-slate-800 shadow-xs">
                     <SplitLedgerAiIcon size={16} className="text-indigo-500 animate-pulse" />
-                    <span className="text-[11px] font-semibold tracking-tight">Reconciling Ledger Records</span>
+                    <span className="text-[11px] font-semibold tracking-tight">Accessing Ledger</span>
                     <div className="flex items-center gap-1 pl-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-dots-bounce [animation-delay:-0.32s]" />
                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-dots-bounce [animation-delay:-0.16s]" />
@@ -446,7 +520,7 @@ export function FloatingAIAssistant() {
                   <div className="flex items-center gap-1.5">
                     <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-500" />
                     <span className="text-[10.5px] font-semibold text-slate-700 dark:text-slate-300">
-                      Standard Ledger Audit Inquiries
+                      Suggested Inquiries
                     </span>
                     <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-mono text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800">
                       {SUGGESTED_QUICK_QUESTIONS.length}
@@ -482,10 +556,11 @@ export function FloatingAIAssistant() {
                 )}
               </div>
 
-              {/* Input Bar with iOS 16px font-size protection against auto-zoom */}
+              {/* Input Bar with Mode Guidance */}
               <div className="p-3 pb-safe sm:pb-3 bg-card border-t border-slate-200/80 dark:border-slate-800 flex items-center gap-2 shrink-0">
                 <Input
-                  placeholder="Ask a question or log an expense (e.g. 'Paid 300 for coffee with Rahul')..."
+                  ref={inputRef}
+                  placeholder="Ask a question, or type 'create transition Petrol 500'..."
                   value={inputQuery}
                   onChange={(e) => setInputQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSend()}

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { groups, groupMembers, transactions, users, contacts, groupJoinRequests } from "@/lib/db/schema/schema";
@@ -14,6 +16,14 @@ import { alias } from "drizzle-orm/pg-core";
 
 import { GroupRouteErrorView } from "@/components/group/group-route-error-view";
 import { PendingGroupAccessView } from "@/components/group/pending-group-access-view";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Group Expense Ledger & Receipts | SplitLedger AI",
+  description:
+    "Audit group transactions, split allocations, member contributions, and expense history.",
+  path: "/dashboard/groups",
+  noIndex: true,
+});
 
 export const dynamic = 'force-dynamic';
 

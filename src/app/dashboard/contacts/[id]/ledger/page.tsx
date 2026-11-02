@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { contacts, transactions } from "@/lib/db/schema/schema";
@@ -7,6 +9,14 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Calendar, Filter, Download, Printer } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Individual Contact Ledger & Transaction History | SplitLedger AI",
+  description:
+    "Direct person-to-person transaction ledger, debit/credit audit trail, and running net balance.",
+  path: "/dashboard/contacts",
+  noIndex: true,
+});
 
 export const dynamic = 'force-dynamic';
 

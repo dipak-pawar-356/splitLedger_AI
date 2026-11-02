@@ -1,5 +1,14 @@
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { createPageMetadata } from "@/lib/seo/config";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Reset Your Ledger Password",
+  description: "Recover access to your SplitLedger AI financial account with secure email verification.",
+  path: "/forgot-password",
+  noIndex: true,
+});
 
 export default async function ForgotPasswordPage() {
   const user = await getCurrentUser();

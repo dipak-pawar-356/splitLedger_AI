@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { transactions, contacts, categories } from "@/lib/db/schema/schema";
@@ -8,6 +10,14 @@ import { Calendar, Filter, Download, Printer, TrendingUp, TrendingDown, IndianRu
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { TransactionDialog } from "@/components/dialogs/transaction-dialog";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Universal Double-Entry Ledger | SplitLedger AI",
+  description:
+    "Universal running balance ledger, credit and debit transaction reconciliation, and financial audit logs.",
+  path: "/dashboard/ledger",
+  noIndex: true,
+});
 
 export const dynamic = 'force-dynamic';
 

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { requireAuth } from "@/lib/auth";
 import { db, withDbRetry } from "@/lib/db";
 import { contacts, transactions } from "@/lib/db/schema/schema";
@@ -7,6 +9,14 @@ import { ensureContactsSchema } from "@/lib/db/auto-migrate";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { AlertCircle, RefreshCw } from "lucide-react";
+
+export const metadata: Metadata = createPageMetadata({
+  title: "Contact Ledger & Balance Management | SplitLedger AI",
+  description:
+    "Manage personal and professional contacts, maintain individual ledger balances, and track who owes whom.",
+  path: "/dashboard/contacts",
+  noIndex: true,
+});
 
 export const dynamic = "force-dynamic";
 

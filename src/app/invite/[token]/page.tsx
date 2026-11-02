@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo/config";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invitations, groups, groupMembers, users, contacts, settlements, transactions, expenseSplits, groupJoinRequests } from "@/lib/db/schema/schema";
@@ -13,14 +14,13 @@ import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: "Group Invitation",
-  robots: {
-    index: false,
-    follow: false,
-    nocache: true,
-  },
-};
+export const metadata: Metadata = createPageMetadata({
+  title: "Group Invitation | SplitLedger AI",
+  description:
+    "Secure group invitation link to collaborate on shared expenses and ledger settlements.",
+  path: "/invite",
+  noIndex: true,
+});
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

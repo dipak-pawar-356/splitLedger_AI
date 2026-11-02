@@ -3,7 +3,7 @@ import { createPageMetadata } from "@/lib/seo/config";
 import { JsonLd, createBreadcrumbSchema, createFaqSchema } from "@/lib/seo/structured-data";
 
 export const metadata: Metadata = createPageMetadata({
-  title: "Features & Capabilities — Intelligent Financial Intelligence",
+  title: "Features & Capabilities — AI Expense Management & Split Ledger",
   description:
     "Explore SplitLedger AI features: conversational natural language expense parsing, dynamic NPCI UPI QR settlements, graph-minimized debt netting, and real-time ledger intelligence.",
   path: "/features",
@@ -14,6 +14,9 @@ export const metadata: Metadata = createPageMetadata({
     "Debt Minimization Algorithm",
     "Shared Ledger",
     "Real-Time Expense Sync",
+    "Group Expense Management",
+    "Trip Expense Tracker",
+    "Bill Splitter Features",
   ],
 });
 

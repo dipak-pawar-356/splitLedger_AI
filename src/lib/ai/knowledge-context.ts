@@ -205,17 +205,16 @@ export function getSafeFallbackContext(userId: number): FinancialKnowledgeContex
  * Fetch and construct comprehensive financial knowledge context for user
  */
 export async function getFinancialKnowledgeContext(
-  userId: number
+  userId: number,
+  forceFresh: boolean = false
 ): Promise<FinancialKnowledgeContext> {
-  try {
-    return await appCache.getOrSet(
-      `ai:knowledge_context:${userId}`,
-      async () => {
-        return await withDbRetry(async () => {
-          const now = new Date();
-      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  const fetchKnowledge = async () => {
+    return await withDbRetry(async () => {
+      const now = new Date();
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
       // Alias tables for settlement participant joins
       const settleFromUser = alias(users, "settle_from_user");
@@ -432,12 +431,16 @@ export async function getFinancialKnowledgeContext(
   if (u.userUpiId || u.profileUpiId) profileFieldsFilled++;
   const profileCompletionPct = Math.round((profileFieldsFilled / totalProfileFields) * 100);
 
-  // Filter temporal sets
+  // Filter temporal sets with strict calendar month boundaries
   const allTx = validatedTx.sanitizedData;
-  const currentMonthTx = allTx.filter((t) => new Date(t.date) >= currentMonthStart);
-  const lastMonthTx = allTx.filter(
-    (t) => new Date(t.date) >= lastMonthStart && new Date(t.date) <= lastMonthEnd
-  );
+  const currentMonthTx = allTx.filter((t) => {
+    const d = new Date(t.date);
+    return d >= currentMonthStart && d <= currentMonthEnd;
+  });
+  const lastMonthTx = allTx.filter((t) => {
+    const d = new Date(t.date);
+    return d >= lastMonthStart && d <= lastMonthEnd;
+  });
 
   // Month stats
   let totalSpentThisMonth = 0;
@@ -706,8 +709,16 @@ export async function getFinancialKnowledgeContext(
     recentOcrReceipts: rawReceiptsRows,
     gatheredAt: new Date().toISOString(),
   };
-        });
-      },
+    });
+  };
+
+  try {
+    if (forceFresh) {
+      return await fetchKnowledge();
+    }
+    return await appCache.getOrSet(
+      `ai:knowledge_context:${userId}`,
+      fetchKnowledge,
       { ttlMs: 30000, tags: [`user:${userId}`, "ai", "dashboard"] }
     );
   } catch (error) {

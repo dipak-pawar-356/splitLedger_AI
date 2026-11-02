@@ -290,6 +290,11 @@ export async function changeAccountPassword(data: {
 }) {
   try {
     const user = await requireAuth();
+    assertRateLimit(
+      `password_change:${user.id}`,
+      { limit: 5, windowMs: 15 * 60 * 1000 },
+      "Too many password change attempts. Please wait 15 minutes before trying again."
+    );
 
     if (!data.newPassword || data.newPassword.length < 8) {
       throw new ValidationError("Password must be at least 8 characters long");
