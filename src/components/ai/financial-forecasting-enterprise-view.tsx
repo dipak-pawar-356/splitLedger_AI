@@ -338,10 +338,10 @@ export function FinancialForecastingEnterpriseView({
       {/* 4 CORE MATHEMATICAL FORECAST CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. Expected Income */}
-        <Card className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-emerald-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-emerald-700 dark:text-emerald-400">
             <span className="font-bold uppercase tracking-wider text-[10px]">Expected Income</span>
-            <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-600">
+            <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <ArrowUpRight className="h-4 w-4" />
             </div>
           </div>
@@ -355,10 +355,10 @@ export function FinancialForecastingEnterpriseView({
         </Card>
 
         {/* 2. Expected Expense */}
-        <Card className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-rose-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-rose-700 dark:text-rose-400">
             <span className="font-bold uppercase tracking-wider text-[10px]">Expected Expense</span>
-            <div className="p-1.5 rounded-lg bg-rose-500/15 text-rose-600">
+            <div className="p-1.5 rounded-lg bg-rose-500/15 text-rose-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <ArrowDownLeft className="h-4 w-4" />
             </div>
           </div>
@@ -372,10 +372,10 @@ export function FinancialForecastingEnterpriseView({
         </Card>
 
         {/* 3. Projected Savings */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-indigo-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Projected Savings</span>
-            <div className={`p-1.5 rounded-lg ${isProjectedPositive ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"}`}>
+            <div className={`p-1.5 rounded-lg group-hover:scale-110 group-hover:rotate-6 transition-transform ${isProjectedPositive ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"}`}>
               <PiggyBank className="h-4 w-4" />
             </div>
           </div>
@@ -390,10 +390,10 @@ export function FinancialForecastingEnterpriseView({
         </Card>
 
         {/* 4. Expected Cash Flow Velocity */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-indigo-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Expected Cash Flow</span>
-            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600">
+            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <Wallet className="h-4 w-4" />
             </div>
           </div>
@@ -413,10 +413,10 @@ export function FinancialForecastingEnterpriseView({
       {/* TRAJECTORY & CATEGORY VELOCITY INDICATORS (6 CARDS) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Largest Growing Category */}
-        <Card className="rounded-2xl border border-rose-500/20 bg-card p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-rose-500/20 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Largest Growing Category</span>
-            <TrendingUp className="h-4 w-4 text-rose-500" />
+            <TrendingUp className="h-4 w-4 text-rose-500 group-hover:scale-110 group-hover:rotate-6 transition-transform" />
           </div>
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
@@ -432,10 +432,10 @@ export function FinancialForecastingEnterpriseView({
         </Card>
 
         {/* Largest Declining Category */}
-        <Card className="rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Largest Declining Category</span>
-            <TrendingDown className="h-4 w-4 text-emerald-500" />
+            <TrendingDown className="h-4 w-4 text-emerald-500 group-hover:scale-110 group-hover:rotate-6 transition-transform" />
           </div>
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
@@ -451,10 +451,10 @@ export function FinancialForecastingEnterpriseView({
         </Card>
 
         {/* Top Spending Category */}
-        <Card className="rounded-2xl border border-indigo-500/20 bg-card p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-indigo-500/20 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Top Spending Category</span>
-            <PieIcon className="h-4 w-4 text-indigo-500" />
+            <PieIcon className="h-4 w-4 text-indigo-500 group-hover:scale-110 group-hover:rotate-6 transition-transform" />
           </div>
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
@@ -470,10 +470,10 @@ export function FinancialForecastingEnterpriseView({
         </Card>
 
         {/* Monthly Growth % */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Monthly Expense Growth</span>
-            <Activity className="h-4 w-4 text-primary" />
+            <Activity className="h-4 w-4 text-primary group-hover:scale-110 group-hover:rotate-6 transition-transform" />
           </div>
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Verified MoM Delta</p>
@@ -495,10 +495,10 @@ export function FinancialForecastingEnterpriseView({
         </Card>
 
         {/* Budget Forecast */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Budget Forecast</span>
-            <Target className="h-4 w-4 text-emerald-500" />
+            <Target className="h-4 w-4 text-emerald-500 group-hover:scale-110 group-hover:rotate-6 transition-transform" />
           </div>
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Projected Headroom</p>
@@ -510,10 +510,10 @@ export function FinancialForecastingEnterpriseView({
         </Card>
 
         {/* Settlement Forecast */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Settlement Forecast</span>
-            <Scale className="h-4 w-4 text-purple-500" />
+            <Scale className="h-4 w-4 text-purple-500 group-hover:scale-110 group-hover:rotate-6 transition-transform" />
           </div>
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Net Expected Recovery</p>

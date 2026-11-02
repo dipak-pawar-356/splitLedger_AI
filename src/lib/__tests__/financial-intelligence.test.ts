@@ -1,6 +1,106 @@
 import { describe, it, expect } from "vitest";
+import { getPeriodDateRange } from "@/actions/financial-intelligence";
 
 describe("Financial Intelligence, Health Score & Budget Engine", () => {
+  describe("Period Engine: getPeriodDateRange Date Calculations", () => {
+    const fixedNow = new Date("2026-11-03T10:00:00Z"); // Tuesday, Nov 3, 2026
+
+    it("should calculate correct date range for 'today'", () => {
+      const { startDate, endDate, prevStartDate, prevEndDate, periodLabel, comparisonLabel, elapsedDays } =
+        getPeriodDateRange("today", fixedNow);
+      expect(periodLabel).toBe("Today");
+      expect(comparisonLabel).toBe("vs Yesterday");
+      expect(elapsedDays).toBe(1);
+      expect(startDate?.getDate()).toBe(3);
+      expect(endDate?.getDate()).toBe(3);
+      expect(prevStartDate?.getDate()).toBe(2);
+      expect(prevEndDate?.getDate()).toBe(2);
+    });
+
+    it("should calculate correct date range for 'yesterday'", () => {
+      const { startDate, endDate, prevStartDate, prevEndDate, periodLabel, comparisonLabel, elapsedDays } =
+        getPeriodDateRange("yesterday", fixedNow);
+      expect(periodLabel).toBe("Yesterday");
+      expect(comparisonLabel).toBe("vs Day Before Yesterday");
+      expect(elapsedDays).toBe(1);
+      expect(startDate?.getDate()).toBe(2);
+      expect(prevStartDate?.getDate()).toBe(1);
+    });
+
+    it("should calculate correct date range for 'this_week'", () => {
+      const { startDate, prevStartDate, prevEndDate, periodLabel, comparisonLabel } =
+        getPeriodDateRange("this_week", fixedNow);
+      expect(periodLabel).toBe("This Week");
+      expect(comparisonLabel).toBe("vs Previous Week");
+      // Tuesday -> Monday Nov 2 was start of this week
+      expect(startDate?.getDate()).toBe(2);
+      // Previous week Monday was Oct 26
+      expect(prevStartDate?.getDate()).toBe(26);
+      expect(prevEndDate?.getDate()).toBe(1); // Nov 1 was Sunday
+    });
+
+    it("should calculate correct date range for 'current_month'", () => {
+      const { startDate, prevStartDate, prevEndDate, periodLabel, comparisonLabel, elapsedDays } =
+        getPeriodDateRange("current_month", fixedNow);
+      expect(periodLabel).toBe("Current Month");
+      expect(comparisonLabel).toBe("vs Previous Month");
+      expect(startDate?.getDate()).toBe(1);
+      expect(startDate?.getMonth()).toBe(10); // Nov (0-based 10)
+      expect(prevStartDate?.getMonth()).toBe(9); // Oct
+      expect(prevEndDate?.getDate()).toBe(31); // Oct 31
+      expect(elapsedDays).toBe(3);
+    });
+
+    it("should calculate correct date range for 'last_month'", () => {
+      const { startDate, endDate, periodLabel, comparisonLabel, elapsedDays } =
+        getPeriodDateRange("last_month", fixedNow);
+      expect(periodLabel).toBe("Last Month");
+      expect(comparisonLabel).toBe("vs Month Before Last");
+      expect(startDate?.getMonth()).toBe(9); // Oct
+      expect(endDate?.getDate()).toBe(31); // Oct 31
+      expect(elapsedDays).toBe(31);
+    });
+
+    it("should calculate correct date range for 'current_quarter'", () => {
+      const { startDate, periodLabel, comparisonLabel } =
+        getPeriodDateRange("current_quarter", fixedNow);
+      expect(periodLabel).toBe("Current Quarter (Q4)");
+      expect(comparisonLabel).toBe("vs Previous Quarter (Q3)");
+      expect(startDate?.getMonth()).toBe(9); // Q4 starts Oct 1 (month 9)
+    });
+
+    it("should calculate correct date range for 'current_year'", () => {
+      const { startDate, periodLabel, comparisonLabel } =
+        getPeriodDateRange("current_year", fixedNow);
+      expect(periodLabel).toBe("Current Year (2026)");
+      expect(comparisonLabel).toBe("vs Previous Year (2025)");
+      expect(startDate?.getMonth()).toBe(0); // Jan 1
+      expect(startDate?.getFullYear()).toBe(2026);
+    });
+
+    it("should calculate correct date range for 'all_time'", () => {
+      const { startDate, endDate, periodLabel, comparisonLabel } =
+        getPeriodDateRange("all_time", fixedNow);
+      expect(periodLabel).toBe("All-Time Ledger");
+      expect(comparisonLabel).toBe("All-Time Baseline");
+      expect(startDate).toBeNull();
+      expect(endDate).toBeNull();
+    });
+
+    it("should handle division by zero mathematically without returning NaN or Infinity", () => {
+      const currentExpenses = 500;
+      const prevExpensesZero = 0;
+
+      // Formula: ((Current - Prev) / Prev) * 100
+      const pctChange = prevExpensesZero > 0 ? Math.round(((currentExpenses - prevExpensesZero) / prevExpensesZero) * 100) : null;
+      expect(pctChange).toBeNull();
+
+      const currentIncomeZero = 0;
+      const savingsRate = currentIncomeZero > 0 ? Math.round((-500 / currentIncomeZero) * 100) : 0;
+      expect(savingsRate).toBe(0);
+      expect(Number.isFinite(savingsRate)).toBe(true);
+    });
+  });
   describe("SECTION 9: Financial Health Score Calculations", () => {
     it("should compute weighted 0-100 score and classify grades correctly", () => {
       // Test Excellent Grade (Score >= 85)

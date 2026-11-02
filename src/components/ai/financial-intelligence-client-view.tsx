@@ -31,7 +31,7 @@ import {
   Mic,
 } from "lucide-react";
 import { SplitLedgerAiIcon } from "@/components/ai/split-ledger-ai-icon";
-import { FinancialIntelligenceControlCenter } from "@/components/ai/financial-intelligence-control-center";
+import { FinancialIntelligenceControlCenter, PeriodFilter } from "@/components/ai/financial-intelligence-control-center";
 import { FinancialForecastingEnterpriseView } from "@/components/ai/financial-forecasting-enterprise-view";
 import { FinancialHealthScoreCard } from "@/components/ai/financial-health-score-card";
 import { AIInsightsFeed } from "@/components/ai/ai-insights-feed";
@@ -64,6 +64,11 @@ export function FinancialIntelligenceClientView({
   initialReminders = [],
 }: FinancialIntelligenceClientViewProps) {
   const [data, setData] = useState<FinancialIntelligenceData>(initialData);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>("current_month");
+  const [periodCache, setPeriodCache] = useState<Record<string, FinancialIntelligenceData>>({
+    current_month: initialData,
+  });
+  const [isPeriodLoading, setIsPeriodLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("assistant");
   const [isMounted, setIsMounted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -120,11 +125,35 @@ export function FinancialIntelligenceClientView({
     }
   };
 
+  // Instant period switching engine with client memoization
+  const handlePeriodChange = useCallback(
+    async (period: PeriodFilter, customStart?: string, customEnd?: string) => {
+      setSelectedPeriod(period);
+      const cacheKey = period === "custom" ? `custom_${customStart}_${customEnd}` : period;
+      if (periodCache[cacheKey]) {
+        setData(periodCache[cacheKey]);
+        return;
+      }
+      setIsPeriodLoading(true);
+      try {
+        const freshData = await getFinancialIntelligence(period, customStart, customEnd);
+        setPeriodCache((prev) => ({ ...prev, [cacheKey]: freshData }));
+        setData(freshData);
+      } catch {
+        toast.error("Failed to calculate metrics for selected period");
+      } finally {
+        setIsPeriodLoading(false);
+      }
+    },
+    [periodCache]
+  );
+
   // Reload fresh data from database
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const freshData = await getFinancialIntelligence();
+      const freshData = await getFinancialIntelligence(selectedPeriod);
+      setPeriodCache((prev) => ({ ...prev, [selectedPeriod]: freshData }));
       setData(freshData);
       toast.success("Intelligence dashboard synchronized with database");
     } catch {
@@ -132,7 +161,7 @@ export function FinancialIntelligenceClientView({
     } finally {
       setIsRefreshing(false);
     }
-  }, []);
+  }, [selectedPeriod]);
 
   // Subscribe to universal real-time events across windows & tabs
   useEffect(() => {
@@ -352,6 +381,9 @@ export function FinancialIntelligenceClientView({
             >
               <FinancialIntelligenceControlCenter
                 data={data}
+                selectedPeriod={selectedPeriod}
+                onSelectPeriod={handlePeriodChange}
+                isPeriodLoading={isPeriodLoading}
                 onOpenBudgetDialog={handleCreateBudget}
                 onRefresh={handleRefresh}
                 isRefreshing={isRefreshing}

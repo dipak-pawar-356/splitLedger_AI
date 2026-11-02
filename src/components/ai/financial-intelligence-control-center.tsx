@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { FinancialIntelligenceData } from "@/actions/financial-intelligence";
+import { FinancialIntelligenceData, getPeriodDateRange } from "@/actions/financial-intelligence";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,13 +13,10 @@ import {
   TrendingDown,
   Wallet,
   PiggyBank,
-  Scale,
   ArrowUpRight,
   ArrowDownRight,
   Clock,
   Calendar,
-  AlertCircle,
-  FileText,
   Plus,
   Upload,
   Target,
@@ -30,121 +27,122 @@ import {
   ArrowRight,
   CheckCircle2,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
+
+export type PeriodFilter =
+  | "today"
+  | "yesterday"
+  | "this_week"
+  | "last_week"
+  | "current_month"
+  | "last_month"
+  | "current_quarter"
+  | "last_quarter"
+  | "current_year"
+  | "last_year"
+  | "all_time"
+  | "custom";
 
 interface FinancialIntelligenceControlCenterProps {
   data: FinancialIntelligenceData;
   onOpenBudgetDialog?: (suggestedAmount?: number) => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  selectedPeriod?: PeriodFilter;
+  onSelectPeriod?: (period: PeriodFilter, customStart?: string, customEnd?: string) => void;
+  isPeriodLoading?: boolean;
 }
 
-type PeriodFilter = "current_month" | "last_month" | "this_week" | "today" | "all_time";
+const PRIMARY_PERIODS = [
+  { key: "current_month" as PeriodFilter, label: "Current Month" },
+  { key: "last_month" as PeriodFilter, label: "Last Month" },
+  { key: "this_week" as PeriodFilter, label: "This Week" },
+  { key: "today" as PeriodFilter, label: "Today" },
+  { key: "all_time" as PeriodFilter, label: "All Time" },
+];
+
+const EXTENDED_PERIODS = [
+  { key: "yesterday" as PeriodFilter, label: "Yesterday" },
+  { key: "last_week" as PeriodFilter, label: "Last Week" },
+  { key: "current_quarter" as PeriodFilter, label: "Current Quarter" },
+  { key: "last_quarter" as PeriodFilter, label: "Last Quarter" },
+  { key: "current_year" as PeriodFilter, label: "Current Year" },
+  { key: "last_year" as PeriodFilter, label: "Last Year" },
+];
 
 export function FinancialIntelligenceControlCenter({
   data,
   onOpenBudgetDialog,
   onRefresh,
   isRefreshing = false,
+  selectedPeriod = "current_month",
+  onSelectPeriod,
+  isPeriodLoading = false,
 }: FinancialIntelligenceControlCenterProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>("current_month");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 
   const { controlCenter, aiInsights } = data;
-  const hasData = controlCenter.hasVerifiedData && controlCenter.transactionCount > 0;
+  const hasTransactionsInPeriod = controlCenter.transactionCount > 0;
 
-  // Real-time period comparison label
+  // Comparison labels
   const periodLabel = useMemo(() => {
-    switch (selectedPeriod) {
-      case "current_month":
-        return "Current Month";
-      case "last_month":
-        return "Last Month";
-      case "this_week":
-        return "This Week";
-      case "today":
-        return "Today";
-      case "all_time":
-        return "All-Time Ledger";
-    }
-  }, [selectedPeriod]);
+    if (controlCenter.periodLabel) return controlCenter.periodLabel;
+    const all = [...PRIMARY_PERIODS, ...EXTENDED_PERIODS];
+    const match = all.find((p) => p.key === selectedPeriod);
+    return match ? match.label : "Current Month";
+  }, [controlCenter.periodLabel, selectedPeriod]);
 
   const comparisonSubtitle = useMemo(() => {
+    if (controlCenter.periodComparison?.comparisonLabel) {
+      return controlCenter.periodComparison.comparisonLabel;
+    }
+    if (controlCenter.comparisonLabel) return controlCenter.comparisonLabel;
     switch (selectedPeriod) {
+      case "today":
+        return "vs Yesterday";
+      case "yesterday":
+        return "vs Day Before Yesterday";
+      case "this_week":
+        return "vs Previous Week";
+      case "last_week":
+        return "vs Week Before Last";
       case "current_month":
         return "vs Previous Month";
       case "last_month":
         return "vs Month Before Last";
-      case "this_week":
-        return "vs Previous Week";
-      case "today":
-        return "vs Yesterday";
-      case "all_time":
+      case "current_quarter":
+        return "vs Previous Quarter";
+      case "last_quarter":
+        return "vs Quarter Before Last";
+      case "current_year":
+        return "vs Previous Year";
+      case "last_year":
+        return "vs Year Before Last";
+      default:
         return "All-Time Baseline";
     }
-  }, [selectedPeriod]);
+  }, [controlCenter.periodComparison, controlCenter.comparisonLabel, selectedPeriod]);
 
-  // If the user has no verified transactions, render the elegant empty state as instructed
-  if (!hasData) {
-    return (
-      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs overflow-hidden">
-        <CardContent className="p-8 sm:p-14 text-center max-w-xl mx-auto space-y-6">
-          {/* Elegant Illustration */}
-          <div className="relative mx-auto w-24 h-24 rounded-3xl bg-gradient-to-br from-primary/10 via-emerald-500/10 to-indigo-500/10 border border-primary/20 flex items-center justify-center shadow-inner">
-            <ShieldCheck className="h-12 w-12 text-primary animate-pulse" />
-            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-background" />
-          </div>
-
-          <div className="space-y-2">
-            <Badge variant="outline" className="text-xs font-bold text-primary border-primary/30 bg-primary/5 uppercase">
-              Financial Control Center
-            </Badge>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
-              No verified transactions are available for the selected period.
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-sans">
-              Your Financial Intelligence Control Center derives metrics strictly from approved ledger entries, reconciled settlements, and active budgets. Zero fabricated values or placeholder data are displayed.
-            </p>
-          </div>
-
-          {/* Clear Call-To-Actions (Create Transaction, Import Data, Create Budget) */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-            <Button asChild className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto shadow-xs">
-              <Link href="/dashboard/transactions">
-                <Plus className="h-4 w-4" />
-                <span>Create Transaction</span>
-              </Link>
-            </Button>
-
-            <Button asChild variant="outline" className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto">
-              <Link href="/dashboard/contacts">
-                <Upload className="h-4 w-4" />
-                <span>Import Data</span>
-              </Link>
-            </Button>
-
-            {onOpenBudgetDialog && (
-              <Button
-                variant="secondary"
-                onClick={() => onOpenBudgetDialog()}
-                className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto"
-              >
-                <Target className="h-4 w-4" />
-                <span>Create Budget</span>
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const handlePeriodClick = (p: PeriodFilter) => {
+    setIsDropdownOpen(false);
+    if (onSelectPeriod) {
+      onSelectPeriod(p);
+    }
+  };
 
   const isNetPositive = controlCenter.netCashFlow >= 0;
+  const isExtendedSelected = EXTENDED_PERIODS.some((p) => p.key === selectedPeriod);
+  const extendedSelectedLabel = EXTENDED_PERIODS.find((p) => p.key === selectedPeriod)?.label;
+
+  const pctIncome = controlCenter.periodComparison?.percentChangeIncome ?? controlCenter.monthlyComparison?.percentChangeIncome;
+  const pctExpense = controlCenter.periodComparison?.percentChangeExpense ?? controlCenter.monthlyComparison?.percentChangeExpense;
 
   return (
     <div className="space-y-6">
-      {/* Control Center Header & Period Selector */}
+      {/* Control Center Header & Responsive Period Selector */}
       <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs bg-card overflow-hidden">
         <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -160,6 +158,11 @@ export function FinancialIntelligenceControlCenter({
                   <Badge variant="outline" className="text-[10px] font-bold text-emerald-600 border-emerald-300 dark:border-emerald-800 bg-emerald-500/5">
                     Live Verified Records
                   </Badge>
+                  {isPeriodLoading && (
+                    <Badge variant="secondary" className="text-[10px] font-mono text-primary animate-pulse">
+                      Calculating...
+                    </Badge>
+                  )}
                 </div>
                 <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Real-time aggregation across approved ledger transactions, settlements, and active spending boundaries
@@ -167,22 +170,14 @@ export function FinancialIntelligenceControlCenter({
               </div>
             </div>
 
-            {/* Time Filter Selector */}
+            {/* Comprehensive Period Selector Engine */}
             <div className="flex items-center gap-2 self-start lg:self-auto flex-wrap">
               <div
                 role="radiogroup"
                 aria-label="Intelligence period filter"
-                className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 backdrop-blur-xs text-xs font-semibold"
+                className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 backdrop-blur-xs text-xs font-semibold overflow-x-auto max-w-full"
               >
-                {(
-                  [
-                    { key: "current_month", label: "Current Month" },
-                    { key: "last_month", label: "Last Month" },
-                    { key: "this_week", label: "This Week" },
-                    { key: "today", label: "Today" },
-                    { key: "all_time", label: "All Time" },
-                  ] as const
-                ).map((tab) => {
+                {PRIMARY_PERIODS.map((tab) => {
                   const isSelected = selectedPeriod === tab.key;
                   return (
                     <button
@@ -190,17 +185,17 @@ export function FinancialIntelligenceControlCenter({
                       type="button"
                       role="radio"
                       aria-checked={isSelected}
-                      onClick={() => setSelectedPeriod(tab.key)}
-                      className={`relative px-3 py-1.5 min-h-[30px] rounded-xl text-xs font-bold transition-colors ${
+                      onClick={() => handlePeriodClick(tab.key)}
+                      className={`relative px-3 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-all shrink-0 ${
                         isSelected
-                          ? "text-primary-foreground"
+                          ? "text-primary-foreground shadow-xs"
                           : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                       }`}
                     >
                       {isSelected && (
                         <motion.div
                           layoutId="fc-period-pill"
-                          className="absolute inset-0 bg-primary rounded-xl shadow-xs"
+                          className="absolute inset-0 bg-primary rounded-xl"
                           transition={shouldReduceMotion ? { duration: 0 } : { type: "spring", stiffness: 450, damping: 32 }}
                         />
                       )}
@@ -208,6 +203,45 @@ export function FinancialIntelligenceControlCenter({
                     </button>
                   );
                 })}
+
+                {/* More Periods Dropdown Trigger */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsDropdownOpen((prev) => !prev)}
+                    className={`relative px-2.5 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 ${
+                      isExtendedSelected
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                    }`}
+                    aria-expanded={isDropdownOpen}
+                    aria-label="More period filters"
+                  >
+                    <span>{isExtendedSelected ? extendedSelectedLabel : "More"}</span>
+                    <ChevronDown className={`h-3 w-3 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-1.5 w-44 rounded-2xl border border-slate-200 dark:border-slate-800 bg-background/95 backdrop-blur-md shadow-xl p-1.5 z-50 space-y-0.5">
+                      {EXTENDED_PERIODS.map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => handlePeriodClick(item.key)}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-colors flex items-center justify-between ${
+                            selectedPeriod === item.key
+                              ? "bg-primary/10 text-primary font-bold"
+                              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          }`}
+                        >
+                          <span>{item.label}</span>
+                          {selectedPeriod === item.key && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {onRefresh && (
@@ -215,11 +249,11 @@ export function FinancialIntelligenceControlCenter({
                   size="sm"
                   variant="outline"
                   onClick={onRefresh}
-                  disabled={isRefreshing}
-                  className="rounded-xl h-9 min-h-[36px] px-3 text-xs font-bold gap-1.5"
+                  disabled={isRefreshing || isPeriodLoading}
+                  className="rounded-xl h-9 min-h-[36px] px-3 text-xs font-bold gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-[0.98] transition-all"
                   aria-label="Refresh financial control center"
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
+                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing || isPeriodLoading ? "animate-spin text-primary" : ""}`} />
                   <span className="hidden sm:inline">Sync</span>
                 </Button>
               )}
@@ -228,13 +262,63 @@ export function FinancialIntelligenceControlCenter({
         </CardHeader>
       </Card>
 
+      {/* ZERO VERIFIED DATA BANNER (Rendered conditionally while preserving header) */}
+      {!hasTransactionsInPeriod && (
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card shadow-xs overflow-hidden">
+          <CardContent className="p-8 sm:p-12 text-center max-w-xl mx-auto space-y-5">
+            <div className="relative mx-auto w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/10 via-emerald-500/10 to-indigo-500/10 border border-primary/20 flex items-center justify-center shadow-inner">
+              <ShieldCheck className="h-10 w-10 text-primary animate-pulse" />
+            </div>
+
+            <div className="space-y-2">
+              <Badge variant="outline" className="text-xs font-bold text-primary border-primary/30 bg-primary/5 uppercase">
+                {periodLabel}
+              </Badge>
+              <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+                No approved transactions recorded for {periodLabel}.
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-sans">
+                Your Financial Intelligence Control Center derives every calculation exclusively from verified ledger entries, active budgets, and completed settlements. No placeholder or guessed data are fabricated.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <Button asChild className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto shadow-xs active:scale-[0.98] transition-all">
+                <Link href="/dashboard/transactions">
+                  <Plus className="h-4 w-4" />
+                  <span>Create Transaction</span>
+                </Link>
+              </Button>
+
+              <Button asChild variant="outline" className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto active:scale-[0.98] transition-all">
+                <Link href="/dashboard/contacts">
+                  <Upload className="h-4 w-4" />
+                  <span>Import Data</span>
+                </Link>
+              </Button>
+
+              {onOpenBudgetDialog && (
+                <Button
+                  variant="secondary"
+                  onClick={() => onOpenBudgetDialog()}
+                  className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto active:scale-[0.98] transition-all"
+                >
+                  <Target className="h-4 w-4" />
+                  <span>Create Budget</span>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* CORE OPERATIONAL METRICS (8 CARDS) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. Total Income */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-emerald-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Total Income</span>
-            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
+            <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
@@ -244,18 +328,18 @@ export function FinancialIntelligenceControlCenter({
           <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1.5">
             <span>Verified receipts</span>
             <span className="font-bold text-slate-600 dark:text-slate-300">
-              {controlCenter.monthlyComparison.percentChangeIncome !== null
-                ? `${controlCenter.monthlyComparison.percentChangeIncome >= 0 ? "+" : ""}${controlCenter.monthlyComparison.percentChangeIncome}% ${comparisonSubtitle}`
+              {pctIncome !== null
+                ? `${pctIncome >= 0 ? "+" : ""}${pctIncome}% ${comparisonSubtitle}`
                 : "Verified inflow"}
             </span>
           </div>
         </Card>
 
         {/* 2. Total Expense */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-rose-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Total Expense</span>
-            <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-600">
+            <div className="p-1.5 rounded-lg bg-rose-500/10 text-rose-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <TrendingDown className="h-4 w-4" />
             </div>
           </div>
@@ -265,18 +349,18 @@ export function FinancialIntelligenceControlCenter({
           <div className="flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1.5">
             <span>Verified outflows</span>
             <span className="font-bold text-slate-600 dark:text-slate-300">
-              {controlCenter.monthlyComparison.percentChangeExpense !== null
-                ? `${controlCenter.monthlyComparison.percentChangeExpense > 0 ? "+" : ""}${controlCenter.monthlyComparison.percentChangeExpense}% ${comparisonSubtitle}`
+              {pctExpense !== null
+                ? `${pctExpense > 0 ? "+" : ""}${pctExpense}% ${comparisonSubtitle}`
                 : "Verified debits"}
             </span>
           </div>
         </Card>
 
         {/* 3. Net Cash Flow */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-indigo-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Net Cash Flow</span>
-            <div className={`p-1.5 rounded-lg ${isNetPositive ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"}`}>
+            <div className={`p-1.5 rounded-lg group-hover:scale-110 group-hover:rotate-6 transition-transform ${isNetPositive ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"}`}>
               <Wallet className="h-4 w-4" />
             </div>
           </div>
@@ -293,10 +377,10 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* 4. Savings & Savings Rate */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-indigo-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Savings</span>
-            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600">
+            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <PiggyBank className="h-4 w-4" />
             </div>
           </div>
@@ -311,10 +395,10 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* 5. Total Receivable */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-teal-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Total Receivable</span>
-            <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-600">
+            <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <ArrowUpRight className="h-4 w-4" />
             </div>
           </div>
@@ -328,10 +412,10 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* 6. Total Payable */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-amber-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Total Payable</span>
-            <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600">
+            <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <ArrowDownRight className="h-4 w-4" />
             </div>
           </div>
@@ -345,10 +429,10 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* 7. Budget Remaining */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-indigo-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Budget Remaining</span>
-            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600">
+            <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <Target className="h-4 w-4" />
             </div>
           </div>
@@ -362,10 +446,10 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* 8. Pending Settlements */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg hover:border-purple-500/50 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px]">Pending Settlements</span>
-            <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-600">
+            <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-600 group-hover:scale-110 group-hover:rotate-6 transition-transform">
               <Clock className="h-4 w-4" />
             </div>
           </div>
@@ -382,7 +466,7 @@ export function FinancialIntelligenceControlCenter({
       {/* ANALYTICAL METRICS ROW (6 METRICS) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Largest Expense */}
-        <Card className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer">
           <div className="flex items-center justify-between text-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
               Largest Expense Entry
@@ -407,7 +491,7 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* Largest Income */}
-        <Card className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer">
           <div className="flex items-center justify-between text-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
               Largest Income Entry
@@ -432,7 +516,7 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* Most Used Category */}
-        <Card className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer">
           <div className="flex items-center justify-between text-xs">
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
               Most Used Category
@@ -457,7 +541,7 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* Highest Spending Day */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Highest Spending Day</span>
             <Calendar className="h-3.5 w-3.5 text-rose-500" />
@@ -474,7 +558,7 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* Highest Income Day */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Highest Income Day</span>
             <Calendar className="h-3.5 w-3.5 text-emerald-500" />
@@ -491,7 +575,7 @@ export function FinancialIntelligenceControlCenter({
         </Card>
 
         {/* Daily Spending & Income Run-Rates */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="text-[10px] font-bold uppercase tracking-wider">Daily Run-Rates</span>
             <Zap className="h-3.5 w-3.5 text-amber-500" />
@@ -512,28 +596,28 @@ export function FinancialIntelligenceControlCenter({
       </div>
 
       {/* DYNAMIC VERIFIED INSIGHTS SECTION */}
-      {aiInsights && aiInsights.length > 0 && (
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden shadow-xs">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm font-bold">Verified Ledger Insights</CardTitle>
-              </div>
-              <Badge variant="outline" className="text-[10px] font-mono">
-                {aiInsights.length} Verified Signals
-              </Badge>
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden shadow-xs">
+        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-bold">Verified Ledger Insights</CardTitle>
             </div>
-            <CardDescription className="text-xs">
-              Every insight is mathematically calculated from changes between verified ledger records
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-5 space-y-3">
+            <Badge variant="outline" className="text-[10px] font-mono">
+              {aiInsights.length} Verified Signals
+            </Badge>
+          </div>
+          <CardDescription className="text-xs">
+            Every insight is mathematically calculated from changes between verified ledger records
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-5 space-y-3">
+          {aiInsights && aiInsights.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {aiInsights.map((insight) => (
                 <div
                   key={insight.id}
-                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 flex items-start gap-3 text-xs"
+                  className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-800 flex items-start gap-3 text-xs hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-200"
                 >
                   <div
                     className={`p-2 rounded-xl shrink-0 ${
@@ -560,9 +644,18 @@ export function FinancialIntelligenceControlCenter({
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="p-6 text-center text-xs text-slate-400 space-y-1">
+              <p className="font-bold text-slate-600 dark:text-slate-300">
+                Not enough verified history for {periodLabel} to generate comparative insights.
+              </p>
+              <p className="text-slate-400">
+                Insights require verified transactions across current and baseline periods to calculate statistical variances. Zero placeholder or fabricated trends are displayed.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* TWO COLUMN GRID: RECENT VERIFIED ACTIVITY & CATEGORY BREAKDOWN */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -656,4 +749,3 @@ export function FinancialIntelligenceControlCenter({
     </div>
   );
 }
-

@@ -124,6 +124,22 @@ export interface FinancialControlCenterMetrics {
   pendingSettlementsCount: number;
   pendingSettlementsAmount: number;
   overdueReceivables: number;
+  selectedPeriod?: string;
+  periodLabel?: string;
+  comparisonLabel?: string;
+  elapsedDays?: number;
+  periodComparison?: {
+    currentPeriodExpense: number;
+    prevPeriodExpense: number;
+    diffExpense: number;
+    percentChangeExpense: number | null;
+    currentPeriodIncome: number;
+    prevPeriodIncome: number;
+    diffIncome: number;
+    percentChangeIncome: number | null;
+    periodLabel: string;
+    comparisonLabel: string;
+  };
   recentActivity: Array<{
     id: number;
     title: string;
@@ -216,10 +232,183 @@ export interface FinancialIntelligenceData {
   };
 }
 
+export function getPeriodDateRange(
+  period: string = "current_month",
+  now: Date = new Date(),
+  customStart?: string,
+  customEnd?: string
+) {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const date = now.getDate();
+  const day = now.getDay();
+
+  let startDate: Date | null = null;
+  let endDate: Date | null = null;
+  let prevStartDate: Date | null = null;
+  let prevEndDate: Date | null = null;
+  let periodLabel = "Current Month";
+  let comparisonLabel = "vs Previous Month";
+  let elapsedDays = Math.max(1, date);
+
+  switch (period) {
+    case "today": {
+      startDate = new Date(year, month, date, 0, 0, 0, 0);
+      endDate = new Date(year, month, date, 23, 59, 59, 999);
+      prevStartDate = new Date(year, month, date - 1, 0, 0, 0, 0);
+      prevEndDate = new Date(year, month, date - 1, 23, 59, 59, 999);
+      periodLabel = "Today";
+      comparisonLabel = "vs Yesterday";
+      elapsedDays = 1;
+      break;
+    }
+    case "yesterday": {
+      startDate = new Date(year, month, date - 1, 0, 0, 0, 0);
+      endDate = new Date(year, month, date - 1, 23, 59, 59, 999);
+      prevStartDate = new Date(year, month, date - 2, 0, 0, 0, 0);
+      prevEndDate = new Date(year, month, date - 2, 23, 59, 59, 999);
+      periodLabel = "Yesterday";
+      comparisonLabel = "vs Day Before Yesterday";
+      elapsedDays = 1;
+      break;
+    }
+    case "this_week": {
+      const diffToMonday = (day === 0 ? -6 : 1) - day;
+      startDate = new Date(year, month, date + diffToMonday, 0, 0, 0, 0);
+      endDate = new Date(year, month, date, 23, 59, 59, 999);
+      prevStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() - 7, 0, 0, 0, 0);
+      prevEndDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() - 1, 23, 59, 59, 999);
+      periodLabel = "This Week";
+      comparisonLabel = "vs Previous Week";
+      elapsedDays = Math.max(1, day === 0 ? 7 : day);
+      break;
+    }
+    case "last_week": {
+      const diffToMonday = (day === 0 ? -6 : 1) - day;
+      const currentMonday = new Date(year, month, date + diffToMonday, 0, 0, 0, 0);
+      startDate = new Date(currentMonday.getFullYear(), currentMonday.getMonth(), currentMonday.getDate() - 7, 0, 0, 0, 0);
+      endDate = new Date(currentMonday.getFullYear(), currentMonday.getMonth(), currentMonday.getDate() - 1, 23, 59, 59, 999);
+      prevStartDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() - 7, 0, 0, 0, 0);
+      prevEndDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() - 1, 23, 59, 59, 999);
+      periodLabel = "Last Week";
+      comparisonLabel = "vs Week Before Last";
+      elapsedDays = 7;
+      break;
+    }
+    case "current_month": {
+      startDate = new Date(year, month, 1, 0, 0, 0, 0);
+      endDate = new Date(year, month, date, 23, 59, 59, 999);
+      prevStartDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(year, month, 0, 23, 59, 59, 999);
+      periodLabel = "Current Month";
+      comparisonLabel = "vs Previous Month";
+      elapsedDays = Math.max(1, date);
+      break;
+    }
+    case "last_month": {
+      startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      endDate = new Date(year, month, 0, 23, 59, 59, 999);
+      prevStartDate = new Date(year, month - 2, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(year, month - 1, 0, 23, 59, 59, 999);
+      periodLabel = "Last Month";
+      comparisonLabel = "vs Month Before Last";
+      elapsedDays = new Date(year, month, 0).getDate();
+      break;
+    }
+    case "current_quarter": {
+      const qStartMonth = Math.floor(month / 3) * 3;
+      const qNum = Math.floor(month / 3) + 1;
+      startDate = new Date(year, qStartMonth, 1, 0, 0, 0, 0);
+      endDate = new Date(year, month, date, 23, 59, 59, 999);
+      prevStartDate = new Date(year, qStartMonth - 3, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(year, qStartMonth, 0, 23, 59, 59, 999);
+      periodLabel = `Current Quarter (Q${qNum})`;
+      comparisonLabel = `vs Previous Quarter (Q${qNum === 1 ? 4 : qNum - 1})`;
+      elapsedDays = Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      break;
+    }
+    case "last_quarter": {
+      const qStartMonth = Math.floor(month / 3) * 3 - 3;
+      const qNum = ((Math.floor(month / 3) + 3) % 4) || 4;
+      startDate = new Date(year, qStartMonth, 1, 0, 0, 0, 0);
+      endDate = new Date(year, qStartMonth + 3, 0, 23, 59, 59, 999);
+      prevStartDate = new Date(year, qStartMonth - 3, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(year, qStartMonth, 0, 23, 59, 59, 999);
+      periodLabel = `Last Quarter (Q${qNum})`;
+      comparisonLabel = `vs Quarter Before Last`;
+      elapsedDays = Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      break;
+    }
+    case "current_year": {
+      startDate = new Date(year, 0, 1, 0, 0, 0, 0);
+      endDate = new Date(year, month, date, 23, 59, 59, 999);
+      prevStartDate = new Date(year - 1, 0, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(year - 1, 11, 31, 23, 59, 59, 999);
+      periodLabel = `Current Year (${year})`;
+      comparisonLabel = `vs Previous Year (${year - 1})`;
+      elapsedDays = Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      break;
+    }
+    case "last_year": {
+      startDate = new Date(year - 1, 0, 1, 0, 0, 0, 0);
+      endDate = new Date(year - 1, 11, 31, 23, 59, 59, 999);
+      prevStartDate = new Date(year - 2, 0, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(year - 2, 11, 31, 23, 59, 59, 999);
+      periodLabel = `Last Year (${year - 1})`;
+      comparisonLabel = `vs Year Before Last (${year - 2})`;
+      elapsedDays = 365;
+      break;
+    }
+    case "all_time": {
+      startDate = null;
+      endDate = null;
+      prevStartDate = null;
+      prevEndDate = null;
+      periodLabel = "All-Time Ledger";
+      comparisonLabel = "All-Time Baseline";
+      elapsedDays = 30;
+      break;
+    }
+    case "custom": {
+      startDate = customStart ? new Date(customStart) : new Date(year, month, 1, 0, 0, 0, 0);
+      endDate = customEnd ? new Date(customEnd) : new Date(year, month, date, 23, 59, 59, 999);
+      prevStartDate = null;
+      prevEndDate = null;
+      periodLabel = "Custom Range";
+      comparisonLabel = "Baseline";
+      elapsedDays = Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      break;
+    }
+    default: {
+      startDate = new Date(year, month, 1, 0, 0, 0, 0);
+      endDate = new Date(year, month, date, 23, 59, 59, 999);
+      prevStartDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      prevEndDate = new Date(year, month, 0, 23, 59, 59, 999);
+      periodLabel = "Current Month";
+      comparisonLabel = "vs Previous Month";
+      elapsedDays = Math.max(1, date);
+    }
+  }
+
+  return {
+    startDate,
+    endDate,
+    prevStartDate,
+    prevEndDate,
+    periodLabel,
+    comparisonLabel,
+    elapsedDays,
+  };
+}
+
 /**
  * SECTION 4–14: Financial Intelligence Master Query & Evaluation Engine
  */
-export async function getFinancialIntelligence(): Promise<FinancialIntelligenceData> {
+export async function getFinancialIntelligence(
+  period: string = "current_month",
+  customStart?: string,
+  customEnd?: string
+): Promise<FinancialIntelligenceData> {
   try {
     const user = await requireAuth();
     const now = new Date();
@@ -227,9 +416,48 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
+    const {
+      startDate,
+      endDate,
+      prevStartDate,
+      prevEndDate,
+      periodLabel,
+      comparisonLabel,
+      elapsedDays,
+    } = getPeriodDateRange(period, now, customStart, customEnd);
+
+    // Dynamic Period Conditions for strictly approved ledger records
+    const periodWhereConditions = [
+      eq(transactions.isDeleted, false),
+      eq(transactions.userId, user.id),
+      sql`${transactions.status} NOT IN ('rejected', 'draft')`,
+      or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
+    ];
+    if (startDate) {
+      periodWhereConditions.push(gte(transactions.date, startDate));
+    }
+    if (endDate) {
+      periodWhereConditions.push(lte(transactions.date, endDate));
+    }
+
+    const prevPeriodWhereConditions = [
+      eq(transactions.isDeleted, false),
+      eq(transactions.userId, user.id),
+      sql`${transactions.status} NOT IN ('rejected', 'draft')`,
+      or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
+    ];
+    if (prevStartDate) {
+      prevPeriodWhereConditions.push(gte(transactions.date, prevStartDate));
+    }
+    if (prevEndDate) {
+      prevPeriodWhereConditions.push(lte(transactions.date, prevEndDate));
+    }
+
     // Parallel Batch Aggregation
     const [
       userBudgets,
+      periodTransactionsRaw,
+      prevPeriodTransactionsRaw,
       currentMonthTransactionsRaw,
       lastMonthTransactionsRaw,
       sixMonthTransactionsRaw,
@@ -241,7 +469,40 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     ] = await Promise.all([
       getBudgetsWithProgress(),
 
-      // Current month transactions
+      // Selected period transactions
+      db
+        .select({
+          id: transactions.id,
+          title: transactions.title,
+          amount: transactions.amount,
+          type: transactions.type,
+          groupId: transactions.groupId,
+          categoryId: transactions.categoryId,
+          categoryName: categories.name,
+          date: transactions.date,
+        })
+        .from(transactions)
+        .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        .where(and(...periodWhereConditions)),
+
+      // Previous period comparison transactions (if comparison baseline exists)
+      prevStartDate
+        ? db
+            .select({
+              id: transactions.id,
+              title: transactions.title,
+              amount: transactions.amount,
+              type: transactions.type,
+              categoryId: transactions.categoryId,
+              categoryName: categories.name,
+              date: transactions.date,
+            })
+            .from(transactions)
+            .leftJoin(categories, eq(transactions.categoryId, categories.id))
+            .where(and(...prevPeriodWhereConditions))
+        : Promise.resolve([]),
+
+      // Current month transactions (for health score & month-baseline)
       db
         .select({
           id: transactions.id,
@@ -259,6 +520,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
             or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, startOfCurrentMonth)
           )
@@ -281,6 +543,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
             or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, startOfLastMonth),
             lte(transactions.date, endOfLastMonth)
@@ -301,6 +564,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
             or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, new Date(now.getFullYear(), now.getMonth() - 5, 1))
           )
@@ -406,6 +670,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
             or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
           )
         )
@@ -542,30 +807,60 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     if (budgetScore === 20 && userBudgets.length > 0) strengths.push("All active budgets are well within safety thresholds");
     else if (userBudgets.length === 0) improvements.push("Set up category budgets to maintain predictable spending boundaries");
 
+    // Period-Specific Verified Metrics
+    const periodExpenses = periodTransactionsRaw
+      .filter((t) => t.type === "paid" || t.type === "borrowed")
+      .reduce((sum, t) => sum + t.amount / 100, 0);
+
+    const periodIncome = periodTransactionsRaw
+      .filter((t) => t.type === "received" || t.type === "lent" || t.type === "repaid")
+      .reduce((sum, t) => sum + t.amount / 100, 0);
+
+    const periodSavings = periodIncome - periodExpenses;
+    const periodSavingsRate = periodIncome > 0 ? Math.round((periodSavings / periodIncome) * 100) : 0;
+
+    const prevPeriodExpenses = prevPeriodTransactionsRaw
+      .filter((t) => t.type === "paid" || t.type === "borrowed")
+      .reduce((sum, t) => sum + t.amount / 100, 0);
+
+    const prevPeriodIncome = prevPeriodTransactionsRaw
+      .filter((t) => t.type === "received" || t.type === "lent" || t.type === "repaid")
+      .reduce((sum, t) => sum + t.amount / 100, 0);
+
+    const diffPeriodExpense = Math.round(periodExpenses - prevPeriodExpenses);
+    const percentChangePeriodExpense = prevPeriodExpenses > 0
+      ? Math.round(((periodExpenses - prevPeriodExpenses) / prevPeriodExpenses) * 100)
+      : null;
+
+    const diffPeriodIncome = Math.round(periodIncome - prevPeriodIncome);
+    const percentChangePeriodIncome = prevPeriodIncome > 0
+      ? Math.round(((periodIncome - prevPeriodIncome) / prevPeriodIncome) * 100)
+      : null;
+
     // ----------------------------------------------------
-    // SECTION 4: AI Financial Insights Generation
+    // SECTION 4: AI Financial Insights Generation (Strictly Period Verified)
     // ----------------------------------------------------
     const aiInsights: AIInsight[] = [];
 
-    // Category Surge Analysis
+    // Category Surge Analysis for Selected Period
     const categorySpendingMap = new Map<string, number>();
-    currentMonthTransactionsRaw.forEach((t) => {
+    periodTransactionsRaw.forEach((t) => {
       if (t.type === "paid" || t.type === "borrowed") {
         const cat = t.categoryName || "General";
         categorySpendingMap.set(cat, (categorySpendingMap.get(cat) || 0) + t.amount / 100);
       }
     });
 
-    const lastMonthCatMap = new Map<string, number>();
-    lastMonthTransactionsRaw.forEach((t) => {
+    const prevPeriodCatMap = new Map<string, number>();
+    prevPeriodTransactionsRaw.forEach((t) => {
       if (t.type === "paid" || t.type === "borrowed") {
         const cat = t.categoryName || "General";
-        lastMonthCatMap.set(cat, (lastMonthCatMap.get(cat) || 0) + t.amount / 100);
+        prevPeriodCatMap.set(cat, (prevPeriodCatMap.get(cat) || 0) + t.amount / 100);
       }
     });
 
     categorySpendingMap.forEach((currentAmt, cat) => {
-      const prevAmt = lastMonthCatMap.get(cat) || 0;
+      const prevAmt = prevPeriodCatMap.get(cat) || 0;
       if (prevAmt > 0 && currentAmt > prevAmt) {
         const growth = Math.round(((currentAmt - prevAmt) / prevAmt) * 100);
         if (growth >= 15) {
@@ -574,7 +869,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
             type: "category_surge",
             severity: growth >= 40 ? "warning" : "info",
             title: `${cat} Spending Surge`,
-            description: `Your ${cat} expenses increased by ${growth}% compared to last month (₹${currentAmt.toFixed(2)} vs ₹${prevAmt.toFixed(2)}).`,
+            description: `Your ${cat} expenses increased by ${growth}% compared to ${comparisonLabel} (₹${currentAmt.toFixed(2)} vs ₹${prevAmt.toFixed(2)}).`,
             metricValue: `+${growth}%`,
             date: now,
           });
@@ -587,7 +882,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
             type: "category_surge",
             severity: "positive",
             title: `${cat} Expense Reduction`,
-            description: `${cat} spending reduced by ${reduction}% (saved ₹${(prevAmt - currentAmt).toFixed(2)} compared to last month).`,
+            description: `${cat} spending reduced by ${reduction}% (saved ₹${(prevAmt - currentAmt).toFixed(2)} compared to ${comparisonLabel}).`,
             metricValue: `-${reduction}%`,
             date: now,
           });
@@ -595,39 +890,42 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       }
     });
 
-    if (lastMonthExpenses > 0 && currentMonthExpenses > 0) {
-      const diff = Math.round(currentMonthExpenses - lastMonthExpenses);
-      if (diff > 0) {
+    if (prevPeriodExpenses > 0 && periodExpenses > 0) {
+      if (diffPeriodExpense > 0) {
         aiInsights.push({
-          id: "insight-month-diff",
+          id: "insight-period-diff",
           type: "category_surge",
           severity: "warning",
-          title: "Monthly Outflow Variance",
-          description: `You spent ₹${diff.toLocaleString("en-IN")} more overall compared to last month.`,
-          metricValue: `+₹${diff.toLocaleString("en-IN")}`,
+          title: `${periodLabel} Outflow Variance`,
+          description: `You spent ₹${diffPeriodExpense.toLocaleString("en-IN")} more overall compared to ${comparisonLabel}.`,
+          metricValue: `+₹${diffPeriodExpense.toLocaleString("en-IN")}`,
           date: now,
         });
-      } else if (diff < 0) {
+      } else if (diffPeriodExpense < 0) {
         aiInsights.push({
-          id: "insight-month-diff",
+          id: "insight-period-diff",
           type: "savings_alert",
           severity: "positive",
-          title: "Monthly Expense Savings",
-          description: `You spent ₹${Math.abs(diff).toLocaleString("en-IN")} less overall compared to last month.`,
-          metricValue: `-₹${Math.abs(diff).toLocaleString("en-IN")}`,
+          title: `${periodLabel} Expense Savings`,
+          description: `You spent ₹${Math.abs(diffPeriodExpense).toLocaleString("en-IN")} less overall compared to ${comparisonLabel}.`,
+          metricValue: `-₹${Math.abs(diffPeriodExpense).toLocaleString("en-IN")}`,
           date: now,
         });
       }
     }
 
-    const salaryTx = currentMonthTransactionsRaw.find((t) => (t.type === "received" || t.type === "lent" || t.type === "repaid") && (t.title?.toLowerCase().includes("salary") || t.categoryName?.toLowerCase().includes("salary")));
+    const salaryTx = periodTransactionsRaw.find(
+      (t) =>
+        (t.type === "received" || t.type === "lent" || t.type === "repaid") &&
+        (t.title?.toLowerCase().includes("salary") || t.categoryName?.toLowerCase().includes("salary"))
+    );
     if (salaryTx) {
       aiInsights.push({
         id: "insight-salary-received",
         type: "milestone",
         severity: "positive",
         title: "Salary Inflow Confirmed",
-        description: `You received ₹${(salaryTx.amount / 100).toLocaleString("en-IN")} in verified salary income.`,
+        description: `You received ₹${(salaryTx.amount / 100).toLocaleString("en-IN")} in verified salary income during this period.`,
         metricValue: `+₹${(salaryTx.amount / 100).toLocaleString("en-IN")}`,
         date: now,
       });
@@ -646,14 +944,14 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       });
     }
 
-    if (savingsRate > 25) {
+    if (periodSavingsRate > 25) {
       aiInsights.push({
         id: "insight-savings-high",
         type: "savings_alert",
         severity: "positive",
         title: "High Savings Velocity",
-        description: `You have retained ${savingsRate}% of your total income this month as net savings.`,
-        metricValue: `${savingsRate}%`,
+        description: `You have retained ${periodSavingsRate}% of your total income in this period as net savings.`,
+        metricValue: `${periodSavingsRate}%`,
         date: now,
       });
     }
@@ -844,12 +1142,16 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     // ----------------------------------------------------
     // SECTION 8: Forecasting Model (1M, 1Q, 6M, 1Y)
     // ----------------------------------------------------
+    const hasSufficientForecastHistory = sixMonthTransactionsRaw.length > 0 || currentMonthTransactionsRaw.length > 1;
+    const activeMonthsCount = Math.max(1, new Set(sixMonthTransactionsRaw.map((m) => m.month)).size);
+    const confidencePct = !hasSufficientForecastHistory ? 0 : activeMonthsCount >= 4 ? 94 : activeMonthsCount >= 2 ? 85 : 68;
+
     const avgMonthlyExp = sixMonthTransactionsRaw.length > 0
-      ? sixMonthTransactionsRaw.reduce((sum, m) => sum + Number(m.expense) / 100, 0) / Math.max(1, new Set(sixMonthTransactionsRaw.map(m => m.month)).size)
+      ? sixMonthTransactionsRaw.reduce((sum, m) => sum + Number(m.expense) / 100, 0) / activeMonthsCount
       : currentMonthExpenses;
 
     const avgMonthlyInc = sixMonthTransactionsRaw.length > 0
-      ? sixMonthTransactionsRaw.reduce((sum, m) => sum + Number(m.income) / 100, 0) / Math.max(1, new Set(sixMonthTransactionsRaw.map(m => m.month)).size)
+      ? sixMonthTransactionsRaw.reduce((sum, m) => sum + Number(m.income) / 100, 0) / activeMonthsCount
       : currentMonthIncome;
 
     const totalBudgetAllocated = userBudgets.reduce((sum, b) => sum + b.amount, 0);
@@ -863,9 +1165,12 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         predictedIncome: projInc,
         predictedExpense: projExp,
         predictedSavings: projInc - projExp,
+        confidencePct,
         projectedBudgetUsagePct: projExp > 0 ? Math.min(100, Math.round((projExp / Math.max(1, totalBudgetAllocated || projExp)) * 100)) : 0,
         expectedSettlementLoad: Math.round(pendingPayables),
-        basis: `Based on verified monthly trajectory of ₹${projExp.toLocaleString("en-IN")}/mo outflow across ${monthlyFlows.length || 1} active cycle(s).`,
+        basis: hasSufficientForecastHistory
+          ? `Based on verified monthly trajectory of ₹${projExp.toLocaleString("en-IN")}/mo outflow across ${activeMonthsCount} active cycle(s).`
+          : "Additional verified transaction history is required before reliable forecasting can be generated.",
       },
       {
         period: "1q",
@@ -873,9 +1178,12 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         predictedIncome: projInc * 3,
         predictedExpense: projExp * 3,
         predictedSavings: (projInc - projExp) * 3,
+        confidencePct,
         projectedBudgetUsagePct: projExp > 0 ? Math.min(100, Math.round((projExp / Math.max(1, totalBudgetAllocated || projExp)) * 100)) : 0,
         expectedSettlementLoad: Math.round(pendingPayables * 1.5),
-        basis: `Extrapolated 3-month run-rate for planned quarterly liquidity planning.`,
+        basis: hasSufficientForecastHistory
+          ? `Extrapolated 3-month run-rate (3 × ₹${projExp.toLocaleString("en-IN")}) for planned quarterly liquidity planning.`
+          : "Additional verified transaction history is required before reliable forecasting can be generated.",
       },
       {
         period: "6m",
@@ -883,9 +1191,12 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         predictedIncome: projInc * 6,
         predictedExpense: projExp * 6,
         predictedSavings: (projInc - projExp) * 6,
+        confidencePct,
         projectedBudgetUsagePct: projExp > 0 ? Math.min(100, Math.round((projExp / Math.max(1, totalBudgetAllocated || projExp)) * 100)) : 0,
         expectedSettlementLoad: Math.round(pendingPayables * 2),
-        basis: `Mid-year financial trajectory assuming constant verified burn velocity.`,
+        basis: hasSufficientForecastHistory
+          ? `Mid-year financial trajectory (6 × ₹${projExp.toLocaleString("en-IN")}) assuming constant verified burn velocity.`
+          : "Additional verified transaction history is required before reliable forecasting can be generated.",
       },
       {
         period: "1y",
@@ -893,9 +1204,12 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         predictedIncome: projInc * 12,
         predictedExpense: projExp * 12,
         predictedSavings: (projInc - projExp) * 12,
+        confidencePct,
         projectedBudgetUsagePct: projExp > 0 ? Math.min(100, Math.round((projExp / Math.max(1, totalBudgetAllocated || projExp)) * 100)) : 0,
         expectedSettlementLoad: Math.round(pendingPayables * 3),
-        basis: `Annualized runway projection strictly derived from historical averages.`,
+        basis: hasSufficientForecastHistory
+          ? `Annualized runway projection (12 × ₹${projExp.toLocaleString("en-IN")}) strictly derived from historical averages.`
+          : "Additional verified transaction history is required before reliable forecasting can be generated.",
       },
     ];
 
@@ -954,11 +1268,12 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     // ----------------------------------------------------
     // SECTION 15: Financial Intelligence Control Center (Verified Metrics)
     // ----------------------------------------------------
+    // Period-Specific Outflow and Inflow Maps
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     const dailyOutflowMap = new Map<string, { day: string; amount: number }>();
     const dailyInflowMap = new Map<string, { day: string; amount: number }>();
 
-    currentMonthTransactionsRaw.forEach((t) => {
+    periodTransactionsRaw.forEach((t) => {
       const d = new Date(t.date);
       const dateKey = d.toISOString().split("T")[0];
       const dayName = dayNames[d.getDay()];
@@ -976,25 +1291,24 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     });
 
     let highestSpendingDay: { date: string; day: string; amount: number } | null = null;
-    dailyOutflowMap.forEach((val, date) => {
+    dailyOutflowMap.forEach((val, dateKey) => {
       if (!highestSpendingDay || val.amount > highestSpendingDay.amount) {
-        highestSpendingDay = { date, day: val.day, amount: Math.round(val.amount) };
+        highestSpendingDay = { date: dateKey, day: val.day, amount: Math.round(val.amount) };
       }
     });
 
     let highestIncomeDay: { date: string; day: string; amount: number } | null = null;
-    dailyInflowMap.forEach((val, date) => {
+    dailyInflowMap.forEach((val, dateKey) => {
       if (!highestIncomeDay || val.amount > highestIncomeDay.amount) {
-        highestIncomeDay = { date, day: val.day, amount: Math.round(val.amount) };
+        highestIncomeDay = { date: dateKey, day: val.day, amount: Math.round(val.amount) };
       }
     });
 
-    const elapsedDays = Math.max(1, now.getDate());
-    const averageDailySpending = Math.round(currentMonthExpenses / elapsedDays);
-    const averageDailyIncome = Math.round(currentMonthIncome / elapsedDays);
+    const averageDailySpending = Math.round(periodExpenses / Math.max(1, elapsedDays));
+    const averageDailyIncome = Math.round(periodIncome / Math.max(1, elapsedDays));
 
     const categoryCountMap = new Map<string, { count: number; amount: number }>();
-    currentMonthTransactionsRaw.forEach((t) => {
+    periodTransactionsRaw.forEach((t) => {
       if (t.type === "paid" || t.type === "borrowed") {
         const cat = t.categoryName || "General";
         const existing = categoryCountMap.get(cat) || { count: 0, amount: 0 };
@@ -1006,12 +1320,12 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
 
     let mostUsedCategory: { name: string; count: number; amount: number; percentage: number } | null = null;
     categoryCountMap.forEach((val, name) => {
-      if (!mostUsedCategory || val.count > mostUsedCategory.count) {
+      if (!mostUsedCategory || val.amount > mostUsedCategory.amount || (val.amount === mostUsedCategory.amount && val.count > mostUsedCategory.count)) {
         mostUsedCategory = {
           name,
           count: val.count,
           amount: Math.round(val.amount),
-          percentage: currentMonthExpenses > 0 ? Math.round((val.amount / currentMonthExpenses) * 100) : 0,
+          percentage: periodExpenses > 0 ? Math.round((val.amount / periodExpenses) * 100) : 0,
         };
       }
     });
@@ -1020,7 +1334,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     let largestDecliningCategory: { name: string; diff: number; percentage: number } | null = null;
 
     categorySpendingMap.forEach((currentAmt, cat) => {
-      const prevAmt = lastMonthCatMap.get(cat) || 0;
+      const prevAmt = prevPeriodCatMap.get(cat) || 0;
       const diff = currentAmt - prevAmt;
       if (prevAmt > 0) {
         const pct = Math.round((diff / prevAmt) * 100);
@@ -1038,10 +1352,10 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       .filter((t) => t.type === "received" || t.type === "lent" || t.type === "repaid")
       .reduce((sum, t) => sum + t.amount / 100, 0);
 
-    const diffExpense = Math.round(currentMonthExpenses - lastMonthExpenses);
-    const percentChangeExpense = lastMonthExpenses > 0 ? Math.round(((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100) : null;
-    const diffIncome = Math.round(currentMonthIncome - lastMonthIncome);
-    const percentChangeIncome = lastMonthIncome > 0 ? Math.round(((currentMonthIncome - lastMonthIncome) / lastMonthIncome) * 100) : null;
+    const diffMonthExpense = Math.round(currentMonthExpenses - lastMonthExpenses);
+    const percentChangeMonthExpense = lastMonthExpenses > 0 ? Math.round(((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100) : null;
+    const diffMonthIncome = Math.round(currentMonthIncome - lastMonthIncome);
+    const percentChangeMonthIncome = lastMonthIncome > 0 ? Math.round(((currentMonthIncome - lastMonthIncome) / lastMonthIncome) * 100) : null;
 
     // Daily spending 30 days
     const dailyMap30 = new Map<string, { amount: number; count: number }>();
@@ -1087,28 +1401,69 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       .filter((t) => t.type === "received" || t.type === "lent" || t.type === "repaid")
       .reduce((sum, t) => sum + t.amount / 100, 0);
 
-    const hasVerifiedData = currentMonthTransactionsRaw.length > 0 || sixMonthTransactionsRaw.length > 0 || allSettlementsRaw.length > 0;
+    const sortedPeriodOutflows = periodTransactionsRaw
+      .filter((t) => t.type === "paid" || t.type === "borrowed")
+      .sort((a, b) => b.amount - a.amount);
+    const sortedPeriodInflows = periodTransactionsRaw
+      .filter((t) => t.type === "received" || t.type === "lent" || t.type === "repaid")
+      .sort((a, b) => b.amount - a.amount);
+
+    const largestExpense = sortedPeriodOutflows.length > 0
+      ? {
+          title: sortedPeriodOutflows[0].title || "Expense",
+          amount: sortedPeriodOutflows[0].amount / 100,
+          date: sortedPeriodOutflows[0].date,
+          categoryName: sortedPeriodOutflows[0].categoryName || "General",
+        }
+      : null;
+
+    const largestIncome = sortedPeriodInflows.length > 0
+      ? {
+          title: sortedPeriodInflows[0].title || "Income",
+          amount: sortedPeriodInflows[0].amount / 100,
+          date: sortedPeriodInflows[0].date,
+          categoryName: sortedPeriodInflows[0].categoryName || "Inflow",
+        }
+      : null;
+
+    const hasVerifiedData = periodTransactionsRaw.length > 0 || sixMonthTransactionsRaw.length > 0 || allSettlementsRaw.length > 0;
 
     const controlCenter: FinancialControlCenterMetrics = {
-      totalIncome: Math.round(currentMonthIncome),
-      totalExpense: Math.round(currentMonthExpenses),
-      netCashFlow: Math.round(currentMonthIncome - currentMonthExpenses),
-      savings: Math.round(currentSavings),
-      savingsRate,
+      totalIncome: Math.round(periodIncome),
+      totalExpense: Math.round(periodExpenses),
+      netCashFlow: Math.round(periodIncome - periodExpenses),
+      savings: Math.round(periodSavings),
+      savingsRate: periodSavingsRate,
       receivable: Math.round(pendingReceivables + totalPendingDebtRupees),
       payable: Math.round(pendingPayables),
-      largestExpense: largestOutflow ? { ...largestOutflow, categoryName: sortedOutflows[0]?.categoryName || "General" } : null,
-      largestIncome: largestInflow ? { ...largestInflow, categoryName: sortedInflows[0]?.categoryName || "Income" } : null,
+      largestExpense,
+      largestIncome,
       mostUsedCategory,
       highestSpendingDay,
       highestIncomeDay,
       averageDailySpending,
       averageDailyIncome,
-      transactionCount: currentMonthTransactionsRaw.length,
+      transactionCount: periodTransactionsRaw.length,
       budgetRemaining: Math.max(0, userBudgets.reduce((s, b) => s + b.remaining, 0)),
       pendingSettlementsCount: allSettlementsRaw.filter((s) => s.status === "pending").length,
       pendingSettlementsAmount: Math.round(allSettlementsRaw.filter((s) => s.status === "pending").reduce((s, x) => s + x.amount / 100, 0)),
       overdueReceivables: Math.round(pendingReceivables + totalPendingDebtRupees),
+      selectedPeriod: period,
+      periodLabel,
+      comparisonLabel,
+      elapsedDays,
+      periodComparison: {
+        currentPeriodExpense: Math.round(periodExpenses),
+        prevPeriodExpense: Math.round(prevPeriodExpenses),
+        diffExpense: diffPeriodExpense,
+        percentChangeExpense: percentChangePeriodExpense,
+        currentPeriodIncome: Math.round(periodIncome),
+        prevPeriodIncome: Math.round(prevPeriodIncome),
+        diffIncome: diffPeriodIncome,
+        percentChangeIncome: percentChangePeriodIncome,
+        periodLabel,
+        comparisonLabel,
+      },
       recentActivity: recentTransactionsRaw.slice(0, 15).map((t) => ({
         id: t.id,
         title: t.title || "Transaction",
@@ -1120,17 +1475,17 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       monthlyComparison: {
         currentMonthExpense: Math.round(currentMonthExpenses),
         lastMonthExpense: Math.round(lastMonthExpenses),
-        diffExpense,
-        percentChangeExpense,
+        diffExpense: diffMonthExpense,
+        percentChangeExpense: percentChangeMonthExpense,
         currentMonthIncome: Math.round(currentMonthIncome),
         lastMonthIncome: Math.round(lastMonthIncome),
-        diffIncome,
-        percentChangeIncome,
+        diffIncome: diffMonthIncome,
+        percentChangeIncome: percentChangeMonthIncome,
       },
       categoryDistribution: Array.from(categorySpendingMap.entries()).map(([name, amt]) => ({
         name,
         amount: Math.round(amt),
-        percentage: currentMonthExpenses > 0 ? Math.round((amt / currentMonthExpenses) * 100) : 0,
+        percentage: periodExpenses > 0 ? Math.round((amt / periodExpenses) * 100) : 0,
         count: categoryCountMap.get(name)?.count || 1,
       })),
       dailySpendingHistory,
@@ -1139,7 +1494,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         largestGrowingCategory,
         largestDecliningCategory,
         topCategory: categoryBreakdown.length > 0 ? { name: categoryBreakdown[0].name, amount: categoryBreakdown[0].amount, percentage: categoryBreakdown[0].percentage } : null,
-        monthlyGrowthPct: percentChangeExpense,
+        monthlyGrowthPct: percentChangePeriodExpense ?? percentChangeMonthExpense,
       },
       recurringSummary: {
         recurringExpenseTotal: Math.round(recurringExpenseTotal),
