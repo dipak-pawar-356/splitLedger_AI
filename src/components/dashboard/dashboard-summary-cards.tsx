@@ -42,7 +42,7 @@ interface DashboardSummaryCardsProps {
       shortMonthName: string;
       priorMonthName: string;
       amount: number;
-      percentChange: number;
+      percentChange: number | null;
       trend: "up" | "down" | "neutral";
       comparisonText: string;
     };
@@ -51,32 +51,33 @@ interface DashboardSummaryCardsProps {
       prevMonthAmount: number;
       difference: number;
       differenceFormatted: string;
-      percentChange: number;
+      percentChange: number | null;
       trend: "up" | "down" | "neutral";
       trendFormatted: string;
     };
   };
   trends: {
-    spendingTrend: number;
-    incomeTrend: number;
-    balanceTrend: number;
+    spendingTrend: number | null;
+    incomeTrend: number | null;
+    balanceTrend: number | null;
   };
+  activePeriod?: string;
 }
 
-export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCardsProps) {
+export function DashboardSummaryCards({ summary, trends, activePeriod = "current_month" }: DashboardSummaryCardsProps) {
   const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = subscribeFinancialEvents((payload) => {
       if (
-        payload.type === "journal:updated" ||
-        payload.type === "notes:created" ||
         payload.type === "transaction:created" ||
         payload.type === "transaction:updated" ||
         payload.type === "transaction:deleted" ||
         payload.type === "expense:created" ||
         payload.type === "expense:updated" ||
         payload.type === "expense:deleted" ||
+        payload.type === "income:added" ||
+        payload.type === "settlement:completed" ||
         payload.type === "financial:data-changed"
       ) {
         router.refresh();
@@ -86,11 +87,56 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
     return unsubscribe;
   }, [router]);
 
-  const lifetimeIncome = summary.lifetimeIncome ?? summary.totalIncome ?? summary.monthlyIncome ?? 0;
-  const lifetimeExpenses = summary.lifetimeExpenses ?? summary.totalExpenses ?? summary.monthlySpending ?? 0;
-  const currentMonthExpenseAmt = summary.currentMonthExpense?.amount ?? summary.totalExpenses ?? summary.monthlySpending ?? 0;
+  const isAllTime = activePeriod === "all_time";
+  const displayedIncome = isAllTime ? (summary.lifetimeIncome ?? summary.totalIncome ?? 0) : (summary.totalIncome ?? 0);
+  const displayedExpenses = isAllTime ? (summary.lifetimeExpenses ?? summary.totalExpenses ?? 0) : (summary.totalExpenses ?? 0);
+  const currentMonthExpenseAmt = summary.currentMonthExpense?.amount ?? summary.monthlySpending ?? 0;
   const savings = summary.savings;
   const isSavingsPositive = savings >= 0;
+
+  const getPeriodComparisonLabel = () => {
+    switch (activePeriod) {
+      case "all_time":
+        return "All-time total";
+      case "last_month":
+        return "vs Month Before";
+      case "this_week":
+        return "vs Previous Week";
+      case "today":
+        return "vs Yesterday";
+      case "custom":
+        return "vs Prior Period";
+      case "current_month":
+      default:
+        return "vs Previous Month";
+    }
+  };
+
+  const periodComparisonLabel = getPeriodComparisonLabel();
+
+  const renderTrendBadge = (trendValue: number | null | undefined, isExpense: boolean = false) => {
+    if (trendValue === null || trendValue === undefined || isAllTime) {
+      return <span className="text-slate-400 font-medium shrink-0 ml-1">—</span>;
+    }
+    const isPositive = trendValue > 0;
+    const isNeutral = trendValue === 0;
+
+    let colorClass = "text-slate-400 font-semibold";
+    if (!isNeutral) {
+      if (isExpense) {
+        colorClass = isPositive ? "text-rose-600 dark:text-rose-400 font-semibold" : "text-emerald-600 dark:text-emerald-400 font-semibold";
+      } else {
+        colorClass = isPositive ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-rose-600 dark:text-rose-400 font-semibold";
+      }
+    }
+
+    const sign = isPositive ? "+" : "";
+    return (
+      <span className={`shrink-0 ml-1 ${colorClass}`}>
+        {sign}{trendValue}%
+      </span>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -100,7 +146,7 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
             Financial Summary
           </h3>
           <p className="text-[11px] text-slate-400 mt-0.5">
-            Real-time live aggregation across ledger, journal notes, settlements & groups
+            Real-time live aggregation across verified ledger transactions, settlements & groups
           </p>
         </div>
         <span className="text-xs text-slate-400 font-medium">All amounts in INR (₹)</span>
@@ -121,16 +167,12 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
                 </div>
               </div>
               <div className="text-base sm:text-xl lg:text-2xl font-black text-emerald-600 dark:text-emerald-400 truncate tracking-tight">
-                <AnimatedCounter value={formatCurrency(lifetimeIncome)} />
+                <AnimatedCounter value={formatCurrency(displayedIncome)} />
               </div>
             </div>
             <div className="flex items-center justify-between mt-1 sm:mt-2 pt-1 border-t border-slate-100 dark:border-slate-800/80 text-[9px] sm:text-[11px]">
-              <span className="text-slate-400 truncate">Lifetime earned</span>
-              {trends.incomeTrend !== 0 && (
-                <span className={`shrink-0 ml-1 ${trends.incomeTrend >= 0 ? "text-emerald-600 font-semibold" : "text-rose-600 font-semibold"}`}>
-                  {trends.incomeTrend >= 0 ? `+${trends.incomeTrend}%` : `${trends.incomeTrend}%`}
-                </span>
-              )}
+              <span className="text-slate-400 truncate">{periodComparisonLabel}</span>
+              {renderTrendBadge(trends.incomeTrend, false)}
             </div>
           </Card>
         </Link>
@@ -148,16 +190,12 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
                 </div>
               </div>
               <div className="text-base sm:text-xl lg:text-2xl font-black text-rose-600 dark:text-rose-400 truncate tracking-tight">
-                <AnimatedCounter value={formatCurrency(lifetimeExpenses)} />
+                <AnimatedCounter value={formatCurrency(displayedExpenses)} />
               </div>
             </div>
             <div className="flex items-center justify-between mt-1 sm:mt-2 pt-1 border-t border-slate-100 dark:border-slate-800/80 text-[9px] sm:text-[11px]">
-              <span className="text-slate-400 truncate">Lifetime debit</span>
-              {trends.spendingTrend !== 0 && (
-                <span className={`shrink-0 ml-1 ${trends.spendingTrend > 0 ? "text-rose-600 font-semibold" : "text-emerald-600 font-semibold"}`}>
-                  {trends.spendingTrend > 0 ? `+${trends.spendingTrend}%` : `${trends.spendingTrend}%`}
-                </span>
-              )}
+              <span className="text-slate-400 truncate">{periodComparisonLabel}</span>
+              {renderTrendBadge(trends.spendingTrend, true)}
             </div>
           </Card>
         </Link>
@@ -229,12 +267,14 @@ export function DashboardSummaryCards({ summary, trends }: DashboardSummaryCards
               <span className="text-slate-400 truncate">
                 Diff: {summary.currentMonthExpense?.differenceFormatted || "₹0.00"}
               </span>
-              {summary.currentMonthExpense?.trendFormatted && (
+              {summary.currentMonthExpense?.trendFormatted && summary.currentMonthExpense.trendFormatted !== "—" ? (
                 <span className={`font-semibold shrink-0 ml-1 ${
                   summary.currentMonthExpense.trend === "up" ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
                 }`}>
                   {summary.currentMonthExpense.trendFormatted}
                 </span>
+              ) : (
+                <span className="text-slate-400 font-medium shrink-0 ml-1">—</span>
               )}
             </div>
           </Card>

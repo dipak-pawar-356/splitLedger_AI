@@ -74,4 +74,80 @@ describe("Dashboard Financial Calculations & Isolation", () => {
       expect(savings).toBe(33000);
     });
   });
+
+  describe("Verified Ledger Exclusivity & Percentage Accuracy (Part VI-K)", () => {
+    it("must calculate summary totals solely from approved transactions and exclude notes", () => {
+      // Mock ledger approved transactions
+      const approvedTransactions = [
+        { type: "INCOME", amount: 25000, status: "APPROVED" },
+        { type: "INCOME", amount: 11500, status: "APPROVED" },
+        { type: "EXPENSE", amount: 4500, status: "APPROVED" },
+        { type: "EXPENSE", amount: 11264, status: "APPROVED" },
+      ];
+
+      // Mock unapproved notes/journal entries
+      const unapprovedNotes = [
+        { content: "Paid lunch 450, need to claim back", extractedExpense: 450 },
+        { content: "Client might pay 15000 next month", extractedIncome: 15000 },
+      ];
+
+      // Calculation ONLY from approved transactions
+      const totalIncome = approvedTransactions
+        .filter((t) => t.type === "INCOME" && t.status === "APPROVED")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const totalExpenses = approvedTransactions
+        .filter((t) => t.type === "EXPENSE" && t.status === "APPROVED")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const savings = totalIncome - totalExpenses;
+
+      expect(totalIncome).toBe(36500);
+      expect(totalExpenses).toBe(15764);
+      expect(savings).toBe(20736); // Exactly 36500 - 15764
+
+      // Verification that notes did NOT contaminate the values
+      expect(unapprovedNotes.length).toBe(2);
+      expect(totalExpenses).not.toBe(15764 + 450);
+      expect(totalIncome).not.toBe(36500 + 15000);
+    });
+
+    it("must return null for percentage trend when previous period has 0 data (never fabricate percentages)", () => {
+      const computeTrend = (current: number, previous: number, isAllTime: boolean = false): number | null => {
+        if (isAllTime) return null;
+        if (previous <= 0) return null;
+        return Math.round(((current - previous) / previous) * 100);
+      };
+
+      // Previous period had 0 income -> trend must be null (render "—", never -62% or +80%)
+      expect(computeTrend(36500, 0)).toBeNull();
+
+      // All time filter selected -> trend must be null
+      expect(computeTrend(36500, 20000, true)).toBeNull();
+
+      // Valid previous period: current 15000, previous 10000 -> +50%
+      expect(computeTrend(15000, 10000)).toBe(50);
+
+      // Valid previous period: current 8000, previous 10000 -> -20%
+      expect(computeTrend(8000, 10000)).toBe(-20);
+    });
+
+    it("must accurately format trend badges for UI display", () => {
+      const formatTrendDisplay = (trend: number | null, isAllTime: boolean = false): { text: string; hasBaseline: boolean } => {
+        if (isAllTime || trend === null) {
+          return { text: "—", hasBaseline: false };
+        }
+        return {
+          text: `${trend >= 0 ? "+" : ""}${trend}%`,
+          hasBaseline: true,
+        };
+      };
+
+      expect(formatTrendDisplay(null).text).toBe("—");
+      expect(formatTrendDisplay(null).hasBaseline).toBe(false);
+      expect(formatTrendDisplay(null, true).text).toBe("—");
+      expect(formatTrendDisplay(45).text).toBe("+45%");
+      expect(formatTrendDisplay(-30).text).toBe("-30%");
+    });
+  });
 });

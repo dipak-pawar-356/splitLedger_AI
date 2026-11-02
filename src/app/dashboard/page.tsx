@@ -60,6 +60,7 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
       <DashboardSummaryCards
         summary={data.summary}
         trends={data.trends}
+        activePeriod={data.activePeriod}
       />
 
       {/* 3. Quick Actions */}

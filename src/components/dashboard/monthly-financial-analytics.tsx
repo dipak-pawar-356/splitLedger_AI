@@ -58,10 +58,10 @@ export function MonthlyFinancialAnalytics({ analytics }: MonthlyFinancialAnalyti
               {formatCurrency(analytics.totalContactIncome)}
             </div>
             <div className="flex items-center gap-1.5 text-[11px]">
-              <span className={analytics.incomeTrend >= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
-                {analytics.incomeTrend >= 0 ? `+${analytics.incomeTrend}%` : `${analytics.incomeTrend}%`}
+              <span className={analytics.incomeTrend !== null ? (analytics.incomeTrend >= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold") : "text-slate-400 font-medium"}>
+                {analytics.incomeTrend !== null ? (analytics.incomeTrend >= 0 ? `+${analytics.incomeTrend}%` : `${analytics.incomeTrend}%`) : "—"}
               </span>
-              <span className="text-slate-400">vs prior period</span>
+              <span className="text-slate-400">{analytics.incomeTrend !== null ? "vs prior period" : "No prior baseline"}</span>
             </div>
           </div>
 
@@ -75,10 +75,10 @@ export function MonthlyFinancialAnalytics({ analytics }: MonthlyFinancialAnalyti
               {formatCurrency(analytics.totalContactExpense)}
             </div>
             <div className="flex items-center gap-1.5 text-[11px]">
-              <span className={analytics.expenseTrend > 0 ? "text-rose-600 font-bold" : "text-emerald-600 font-bold"}>
-                {analytics.expenseTrend > 0 ? `+${analytics.expenseTrend}%` : `${analytics.expenseTrend}%`}
+              <span className={analytics.expenseTrend !== null ? (analytics.expenseTrend > 0 ? "text-rose-600 font-bold" : "text-emerald-600 font-bold") : "text-slate-400 font-medium"}>
+                {analytics.expenseTrend !== null ? (analytics.expenseTrend > 0 ? `+${analytics.expenseTrend}%` : `${analytics.expenseTrend}%`) : "—"}
               </span>
-              <span className="text-slate-400">vs prior period</span>
+              <span className="text-slate-400">{analytics.expenseTrend !== null ? "vs prior period" : "No prior baseline"}</span>
             </div>
           </div>
 

@@ -38,6 +38,8 @@ import { FinancialForecastingCard } from "@/components/ai/financial-forecasting-
 import { BudgetCard } from "@/components/budget/budget-card";
 import { BudgetDialog } from "@/components/budget/budget-dialog";
 import { AIFinancialAssistantCard } from "@/components/ai/ai-financial-assistant-card";
+import { AIBudgetAndRemindersHub, ReminderItem } from "@/components/ai/ai-budget-and-reminders-hub";
+import { AIBudgetEnterpriseDashboard } from "@/components/ai/ai-budget-enterprise-dashboard";
 import { AISubscriptionsCard } from "@/components/ai/ai-subscriptions-card";
 import { VoiceAssistantPanel } from "@/components/ai/voice-assistant-panel";
 import { AutomationRulesBuilder } from "@/components/ai/automation-rules-builder";
@@ -50,12 +52,14 @@ interface FinancialIntelligenceClientViewProps {
   initialData: FinancialIntelligenceData;
   categories: Array<{ id: number; name: string }>;
   groups: Array<{ id: number; name: string }>;
+  initialReminders?: ReminderItem[];
 }
 
 export function FinancialIntelligenceClientView({
   initialData,
   categories,
   groups,
+  initialReminders = [],
 }: FinancialIntelligenceClientViewProps) {
   const [data, setData] = useState<FinancialIntelligenceData>(initialData);
   const [activeTab, setActiveTab] = useState<string>("assistant");
@@ -305,6 +309,14 @@ export function FinancialIntelligenceClientView({
               {...tabMotionProps}
               className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
+              {/* Executive Live Budget & Reminders Hub with Accurate Positions */}
+              <AIBudgetAndRemindersHub
+                budgets={data.budgets}
+                reminders={initialReminders}
+                onOpenBudgetDialog={() => handleCreateBudget()}
+                onNavigateToBudgetsTab={() => setActiveTab("budgets")}
+              />
+
               <AIFinancialAssistantCard categories={categories} />
             </motion.div>
           )}
@@ -375,50 +387,12 @@ export function FinancialIntelligenceClientView({
               {...tabMotionProps}
               className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-emerald-50/20 dark:from-slate-900/40 dark:to-emerald-950/20 border border-slate-200/80 dark:border-slate-800">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <Target className="h-4 w-4 text-emerald-500" />
-                    <span>Active Spending Budgets</span>
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Live automated comparisons of actual expense outflow against your spending targets in INR (₹)
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  className="rounded-xl text-xs gap-1.5 font-bold shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white self-start sm:self-auto min-h-[36px]"
-                  onClick={handleCreateBudget}
-                  aria-label="Add a new spending budget target"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Target</span>
-                </Button>
-              </div>
-
-              {data.budgets.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {data.budgets.map((b) => (
-                    <BudgetCard key={b.id} budget={b} onEdit={handleEditBudget} />
-                  ))}
-                </div>
-              ) : (
-                <Card className="rounded-3xl border-2 border-dashed p-10 text-center space-y-4 bg-card/50">
-                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto text-primary shadow-xs">
-                    <Target className="h-7 w-7" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">No Active Budgets Found</h3>
-                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                      Create your first monthly grocery, family, trip, or entertainment budget to keep spending within safe thresholds.
-                    </p>
-                  </div>
-                  <Button size="sm" className="rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm min-h-[36px]" onClick={handleCreateBudget}>
-                    <Plus className="h-3.5 w-3.5 mr-1" />
-                    Set Up First Budget
-                  </Button>
-                </Card>
-              )}
+              <AIBudgetEnterpriseDashboard
+                budgets={data.budgets}
+                intelligence={data}
+                onOpenBudgetDialog={() => handleCreateBudget()}
+                onEditBudget={handleEditBudget}
+              />
             </motion.div>
           )}
 

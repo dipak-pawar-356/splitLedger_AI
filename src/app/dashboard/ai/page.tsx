@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { categories, groups, groupMembers } from "@/lib/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { getFinancialIntelligence } from "@/actions/financial-intelligence";
+import { getReminders } from "@/actions/reminders";
 import { FinancialIntelligenceClientView } from "@/components/ai/financial-intelligence-client-view";
 
 export const metadata: Metadata = createPageMetadata({
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function AIAssistantPage() {
   const user = await requireAuth();
 
-  const [intelligenceData, allCategories, userGroups] = await Promise.all([
+  const [intelligenceData, allCategories, userGroups, userReminders] = await Promise.all([
     getFinancialIntelligence(),
     db
       .select({ id: categories.id, name: categories.name })
@@ -37,6 +38,7 @@ export default async function AIAssistantPage() {
         )
       )
       .orderBy(groups.name),
+    getReminders({ isCompleted: false, isArchived: false }).catch(() => []),
   ]);
 
   return (
@@ -44,6 +46,7 @@ export default async function AIAssistantPage() {
       initialData={intelligenceData}
       categories={allCategories}
       groups={userGroups}
+      initialReminders={userReminders as any}
     />
   );
 }
