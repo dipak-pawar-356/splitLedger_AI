@@ -568,7 +568,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                   setShowAutocomplete(true);
                 }}
                 placeholder="Ask anything about your money (e.g. 'Why did I spend ₹8,000?', 'Who owes me?', 'Next month forecast')..."
-                className="rounded-2xl text-xs sm:text-sm bg-background h-12 pl-10 pr-10 border-slate-200/80 dark:border-slate-800 focus-visible:ring-primary/40 focus-visible:ring-2 shadow-xs"
+                className="rounded-2xl text-base sm:text-sm bg-background h-12 pl-10 pr-10 border-slate-200/80 dark:border-slate-800 focus-visible:ring-primary/40 focus-visible:ring-2 shadow-xs"
                 disabled={isLoading}
                 aria-label="Ask a financial question"
                 suppressHydrationWarning

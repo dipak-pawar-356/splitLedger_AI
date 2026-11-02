@@ -421,21 +421,21 @@ export default async function GroupsPage({
           const defaultTab = params?.tab || (activeGroups.length === 0 && requestedGroups.length > 0 ? "requested" : "active");
           return (
             <Tabs defaultValue={defaultTab} className="w-full">
-              <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3">
-                <TabsList className="bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl">
-                  <TabsTrigger value="active" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3 overflow-x-auto no-scrollbar">
+                <TabsList className="bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl shrink-0 flex-nowrap">
+                  <TabsTrigger value="active" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm shrink-0 whitespace-nowrap">
                     Active Groups ({activeGroups.length})
                   </TabsTrigger>
-                  <TabsTrigger value="requested" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm flex items-center gap-1.5">
+                  <TabsTrigger value="requested" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm flex items-center gap-1.5 shrink-0 whitespace-nowrap">
                     <span>Requested</span>
                     <Badge variant={requestedGroups.length > 0 ? "default" : "secondary"} className={`text-[10px] px-1.5 py-0 h-4 font-bold ${requestedGroups.length > 0 ? "bg-amber-500 hover:bg-amber-600 text-white border-0" : ""}`}>
                       {requestedGroups.length}
                     </Badge>
                   </TabsTrigger>
-                  <TabsTrigger value="archived" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm">
+                  <TabsTrigger value="archived" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm shrink-0 whitespace-nowrap">
                     Archived ({archivedGroups.length})
                   </TabsTrigger>
-                  <TabsTrigger value="all" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm">
+                  <TabsTrigger value="all" className="text-xs font-bold px-3 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 shadow-sm shrink-0 whitespace-nowrap">
                     All Groups ({enrichedGroups.length})
                   </TabsTrigger>
                 </TabsList>

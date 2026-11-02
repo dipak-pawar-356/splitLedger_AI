@@ -328,18 +328,18 @@ export function FloatingAIAssistant() {
               )}
             </div>
 
-            {/* Input Bar */}
-            <div className="p-3 bg-slate-50 dark:bg-slate-900/70 border-t border-slate-200/80 dark:border-slate-800 flex items-center gap-2 shrink-0">
+            {/* Input Bar with iOS 16px font-size protection against auto-zoom */}
+            <div className="p-3 pb-safe sm:pb-3 bg-slate-50 dark:bg-slate-900/70 border-t border-slate-200/80 dark:border-slate-800 flex items-center gap-2 shrink-0">
               <Input
                 placeholder="Ask anything about your expenses..."
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                className="h-9 text-xs rounded-xl bg-background"
+                className="h-10 text-base sm:text-xs rounded-xl bg-background"
               />
               <Button
                 size="sm"
-                className="h-9 w-9 p-0 rounded-xl shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
+                className="h-10 w-10 p-0 rounded-xl shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer active:scale-95 transition-all"
                 disabled={loading}
                 onClick={() => handleSend()}
               >

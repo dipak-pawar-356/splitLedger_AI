@@ -829,6 +829,11 @@ export function cleanNoteContentText(content: string): string {
       .trim();
     if (!line) continue;
 
+    // Filter out lone stray bullets, dashes, or dots: e.g. "-", "•", "*", "."
+    if (/^[-•*_~.]{1,3}$/.test(line)) {
+      continue;
+    }
+
     // Check if line contains date prefix followed by item: e.g. "01/10/2026 Chips - 20"
     const datePrefixMatch = line.match(/^((?:date\s*[:=-]?\s*)?(?:\d{1,2}[-/.]\d{1,2}[-/.]\d{4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}))\s+(.+)$/i);
     if (datePrefixMatch) {

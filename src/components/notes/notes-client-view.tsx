@@ -170,74 +170,74 @@ const NOTE_COLORS: NoteColorOption[] = [
   {
     id: "blue",
     label: "Ocean Blue",
-    colorHex: "#3b82f6",
-    borderHex: "#93c5fd",
-    shadowColor: "rgba(59, 130, 246, 0.55)",
-    dot: "bg-blue-500 border-2 border-blue-300 dark:border-blue-300 shadow-sm shadow-blue-500/50",
+    colorHex: "#2563eb",
+    borderHex: "#60a5fa",
+    shadowColor: "rgba(37, 99, 235, 0.55)",
+    dot: "bg-blue-600 border-2 border-blue-300 shadow-sm shadow-blue-500/50",
     checkColor: "text-white",
-    editorBg: "bg-blue-50/90 dark:bg-blue-950/80 border-blue-400 dark:border-blue-700/80 shadow-md shadow-blue-500/10",
-    cardBg: "bg-blue-50/80 dark:bg-blue-950/60 border-blue-300 dark:border-blue-800/70",
-    strip: "bg-blue-500",
+    editorBg: "bg-blue-50/90 dark:bg-blue-950/40 border-blue-500/60 dark:border-blue-600/70 shadow-md shadow-blue-500/10",
+    cardBg: "bg-blue-50/80 dark:bg-blue-950/50 border-blue-300 dark:border-blue-700/70",
+    strip: "bg-blue-600",
   },
   {
     id: "green",
     label: "Emerald Green",
-    colorHex: "#10b981",
-    borderHex: "#6ee7b7",
-    shadowColor: "rgba(16, 185, 129, 0.55)",
-    dot: "bg-emerald-500 border-2 border-emerald-300 dark:border-emerald-300 shadow-sm shadow-emerald-500/50",
+    colorHex: "#059669",
+    borderHex: "#34d399",
+    shadowColor: "rgba(5, 150, 105, 0.55)",
+    dot: "bg-emerald-600 border-2 border-emerald-300 shadow-sm shadow-emerald-500/50",
     checkColor: "text-white",
-    editorBg: "bg-emerald-50/90 dark:bg-emerald-950/80 border-emerald-400 dark:border-emerald-700/80 shadow-md shadow-emerald-500/10",
-    cardBg: "bg-emerald-50/80 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800/70",
-    strip: "bg-emerald-500",
+    editorBg: "bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-500/60 dark:border-emerald-600/70 shadow-md shadow-emerald-500/10",
+    cardBg: "bg-emerald-50/80 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700/70",
+    strip: "bg-emerald-600",
   },
   {
     id: "yellow",
     label: "Amber Gold",
-    colorHex: "#f59e0b",
-    borderHex: "#fde047",
-    shadowColor: "rgba(245, 158, 11, 0.55)",
-    dot: "bg-amber-500 border-2 border-amber-200 dark:border-amber-200 shadow-sm shadow-amber-500/50",
+    colorHex: "#d97706",
+    borderHex: "#fbbf24",
+    shadowColor: "rgba(217, 119, 6, 0.55)",
+    dot: "bg-amber-600 border-2 border-amber-200 shadow-sm shadow-amber-500/50",
     checkColor: "text-slate-950 font-black",
-    editorBg: "bg-amber-50/90 dark:bg-amber-950/80 border-amber-400 dark:border-amber-700/80 shadow-md shadow-amber-500/10",
-    cardBg: "bg-amber-50/80 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800/70",
-    strip: "bg-amber-500",
+    editorBg: "bg-amber-50/90 dark:bg-amber-950/40 border-amber-500/60 dark:border-amber-600/70 shadow-md shadow-amber-500/10",
+    cardBg: "bg-amber-50/80 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700/70",
+    strip: "bg-amber-600",
   },
   {
     id: "red",
     label: "Rose Red",
-    colorHex: "#ef4444",
-    borderHex: "#fca5a5",
-    shadowColor: "rgba(239, 68, 68, 0.55)",
-    dot: "bg-rose-500 border-2 border-rose-300 dark:border-rose-300 shadow-sm shadow-rose-500/50",
+    colorHex: "#dc2626",
+    borderHex: "#f87171",
+    shadowColor: "rgba(220, 38, 38, 0.55)",
+    dot: "bg-rose-600 border-2 border-rose-300 shadow-sm shadow-rose-500/50",
     checkColor: "text-white",
-    editorBg: "bg-rose-50/90 dark:bg-rose-950/80 border-rose-400 dark:border-rose-700/80 shadow-md shadow-rose-500/10",
-    cardBg: "bg-rose-50/80 dark:bg-rose-950/60 border-rose-300 dark:border-rose-800/70",
-    strip: "bg-rose-500",
+    editorBg: "bg-rose-50/90 dark:bg-rose-950/40 border-rose-500/60 dark:border-rose-600/70 shadow-md shadow-rose-500/10",
+    cardBg: "bg-rose-50/80 dark:bg-rose-950/50 border-rose-300 dark:border-rose-700/70",
+    strip: "bg-rose-600",
   },
   {
     id: "purple",
     label: "Royal Purple",
-    colorHex: "#8b5cf6",
-    borderHex: "#c4b5fd",
-    shadowColor: "rgba(139, 92, 246, 0.55)",
-    dot: "bg-purple-500 border-2 border-purple-300 dark:border-purple-300 shadow-sm shadow-purple-500/50",
+    colorHex: "#7c3aed",
+    borderHex: "#a78bfa",
+    shadowColor: "rgba(124, 58, 237, 0.55)",
+    dot: "bg-purple-600 border-2 border-purple-300 shadow-sm shadow-purple-500/50",
     checkColor: "text-white",
-    editorBg: "bg-purple-50/90 dark:bg-purple-950/80 border-purple-400 dark:border-purple-700/80 shadow-md shadow-purple-500/10",
-    cardBg: "bg-purple-50/80 dark:bg-purple-950/60 border-purple-300 dark:border-purple-800/70",
-    strip: "bg-purple-500",
+    editorBg: "bg-purple-50/90 dark:bg-purple-950/40 border-purple-500/60 dark:border-purple-600/70 shadow-md shadow-purple-500/10",
+    cardBg: "bg-purple-50/80 dark:bg-purple-950/50 border-purple-300 dark:border-purple-700/70",
+    strip: "bg-purple-600",
   },
   {
     id: "teal",
     label: "Teal Cyan",
-    colorHex: "#06b6d4",
-    borderHex: "#67e8f9",
-    shadowColor: "rgba(6, 182, 212, 0.55)",
-    dot: "bg-cyan-500 border-2 border-cyan-300 dark:border-cyan-300 shadow-sm shadow-cyan-500/50",
+    colorHex: "#0891b2",
+    borderHex: "#22d3ee",
+    shadowColor: "rgba(8, 145, 178, 0.55)",
+    dot: "bg-cyan-600 border-2 border-cyan-300 shadow-sm shadow-cyan-500/50",
     checkColor: "text-white",
-    editorBg: "bg-teal-50/90 dark:bg-teal-950/80 border-teal-400 dark:border-teal-700/80 shadow-md shadow-teal-500/10",
-    cardBg: "bg-teal-50/80 dark:bg-teal-950/60 border-teal-300 dark:border-teal-800/70",
-    strip: "bg-cyan-500",
+    editorBg: "bg-teal-50/90 dark:bg-teal-950/40 border-teal-500/60 dark:border-teal-600/70 shadow-md shadow-teal-500/10",
+    cardBg: "bg-teal-50/80 dark:bg-teal-950/50 border-teal-300 dark:border-teal-700/70",
+    strip: "bg-cyan-600",
   },
 ];
 
@@ -2419,7 +2419,10 @@ export function NotesClientView({
                         <Card
                         style={
                           activeColorConfig.id !== "default"
-                            ? { borderColor: activeColorConfig.borderHex }
+                            ? {
+                                borderColor: activeColorConfig.borderHex,
+                                boxShadow: `0 4px 20px -2px ${activeColorConfig.shadowColor}`,
+                              }
                             : undefined
                         }
                         className={`rounded-2xl border shadow-sm p-4 space-y-4 transition-all duration-300 relative overflow-hidden ${
@@ -2432,8 +2435,11 @@ export function NotesClientView({
                       >
                         {activeColorConfig.id !== "default" && (
                           <div
-                            className="h-1.5 -mx-4 -mt-4 mb-3 shrink-0"
-                            style={{ backgroundColor: activeColorConfig.colorHex }}
+                            className="h-2 -mx-4 -mt-4 mb-3 shrink-0 shadow-sm transition-all"
+                            style={{
+                              backgroundColor: activeColorConfig.colorHex,
+                              boxShadow: `0 2px 10px ${activeColorConfig.shadowColor}`,
+                            }}
                           />
                         )}
                         <div className="space-y-3">
@@ -2451,7 +2457,7 @@ export function NotesClientView({
                                 <Palette className="h-4 w-4 text-slate-400" />
                                 <span className="text-[11px] font-semibold hidden md:inline text-slate-400">Color</span>
                               </div>
-                              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                              <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
                                 {NOTE_COLORS.map((c) => {
                                   const isSelected = (editorColor || "default") === c.id;
                                   return (
@@ -2476,15 +2482,14 @@ export function NotesClientView({
                                       }}
                                       style={{
                                         backgroundColor: c.colorHex,
-                                        borderColor: isSelected ? "#ffffff" : c.borderHex,
                                         boxShadow: isSelected
                                           ? `0 0 0 2px #0f172a, 0 0 0 4.5px ${c.colorHex}, 0 4px 12px ${c.shadowColor}`
                                           : `0 2px 6px ${c.shadowColor}`,
                                       }}
                                       className={`h-7 w-7 sm:h-8 sm:w-8 min-w-[28px] min-h-[28px] sm:min-w-[32px] sm:min-h-[32px] rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 relative border-2 ${
                                         isSelected
-                                          ? "scale-110 z-10"
-                                          : "hover:scale-115 opacity-90 hover:opacity-100"
+                                          ? "scale-110 z-10 border-white ring-2 ring-white/90"
+                                          : "border-white/70 dark:border-slate-500/80 hover:scale-115 hover:border-white opacity-90 hover:opacity-100"
                                       }`}
                                     >
                                       {isSelected && (
@@ -2539,25 +2544,6 @@ export function NotesClientView({
                                 <span>Show List</span>
                               </Button>
                             )}
-
-                            {/* Bottom panels toggle button */}
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className={`h-8 w-8 p-0 rounded-lg hidden md:inline-flex ${
-                                isBottomWidgetsOpen ? "text-primary hover:text-primary" : "text-slate-400 hover:text-slate-600"
-                              }`}
-                              title={isBottomWidgetsOpen ? "Hide Bottom Panels" : "Show Bottom Panels"}
-                              onClick={toggleBottomWidgets}
-                              suppressHydrationWarning
-                            >
-                              {isBottomWidgetsOpen ? (
-                                <PanelBottomClose className="h-4 w-4" />
-                              ) : (
-                                <PanelBottom className="h-4 w-4" />
-                              )}
-                            </Button>
 
                             {/* Pin Toggle */}
                             <Button

@@ -918,8 +918,8 @@ export function ContactsClientView({
         </div>
       </div>
 
-      {/* 5 Core Contact Workspace Stat Cards (Requirement 5) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+      {/* 5 Core Contact Workspace Stat Cards - 2x2 Grid on Mobile, 5 Columns on Desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3.5">
         {/* 1. Current Balance */}
         <Card
           onClick={() => {
@@ -1057,7 +1057,7 @@ export function ContactsClientView({
         </Card>
 
         {/* 5. Running Balance */}
-        <Card className="rounded-3xl border p-4 shadow-xs relative overflow-hidden transition-all duration-300 bg-card border-slate-200/80 dark:border-slate-800/90">
+        <Card className="col-span-2 lg:col-span-1 rounded-3xl border p-4 shadow-xs relative overflow-hidden transition-all duration-300 bg-card border-slate-200/80 dark:border-slate-800/90">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px] text-purple-600 dark:text-purple-400">
               Running Balance

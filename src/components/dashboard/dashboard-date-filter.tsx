@@ -86,8 +86,8 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
           </span>
         </div>
 
-        {/* Quick Pills for Common Windows */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        {/* Quick Pills for Common Windows (Responsive Horizontal Scroll on Mobile) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-nowrap shrink-0 w-full sm:w-auto py-0.5">
           {PERIOD_OPTIONS.slice(0, 4).map((option) => {
             const isActive = currentPeriod === option.value;
             return (
@@ -97,7 +97,7 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
                 size="sm"
                 disabled={isPending}
                 onClick={() => setFilter(option.value)}
-                className={`text-xs rounded-xl h-8 px-3 transition-all ${
+                className={`text-xs rounded-xl h-8 px-3 shrink-0 whitespace-nowrap transition-all ${
                   isActive
                     ? "bg-primary text-primary-foreground font-bold shadow-xs"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -119,7 +119,7 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
                 }
                 size="sm"
                 disabled={isPending}
-                className="text-xs rounded-xl h-8 px-3 gap-1.5 font-semibold"
+                className="text-xs rounded-xl h-8 px-3 gap-1.5 font-semibold shrink-0 whitespace-nowrap"
               >
                 <Calendar className="h-3.5 w-3.5" />
                 <span>
