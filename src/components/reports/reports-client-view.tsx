@@ -255,63 +255,63 @@ export function ReportsClientView({
   return (
     <div className="space-y-6">
       {/* SECTION 1: TOP ACTION TOOLBAR & EXPORT BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100 dark:border-slate-800 no-print">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2 border-b border-slate-100 dark:border-slate-800 no-print max-w-full">
         {/* View Mode Switcher */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl">
+        <div className="flex items-center gap-1 sm:gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl overflow-x-auto no-scrollbar max-w-full shrink-0">
           <Button
             type="button"
             variant={viewMode === "analytics" ? "default" : "ghost"}
             size="sm"
-            className="rounded-lg text-xs h-7 px-3 font-semibold"
+            className="rounded-lg text-xs h-7 px-2.5 sm:px-3 font-semibold whitespace-nowrap shrink-0"
             onClick={() => setViewMode("analytics")}
           >
-            <Activity className="h-3.5 w-3.5 mr-1 text-primary" />
-            Overview & Analytics
+            <Activity className="h-3.5 w-3.5 mr-1 text-primary shrink-0" />
+            <span>Overview & Analytics</span>
           </Button>
           <Button
             type="button"
             variant={viewMode === "insights" ? "default" : "ghost"}
             size="sm"
-            className="rounded-lg text-xs h-7 px-3 font-semibold"
+            className="rounded-lg text-xs h-7 px-2.5 sm:px-3 font-semibold whitespace-nowrap shrink-0"
             onClick={() => setViewMode("insights")}
           >
-            <Sparkles className="h-3.5 w-3.5 mr-1 text-amber-500" />
-            AI Insights
+            <Sparkles className="h-3.5 w-3.5 mr-1 text-amber-500 shrink-0" />
+            <span>AI Insights</span>
           </Button>
           <Button
             type="button"
             variant={viewMode === "table" ? "default" : "ghost"}
             size="sm"
-            className="rounded-lg text-xs h-7 px-3 font-semibold"
+            className="rounded-lg text-xs h-7 px-2.5 sm:px-3 font-semibold whitespace-nowrap shrink-0"
             onClick={() => setViewMode("table")}
           >
-            <FileText className="h-3.5 w-3.5 mr-1" />
-            Transactions ({reportData.totalCount})
+            <FileText className="h-3.5 w-3.5 mr-1 shrink-0" />
+            <span>Transactions ({reportData.totalCount})</span>
           </Button>
         </div>
 
         {/* Action Buttons: Print & 4 Export Formats */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar max-w-full pb-0.5 sm:pb-0 shrink-0">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-xl text-xs h-8 gap-1.5 font-medium"
+            className="rounded-xl text-xs h-8 px-2.5 sm:px-3 gap-1.5 font-medium whitespace-nowrap shrink-0"
             onClick={handlePrint}
             title="Generate executive print/PDF report"
           >
-            <Printer className="h-3.5 w-3.5" />
+            <Printer className="h-3.5 w-3.5 shrink-0" />
             <span>Print Report</span>
           </Button>
 
           {/* Export Formats */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             <Button
               type="button"
               variant="outline"
               size="sm"
               disabled={isExporting}
-              className="rounded-xl text-xs h-8 px-2.5 font-medium"
+              className="rounded-xl text-xs h-8 px-2 sm:px-2.5 font-medium shrink-0"
               onClick={() => handleExport("csv")}
             >
               CSV
@@ -321,7 +321,7 @@ export function ReportsClientView({
               variant="outline"
               size="sm"
               disabled={isExporting}
-              className="rounded-xl text-xs h-8 px-2.5 font-medium"
+              className="rounded-xl text-xs h-8 px-2 sm:px-2.5 font-medium shrink-0"
               onClick={() => handleExport("excel")}
             >
               Excel
@@ -331,7 +331,7 @@ export function ReportsClientView({
               variant="outline"
               size="sm"
               disabled={isExporting}
-              className="rounded-xl text-xs h-8 px-2.5 font-medium"
+              className="rounded-xl text-xs h-8 px-2 sm:px-2.5 font-medium shrink-0"
               onClick={() => handleExport("json")}
             >
               JSON
@@ -341,11 +341,11 @@ export function ReportsClientView({
               variant="default"
               size="sm"
               disabled={isExporting}
-              className="rounded-xl text-xs h-8 px-3 font-semibold bg-primary hover:bg-primary/90 text-white shadow-sm"
+              className="rounded-xl text-xs h-8 px-2.5 sm:px-3 font-semibold bg-primary hover:bg-primary/90 text-white shadow-sm whitespace-nowrap shrink-0"
               onClick={() => handleExport("pdf")}
             >
-              <Download className="h-3.5 w-3.5 mr-1" />
-              Export PDF
+              <Download className="h-3.5 w-3.5 mr-1 shrink-0" />
+              <span>Export PDF</span>
             </Button>
           </div>
         </div>

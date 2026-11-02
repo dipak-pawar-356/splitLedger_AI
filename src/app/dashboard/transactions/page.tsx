@@ -199,73 +199,73 @@ export default async function TransactionsPage() {
           </div>
         </div>
 
-        {/* Stats Overview Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* Stats Overview Cards - Compact 2x2 Grid on Mobile, 4 Columns on Desktop */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 lg:gap-5">
           <Card className="card-lift group rounded-2xl border shadow-sm cursor-pointer transition-all hover:border-slate-300 dark:hover:border-slate-700">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-[11px] sm:text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors truncate">
                 Active Transactions
               </CardTitle>
-              <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <History className="h-4 w-4 text-slate-500" />
+              <div className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 shrink-0">
+                <History className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-500" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 truncate">
                 <AnimatedCounter value={totalCount} />
               </div>
-              <p className="text-xs text-slate-500 mt-1">All recorded transactions</p>
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 truncate">All recorded transactions</p>
             </CardContent>
           </Card>
 
           <Card className="card-lift group rounded-2xl border shadow-sm cursor-pointer transition-all hover:border-emerald-500/50">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-[11px] sm:text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors truncate">
                 Total Income / Received
               </CardTitle>
-              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 shrink-0">
+                <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 truncate">
                 <AnimatedCounter value={formatCurrency(totalIncome / 100)} />
               </div>
-              <p className="text-xs text-slate-500 mt-1">Received & Lent</p>
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 truncate">Received & Lent</p>
             </CardContent>
           </Card>
 
           <Card className="card-lift group rounded-2xl border shadow-sm cursor-pointer transition-all hover:border-rose-500/50">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-[11px] sm:text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors truncate">
                 Total Expenses / Paid
               </CardTitle>
-              <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <TrendingDown className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+              <div className="p-1.5 sm:p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 shrink-0">
+                <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-600 dark:text-rose-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400">
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-bold tracking-tight text-rose-600 dark:text-rose-400 truncate">
                 <AnimatedCounter value={formatCurrency(totalExpense / 100)} />
               </div>
-              <p className="text-xs text-slate-500 mt-1">Paid & Borrowed</p>
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 truncate">Paid & Borrowed</p>
             </CardContent>
           </Card>
 
           <Card className="card-lift group rounded-2xl border shadow-sm cursor-pointer transition-all hover:border-blue-500/50">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-[11px] sm:text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors truncate">
                 This Month&apos;s Spending
               </CardTitle>
-              <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <div className="p-1.5 sm:p-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 shrink-0">
+                <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 dark:text-blue-400" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 truncate">
                 <AnimatedCounter value={formatCurrency(monthlyTotal / 100)} />
               </div>
-              <p className="text-xs text-slate-500 mt-1">{monthlyCount} transactions in {now.toLocaleString('default', { month: 'short' })}</p>
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 truncate">{monthlyCount} txns in {now.toLocaleString('default', { month: 'short' })}</p>
             </CardContent>
           </Card>
         </div>

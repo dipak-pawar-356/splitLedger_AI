@@ -83,11 +83,12 @@ export default function GlobalSearch() {
         <button
           type="button"
           onClick={() => setIsOpen(true)}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-500 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 w-44 sm:w-64 justify-between transition-colors"
+          aria-label="Search"
+          className="flex items-center gap-2 p-2 sm:px-3 sm:py-1.5 text-xs text-slate-500 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 w-9 h-9 sm:w-64 sm:h-auto justify-center sm:justify-between transition-colors shrink-0"
         >
           <div className="flex items-center gap-2">
-            <Search className="h-3.5 w-3.5 text-slate-400" />
-            <span>Search...</span>
+            <Search className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-slate-400" />
+            <span className="hidden sm:inline">Search...</span>
           </div>
           <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono bg-background border rounded-md text-slate-400">
             Ctrl+K

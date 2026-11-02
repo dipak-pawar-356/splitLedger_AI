@@ -23,8 +23,15 @@ import {
   ArrowRight,
   ArrowUpRight,
   ArrowDownLeft,
-  Eye
+  Eye,
+  MoreVertical
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { EditTransactionDialog } from "@/components/dialogs/edit-transaction-dialog";
@@ -150,24 +157,24 @@ export function TransactionsClientView({
           </TabsList>
 
           {/* Search & Type Filters */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <div className="relative min-w-[200px] flex-1 sm:w-64">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <div className="relative min-w-0 flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input
                 type="text"
                 placeholder="Search transactions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 text-xs rounded-xl"
+                className="pl-9 h-9 text-xs rounded-xl w-full"
               />
             </div>
 
             {activeTab === "active" && (
-              <>
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="h-9 px-3 text-xs rounded-xl border border-input bg-background font-medium"
+                  className="h-9 px-3 text-xs rounded-xl border border-input bg-background font-medium w-full sm:w-auto"
                 >
                   <option value="all">All Types</option>
                   <option value="paid">Paid</option>
@@ -181,14 +188,14 @@ export function TransactionsClientView({
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-9 px-3 text-xs rounded-xl border border-input bg-background font-medium"
+                  className="h-9 px-3 text-xs rounded-xl border border-input bg-background font-medium w-full sm:w-auto"
                 >
                   <option value="all">All Statuses</option>
                   <option value="completed">Completed</option>
                   <option value="pending">Pending</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -211,40 +218,40 @@ export function TransactionsClientView({
                       whileTap={{ scale: 0.995 }}
                       transition={{ duration: 0.2, ease: "easeOut" }}
                       key={tx.id}
-                      className="p-4 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-all gap-4 group cursor-pointer"
+                      className="p-3 sm:p-4 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-all gap-2.5 sm:gap-4 group cursor-pointer active:bg-slate-100/70 dark:active:bg-slate-800/60"
                     >
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200 ${
+                    <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                      <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-200 ${
                         isPositive 
                           ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" 
                           : "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
                       }`}>
-                        {isPositive ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownLeft className="h-5 w-5" />}
+                        {isPositive ? <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5" /> : <ArrowDownLeft className="h-4 w-4 sm:h-5 sm:w-5" />}
                       </div>
 
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <Link
                           href={`/dashboard/transactions/${tx.publicId}`}
-                          className="font-semibold text-sm hover:text-primary hover:underline block truncate text-slate-900 dark:text-slate-100"
+                          className="font-semibold text-xs sm:text-sm hover:text-primary hover:underline block truncate text-slate-900 dark:text-slate-100"
                         >
-                          {tx.title || tx.description}
+                          {tx.title?.trim() || tx.description?.trim() || tx.categoryName || "Transaction"}
                         </Link>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap mt-0.5">
+                        <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 truncate mt-0.5">
                           {tx.groupName ? (
-                            <span className="font-medium text-primary">Group: {tx.groupName}</span>
+                            <span className="font-medium text-primary shrink-0 truncate max-w-[120px] sm:max-w-none">Group: {tx.groupName}</span>
                           ) : tx.contactName ? (
-                            <span>Contact: {tx.contactName}</span>
+                            <span className="shrink-0 truncate max-w-[120px] sm:max-w-none">Contact: {tx.contactName}</span>
                           ) : (
-                            <span>Personal</span>
+                            <span className="shrink-0">Personal</span>
                           )}
-                          <span>•</span>
-                          <span>{tx.categoryName || "General"}</span>
-                          <span>•</span>
-                          <span>{formatDate(tx.date)}</span>
+                          <span className="shrink-0">•</span>
+                          <span className="shrink-0 truncate">{tx.categoryName || "General"}</span>
+                          <span className="shrink-0">•</span>
+                          <span className="shrink-0">{formatDate(tx.date)}</span>
                           {tx.receiptUrl && (
                             <>
-                              <span>•</span>
-                              <span className="inline-flex items-center gap-1 text-purple-600 dark:text-purple-400 font-medium">
+                              <span className="shrink-0">•</span>
+                              <span className="inline-flex items-center gap-0.5 text-purple-600 dark:text-purple-400 font-medium shrink-0">
                                 <ReceiptIndianRupee className="h-3 w-3 inline" />
                                 Receipt
                               </span>
@@ -254,9 +261,9 @@ export function TransactionsClientView({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
-                        <p className={`font-bold text-sm sm:text-base ${
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                      <div className="text-right shrink-0">
+                        <p className={`font-bold text-xs sm:text-base ${
                           isPositive 
                             ? "text-emerald-600 dark:text-emerald-400" 
                             : "text-rose-600 dark:text-rose-400"
@@ -264,7 +271,7 @@ export function TransactionsClientView({
                           {isPositive ? "+" : "-"}
                           {formatCurrency(tx.amount / 100, tx.currency)}
                         </p>
-                        <Badge variant="outline" className={`text-[10px] capitalize font-medium ${
+                        <Badge variant="outline" className={`text-[9px] sm:text-[10px] capitalize font-medium px-1.5 py-0 ${
                           tx.status === "completed" 
                             ? "border-emerald-200 text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20" 
                             : tx.status === "cancelled"
@@ -275,7 +282,8 @@ export function TransactionsClientView({
                         </Badge>
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      {/* Desktop Action Buttons: Eye, Edit, Trash */}
+                      <div className="hidden sm:flex items-center gap-1">
                         <Link href={`/dashboard/transactions/${tx.publicId}`}>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg text-slate-500">
                             <Eye className="h-4 w-4" />
@@ -316,6 +324,59 @@ export function TransactionsClientView({
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
+
+                      {/* Mobile Action Dropdown: Compact 3-dots */}
+                      <div className="flex sm:hidden items-center">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-slate-700">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40 rounded-xl p-1 bg-card border border-slate-200 dark:border-slate-800 shadow-xl text-xs">
+                            <DropdownMenuItem asChild className="rounded-lg cursor-pointer py-1.5">
+                              <Link href={`/dashboard/transactions/${tx.publicId}`} className="flex items-center gap-2">
+                                <Eye className="h-3.5 w-3.5 text-slate-500" />
+                                <span>View Details</span>
+                              </Link>
+                            </DropdownMenuItem>
+                            <div className="p-0">
+                              <EditTransactionDialog
+                                transactionPublicId={tx.publicId}
+                                initialData={{
+                                  title: tx.title,
+                                  description: tx.description,
+                                  type: tx.type as any,
+                                  amount: tx.amount,
+                                  currency: tx.currency,
+                                  date: tx.date,
+                                  contactId: tx.contactId,
+                                  categoryId: tx.categoryId,
+                                  groupId: tx.groupId,
+                                  paymentMethod: tx.paymentMethod,
+                                  status: tx.status as any,
+                                  receiptUrl: tx.receiptUrl,
+                                  location: tx.location,
+                                  tags: tx.tags,
+                                }}
+                                trigger={
+                                  <button type="button" className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs hover:bg-slate-100 dark:hover:bg-slate-800 text-left cursor-pointer transition-colors">
+                                    <Edit className="h-3.5 w-3.5 text-blue-500" />
+                                    <span>Edit</span>
+                                  </button>
+                                }
+                              />
+                            </div>
+                            <DropdownMenuItem
+                              onClick={() => setDeletingTx(tx)}
+                              className="rounded-lg cursor-pointer py-1.5 text-rose-600 dark:text-rose-400 focus:text-rose-600 flex items-center gap-2"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Delete</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -353,35 +414,35 @@ export function TransactionsClientView({
               {filteredDeleted.map((tx) => (
                 <div
                   key={tx.id}
-                  className="p-4 flex items-center justify-between bg-slate-50/40 dark:bg-slate-900/20 hover:bg-slate-100/50 transition-colors gap-4 opacity-80"
+                  className="p-3 sm:p-4 flex items-center justify-between bg-slate-50/40 dark:bg-slate-900/20 hover:bg-slate-100/50 transition-colors gap-2.5 sm:gap-4 opacity-80"
                 >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0">
+                  <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 flex items-center justify-center shrink-0">
                       <Trash2 className="h-4 w-4" />
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm line-through text-slate-500 truncate">
-                        {tx.title || tx.description}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-xs sm:text-sm line-through text-slate-500 truncate">
+                        {tx.title?.trim() || tx.description?.trim() || "Deleted Transaction"}
                       </p>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 truncate">
                         Deleted: {formatDate(tx.deletedAt)} by {tx.deletedByName || "User"}
                         {tx.groupName && ` • Group: ${tx.groupName}`}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <p className="font-semibold text-sm line-through text-slate-400">
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    <div className="text-right shrink-0">
+                      <p className="font-semibold text-xs sm:text-sm line-through text-slate-400">
                         {formatCurrency(tx.amount / 100, tx.currency)}
                       </p>
-                      <Badge variant="destructive" className="text-[10px]">
+                      <Badge variant="destructive" className="text-[9px] sm:text-[10px] px-1.5 py-0">
                         Deleted
                       </Badge>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Link href={`/dashboard/transactions/${tx.publicId}`}>
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <Link href={`/dashboard/transactions/${tx.publicId}`} className="hidden sm:inline-block">
                         <Button variant="outline" size="sm" className="rounded-xl text-xs h-8">
                           View
                         </Button>
@@ -389,11 +450,11 @@ export function TransactionsClientView({
                       <Button
                         variant="default"
                         size="sm"
-                        className="rounded-xl text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                        className="rounded-xl text-xs h-7 sm:h-8 px-2 sm:px-3 gap-1 sm:gap-1.5 bg-emerald-600 hover:bg-emerald-700"
                         onClick={() => setRestoringTx(tx)}
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
-                        Restore
+                        <span className="hidden sm:inline">Restore</span>
                       </Button>
                     </div>
                   </div>

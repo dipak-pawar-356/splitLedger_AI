@@ -315,75 +315,75 @@ export default async function GroupsPage({
           </div>
         </div>
 
-        {/* Aggregate Balance Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Aggregate Balance Cards - Compact 2x2 Grid on Mobile, 4 Columns on Desktop */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
           <Card className="card-lift group rounded-2xl border-slate-200/80 dark:border-slate-800 hover:shadow-md transition-all bg-card/60 backdrop-blur-sm cursor-pointer hover:border-slate-300 dark:hover:border-slate-700">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors truncate">
                 Total Groups
               </CardTitle>
-              <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <Users className="h-4 w-4" />
+              <div className="p-1.5 sm:p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 shrink-0">
+                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight truncate">
                 <AnimatedCounter value={enrichedGroups.length} />
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                {activeGroups.length} active • {requestedGroups.length > 0 ? `${requestedGroups.length} requested • ` : ""}{archivedGroups.length} archived
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 truncate">
+                {activeGroups.length} active • {requestedGroups.length > 0 ? `${requestedGroups.length} req • ` : ""}{archivedGroups.length} archived
               </p>
             </CardContent>
           </Card>
 
           <Card className="card-lift group rounded-2xl border-emerald-200/60 dark:border-emerald-950 hover:shadow-md transition-all bg-gradient-to-br from-emerald-50/40 via-card to-card dark:from-emerald-950/20 cursor-pointer hover:border-emerald-500/50">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-[11px] font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-[10px] sm:text-[11px] font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-wider group-hover:text-emerald-700 dark:group-hover:text-emerald-300 transition-colors truncate">
                 You Will Receive
               </CardTitle>
-              <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <ArrowUpRight className="h-4 w-4" />
+              <div className="p-1.5 sm:p-2 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 shrink-0">
+                <ArrowUpRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight truncate">
                 <AnimatedCounter value={formatCurrency(totalWillReceive / 100)} />
               </div>
-              <p className="text-xs text-slate-500 mt-1">Across all your groups</p>
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 truncate">Across all groups</p>
             </CardContent>
           </Card>
 
           <Card className="card-lift group rounded-2xl border-rose-200/60 dark:border-rose-950 hover:shadow-md transition-all bg-gradient-to-br from-rose-50/40 via-card to-card dark:from-rose-950/20 cursor-pointer hover:border-rose-500/50">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-[11px] font-bold text-rose-800 dark:text-rose-400 uppercase tracking-wider group-hover:text-rose-700 dark:group-hover:text-rose-300 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-[10px] sm:text-[11px] font-bold text-rose-800 dark:text-rose-400 uppercase tracking-wider group-hover:text-rose-700 dark:group-hover:text-rose-300 transition-colors truncate">
                 You Need To Pay
               </CardTitle>
-              <div className="p-2 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <ArrowDownLeft className="h-4 w-4" />
+              <div className="p-1.5 sm:p-2 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 shrink-0">
+                <ArrowDownLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl sm:text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight truncate">
                 <AnimatedCounter value={formatCurrency(totalNeedToPay / 100)} />
               </div>
-              <p className="text-xs text-slate-500 mt-1">Total pending debts</p>
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 truncate">Total pending debts</p>
             </CardContent>
           </Card>
 
           <Card className="card-lift group rounded-2xl border-blue-200/60 dark:border-blue-950 hover:shadow-md transition-all bg-gradient-to-br from-blue-50/40 via-card to-card dark:from-blue-950/20 cursor-pointer hover:border-blue-500/50">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-[11px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-5 pb-1 sm:pb-2">
+              <CardTitle className="text-[10px] sm:text-[11px] font-bold text-blue-800 dark:text-blue-400 uppercase tracking-wider group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors truncate">
                 Total Expenses
               </CardTitle>
-              <div className="p-2 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
-                <IndianRupee className="h-4 w-4" />
+              <div className="p-1.5 sm:p-2 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300 shrink-0">
+                <IndianRupee className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400 tracking-tight">
+            <CardContent className="p-3 sm:p-5 pt-0 sm:pt-0">
+              <div className="text-lg sm:text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight truncate">
                 <AnimatedCounter value={formatCurrency(totalOverallExpenses / 100)} />
               </div>
-              <p className="text-xs text-slate-500 mt-1">Shared group spending</p>
+              <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 sm:mt-1 truncate">Shared group spending</p>
             </CardContent>
           </Card>
         </div>
