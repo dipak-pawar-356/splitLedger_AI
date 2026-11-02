@@ -27,9 +27,10 @@ import { calculateGroupSettlements } from "@/lib/settlements/calculator";
 import { appCache } from "@/lib/cache";
 import { logger } from "@/lib/logger";
 import { formatCurrency } from "@/lib/utils";
+import { getBudgetsWithProgress, BudgetProgress } from "@/actions/budgets";
 
 export interface DashboardOptions {
-  period?: "current_month" | "last_month" | "this_week" | "today" | "year" | "all_time" | "custom";
+  period?: "current_month" | "last_month" | "this_week" | "today" | "year" | "this_year" | "all_time" | "custom";
   startDate?: string | Date;
   endDate?: string | Date;
 }
@@ -107,8 +108,17 @@ export interface DashboardData {
     totalTransactions: number;
     pendingSettlementsAmount: number; // in rupees (Row 2, Card 3)
     pendingSettlementsCount: number;
+    completedSettlementsCount?: number;
     pendingSettlementsStatus: "Action Required" | "All Settled";
     myGroupsCount: number; // (Row 2, Card 4)
+    budget?: {
+      allocated: number;
+      spent: number;
+      remaining: number;
+      usedPercentage: number;
+      health: string;
+      prevMonthComparison?: string;
+    };
     previousMonthIncome?: {
       amount: number;
       priorAmount: number;
@@ -136,9 +146,12 @@ export interface DashboardData {
     };
   };
   trends: {
-    spendingTrend: number | null; // percentage vs last month
-    incomeTrend: number | null; // percentage vs last month
+    spendingTrend: number | null; // percentage vs previous period
+    incomeTrend: number | null; // percentage vs previous period
     balanceTrend: number | null;
+    payableTrend?: number | null;
+    receivableTrend?: number | null;
+    budgetTrend?: number | null;
   };
   activePeriod: string;
   contactOverview: ContactFinancialOverviewData;
@@ -265,6 +278,7 @@ function calculateDashboardDateWindows(
       prevEndDate = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59, 999);
       break;
     }
+    case "this_year":
     case "year": {
       startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
       endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
@@ -380,6 +394,8 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
             exactPrevMonthTxSummary,
             exactPriorMonthTxSummary,
             exactCurrentMonthTxSummary,
+            completedSettlementsQuery,
+            prevPeriodSettlementsQuery,
           ] = await withDbRetry(async () => {
             return await Promise.all([
       // 1. User Profile & Extended Settings
@@ -919,6 +935,38 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
             lte(transactions.date, exactCurrentMonthEnd)
           )
         ),
+
+      // 28. Completed Settlements Count
+      db
+        .select({
+          count: sql<number>`COUNT(*)`,
+        })
+        .from(settlements)
+        .where(
+          and(
+            eq(settlements.isDeleted, false),
+            eq(settlements.status, "completed"),
+            or(
+              eq(settlements.fromUserId, user.id),
+              eq(settlements.toUserId, user.id)
+            )
+          )
+        ),
+
+      // 29. Prior Period Pending Settlements (for receivables & payables trend)
+      db
+        .select({
+          prevReceivablePaise: sql<number>`COALESCE(SUM(CASE WHEN ${settlements.status} = 'pending' AND ${settlements.toUserId} = ${user.id} THEN ${settlements.amount} ELSE 0 END), 0)`,
+          prevPayablePaise: sql<number>`COALESCE(SUM(CASE WHEN ${settlements.status} = 'pending' AND ${settlements.fromUserId} = ${user.id} THEN ${settlements.amount} ELSE 0 END), 0)`,
+        })
+        .from(settlements)
+        .where(
+          and(
+            eq(settlements.isDeleted, false),
+            gte(settlements.createdAt, prevStartDate),
+            lte(settlements.createdAt, prevEndDate)
+          )
+        ),
     ]);
   });
 
@@ -1176,6 +1224,47 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
     const overallReceivableRupees = totalReceivableRupees + (contactsReceivablePaise / 100);
     const overallPayableRupees = totalPayableRupees + (contactsPayablePaise / 100);
     const netBalanceRupees = overallReceivableRupees - overallPayableRupees;
+
+    // Budget & Health Calculations
+    const userBudgets = await getBudgetsWithProgress().catch(() => [] as BudgetProgress[]);
+    const totalAllocatedBudget = userBudgets.reduce((s, b) => s + b.amount, 0);
+    const totalSpentBudget = userBudgets.reduce((s, b) => s + b.spent, 0);
+    const remainingBudget = Math.max(0, totalAllocatedBudget - totalSpentBudget);
+    const budgetUsedPercentage = totalAllocatedBudget > 0
+      ? Math.min(100, Math.round((totalSpentBudget / totalAllocatedBudget) * 100))
+      : 0;
+
+    let budgetHealth = "On track";
+    if (totalAllocatedBudget === 0) {
+      budgetHealth = "No limit set";
+    } else if (totalSpentBudget > totalAllocatedBudget) {
+      budgetHealth = "Exceeded";
+    } else if (budgetUsedPercentage >= 80) {
+      budgetHealth = "Near limit";
+    }
+
+    const prevMonthTotalSpent = (exactPrevMonthTxSummary[0]?.expense || 0) / 100;
+    const prevBudgetUsedPct = totalAllocatedBudget > 0 && prevMonthTotalSpent > 0
+      ? Math.min(100, Math.round((prevMonthTotalSpent / totalAllocatedBudget) * 100))
+      : null;
+    const budgetTrend = prevBudgetUsedPct !== null ? budgetUsedPercentage - prevBudgetUsedPct : null;
+
+    const completedSettlementsCount = Number(completedSettlementsQuery[0]?.count || 0);
+
+    const prevReceivableRupees = Number(prevPeriodSettlementsQuery[0]?.prevReceivablePaise || 0) / 100;
+    const prevPayableRupees = Number(prevPeriodSettlementsQuery[0]?.prevPayablePaise || 0) / 100;
+
+    const receivableTrend = isAllTime
+      ? null
+      : prevReceivableRupees > 0
+      ? Math.round(((overallReceivableRupees - prevReceivableRupees) / prevReceivableRupees) * 100)
+      : null;
+
+    const payableTrend = isAllTime
+      ? null
+      : prevPayableRupees > 0
+      ? Math.round(((overallPayableRupees - prevPayableRupees) / prevPayableRupees) * 100)
+      : null;
 
     // Contact Financial Overview Data (Requirement 10)
     const owingContacts = [...contactsQuery]
@@ -1534,8 +1623,17 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         totalTransactions: Number(allTimeIncomeExp[0]?.totalCount || 0) + totalReflectedTxCount,
         pendingSettlementsAmount: totalPendingSettlementsPaise / 100,
         pendingSettlementsCount: totalPendingCount,
+        completedSettlementsCount,
         pendingSettlementsStatus: (totalPendingCount > 0 ? "Action Required" : "All Settled") as "Action Required" | "All Settled",
         myGroupsCount: activeGroupsRaw.length,
+        budget: {
+          allocated: totalAllocatedBudget,
+          spent: totalSpentBudget,
+          remaining: remainingBudget,
+          usedPercentage: budgetUsedPercentage,
+          health: budgetHealth,
+          prevMonthComparison: prevBudgetUsedPct !== null ? `${budgetTrend! >= 0 ? "+" : ""}${budgetTrend}% vs Previous Month` : "No baseline",
+        },
         previousMonthIncome: previousMonthIncomeData,
         previousMonthExpense: previousMonthExpenseData,
         currentMonthExpense: currentMonthExpenseData,
@@ -1544,6 +1642,9 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         spendingTrend,
         incomeTrend,
         balanceTrend,
+        payableTrend,
+        receivableTrend,
+        budgetTrend,
       },
       activePeriod: period,
       contactOverview,

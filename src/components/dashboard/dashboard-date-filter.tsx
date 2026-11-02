@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, ChevronDown, Check, Filter } from "lucide-react";
+import { Calendar, ChevronDown, Check, Filter } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,14 +21,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const PERIOD_OPTIONS = [
-  { value: "current_month", label: "Current Month" },
-  { value: "last_month", label: "Last Month" },
-  { value: "this_week", label: "This Week" },
+// Exact required order: Today -> This Week -> Current Month -> This Year -> All Time
+const PRIMARY_PERIOD_OPTIONS = [
   { value: "today", label: "Today" },
-  { value: "year", label: "This Year" },
+  { value: "this_week", label: "This Week" },
+  { value: "current_month", label: "Current Month" },
+  { value: "this_year", label: "This Year" },
   { value: "all_time", label: "All Time" },
-  { value: "custom", label: "Custom Range..." },
 ] as const;
 
 export function DashboardDateFilter({ activePeriod = "current_month" }: { activePeriod?: string }) {
@@ -37,7 +36,9 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const currentPeriod = searchParams.get("period") || activePeriod;
+  const rawPeriod = searchParams.get("period") || activePeriod;
+  // Normalize "year" to "this_year" for active selection
+  const currentPeriod = rawPeriod === "year" ? "this_year" : rawPeriod;
   const currentStart = searchParams.get("startDate") || "";
   const currentEnd = searchParams.get("endDate") || "";
 
@@ -57,11 +58,13 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
     }
 
     startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`);
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
     });
   };
 
-  const activeLabel = PERIOD_OPTIONS.find((p) => p.value === currentPeriod)?.label || "Current Month";
+  const activeLabel =
+    PRIMARY_PERIOD_OPTIONS.find((p) => p.value === currentPeriod)?.label ||
+    (currentPeriod === "last_month" ? "Last Month" : "Current Month");
 
   const handleApplyCustom = () => {
     if (!customStart || !customEnd) return;
@@ -73,7 +76,7 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-2xl bg-card border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+          <div className="p-1.5 rounded-lg bg-primary/10 text-primary shrink-0">
             <Filter className="h-4 w-4" />
           </div>
           <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -84,11 +87,14 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
               ? `${customStart} → ${customEnd}`
               : activeLabel}
           </span>
+          {isPending && (
+            <span className="inline-block h-2 w-2 rounded-full bg-primary animate-ping" />
+          )}
         </div>
 
-        {/* Quick Pills for Common Windows (Responsive Horizontal Scroll on Mobile) */}
+        {/* Quick Pills for 5 Required Windows: Today -> This Week -> Current Month -> This Year -> All Time */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-nowrap shrink-0 w-full sm:w-auto py-0.5 touch-pan-x">
-          {PERIOD_OPTIONS.slice(0, 4).map((option) => {
+          {PRIMARY_PERIOD_OPTIONS.map((option) => {
             const isActive = currentPeriod === option.value;
             return (
               <Button
@@ -97,9 +103,9 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
                 size="sm"
                 disabled={isPending}
                 onClick={() => setFilter(option.value)}
-                className={`text-xs rounded-xl h-8 px-3 shrink-0 whitespace-nowrap transition-all touch-press ${
+                className={`text-xs rounded-xl h-8 px-3 shrink-0 whitespace-nowrap transition-all duration-200 touch-press ${
                   isActive
-                    ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                    ? "bg-primary text-primary-foreground font-bold shadow-xs hover:bg-primary/90"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800"
                 }`}
               >
@@ -108,42 +114,37 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
             );
           })}
 
-          {/* Dropdown for More Options (Year, All Time, Custom) */}
+          {/* More Dropdown (Last Month, Custom Range) */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant={
-                  currentPeriod === "year" || currentPeriod === "all_time" || currentPeriod === "custom"
+                  currentPeriod === "last_month" || currentPeriod === "custom"
                     ? "default"
                     : "outline"
                 }
                 size="sm"
                 disabled={isPending}
-                className="text-xs rounded-xl h-8 px-3 gap-1.5 font-semibold shrink-0 whitespace-nowrap"
+                className="text-xs rounded-xl h-8 px-2.5 sm:px-3 gap-1 font-semibold shrink-0 whitespace-nowrap"
               >
                 <Calendar className="h-3.5 w-3.5" />
                 <span>
-                  {currentPeriod === "year" || currentPeriod === "all_time" || currentPeriod === "custom"
-                    ? activeLabel
+                  {currentPeriod === "last_month"
+                    ? "Last Month"
+                    : currentPeriod === "custom"
+                    ? "Custom"
                     : "More"}
                 </span>
-                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                <ChevronDown className="h-3 w-3 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 rounded-2xl">
               <DropdownMenuItem
-                onClick={() => setFilter("year")}
+                onClick={() => setFilter("last_month")}
                 className="text-xs font-medium cursor-pointer flex justify-between"
               >
-                <span>This Year</span>
-                {currentPeriod === "year" && <Check className="h-3.5 w-3.5 text-primary" />}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setFilter("all_time")}
-                className="text-xs font-medium cursor-pointer flex justify-between"
-              >
-                <span>All Time</span>
-                {currentPeriod === "all_time" && <Check className="h-3.5 w-3.5 text-primary" />}
+                <span>Last Month</span>
+                {currentPeriod === "last_month" && <Check className="h-3.5 w-3.5 text-primary" />}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -214,4 +215,3 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
     </>
   );
 }
-
