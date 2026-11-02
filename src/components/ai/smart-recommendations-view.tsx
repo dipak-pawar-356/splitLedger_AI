@@ -68,21 +68,33 @@ export function SmartRecommendationsView({
     );
   };
 
-  const renderActionButton = (rec: SmartRecommendation) => {
+  const renderActionButtons = (rec: SmartRecommendation) => {
     if (rec.actionType === "settle_up") {
       return (
-        <SettleAllDialog
-          trigger={
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <SettleAllDialog
+            trigger={
+              <Button
+                size="sm"
+                aria-label="Settle outstanding debts now"
+                className="rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white shadow-xs gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-500 h-8 px-3 transition-transform active:scale-95"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Settle Now</span>
+              </Button>
+            }
+          />
+          <Link href="/dashboard/settlements?tab=payable" aria-label="Open settlement center">
             <Button
               size="sm"
-              aria-label="Settle outstanding debts now"
-              className="rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white shadow-xs gap-1.5 focus-visible:ring-2 focus-visible:ring-teal-500"
+              variant="outline"
+              className="rounded-xl text-xs font-semibold h-8 px-3 gap-1 hover:border-teal-400 text-slate-700 dark:text-slate-300 transition-colors"
             >
-              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Settle Now</span>
+              <span>Settlement Center</span>
+              <ArrowRight className="h-3 w-3" />
             </Button>
-          }
-        />
+          </Link>
+        </div>
       );
     }
 
@@ -92,74 +104,104 @@ export function SmartRecommendationsView({
       const isSingleDebtor = debtors.length === 1;
 
       return (
-        <ReminderDialog
-          recipientName={payload.recipientName || (isSingleDebtor ? debtors[0].name : "Group Members")}
-          recipientPhone={payload.recipientPhone || (isSingleDebtor ? debtors[0].phone : undefined)}
-          recipientEmail={payload.recipientEmail || (isSingleDebtor ? debtors[0].email : undefined)}
-          amount={payload.amount}
-          creditorName={payload.creditorName}
-          receivesFromList={debtors}
-          owesToList={payload.owesToList}
-          groupId={payload.groupId}
-          groupPublicId={payload.groupPublicId}
-          groupName={payload.groupName}
-          reminderRole="receiver"
-          trigger={
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <ReminderDialog
+            recipientName={payload.recipientName || (isSingleDebtor ? debtors[0].name : "Group Members")}
+            recipientPhone={payload.recipientPhone || (isSingleDebtor ? debtors[0].phone : undefined)}
+            recipientEmail={payload.recipientEmail || (isSingleDebtor ? debtors[0].email : undefined)}
+            amount={payload.amount}
+            creditorName={payload.creditorName}
+            receivesFromList={debtors}
+            owesToList={payload.owesToList}
+            groupId={payload.groupId}
+            groupPublicId={payload.groupPublicId}
+            groupName={payload.groupName}
+            reminderRole="receiver"
+            trigger={
+              <Button
+                size="sm"
+                aria-label="Send polite payment reminder"
+                className="rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-xs gap-1.5 focus-visible:ring-2 focus-visible:ring-amber-500 h-8 px-3 transition-transform active:scale-95"
+              >
+                <Bell className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Send Reminder</span>
+              </Button>
+            }
+          />
+          <Link
+            href={payload.groupPublicId ? `/dashboard/groups/${payload.groupPublicId}` : `/dashboard/settlements`}
+            aria-label="View settlement details"
+          >
             <Button
               size="sm"
               variant="outline"
-              aria-label="Send reminder to group members"
-              className="rounded-xl text-xs font-semibold text-amber-600 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 gap-1.5 focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="rounded-xl text-xs font-semibold h-8 px-3 gap-1 text-slate-700 dark:text-slate-300 hover:border-amber-400 transition-colors"
             >
-              <Bell className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Send Reminder</span>
+              <span>View Settlement</span>
+              <ArrowRight className="h-3 w-3" />
             </Button>
-          }
-        />
+          </Link>
+        </div>
       );
     }
 
     if (rec.actionType === "create_budget" && onOpenBudgetDialog) {
       const suggestedAmount = rec.actionPayload?.suggestedAmount;
       return (
-        <Button
-          size="sm"
-          aria-label="Set up a monthly budget"
-          className="rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1.5 focus-visible:ring-2 focus-visible:ring-primary"
-          onClick={() => onOpenBudgetDialog(suggestedAmount)}
-        >
-          <Target className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Set Budget</span>
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <Button
+            size="sm"
+            aria-label="Set up a monthly budget"
+            className="rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1.5 focus-visible:ring-2 focus-visible:ring-primary h-8 px-3 transition-transform active:scale-95"
+            onClick={() => onOpenBudgetDialog(suggestedAmount)}
+          >
+            <Target className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Set Budget</span>
+          </Button>
+          <Link href="/dashboard/budgets" aria-label="View existing budget targets">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl text-xs font-semibold h-8 px-3 gap-1 text-slate-700 dark:text-slate-300 hover:border-primary/40 transition-colors"
+            >
+              <span>View Targets</span>
+              <ArrowRight className="h-3 w-3" />
+            </Button>
+          </Link>
+        </div>
       );
     }
 
     if (rec.actionType === "view_profile") {
       return (
-        <Link href="/dashboard/profile" aria-label="Go to profile page">
-          <Button
-            size="sm"
-            variant="outline"
-            className="rounded-xl text-xs font-semibold gap-1.5 hover:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            <UserCheck className="h-3.5 w-3.5 text-blue-500" aria-hidden="true" />
-            <span>Update Profile</span>
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <Link href="/dashboard/profile" aria-label="Go to profile page">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl text-xs font-semibold gap-1.5 hover:border-blue-400 focus-visible:ring-2 focus-visible:ring-blue-500 h-8 px-3"
+            >
+              <UserCheck className="h-3.5 w-3.5 text-blue-500" aria-hidden="true" />
+              <span>Update Profile</span>
+            </Button>
+          </Link>
+        </div>
       );
     }
 
     return (
-      <Link href="/dashboard/transactions" aria-label="View transactions ledger">
-        <Button
-          size="sm"
-          variant="outline"
-          className="rounded-xl text-xs font-semibold gap-1.5 hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <span>View Ledger</span>
-          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </Button>
-      </Link>
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <Link href="/dashboard/transactions" aria-label="View transactions ledger">
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl text-xs font-semibold gap-1.5 hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary h-8 px-3"
+          >
+            <span>View Ledger</span>
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        </Link>
+      </div>
     );
   };
 
@@ -475,11 +517,12 @@ export function SmartRecommendationsView({
                   key={rec.id}
                   role="article"
                   aria-label={rec.title}
-                  whileHover={shouldReduceMotion ? undefined : { y: -2, scale: 1.005 }}
+                  whileHover={shouldReduceMotion ? undefined : { y: -3, scale: 1.006 }}
+                  whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
                   transition={{ duration: 0.2, ease: "easeOut" }}
-                  className="p-4 rounded-2xl border border-slate-200/70 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40 hover:border-amber-500/40 transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                  className="group relative p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card hover:bg-slate-50/70 dark:hover:bg-slate-900/40 hover:border-amber-500/50 hover:shadow-lg dark:hover:shadow-amber-500/5 transition-all duration-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
-                  <div className="space-y-1 min-w-0">
+                  <div className="space-y-1.5 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
                         {formatInlineText(rec.title)}
@@ -496,8 +539,8 @@ export function SmartRecommendationsView({
                     </p>
                   </div>
 
-                  <div className="shrink-0 pt-1 sm:pt-0">
-                    {renderActionButton(rec)}
+                  <div className="shrink-0 pt-2 sm:pt-0">
+                    {renderActionButtons(rec)}
                   </div>
                 </motion.article>
               );

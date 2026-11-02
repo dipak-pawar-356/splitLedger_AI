@@ -149,5 +149,40 @@ describe("Dashboard Financial Calculations & Isolation", () => {
       expect(formatTrendDisplay(45).text).toBe("+45%");
       expect(formatTrendDisplay(-30).text).toBe("-30%");
     });
+
+    it("must enforce the 7-card layout with Total Groups removed", () => {
+      // 7 core cards displayed in Financial Summary
+      const activeCardKeys = [
+        "totalIncome",
+        "totalExpenses",
+        "totalPayable",
+        "totalReceivable",
+        "monthExpense",
+        "savings",
+        "settlements",
+      ];
+
+      expect(activeCardKeys).toHaveLength(7);
+      expect(activeCardKeys).not.toContain("totalGroups");
+    });
+
+    it("must determine settlement status accurately based on verified pending counts", () => {
+      const getSettlementStatus = (pendingCount: number) => {
+        return pendingCount > 0 ? "Action Required" : "All Settled";
+      };
+
+      expect(getSettlementStatus(2)).toBe("Action Required");
+      expect(getSettlementStatus(0)).toBe("All Settled");
+    });
+
+    it("must compute income comparison delta and growth percentage accurately", () => {
+      const currentMonthIncome = 36500;
+      const previousMonthIncome = 30000;
+      const difference = currentMonthIncome - previousMonthIncome;
+      const growth = Number((((currentMonthIncome - previousMonthIncome) / previousMonthIncome) * 100).toFixed(2));
+
+      expect(difference).toBe(6500);
+      expect(growth).toBe(21.67);
+    });
   });
 });

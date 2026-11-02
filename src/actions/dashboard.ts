@@ -107,7 +107,15 @@ export interface DashboardData {
     totalTransactions: number;
     pendingSettlementsAmount: number; // in rupees (Row 2, Card 3)
     pendingSettlementsCount: number;
+    pendingSettlementsStatus: "Action Required" | "All Settled";
     myGroupsCount: number; // (Row 2, Card 4)
+    previousMonthIncome?: {
+      amount: number;
+      priorAmount: number;
+      monthName: string;
+      difference: number;
+      percentChange: number | null;
+    };
     previousMonthExpense: {
       monthName: string; // e.g. "October Expense"
       shortMonthName: string; // e.g. "Oct"
@@ -838,6 +846,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
             gte(transactions.date, startDate),
             lte(transactions.date, endDate)
           )
@@ -854,14 +863,16 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
             gte(transactions.date, prevStartDate),
             lte(transactions.date, prevEndDate)
           )
         ),
 
-      // 25. Exact Previous Calendar Month Expenses
+      // 25. Exact Previous Calendar Month Expenses & Income
       db
         .select({
+          income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
           expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'paid' THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
@@ -869,14 +880,16 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
             gte(transactions.date, exactPrevMonthStart),
             lte(transactions.date, exactPrevMonthEnd)
           )
         ),
 
-      // 26. Exact Prior Month Expenses (for historical comparison)
+      // 26. Exact Prior Month Expenses & Income (for historical comparison)
       db
         .select({
+          income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
           expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'paid' THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
@@ -884,14 +897,16 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
             gte(transactions.date, exactPriorMonthStart),
             lte(transactions.date, exactPriorMonthEnd)
           )
         ),
 
-      // 27. Exact Current Calendar Month Expenses (for Month Expense card baseline)
+      // 27. Exact Current Calendar Month Expenses & Income (for Month Expense card baseline)
       db
         .select({
+          income: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} IN ('received', 'repaid') THEN ${transactions.amount} ELSE 0 END), 0)`,
           expense: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'paid' THEN ${transactions.amount} ELSE 0 END), 0)`,
         })
         .from(transactions)
@@ -899,6 +914,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
             gte(transactions.date, exactCurrentMonthStart),
             lte(transactions.date, exactCurrentMonthEnd)
           )
@@ -1064,6 +1080,7 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
 
     // Exact Previous Month Card Calculations (Requirement 4)
     const prevMonthTotalExpense = (exactPrevMonthTxSummary[0]?.expense || 0) / 100;
+    const prevMonthTotalIncome = (exactPrevMonthTxSummary[0]?.income || 0) / 100;
     const priorMonthTotalExpense = (exactPriorMonthTxSummary[0]?.expense || 0) / 100;
 
     let prevMonthPercentChange: number | null = null;
@@ -1090,6 +1107,14 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
     } else {
       prevMonthComparisonText = `No expenses recorded in ${exactPrevMonthName}`;
     }
+
+    const previousMonthIncomeData = {
+      amount: prevMonthTotalIncome,
+      priorAmount: prevTotalIncome,
+      monthName: exactPrevMonthName,
+      difference: totalIncome - prevTotalIncome,
+      percentChange: incomeTrend,
+    };
 
     const previousMonthExpenseData = {
       monthName: `${exactPrevMonthName} Expense`,
@@ -1509,7 +1534,9 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
         totalTransactions: Number(allTimeIncomeExp[0]?.totalCount || 0) + totalReflectedTxCount,
         pendingSettlementsAmount: totalPendingSettlementsPaise / 100,
         pendingSettlementsCount: totalPendingCount,
+        pendingSettlementsStatus: (totalPendingCount > 0 ? "Action Required" : "All Settled") as "Action Required" | "All Settled",
         myGroupsCount: activeGroupsRaw.length,
+        previousMonthIncome: previousMonthIncomeData,
         previousMonthExpense: previousMonthExpenseData,
         currentMonthExpense: currentMonthExpenseData,
       },

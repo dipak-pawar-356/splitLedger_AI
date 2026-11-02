@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { formatCurrency } from "@/lib/utils";
 import { BudgetCard } from "@/components/budget/budget-card";
+import { SmartRecommendationsView } from "@/components/ai/smart-recommendations-view";
 import {
   Target,
   TrendingDown,
@@ -188,12 +189,12 @@ export function AIBudgetEnterpriseDashboard({
       {/* 2. ROW 1: CORE BUDGET METRICS (4 CARDS) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1 — Total Budget */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all">
+        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-primary/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600 dark:text-slate-300">
               Total Budget
             </span>
-            <div className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600">
+            <div className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
               <Target className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -206,12 +207,12 @@ export function AIBudgetEnterpriseDashboard({
         </Card>
 
         {/* Card 2 — Total Spent */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-rose-500/40 transition-all">
+        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-rose-500/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600 dark:text-slate-300">
               Total Spent
             </span>
-            <div className="p-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600">
+            <div className="p-1 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-rose-600 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
               <TrendingDown className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -224,12 +225,12 @@ export function AIBudgetEnterpriseDashboard({
         </Card>
 
         {/* Card 3 — Remaining Budget */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-emerald-500/40 transition-all">
+        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-emerald-500/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600 dark:text-slate-300">
               Remaining Budget
             </span>
-            <div className="p-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600">
+            <div className="p-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
               <Sparkles className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -242,7 +243,7 @@ export function AIBudgetEnterpriseDashboard({
         </Card>
 
         {/* Card 4 — Budget Health Score */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/40 transition-all">
+        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600 dark:text-slate-300">
               Health Score
@@ -266,12 +267,12 @@ export function AIBudgetEnterpriseDashboard({
       {/* 3. ROW 2: ADVANCED ANALYTICS (4 CARDS) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 5 — Current Savings */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs">
+        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-teal-500/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600 dark:text-slate-300">
               Current Savings
             </span>
-            <div className={`p-1 rounded-lg ${isSavingsPositive ? "bg-teal-50 text-teal-600" : "bg-rose-50 text-rose-600"}`}>
+            <div className={`p-1 rounded-lg ${isSavingsPositive ? "bg-teal-50 text-teal-600" : "bg-rose-50 text-rose-600"} group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300`}>
               <PiggyBank className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -284,7 +285,7 @@ export function AIBudgetEnterpriseDashboard({
         </Card>
 
         {/* Card 6 — Budget Utilization % */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs">
+        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-primary/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600 dark:text-slate-300">
               Budget Utilization
@@ -309,12 +310,12 @@ export function AIBudgetEnterpriseDashboard({
         </Card>
 
         {/* Card 7 — Daily Average Spend */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs">
+        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-orange-500/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600 dark:text-slate-300">
               Daily Avg Spend
             </span>
-            <div className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600">
+            <div className="p-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
               <Flame className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -327,12 +328,12 @@ export function AIBudgetEnterpriseDashboard({
         </Card>
 
         {/* Card 8 — Highest Spending Category */}
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs">
+        <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-4 flex flex-col justify-between shadow-xs hover:border-indigo-500/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300 cursor-pointer">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
             <span className="font-bold uppercase tracking-wider text-[10px] text-slate-600 dark:text-slate-300">
               Top Category
             </span>
-            <div className="p-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600">
+            <div className="p-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
               <Tag className="h-3.5 w-3.5" />
             </div>
           </div>
@@ -346,9 +347,9 @@ export function AIBudgetEnterpriseDashboard({
       </div>
 
       {/* 4. REAL-TIME AI BUDGET VELOCITY INSIGHTS & RECOMMENDATIONS */}
-      <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-r from-card via-slate-50/50 to-primary/[0.03] dark:from-card dark:via-slate-900/30 p-4 sm:p-5">
+      <Card className="card-lift group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-r from-card via-slate-50/50 to-primary/[0.03] dark:from-card dark:via-slate-900/30 p-4 sm:p-5 hover:border-primary/40 hover:-translate-y-1 hover:shadow-lg active:scale-[0.99] transition-all duration-300">
         <div className="flex items-start gap-3">
-          <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0 mt-0.5">
+          <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0 mt-0.5 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300">
             <Sparkles className="h-4 w-4" />
           </div>
           <div className="space-y-1.5 flex-1 min-w-0">
@@ -372,6 +373,15 @@ export function AIBudgetEnterpriseDashboard({
           </div>
         </div>
       </Card>
+
+      {/* 5. INTEGRATED SMART ACTION CARDS (Reminders, Settlements & Budget Targets) */}
+      {intelligence.recommendations && intelligence.recommendations.length > 0 && (
+        <SmartRecommendationsView
+          recommendations={intelligence.recommendations}
+          onOpenBudgetDialog={onOpenBudgetDialog}
+          onEditBudget={onEditBudget}
+        />
+      )}
 
       {/* 5. CATEGORY-WISE LIVE BUDGET TRACKING GRID */}
       <div className="space-y-3">

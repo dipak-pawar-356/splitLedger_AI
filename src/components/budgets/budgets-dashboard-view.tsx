@@ -368,7 +368,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
 
       {/* Top KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="card-lift group rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card cursor-pointer hover:border-primary/50 transition-all">
+        <Card className="card-lift group rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card cursor-pointer hover:border-primary/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300">
           <CardHeader className="pb-2">
             <p className="text-xs font-semibold text-slate-500 flex items-center justify-between">
               <span className="group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Total Budget Allocated</span>
@@ -384,7 +384,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
           </CardContent>
         </Card>
 
-        <Card className="card-lift group rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card cursor-pointer hover:border-rose-500/50 transition-all">
+        <Card className="card-lift group rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card cursor-pointer hover:border-rose-500/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300">
           <CardHeader className="pb-2">
             <p className="text-xs font-semibold text-slate-500 flex items-center justify-between">
               <span className="group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Total Spent</span>
@@ -400,7 +400,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
           </CardContent>
         </Card>
 
-        <Card className="card-lift group rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card cursor-pointer hover:border-emerald-500/50 transition-all">
+        <Card className="card-lift group rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card cursor-pointer hover:border-emerald-500/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300">
           <CardHeader className="pb-2">
             <p className="text-xs font-semibold text-slate-500 flex items-center justify-between">
               <span className="group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Total Remaining Budget</span>
@@ -416,7 +416,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
           </CardContent>
         </Card>
 
-        <Card className="card-lift group rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card cursor-pointer hover:border-primary/50 transition-all">
+        <Card className="card-lift group rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm bg-card cursor-pointer hover:border-primary/50 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98] transition-all duration-300">
           <CardHeader className="pb-2">
             <p className="text-xs font-semibold text-slate-500 flex items-center justify-between">
               <span className="group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">Savings Goals Progress</span>
