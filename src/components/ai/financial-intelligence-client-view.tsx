@@ -30,6 +30,7 @@ import {
   Repeat,
   Mic,
 } from "lucide-react";
+import { SplitLedgerAiIcon } from "@/components/ai/split-ledger-ai-icon";
 import { FinancialHealthScoreCard } from "@/components/ai/financial-health-score-card";
 import { AIInsightsFeed } from "@/components/ai/ai-insights-feed";
 import { SmartRecommendationsView } from "@/components/ai/smart-recommendations-view";
@@ -69,9 +70,9 @@ export function FinancialIntelligenceClientView({
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
   const subSubjects = [
-    { id: "assistant", label: "AI Assistant", icon: Bot, color: "text-primary" },
+    { id: "assistant", label: "Financial Intelligence", icon: SplitLedgerAiIcon, color: "text-primary" },
     { id: "voice-automation", label: "Voice & Automation", icon: Mic, color: "text-indigo-500" },
-    { id: "insights", label: "Health & Business Intel", icon: Sparkles, color: "text-amber-500" },
+    { id: "insights", label: "Health & Business Intel", icon: ShieldCheck, color: "text-amber-500" },
     { id: "subscriptions", label: "Subscriptions", icon: Repeat, color: "text-purple-500" },
     {
       id: "budgets",

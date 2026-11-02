@@ -16,9 +16,9 @@ import {
   TrendingDown, 
   IndianRupee, 
   Calendar,
-  Sparkles,
   Info
 } from "lucide-react";
+import { SplitLedgerAiIcon } from "@/components/ai/split-ledger-ai-icon";
 
 interface FormattedAIAnswerProps {
   content: string;
@@ -172,7 +172,7 @@ export function FormattedAIAnswer({ content, className = "" }: FormattedAIAnswer
           key={i}
           className="p-2.5 px-3 rounded-xl bg-primary/10 dark:bg-primary/20 border border-primary/20 text-xs font-bold text-primary dark:text-indigo-300 flex items-center gap-2"
         >
-          <Sparkles className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+          <SplitLedgerAiIcon size={16} className="text-primary" />
           <span>{formatInlineText(h)}</span>
         </div>
       ))}

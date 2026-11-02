@@ -8,19 +8,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Sparkles, 
   X, 
   Send, 
-  Bot, 
   ArrowUpRight,
   ChevronDown,
   RotateCcw,
+  ShieldCheck,
+  CreditCard,
+  TrendingUp,
+  Users,
+  FileSpreadsheet,
+  Receipt,
+  Scale,
+  Lock,
+  ArrowRight,
+  Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
 import { SUGGESTED_QUICK_QUESTIONS } from "@/lib/ai/prompts";
 import { FormattedAIAnswer, formatInlineText } from "@/components/ai/formatted-ai-answer";
 import { TransactionApprovalCardGroup } from "@/components/ai/transaction-approval-card";
 import { ProposedTransaction } from "@/lib/ai/nlp-transaction-parser";
+import { SplitLedgerAiIcon } from "@/components/ai/split-ledger-ai-icon";
 
 interface Message {
   id: string;
@@ -33,7 +42,56 @@ interface Message {
   detectedTransactions?: ProposedTransaction[];
 }
 
-const QUICK_PROMPTS = SUGGESTED_QUICK_QUESTIONS;
+interface CapabilityPrompt {
+  id: string;
+  title: string;
+  description: string;
+  query: string;
+  icon: React.ComponentType<{ className?: string; size?: number | string }>;
+  badge: string;
+}
+
+const FINANCIAL_CAPABILITIES: CapabilityPrompt[] = [
+  {
+    id: "cap-log",
+    title: "Log Expense via Natural Text",
+    description: "Convert informal phrases into structured transactions",
+    query: "Paid 650 rs for dinner with Amit and Rahul in Goa trip",
+    icon: Receipt,
+    badge: "Smart Entry",
+  },
+  {
+    id: "cap-receivables",
+    title: "Track Net Receivables",
+    description: "Identify outstanding balances across all shared groups",
+    query: "Who owes me money across all my groups?",
+    icon: Users,
+    badge: "Receivables",
+  },
+  {
+    id: "cap-spending",
+    title: "Analyze Monthly Burn Rate",
+    description: "Audit top spending categories, peaks, and velocity",
+    query: "Analyze my spending velocity and top expenses this month",
+    icon: TrendingUp,
+    badge: "Analytics",
+  },
+  {
+    id: "cap-settlements",
+    title: "Debt Netting & Simplification",
+    description: "Review pending settlements and optimal pay paths",
+    query: "Show pending group settlements and who I need to pay",
+    icon: Scale,
+    badge: "Settlement",
+  },
+];
+
+const INITIAL_GREETING: Message = {
+  id: "welcome_financial_assistant",
+  role: "assistant",
+  content: "Welcome to SplitLedger Financial Intelligence. I am your private in-house chartered assistant, connected directly to your live ledger records with real-time INR (₹) precision. How may I assist your accounts or group settlements today?",
+  timestamp: "Ready",
+};
 
 export function FloatingAIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -41,14 +99,7 @@ export function FloatingAIAssistant() {
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome_01",
-      role: "assistant",
-      content: "Namaste! I am your SplitLedger AI Financial Copilot. How can I assist your personal or group finances today?",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([INITIAL_GREETING]);
 
   useEffect(() => {
     if (isOpen) {
@@ -93,13 +144,13 @@ export function FloatingAIAssistant() {
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
-      toast.error("AI Assistant is currently offline.");
+      toast.error("Financial Assistant service is temporarily unreachable.");
       setMessages((prev) => [
         ...prev,
         {
           id: `ai_err_${Date.now()}`,
           role: "assistant",
-          content: "⚠️ I am currently experiencing a connection interruption. Please try your question again in a moment.",
+          content: "I encountered a secure connection timeout accessing your ledger. Please re-submit your financial query.",
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
@@ -111,9 +162,8 @@ export function FloatingAIAssistant() {
   const resetChat = () => {
     setMessages([
       {
+        ...INITIAL_GREETING,
         id: `welcome_${Date.now()}`,
-        role: "assistant",
-        content: "Namaste! I am your SplitLedger AI Financial Copilot. How can I assist your personal or group finances today?",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       },
     ]);
@@ -121,48 +171,65 @@ export function FloatingAIAssistant() {
 
   return (
     <>
-      {/* Floating Trigger Button (Bottom Right) */}
+      {/* Floating Financial Intelligence Trigger Button (Bottom Right) */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 p-3.5 rounded-full bg-gradient-to-r from-primary via-indigo-600 to-primary text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-90 transition-all duration-150 flex items-center gap-2 group cursor-pointer touch-press"
-          aria-label="Open AI Financial Assistant"
+          className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 h-12 px-3.5 sm:px-4 rounded-full bg-slate-900/95 dark:bg-slate-950 text-white shadow-xl hover:shadow-2xl border border-indigo-500/30 hover:border-indigo-400/60 transition-all duration-200 flex items-center gap-2.5 group cursor-pointer active:scale-95 touch-press backdrop-blur-md"
+          aria-label="Open SplitLedger Financial Intelligence Assistant"
         >
-          <Sparkles className="h-5 w-5 animate-pulse" />
-          <span className="text-xs font-bold hidden sm:inline pr-1">Ask AI</span>
+          <div className="relative flex items-center justify-center w-7 h-7 rounded-lg bg-indigo-600/20 border border-indigo-400/30 text-indigo-300 group-hover:text-indigo-200 transition-colors">
+            <SplitLedgerAiIcon size={16} />
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-900 animate-pulse" />
+          </div>
+          <div className="flex flex-col text-left pr-1 hidden sm:flex">
+            <span className="text-[11px] font-bold tracking-tight text-slate-100 flex items-center gap-1">
+              Financial Intelligence
+            </span>
+            <span className="text-[9px] font-mono text-emerald-400/90 tracking-wider uppercase">
+              Live Ledger • Ready
+            </span>
+          </div>
         </button>
       )}
 
-      {/* Floating Assistant Modal - Full Gemini Mobile Bottom Sheet on Small Phones */}
+      {/* Floating Financial Assistant Modal - Native Financial Drawer on Mobile */}
       {isOpen && (
         <>
           {/* Mobile Backdrop Overlay */}
           <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 sm:hidden transition-opacity duration-300" 
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 sm:hidden transition-opacity duration-300" 
             onClick={() => setIsOpen(false)}
             aria-hidden="true"
           />
 
-          <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-auto sm:bottom-6 sm:right-6 w-full sm:w-[460px] md:w-[480px] shadow-2xl rounded-t-[28px] sm:rounded-3xl overflow-hidden border-t sm:border border-slate-200/80 dark:border-slate-800 bg-card animate-in fade-in slide-in-from-bottom duration-250 ease-out flex flex-col max-h-[90vh] sm:max-h-[85vh]">
+          <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-auto sm:bottom-6 sm:right-6 w-full sm:w-[480px] md:w-[500px] shadow-2xl rounded-t-[28px] sm:rounded-3xl overflow-hidden border-t sm:border border-slate-200/90 dark:border-slate-800 bg-card animate-in fade-in slide-in-from-bottom-4 duration-250 ease-out flex flex-col max-h-[92vh] sm:max-h-[85vh]">
             <Card className="border-0 shadow-none rounded-none flex flex-col h-full bg-card">
-              {/* Header */}
-              <CardHeader className="p-3 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col border-b border-slate-800 shrink-0">
+              {/* Premium Financial Workspace Header */}
+              <CardHeader className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white flex flex-col border-b border-slate-800/80 shrink-0">
                 {/* Mobile Drawer Grab Bar Indicator */}
-                <div className="sm:hidden w-10 h-1 bg-white/30 rounded-full mx-auto mb-2 shrink-0" />
+                <div className="sm:hidden w-12 h-1 bg-white/20 rounded-full mx-auto mb-2 shrink-0" />
+                
                 <div className="flex flex-row items-center justify-between w-full">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-primary/30 to-indigo-600/30 border border-primary/40 flex items-center justify-center text-primary shadow-xs">
-                      <Bot className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-indigo-400" />
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-500/10 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shadow-inner shrink-0">
+                      <SplitLedgerAiIcon size={20} />
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-slate-950" />
                     </div>
                     <div>
-                      <CardTitle className="text-xs sm:text-sm font-black flex items-center gap-1.5 text-white">
-                        <span>SplitLedger AI</span>
-                        <Badge variant="secondary" className="bg-primary/25 text-indigo-200 border border-primary/30 text-[9px] py-0 px-1.5 font-bold uppercase tracking-wider">
-                          PRO
+                      <CardTitle className="text-xs sm:text-sm font-bold flex items-center gap-2 text-white tracking-tight">
+                        <span>SplitLedger Financial Intelligence</span>
+                        <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[9px] py-0 px-1.5 font-mono font-bold uppercase tracking-wider">
+                          Active
                         </Badge>
                       </CardTitle>
-                      <CardDescription className="text-[10px] text-slate-300 font-medium">
-                        INR (₹) Real-time Financial Copilot
+                      <CardDescription className="text-[10px] text-slate-300 font-medium flex items-center gap-1.5 mt-0.5">
+                        <span className="flex items-center gap-1 text-slate-300">
+                          <Lock className="h-2.5 w-2.5 text-emerald-400" />
+                          <span>Encrypted Session</span>
+                        </span>
+                        <span className="text-slate-500">•</span>
+                        <span>INR (₹) Real-time Ledger</span>
                       </CardDescription>
                     </div>
                   </div>
@@ -171,196 +238,272 @@ export function FloatingAIAssistant() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      title="Reset Chat"
-                      className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer touch-press"
+                      title="Reset Audit Thread"
+                      className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer touch-press"
                       onClick={resetChat}
+                      aria-label="Reset conversation"
                     >
                       <RotateCcw className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer touch-press"
+                      title="Close Assistant"
+                      className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 cursor-pointer touch-press"
                       onClick={() => setIsOpen(false)}
+                      aria-label="Close Assistant window"
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
+
+                {/* Sub-Header Financial Status Bar */}
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-300 font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-emerald-300 font-medium">Live Financial Analysis</span>
+                  </div>
+                  <span className="text-slate-400 text-[9.5px]">Zero Third-Party Model Training</span>
+                </div>
               </CardHeader>
 
-            {/* Chat Messages Body */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 min-h-[220px] max-h-[58vh]">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col text-xs space-y-1 animate-in fade-in slide-in-from-bottom-2 duration-200 ${
-                    msg.role === "user" ? "items-end" : "items-start"
-                  }`}
-                >
+              {/* Chat Messages Body */}
+              <div 
+                role="log"
+                aria-live="polite"
+                aria-label="Financial conversation stream"
+                className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5 min-h-[240px] max-h-[58vh] bg-slate-50/50 dark:bg-slate-950/40"
+              >
+                {messages.map((msg, index) => (
                   <div
-                    className={`p-3 sm:p-3.5 rounded-2xl leading-relaxed ${
-                      msg.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-br-none shadow-xs max-w-[88%]"
-                        : msg.detectedTransactions && msg.detectedTransactions.length > 0
-                        ? "bg-slate-50 dark:bg-slate-900/90 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800 w-full max-w-[98%]"
-                        : "bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 rounded-bl-none border border-slate-200/80 dark:border-slate-800 max-w-[88%]"
+                    key={msg.id}
+                    className={`flex flex-col text-xs space-y-1 animate-in fade-in slide-in-from-bottom-2 duration-200 ${
+                      msg.role === "user" ? "items-end" : "items-start"
                     }`}
                   >
-                    {msg.role === "assistant" ? (
-                      <FormattedAIAnswer content={msg.content} />
+                    {/* User Message Bubble */}
+                    {msg.role === "user" ? (
+                      <div className="max-w-[85%] space-y-1">
+                        <div className="p-3 sm:p-3.5 rounded-2xl rounded-tr-xs bg-slate-900 dark:bg-indigo-900 text-white shadow-xs font-medium leading-relaxed">
+                          <p className="whitespace-pre-line text-xs sm:text-sm">{msg.content}</p>
+                        </div>
+                        <span className="text-[9px] text-slate-400 block text-right px-1 font-mono">{msg.timestamp}</span>
+                      </div>
                     ) : (
-                      <p className="whitespace-pre-line">{msg.content}</p>
-                    )}
-
-                    {/* Conversational Transaction Approval Workflow */}
-                    {msg.detectedTransactions && msg.detectedTransactions.length > 0 && (
-                      <div className="mt-3 pt-2.5 border-t border-slate-200/80 dark:border-slate-800">
-                        <TransactionApprovalCardGroup
-                          proposals={msg.detectedTransactions}
-                        />
-                      </div>
-                    )}
-
-                    {/* Render metrics only when NO detected transaction cards exist */}
-                    {msg.metrics && msg.metrics.length > 0 && (!msg.detectedTransactions || msg.detectedTransactions.length === 0) && (
-                      <div className="grid grid-cols-2 gap-1.5 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                        {msg.metrics.map((m, idx) => (
-                          <div key={idx} className="p-1.5 rounded-lg bg-background/80 text-[10px]">
-                            <p className="text-slate-500 font-semibold">{m.label}</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-100">{m.value}</p>
+                      /* Assistant Financial Briefing Card */
+                      <div className="w-full max-w-[96%] space-y-2">
+                        <div className="p-3.5 sm:p-4 rounded-2xl rounded-tl-xs bg-card border border-slate-200/90 dark:border-slate-800 shadow-xs space-y-3">
+                          {/* Header of Assistant Response */}
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800/80">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1 rounded-md bg-indigo-500/10 text-indigo-500 dark:text-indigo-400">
+                                <SplitLedgerAiIcon size={14} />
+                              </div>
+                              <span className="text-[11px] font-bold tracking-tight text-slate-800 dark:text-slate-200 uppercase">
+                                Ledger Intelligence Briefing
+                              </span>
+                            </div>
+                            <span className="text-[9.5px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 font-semibold">
+                              Audit Verified
+                            </span>
                           </div>
-                        ))}
-                      </div>
-                    )}
 
-                    {/* Render insights only when NO detected transaction cards exist */}
-                    {msg.insights && msg.insights.length > 0 && !msg.content.includes(msg.insights[0]) && (!msg.detectedTransactions || msg.detectedTransactions.length === 0) && (
-                      <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800 space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
-                        <p className="font-semibold text-[10px] text-primary flex items-center gap-1">
-                          <Sparkles className="h-2.5 w-2.5" />
-                          Key Takeaways:
-                        </p>
-                        <ul className="list-disc pl-3.5 space-y-0.5 text-[10.5px]">
-                          {msg.insights.map((ins, idx) => (
-                            <li key={idx}>{formatInlineText(ins)}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                          {/* Render Rich Answer */}
+                          <FormattedAIAnswer content={msg.content} />
 
-                    {/* Render action suggestions & payment method quick chips */}
-                    {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                        {msg.actionSuggestions.map((act, idx) =>
-                          act.url.startsWith("action:payment:") ? (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => {
-                                const val = act.url.replace("action:payment:", "");
-                                handleSend(val);
-                              }}
-                              className="text-[11px] px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
-                            >
-                              <span>{act.label}</span>
-                            </button>
-                          ) : (
-                            <Link key={idx} href={act.url}>
-                              <button
-                                type="button"
-                                className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary font-medium flex items-center gap-0.5 transition-colors cursor-pointer"
-                              >
-                                <span>{act.label}</span>
-                                <ArrowUpRight className="h-2.5 w-2.5" />
-                              </button>
-                            </Link>
-                          )
-                        )}
+                          {/* Welcome State: Interactive Financial Capability Hub (Only shown on welcome message) */}
+                          {index === 0 && messages.length === 1 && (
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-2">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                                Interactive Financial Capabilities
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {FINANCIAL_CAPABILITIES.map((cap) => {
+                                  const IconComp = cap.icon;
+                                  return (
+                                    <button
+                                      key={cap.id}
+                                      type="button"
+                                      onClick={() => handleSend(cap.query)}
+                                      disabled={loading}
+                                      className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-400/40 text-left transition-all duration-150 flex flex-col justify-between group cursor-pointer shadow-2xs hover:-translate-y-0.5 active:translate-y-0"
+                                    >
+                                      <div className="flex items-start justify-between w-full">
+                                        <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
+                                          <IconComp size={14} />
+                                        </div>
+                                        <Badge variant="outline" className="text-[9px] font-mono text-slate-400 border-slate-200 dark:border-slate-800">
+                                          {cap.badge}
+                                        </Badge>
+                                      </div>
+                                      <div className="mt-1.5">
+                                        <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                          {cap.title}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                                          {cap.description}
+                                        </p>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Conversational Transaction Approval Workflow */}
+                          {msg.detectedTransactions && msg.detectedTransactions.length > 0 && (
+                            <div className="mt-2.5 pt-2.5 border-t border-slate-200/80 dark:border-slate-800">
+                              <TransactionApprovalCardGroup
+                                proposals={msg.detectedTransactions}
+                              />
+                            </div>
+                          )}
+
+                          {/* Render metrics only when NO detected transaction cards exist */}
+                          {msg.metrics && msg.metrics.length > 0 && (!msg.detectedTransactions || msg.detectedTransactions.length === 0) && (
+                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                              {msg.metrics.map((m, idx) => (
+                                <div key={idx} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-[10px]">
+                                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[9px] font-mono truncate">{m.label}</p>
+                                  <p className="font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums text-xs sm:text-sm mt-0.5 truncate">{m.value}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Render insights only when NO detected transaction cards exist */}
+                          {msg.insights && msg.insights.length > 0 && !msg.content.includes(msg.insights[0]) && (!msg.detectedTransactions || msg.detectedTransactions.length === 0) && (
+                            <div className="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-800 space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
+                              <p className="font-bold text-[10px] text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5 uppercase font-mono tracking-wider">
+                                <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                                Key Ledger Takeaways
+                              </p>
+                              <ul className="list-disc pl-3.5 space-y-0.5 text-[10.5px]">
+                                {msg.insights.map((ins, idx) => (
+                                  <li key={idx}>{formatInlineText(ins)}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Render action suggestions & payment method quick chips */}
+                          {msg.actionSuggestions && msg.actionSuggestions.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                              {msg.actionSuggestions.map((act, idx) =>
+                                act.url.startsWith("action:payment:") ? (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => {
+                                      const val = act.url.replace("action:payment:", "");
+                                      handleSend(val);
+                                    }}
+                                    className="text-[11px] px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1 transition-all cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
+                                  >
+                                    <span>{act.label}</span>
+                                  </button>
+                                ) : (
+                                  <Link key={idx} href={act.url}>
+                                    <button
+                                      type="button"
+                                      className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium flex items-center gap-0.5 transition-colors cursor-pointer"
+                                    >
+                                      <span>{act.label}</span>
+                                      <ArrowUpRight className="h-2.5 w-2.5 text-slate-400" />
+                                    </button>
+                                  </Link>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[9px] text-slate-400 px-1 font-mono">{msg.timestamp}</span>
                       </div>
                     )}
                   </div>
-                  <span className="text-[9px] text-slate-400 px-1">{msg.timestamp}</span>
-                </div>
-              ))}
+                ))}
 
-              {loading && (
-                <div className="flex items-center gap-2 text-xs text-slate-500 p-2.5 bg-slate-100/80 dark:bg-slate-900/80 rounded-2xl w-fit animate-in fade-in duration-200 border border-slate-200/60 dark:border-slate-800">
-                  <Sparkles className="h-3.5 w-3.5 text-primary animate-pulse" />
-                  <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Thinking</span>
-                  <div className="flex items-center gap-1 pl-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-dots-bounce [animation-delay:-0.32s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-dots-bounce [animation-delay:-0.16s]" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-dots-bounce" />
+                {/* Loading / Analytical Thinking State */}
+                {loading && (
+                  <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300 p-3 bg-card rounded-2xl w-fit animate-in fade-in duration-200 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                    <SplitLedgerAiIcon size={16} className="text-indigo-500 animate-pulse" />
+                    <span className="text-[11px] font-semibold tracking-tight">Reconciling Ledger Records</span>
+                    <div className="flex items-center gap-1 pl-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-dots-bounce [animation-delay:-0.32s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-dots-bounce [animation-delay:-0.16s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-dots-bounce" />
+                    </div>
                   </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Suggested Questions (Stacked Multiline Layout) */}
-            <div className="border-t border-slate-200/70 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 shrink-0">
-              <div className="flex items-center justify-between px-3.5 py-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="h-3 w-3 text-primary animate-pulse" />
-                  <span className="text-[10.5px] font-semibold text-slate-600 dark:text-slate-300">
-                    Suggested Questions
-                  </span>
-                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-normal text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800">
-                    {QUICK_PROMPTS.length}
-                  </Badge>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowSuggestions(!showSuggestions)}
-                  className="text-[10px] text-primary hover:underline font-medium flex items-center gap-0.5 cursor-pointer"
-                >
-                  <span>{showSuggestions ? "Hide" : "Show"}</span>
-                  <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${showSuggestions ? "rotate-180" : ""}`} />
-                </button>
+                )}
+                <div ref={messagesEndRef} />
               </div>
 
-              {showSuggestions && (
-                <div className="px-3 pb-2.5 max-h-[150px] overflow-y-auto space-y-1.5 pr-1.5">
-                  {QUICK_PROMPTS.map((prompt, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleSend(prompt)}
-                      disabled={loading}
-                      className="w-full text-left text-xs px-3 py-2 rounded-xl bg-background/95 hover:bg-primary/10 dark:hover:bg-primary/20 hover:border-primary/40 text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-primary transition-all duration-150 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between group cursor-pointer shadow-xs disabled:opacity-50"
-                    >
-                      <span className="font-medium text-[11px] leading-snug pr-2 whitespace-normal break-words">
-                        {prompt}
-                      </span>
-                      <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0" />
-                    </button>
-                  ))}
+              {/* Suggested Questions Drawer Accordion */}
+              <div className="border-t border-slate-200/70 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 shrink-0">
+                <div className="flex items-center justify-between px-3.5 py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-indigo-500" />
+                    <span className="text-[10.5px] font-semibold text-slate-700 dark:text-slate-300">
+                      Standard Ledger Audit Inquiries
+                    </span>
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-mono text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800">
+                      {SUGGESTED_QUICK_QUESTIONS.length}
+                    </Badge>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowSuggestions(!showSuggestions)}
+                    className="text-[10.5px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <span>{showSuggestions ? "Collapse" : "Explore"}</span>
+                    <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${showSuggestions ? "rotate-180" : ""}`} />
+                  </button>
                 </div>
-              )}
-            </div>
 
-            {/* Input Bar with iOS 16px font-size protection against auto-zoom */}
-            <div className="p-3 pb-safe sm:pb-3 bg-slate-50 dark:bg-slate-900/70 border-t border-slate-200/80 dark:border-slate-800 flex items-center gap-2 shrink-0">
-              <Input
-                placeholder="Ask anything about your expenses..."
-                value={inputQuery}
-                onChange={(e) => setInputQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                className="h-10 text-base sm:text-xs rounded-xl bg-background"
-              />
-              <Button
-                size="sm"
-                className="h-10 w-10 p-0 rounded-xl shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer active:scale-95 transition-all"
-                disabled={loading}
-                onClick={() => handleSend()}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </Card>
-        </div>
-      </>
+                {showSuggestions && (
+                  <div className="px-3 pb-2.5 max-h-[140px] overflow-y-auto space-y-1.5 pr-1.5">
+                    {SUGGESTED_QUICK_QUESTIONS.map((prompt, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSend(prompt)}
+                        disabled={loading}
+                        className="w-full text-left text-xs px-3 py-2 rounded-xl bg-card hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 hover:border-indigo-400/30 text-slate-700 dark:text-slate-300 transition-all duration-150 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between group cursor-pointer shadow-2xs disabled:opacity-50"
+                      >
+                        <span className="font-medium text-[11px] leading-snug pr-2 whitespace-normal break-words">
+                          {prompt}
+                        </span>
+                        <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-indigo-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Input Bar with iOS 16px font-size protection against auto-zoom */}
+              <div className="p-3 pb-safe sm:pb-3 bg-card border-t border-slate-200/80 dark:border-slate-800 flex items-center gap-2 shrink-0">
+                <Input
+                  placeholder="Ask a question or log an expense (e.g. 'Paid 300 for coffee with Rahul')..."
+                  value={inputQuery}
+                  onChange={(e) => setInputQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                  className="h-10 text-base sm:text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                />
+                <Button
+                  size="sm"
+                  className="h-10 w-10 p-0 rounded-xl shrink-0 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white cursor-pointer active:scale-95 transition-all shadow-xs"
+                  disabled={loading || !inputQuery.trim()}
+                  onClick={() => handleSend()}
+                  aria-label="Send financial query"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </>
       )}
     </>
   );

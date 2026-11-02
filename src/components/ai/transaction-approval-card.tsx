@@ -30,7 +30,6 @@ import {
   Loader2,
   ExternalLink,
   ShieldAlert,
-  Sparkles,
   UtensilsCrossed,
   Bus,
   Zap,
@@ -39,6 +38,7 @@ import {
   Film,
   ShoppingCart,
 } from "lucide-react";
+import { SplitLedgerAiIcon } from "@/components/ai/split-ledger-ai-icon";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -1043,7 +1043,7 @@ export function TransactionApprovalCardGroup({
           {/* Header Row */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 min-w-0">
-              <Sparkles className="h-4 w-4 text-emerald-500 shrink-0 animate-pulse" />
+              <SplitLedgerAiIcon size={16} className="text-emerald-500 shrink-0" />
               <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
                 Approval Summary ({totals.selectedCount} of {activeDrafts.length} selected)
               </span>
