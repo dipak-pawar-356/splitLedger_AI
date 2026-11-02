@@ -26,24 +26,24 @@ export function AccountCenterClientView({ overview }: AccountCenterClientViewPro
 
       {/* Account Sub-Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl flex-wrap h-auto gap-1">
-          <TabsTrigger value="security" className="rounded-xl text-xs font-semibold gap-1.5">
+        <TabsList className="bg-slate-100/90 dark:bg-slate-800/80 p-1.5 rounded-2xl flex-wrap h-auto gap-1 border border-slate-200/80 dark:border-slate-800">
+          <TabsTrigger value="security" className="rounded-xl text-xs font-semibold gap-1.5 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer data-[state=active]:shadow-xs">
             <Key className="h-3.5 w-3.5" />
             <span>Password & 2FA</span>
           </TabsTrigger>
 
-          <TabsTrigger value="sessions" className="rounded-xl text-xs font-semibold gap-1.5">
+          <TabsTrigger value="sessions" className="rounded-xl text-xs font-semibold gap-1.5 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer data-[state=active]:shadow-xs">
             <Monitor className="h-3.5 w-3.5" />
             <span>Sessions & Devices</span>
           </TabsTrigger>
 
-          <TabsTrigger value="data" className="rounded-xl text-xs font-semibold gap-1.5">
+          <TabsTrigger value="data" className="rounded-xl text-xs font-semibold gap-1.5 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer data-[state=active]:shadow-xs">
             <Download className="h-3.5 w-3.5" />
             <span>Data Export & Privacy</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="security" className="space-y-6">
+        <TabsContent value="security" className="space-y-6 animate-in fade-in-50 slide-in-from-bottom-2 duration-300 fill-mode-both">
           <PasswordManagementForm />
           <RecoveryAnd2FACard
             twoFactorEnabled={overview.twoFactorEnabled}
@@ -54,7 +54,7 @@ export function AccountCenterClientView({ overview }: AccountCenterClientViewPro
           />
         </TabsContent>
 
-        <TabsContent value="sessions" className="space-y-6">
+        <TabsContent value="sessions" className="space-y-6 animate-in fade-in-50 slide-in-from-bottom-2 duration-300 fill-mode-both">
           <ActiveSessionsCard
             sessions={overview.activeSessions}
             trustedDevices={overview.trustedDevices}
@@ -63,7 +63,7 @@ export function AccountCenterClientView({ overview }: AccountCenterClientViewPro
           />
         </TabsContent>
 
-        <TabsContent value="data" className="space-y-6">
+        <TabsContent value="data" className="space-y-6 animate-in fade-in-50 slide-in-from-bottom-2 duration-300 fill-mode-both">
           <DataExportAndDeletionCard />
         </TabsContent>
       </Tabs>

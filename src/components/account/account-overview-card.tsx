@@ -30,12 +30,15 @@ export function AccountOverviewCard({ overview }: AccountOverviewCardProps) {
   };
 
   return (
-    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden bg-card">
+    <Card className="relative overflow-hidden rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700/80 transition-all duration-300 bg-card/90 backdrop-blur-md group/card">
+      {/* Top Luminous Shimmer Line */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300" />
+
       <CardHeader className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <CardTitle className="text-base font-bold flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-primary" />
+              <ShieldCheck className="h-4 w-4 text-primary transition-transform duration-200 group-hover/card:scale-110 group-hover/card:rotate-6" />
               <span>Account Overview & Security Health</span>
             </CardTitle>
             <CardDescription className="text-xs">
@@ -45,10 +48,10 @@ export function AccountOverviewCard({ overview }: AccountOverviewCardProps) {
 
           <Badge
             variant="outline"
-            className={`text-xs font-semibold uppercase tracking-wider ${
+            className={`text-xs font-semibold uppercase tracking-wider transition-all duration-200 hover:scale-105 ${
               overview.status === "active"
-                ? "bg-emerald-500/10 text-emerald-600 border-emerald-200"
-                : "bg-amber-500/10 text-amber-600 border-amber-200"
+                ? "bg-emerald-500/10 text-emerald-600 border-emerald-200 dark:border-emerald-800"
+                : "bg-amber-500/10 text-amber-600 border-amber-200 dark:border-amber-800"
             }`}
           >
             ● {overview.status}
@@ -56,16 +59,16 @@ export function AccountOverviewCard({ overview }: AccountOverviewCardProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <CardContent className="p-4 sm:p-6 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           {/* Security Score Gauge (SECTION 15) */}
-          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 space-y-3">
+          <div className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 hover:border-primary/40 dark:hover:border-primary/40 hover:bg-white dark:hover:bg-slate-900 hover:shadow-md hover:shadow-primary/5 hover:-translate-y-1 transition-all duration-200 group">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 group-hover:text-primary transition-colors">
+                <Sparkles className="h-3.5 w-3.5 text-primary transition-transform duration-200 group-hover:scale-110 group-hover:rotate-12" />
                 <span>Security Score</span>
               </span>
-              <span className={`text-xl font-black font-mono ${getSecurityColor(overview.securityScore)}`}>
+              <span className={`text-xl font-black font-mono transition-transform duration-200 group-hover:scale-105 ${getSecurityColor(overview.securityScore)}`}>
                 {overview.securityScore}/100
               </span>
             </div>
@@ -86,8 +89,8 @@ export function AccountOverviewCard({ overview }: AccountOverviewCardProps) {
           </div>
 
           {/* Account Identifiers (SECTION 1) */}
-          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
-            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
+          <div className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 hover:border-primary/40 dark:hover:border-primary/40 hover:bg-white dark:hover:bg-slate-900 hover:shadow-md hover:shadow-primary/5 hover:-translate-y-1 transition-all duration-200 group">
+            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block group-hover:text-primary transition-colors">
               Identity & Authentication
             </span>
 
@@ -116,15 +119,15 @@ export function AccountOverviewCard({ overview }: AccountOverviewCardProps) {
           </div>
 
           {/* Verification Status (SECTION 1) */}
-          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
-            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
+          <div className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 hover:border-primary/40 dark:hover:border-primary/40 hover:bg-white dark:hover:bg-slate-900 hover:shadow-md hover:shadow-primary/5 hover:-translate-y-1 transition-all duration-200 group">
+            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block group-hover:text-primary transition-colors">
               Verification Badges
             </span>
 
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 flex items-center gap-1.5">
-                  <Mail className="h-3.5 w-3.5 text-slate-400" />
+                  <Mail className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary transition-colors" />
                   <span>Email Verification</span>
                 </span>
                 <Badge variant={overview.emailVerified ? "secondary" : "outline"} className="text-[10px] py-0 px-1.5">
@@ -134,7 +137,7 @@ export function AccountOverviewCard({ overview }: AccountOverviewCardProps) {
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 flex items-center gap-1.5">
-                  <Smartphone className="h-3.5 w-3.5 text-slate-400" />
+                  <Smartphone className="h-3.5 w-3.5 text-slate-400 group-hover:text-primary transition-colors" />
                   <span>Mobile Phone</span>
                 </span>
                 <Badge variant={overview.mobileVerified ? "secondary" : "outline"} className="text-[10px] py-0 px-1.5">

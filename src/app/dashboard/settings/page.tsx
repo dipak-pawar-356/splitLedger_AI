@@ -30,7 +30,7 @@ export default async function SettingsPage({
   ]);
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-12 animate-in fade-in-50 duration-300">
       <div className="pb-4 border-b border-slate-200/80 dark:border-slate-800">
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
           Settings Center
