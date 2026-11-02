@@ -19,6 +19,9 @@ import { DatabaseError, ValidationError, NotFoundError } from "@/lib/errors";
 import { validateUpiId } from "@/lib/payments/upi";
 import { revalidatePath } from "next/cache";
 import { appCache } from "@/lib/cache";
+import crypto from "crypto";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 export interface ProfileDetails {
   user: {
@@ -450,6 +453,7 @@ export async function updatePersonalInfo(data: {
 }) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`profile:update:${user.id}`, RATE_LIMITS.settings.profile);
 
     if (!data.name || data.name.trim().length === 0) {
       throw new ValidationError("Name is required");
@@ -467,7 +471,7 @@ export async function updatePersonalInfo(data: {
       }
     }
 
-    const cleanName = data.name.trim();
+    const cleanName = sanitizeText(data.name.trim());
 
     // Update user display name, currency & upiId
     await db
@@ -484,19 +488,19 @@ export async function updatePersonalInfo(data: {
     await db
       .update(profiles)
       .set({
-        username: data.username?.trim() || null,
-        bio: data.bio?.trim() || null,
-        occupation: data.occupation?.trim() || null,
-        company: data.company?.trim() || null,
-        gender: data.gender || null,
+        username: data.username ? sanitizeText(data.username.trim()) : null,
+        bio: data.bio ? sanitizeText(data.bio.trim()) : null,
+        occupation: data.occupation ? sanitizeText(data.occupation.trim()) : null,
+        company: data.company ? sanitizeText(data.company.trim()) : null,
+        gender: data.gender ? sanitizeText(data.gender) : null,
         dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
-        country: data.country || "India",
-        state: data.state?.trim() || null,
-        city: data.city?.trim() || null,
-        pinCode: data.pinCode?.trim() || null,
+        country: data.country ? sanitizeText(data.country) : "India",
+        state: data.state ? sanitizeText(data.state.trim()) : null,
+        city: data.city ? sanitizeText(data.city.trim()) : null,
+        pinCode: data.pinCode ? sanitizeText(data.pinCode.trim()) : null,
         ...(data.upiId !== undefined && { upiId: cleanUpi }),
-        timezone: data.timezone || "Asia/Kolkata",
-        language: data.language || "en",
+        timezone: data.timezone ? sanitizeText(data.timezone) : "Asia/Kolkata",
+        language: data.language ? sanitizeText(data.language) : "en",
         updatedAt: new Date(),
       })
       .where(eq(profiles.userId, user.id));
@@ -565,20 +569,29 @@ export async function updateContactInfo(data: {
   secondaryPhone?: string;
   whatsappNumber?: string;
   emergencyContact?: string;
-  mobileVerified?: boolean;
 }) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`profile:contact:${user.id}`, RATE_LIMITS.settings.profile);
+
+    const [current] = await db
+      .select({ phone: profiles.phone })
+      .from(profiles)
+      .where(eq(profiles.userId, user.id))
+      .limit(1);
+
+    const newPhone = data.phone ? sanitizeText(data.phone.trim()) : null;
+    const phoneChanged = current && current.phone !== newPhone;
 
     await db
       .update(profiles)
       .set({
-        phone: data.phone?.trim() || null,
-        secondaryEmail: data.secondaryEmail?.trim() || null,
-        secondaryPhone: data.secondaryPhone?.trim() || null,
-        whatsappNumber: data.whatsappNumber?.trim() || null,
-        emergencyContact: data.emergencyContact?.trim() || null,
-        ...(data.mobileVerified !== undefined && { mobileVerified: data.mobileVerified }),
+        phone: newPhone,
+        secondaryEmail: data.secondaryEmail ? sanitizeText(data.secondaryEmail.trim()) : null,
+        secondaryPhone: data.secondaryPhone ? sanitizeText(data.secondaryPhone.trim()) : null,
+        whatsappNumber: data.whatsappNumber ? sanitizeText(data.whatsappNumber.trim()) : null,
+        emergencyContact: data.emergencyContact ? sanitizeText(data.emergencyContact.trim()) : null,
+        ...(phoneChanged && { mobileVerified: false }),
         updatedAt: new Date(),
       })
       .where(eq(profiles.userId, user.id));
@@ -588,7 +601,7 @@ export async function updateContactInfo(data: {
       action: "contact_info_updated",
       entityType: "profile",
       entityId: user.id,
-      changes: data,
+      changes: { ...data, phone: newPhone, mobileVerified: phoneChanged ? false : undefined },
     });
 
     appCache.invalidateTags([`user:${user.id}`, "profile", "dashboard"]);
@@ -608,7 +621,7 @@ interface PhoneOtpData {
 const phoneOtpStore = new Map<number, PhoneOtpData>();
 
 /**
- * Send Phone Verification OTP (supports high-reliability simulated OTP for production/sandbox)
+ * Send Phone Verification OTP (cryptographically secure with rate limiting)
  */
 export async function sendPhoneVerificationOtp(phone: string): Promise<{
   success: boolean;
@@ -618,13 +631,15 @@ export async function sendPhoneVerificationOtp(phone: string): Promise<{
 }> {
   try {
     const user = await requireAuth();
+    assertRateLimit(`otp:send:${user.id}`, RATE_LIMITS.auth.otp);
+
     const cleanPhone = phone.trim().replace(/[\s\-()]/g, "");
     if (!cleanPhone || cleanPhone.length < 10) {
       throw new ValidationError("Please provide a valid 10-digit mobile number");
     }
 
-    // Generate 6-digit OTP code
-    const generatedCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate cryptographically secure 6-digit OTP code
+    const generatedCode = crypto.randomInt(100000, 1000000).toString();
     const expiresInSeconds = 600; // 10 minutes
 
     phoneOtpStore.set(user.id, {
@@ -651,10 +666,13 @@ export async function sendPhoneVerificationOtp(phone: string): Promise<{
       changes: { phone: cleanPhone },
     });
 
+    // In production, never leak the OTP code in the response body!
+    const returnCode = process.env.NODE_ENV === "production" ? "" : generatedCode;
+
     return {
       success: true,
       message: `Verification code sent to ${cleanPhone}`,
-      code: generatedCode,
+      code: returnCode,
       expiresInSeconds,
     };
   } catch (error) {
@@ -672,6 +690,8 @@ export async function verifyPhoneOtp(inputOtp: string, phoneNumber?: string): Pr
 }> {
   try {
     const user = await requireAuth();
+    assertRateLimit(`otp:verify:${user.id}`, RATE_LIMITS.auth.otp);
+
     const cleanOtp = inputOtp.trim();
 
     if (!cleanOtp || cleanOtp.length !== 6) {
@@ -680,9 +700,9 @@ export async function verifyPhoneOtp(inputOtp: string, phoneNumber?: string): Pr
 
     const storedEntry = phoneOtpStore.get(user.id);
 
-    // Accept matching code, or demo code '123456'
+    // Accept matching code; in non-production allow demo code '123456'
     const isCodeValid =
-      cleanOtp === "123456" ||
+      (process.env.NODE_ENV !== "production" && cleanOtp === "123456") ||
       (storedEntry && storedEntry.code === cleanOtp && Date.now() <= storedEntry.expiresAt);
 
     if (!isCodeValid) {
@@ -757,6 +777,18 @@ export async function verifyPhoneOtp(inputOtp: string, phoneNumber?: string): Pr
 export async function updateProfileAvatar(avatarUrl: string) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`profile:avatar:${user.id}`, RATE_LIMITS.actions.write);
+
+    if (
+      !avatarUrl ||
+      typeof avatarUrl !== "string" ||
+      avatarUrl.length > 2048 ||
+      avatarUrl.toLowerCase().startsWith("javascript:") ||
+      avatarUrl.toLowerCase().startsWith("vbscript:") ||
+      avatarUrl.includes("<")
+    ) {
+      throw new ValidationError("Invalid avatar URL format. Must be a safe image URL.");
+    }
 
     await db
       .update(users)
@@ -791,6 +823,7 @@ export async function updateProfileAvatar(avatarUrl: string) {
 export async function deleteProfileAvatar() {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`profile:avatar_del:${user.id}`, RATE_LIMITS.actions.delete);
 
     await db
       .update(users)
@@ -832,6 +865,7 @@ export async function updateProfilePrivacy(settings: {
 }) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`profile:privacy:${user.id}`, RATE_LIMITS.settings.profile);
 
     await db
       .update(profiles)
@@ -861,6 +895,7 @@ export async function updateProfilePrivacy(settings: {
 export async function updatePrimaryUpiId(upiId: string): Promise<{ success: boolean; upiId: string }> {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`profile:upi:${user.id}`, RATE_LIMITS.settings.profile);
 
     const validation = validateUpiId(upiId);
     if (!validation.isValid) {

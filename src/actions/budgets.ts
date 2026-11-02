@@ -6,6 +6,7 @@ import {
   budgets,
   categories,
   groups,
+  groupMembers,
   transactions,
   settlements,
   contacts,
@@ -23,6 +24,8 @@ import {
 } from "@/lib/types/budgets";
 import { DatabaseError, ValidationError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 export interface BudgetProgress {
   id: number;
@@ -768,6 +771,7 @@ export async function createBudget(data: {
   alertThreshold?: number;
 }): Promise<BudgetRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`budget:create:${user.id}`, RATE_LIMITS.actions.write);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
 
@@ -784,8 +788,45 @@ export async function createBudget(data: {
     throw new ValidationError("End date cannot be earlier than start date.");
   }
 
+  if (data.groupId) {
+    const targetGroupId = data.groupId;
+    try {
+      const [membership] = await withDbRetry(() =>
+        db
+          .select({ id: groupMembers.id })
+          .from(groupMembers)
+          .where(
+            and(
+              eq(groupMembers.groupId, targetGroupId),
+              eq(groupMembers.userId, user.id)
+            )
+          )
+          .limit(1)
+      );
+      if (!membership) {
+        const [ownedGroup] = await withDbRetry(() =>
+          db
+            .select({ id: groups.id })
+            .from(groups)
+            .where(and(eq(groups.id, targetGroupId), eq(groups.createdBy, user.id), eq(groups.isDeleted, false)))
+            .limit(1)
+        );
+        if (!ownedGroup) {
+          throw new ValidationError("You do not have access to the specified group.");
+        }
+      }
+    } catch (gErr: any) {
+      if (gErr instanceof ValidationError) throw gErr;
+    }
+  }
+
   const budgetId = generatePublicId("bud");
   const amountPaise = Math.round(finalAmount * 100);
+
+  const sanitizedName = sanitizeText(data.name.trim());
+  const sanitizedDesc = data.description ? sanitizeText(data.description) : (data.notes ? sanitizeText(data.notes) : null);
+  const sanitizedNotes = data.notes ? sanitizeText(data.notes) : null;
+  const sanitizedCategory = data.category ? sanitizeText(data.category) : "General";
 
   // Insert directly into PostgreSQL database
   try {
@@ -793,8 +834,8 @@ export async function createBudget(data: {
       db.insert(budgets).values({
         publicId: budgetId,
         userId: user.id,
-        name: data.name.trim(),
-        description: data.description || data.notes || null,
+        name: sanitizedName,
+        description: sanitizedDesc,
         amount: amountPaise,
         currency: data.currency || "INR",
         period: (data.period as any) || "monthly",
@@ -804,7 +845,7 @@ export async function createBudget(data: {
         categoryId: data.categoryId || null,
         groupId: data.groupId || null,
         status: "active",
-        notes: data.notes || null,
+        notes: sanitizedNotes,
       })
     );
   } catch (err: any) {
@@ -818,9 +859,9 @@ export async function createBudget(data: {
     orgId: data.orgId,
     linkedTripId: data.linkedTripId,
     linkedSavingsGoalId: data.linkedSavingsGoalId,
-    name: data.name,
-    description: data.description || data.notes,
-    category: data.category || "General",
+    name: sanitizedName,
+    description: sanitizedDesc || undefined,
+    category: sanitizedCategory,
     budgetType: data.budgetType || "personal",
     period: (data.period as BudgetRecord["period"]) || "monthly",
     allocatedAmount: finalAmount,
@@ -830,8 +871,8 @@ export async function createBudget(data: {
     currency: data.currency || "INR",
     status: "active",
     priority: data.priority || "medium",
-    tags: data.tags || [],
-    notes: data.notes,
+    tags: data.tags ? data.tags.map(t => sanitizeText(t)) : [],
+    notes: sanitizedNotes || undefined,
     startDate: start.toISOString().split("T")[0],
     endDate: end.toISOString().split("T")[0],
     alertThresholds: [
@@ -874,19 +915,57 @@ export async function updateBudget(
   }
 ): Promise<BudgetRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`budget:update:${user.id}`, RATE_LIMITS.actions.write);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
 
   const newAmount = data.amount ?? data.allocatedAmount;
   const amountPaise = newAmount !== undefined ? Math.round(newAmount * 100) : undefined;
 
+  const sanitizedName = data.name ? sanitizeText(data.name.trim()) : undefined;
+  const sanitizedDesc = data.description !== undefined ? sanitizeText(data.description) : undefined;
+  const sanitizedNotes = data.notes !== undefined ? sanitizeText(data.notes) : undefined;
+  const sanitizedCategory = data.category ? sanitizeText(data.category) : undefined;
+
+  if (data.groupId) {
+    const targetGroupId = data.groupId;
+    try {
+      const [membership] = await withDbRetry(() =>
+        db
+          .select({ id: groupMembers.id })
+          .from(groupMembers)
+          .where(
+            and(
+              eq(groupMembers.groupId, targetGroupId),
+              eq(groupMembers.userId, user.id)
+            )
+          )
+          .limit(1)
+      );
+      if (!membership) {
+        const [ownedGroup] = await withDbRetry(() =>
+          db
+            .select({ id: groups.id })
+            .from(groups)
+            .where(and(eq(groups.id, targetGroupId), eq(groups.createdBy, user.id), eq(groups.isDeleted, false)))
+            .limit(1)
+        );
+        if (!ownedGroup) {
+          throw new ValidationError("You do not have access to the specified group.");
+        }
+      }
+    } catch (gErr: any) {
+      if (gErr instanceof ValidationError) throw gErr;
+    }
+  }
+
   try {
     await withDbRetry(() =>
       db
         .update(budgets)
         .set({
-          name: data.name ? data.name.trim() : undefined,
-          description: data.description !== undefined ? data.description : undefined,
+          name: sanitizedName,
+          description: sanitizedDesc,
           amount: amountPaise,
           period: data.period ? (data.period as any) : undefined,
           categoryId: data.categoryId !== undefined ? (data.categoryId || null) : undefined,
@@ -894,7 +973,7 @@ export async function updateBudget(
           alertThreshold: data.alertThreshold !== undefined ? data.alertThreshold : undefined,
           startDate: data.startDate ? new Date(data.startDate) : undefined,
           endDate: data.endDate ? new Date(data.endDate) : undefined,
-          notes: data.notes !== undefined ? data.notes : undefined,
+          notes: sanitizedNotes,
           status: data.status,
           updatedAt: new Date(),
         })
@@ -917,8 +996,8 @@ export async function updateBudget(
     budget = {
       id: publicId,
       userId: user.id,
-      name: data.name || "Budget",
-      category: data.category || "General",
+      name: sanitizedName || "Budget",
+      category: sanitizedCategory || "General",
       budgetType: data.budgetType || "personal",
       period: (data.period as any) || "monthly",
       allocatedAmount: newAmount || 0,
@@ -939,9 +1018,9 @@ export async function updateBudget(
       budget.remainingAmount = Math.max(0, budget.allocatedAmount - budget.spentAmount);
       budget.percentageUsed = budget.allocatedAmount > 0 ? Math.round((budget.spentAmount / budget.allocatedAmount) * 100) : 0;
     }
-    if (data.name) budget.name = data.name;
-    if (data.description !== undefined) budget.description = data.description;
-    if (data.category) budget.category = data.category;
+    if (sanitizedName) budget.name = sanitizedName;
+    if (sanitizedDesc !== undefined) budget.description = sanitizedDesc;
+    if (sanitizedCategory) budget.category = sanitizedCategory;
     if (data.period) budget.period = data.period;
     if (data.status) budget.status = data.status;
     budget.updatedAt = new Date().toISOString();
@@ -962,6 +1041,7 @@ export async function updateBudget(
  */
 export async function duplicateBudget(publicId: string): Promise<BudgetRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`budget:duplicate:${user.id}`, RATE_LIMITS.actions.write);
   const budgetsList = await getBudgetsWithProgress();
   const source = budgetsList.find((b) => b.publicId === publicId);
 
@@ -1002,6 +1082,7 @@ export async function restoreBudget(publicId: string): Promise<BudgetRecord> {
  */
 export async function deleteBudget(publicId: string): Promise<boolean> {
   const user = await requireAuth();
+  await assertRateLimit(`budget:delete:${user.id}`, RATE_LIMITS.actions.delete);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
 
@@ -1046,6 +1127,7 @@ export async function transferUnusedBudgetToSavingsGoal(
   amount: number
 ): Promise<{ budget: BudgetRecord; goal: SavingsGoal }> {
   const user = await requireAuth();
+  await assertRateLimit(`budget:transfer:${user.id}`, RATE_LIMITS.actions.write);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
   const memBudgets = budgetsStore.get(userKey) || [];
@@ -1088,6 +1170,7 @@ export async function createSavingsGoal(data: {
   notes?: string;
 }): Promise<SavingsGoal> {
   const user = await requireAuth();
+  await assertRateLimit(`savings_goal:create:${user.id}`, RATE_LIMITS.actions.write);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
 
@@ -1098,17 +1181,17 @@ export async function createSavingsGoal(data: {
   const goal: SavingsGoal = {
     id: generatePublicId("goal"),
     userId: user.id,
-    name: data.name,
+    name: sanitizeText(data.name),
     targetAmount: data.targetAmount,
     currentSaved: 0,
     remainingAmount: data.targetAmount,
     progressPercent: 0,
     targetDate: data.targetDate,
     priority: data.priority,
-    category: data.category,
+    category: sanitizeText(data.category),
     currency: "INR",
     status: "in_progress",
-    notes: data.notes,
+    notes: data.notes ? sanitizeText(data.notes) : undefined,
     createdAt: new Date().toISOString(),
   };
 
@@ -1127,6 +1210,7 @@ export async function contributeToSavingsGoal(
   amount: number
 ): Promise<SavingsGoal> {
   const user = await requireAuth();
+  await assertRateLimit(`savings_goal:contrib:${user.id}`, RATE_LIMITS.actions.write);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
   const goals = goalsStore.get(userKey) || [];
@@ -1164,11 +1248,50 @@ export async function setSpendingLimit(data: {
   isStrict?: boolean;
 }): Promise<SpendingLimit> {
   const user = await requireAuth();
+  await assertRateLimit(`spending_limit:set:${user.id}`, RATE_LIMITS.actions.write);
+
+  if (!data.limitAmount || data.limitAmount <= 0) {
+    throw new ValidationError("Limit amount must be greater than ₹0.");
+  }
+
+  if (data.groupId) {
+    const targetGroupId = data.groupId;
+    try {
+      const [membership] = await withDbRetry(() =>
+        db
+          .select({ id: groupMembers.id })
+          .from(groupMembers)
+          .where(
+            and(
+              eq(groupMembers.groupId, targetGroupId),
+              eq(groupMembers.userId, user.id)
+            )
+          )
+          .limit(1)
+      );
+      if (!membership) {
+        const [ownedGroup] = await withDbRetry(() =>
+          db
+            .select({ id: groups.id })
+            .from(groups)
+            .where(and(eq(groups.id, targetGroupId), eq(groups.createdBy, user.id), eq(groups.isDeleted, false)))
+            .limit(1)
+        );
+        if (!ownedGroup) {
+          throw new ValidationError("You do not have access to the specified group.");
+        }
+      }
+    } catch (gErr: any) {
+      if (gErr instanceof ValidationError) throw gErr;
+    }
+  }
+
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
   const limits = limitsStore.get(userKey) || [];
 
-  let limit = limits.find((l) => l.period === data.period && l.category === data.category);
+  const category = data.category ? sanitizeText(data.category) : undefined;
+  let limit = limits.find((l) => l.period === data.period && l.category === category);
   if (limit) {
     limit.limitAmount = data.limitAmount;
     limit.isStrict = data.isStrict || false;
@@ -1179,7 +1302,7 @@ export async function setSpendingLimit(data: {
       period: data.period,
       limitAmount: data.limitAmount,
       currentSpend: 0,
-      category: data.category,
+      category,
       tripId: data.tripId,
       groupId: data.groupId,
       orgId: data.orgId,
@@ -1198,6 +1321,7 @@ export async function setSpendingLimit(data: {
  */
 export async function deleteSpendingLimit(limitId: string): Promise<boolean> {
   const user = await requireAuth();
+  await assertRateLimit(`spending_limit:delete:${user.id}`, RATE_LIMITS.actions.delete);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
   let limits = limitsStore.get(userKey) || [];

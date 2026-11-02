@@ -87,7 +87,7 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
         </div>
 
         {/* Quick Pills for Common Windows (Responsive Horizontal Scroll on Mobile) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-nowrap shrink-0 w-full sm:w-auto py-0.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-nowrap shrink-0 w-full sm:w-auto py-0.5 touch-pan-x">
           {PERIOD_OPTIONS.slice(0, 4).map((option) => {
             const isActive = currentPeriod === option.value;
             return (
@@ -97,7 +97,7 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
                 size="sm"
                 disabled={isPending}
                 onClick={() => setFilter(option.value)}
-                className={`text-xs rounded-xl h-8 px-3 shrink-0 whitespace-nowrap transition-all ${
+                className={`text-xs rounded-xl h-8 px-3 shrink-0 whitespace-nowrap transition-all touch-press ${
                   isActive
                     ? "bg-primary text-primary-foreground font-bold shadow-xs"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -168,7 +168,7 @@ export function DashboardDateFilter({ activePeriod = "current_month" }: { active
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-4 py-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Start Date</Label>
               <Input

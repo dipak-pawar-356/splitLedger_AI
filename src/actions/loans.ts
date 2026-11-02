@@ -15,6 +15,8 @@ import {
 } from "@/lib/types/loans";
 import { DatabaseError, ValidationError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 // In-memory loans store per user (Clean state)
 const loansStore = new Map<string, LoanRecord[]>();
@@ -230,6 +232,7 @@ export async function createLoan(data: {
   notes?: string;
 }): Promise<LoanRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`loan:create:${user.id}`, RATE_LIMITS.actions.write);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
 
@@ -250,17 +253,23 @@ export async function createLoan(data: {
   const totalRepayable = data.principalAmount + totalInterest;
   const loanId = generatePublicId("loan");
 
+  const sanitizedTitle = sanitizeText(data.title.trim());
+  const sanitizedDesc = data.description ? sanitizeText(data.description) : (data.notes ? sanitizeText(data.notes) : undefined);
+  const sanitizedBorrower = sanitizeText(data.borrowerName.trim());
+  const sanitizedLender = sanitizeText(data.lenderName.trim());
+  const sanitizedNotes = data.notes ? sanitizeText(data.notes) : undefined;
+
   const newLoan: LoanRecord = {
     id: loanId,
     userId: user.id,
     groupId: data.groupId,
     orgId: data.orgId,
     linkedTripId: data.linkedTripId,
-    title: data.title,
-    description: data.description || data.notes,
-    borrowerName: data.borrowerName,
+    title: sanitizedTitle,
+    description: sanitizedDesc,
+    borrowerName: sanitizedBorrower,
     borrowerUpiId: data.borrowerUpiId,
-    lenderName: data.lenderName,
+    lenderName: sanitizedLender,
     lenderUpiId: data.lenderUpiId,
     principalAmount: data.principalAmount,
     outstandingBalance: totalRepayable,
@@ -302,6 +311,7 @@ export async function updateLoan(
   data: Partial<LoanRecord>
 ): Promise<LoanRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`loan:update:${user.id}`, RATE_LIMITS.actions.write);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
   const loans = loansStore.get(userKey) || [];
@@ -311,10 +321,10 @@ export async function updateLoan(
     throw new DatabaseError("Loan record not found.");
   }
 
-  if (data.title) loan.title = data.title;
-  if (data.description !== undefined) loan.description = data.description;
-  if (data.borrowerName) loan.borrowerName = data.borrowerName;
-  if (data.lenderName) loan.lenderName = data.lenderName;
+  if (data.title) loan.title = sanitizeText(data.title.trim());
+  if (data.description !== undefined) loan.description = data.description ? sanitizeText(data.description) : undefined;
+  if (data.borrowerName) loan.borrowerName = sanitizeText(data.borrowerName.trim());
+  if (data.lenderName) loan.lenderName = sanitizeText(data.lenderName.trim());
   if (data.borrowerUpiId !== undefined) loan.borrowerUpiId = data.borrowerUpiId;
   if (data.lenderUpiId !== undefined) loan.lenderUpiId = data.lenderUpiId;
   if (data.status) loan.status = data.status;
@@ -379,6 +389,7 @@ export async function archiveLoan(publicId: string): Promise<LoanRecord> {
  */
 export async function deleteLoan(publicId: string): Promise<boolean> {
   const user = await requireAuth();
+  await assertRateLimit(`loan:del:${user.id}`, RATE_LIMITS.actions.delete);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
   let loans = loansStore.get(userKey) || [];
@@ -405,6 +416,7 @@ export async function recordLoanRepayment(
   }
 ): Promise<LoanRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`loan:repay:${user.id}`, RATE_LIMITS.actions.write);
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
   const loans = loansStore.get(userKey) || [];
@@ -425,9 +437,9 @@ export async function recordLoanRepayment(
     amount: data.amount,
     date: new Date().toISOString().split("T")[0],
     paymentMethod: data.paymentMethod,
-    referenceNumber: data.referenceNumber || `REF-${Date.now().toString(36).toUpperCase()}`,
+    referenceNumber: data.referenceNumber ? sanitizeText(data.referenceNumber.trim()) : `REF-${Date.now().toString(36).toUpperCase()}`,
     status: "completed",
-    notes: data.notes,
+    notes: data.notes ? sanitizeText(data.notes.trim()) : undefined,
     createdAt: new Date().toISOString(),
   };
 

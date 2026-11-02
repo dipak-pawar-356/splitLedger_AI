@@ -5,7 +5,10 @@ import { contactRequests, users } from "@/lib/db/schema/schema";
 import { eq, desc, and, or, ilike } from "drizzle-orm";
 import { headers } from "next/headers";
 import { ValidationError, DatabaseError, NotFoundError } from "@/lib/errors";
+import { requireAdmin } from "@/lib/auth";
 import { sendEmailNotification, sendEmailWithStatus, type EmailSendResult } from "@/lib/notifications";
+import { assertRateLimit } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 const SUPPORT_EMAIL = "dipakpawar3747@gmail.com";
 const SUPPORT_PHONE = "+91 8669233747";
@@ -66,7 +69,7 @@ export async function submitContactRequest(data: SubmitContactInput) {
     const ticketNumber = `SL-${randomDigits}`;
 
     // 3. Extract request metadata safely
-    let ipAddress = "unknown";
+    let ipAddress = "127.0.0.1";
     let userAgent = "unknown";
     try {
       const reqHeaders = await headers();
@@ -77,19 +80,26 @@ export async function submitContactRequest(data: SubmitContactInput) {
       userAgent = reqHeaders.get("user-agent") || "unknown";
     } catch (_) {}
 
+    // Enforce IP-based rate limiting on public inquiry form
+    assertRateLimit(`contact_form:${ipAddress}`, { limit: 5, windowMs: 60000 }, "Too many inquiries submitted from your network. Please wait a minute.");
+
+    const cleanName = sanitizeText(data.name).trim();
+    const cleanSubject = sanitizeText(data.subject).trim();
+    const cleanMessage = sanitizeText(data.message).trim();
+
     // 4. Save to database
     const [requestRecord] = await withDbRetry(async () =>
       db
         .insert(contactRequests)
         .values({
           ticketNumber,
-          name: data.name.trim(),
+          name: cleanName,
           email: data.email.trim().toLowerCase(),
           phone: data.phone?.trim() || null,
-          subject: data.subject.trim(),
+          subject: cleanSubject,
           category: data.category || "General",
           priority: data.priority || "Medium",
-          message: data.message.trim(),
+          message: cleanMessage,
           attachmentUrl: data.attachmentUrl || null,
           status: "open",
           ipAddress,
@@ -233,6 +243,7 @@ export async function submitContactRequest(data: SubmitContactInput) {
  */
 export async function getContactRequests(filters: GetContactRequestsFilters = {}) {
   try {
+    await requireAdmin();
     return await withDbRetry(async () => {
       const conditions = [] as any[];
 

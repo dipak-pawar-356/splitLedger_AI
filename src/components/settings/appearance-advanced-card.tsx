@@ -59,15 +59,15 @@ export function AppearanceAdvancedCard({ initialData, onRefresh }: AppearanceAdv
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="p-6 space-y-6">
+      <CardContent className="p-4 sm:p-6 space-y-5 sm:space-y-6">
         {/* Theme Selector */}
         <div className="space-y-2">
           <Label className="text-xs font-bold">Theme Mode</Label>
-          <div className="grid grid-cols-3 gap-3 max-w-md">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-md">
             <button
               type="button"
               onClick={() => handleThemeChange("light")}
-              className={`p-3 rounded-2xl border flex flex-col items-center gap-2 text-xs font-semibold transition-all ${
+              className={`p-3 rounded-2xl border flex flex-col items-center gap-2 text-xs font-semibold transition-all touch-press ${
                 formData.theme === "light"
                   ? "border-primary bg-primary/5 text-primary shadow-xs"
                   : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
@@ -80,7 +80,7 @@ export function AppearanceAdvancedCard({ initialData, onRefresh }: AppearanceAdv
             <button
               type="button"
               onClick={() => handleThemeChange("dark")}
-              className={`p-3 rounded-2xl border flex flex-col items-center gap-2 text-xs font-semibold transition-all ${
+              className={`p-3 rounded-2xl border flex flex-col items-center gap-2 text-xs font-semibold transition-all touch-press ${
                 formData.theme === "dark"
                   ? "border-primary bg-primary/5 text-primary shadow-xs"
                   : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
@@ -93,7 +93,7 @@ export function AppearanceAdvancedCard({ initialData, onRefresh }: AppearanceAdv
             <button
               type="button"
               onClick={() => handleThemeChange("system")}
-              className={`p-3 rounded-2xl border flex flex-col items-center gap-2 text-xs font-semibold transition-all ${
+              className={`p-3 rounded-2xl border flex flex-col items-center gap-2 text-xs font-semibold transition-all touch-press ${
                 formData.theme === "system"
                   ? "border-primary bg-primary/5 text-primary shadow-xs"
                   : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
@@ -108,13 +108,13 @@ export function AppearanceAdvancedCard({ initialData, onRefresh }: AppearanceAdv
         {/* Accent Color Palette */}
         <div className="space-y-2">
           <Label className="text-xs font-bold">Brand Accent Color</Label>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
             {ACCENT_COLORS.map((col) => (
               <button
                 key={col.id}
                 type="button"
                 onClick={() => setFormData({ ...formData, accentColor: col.id as any })}
-                className={`w-9 h-9 rounded-2xl ${col.bg} flex items-center justify-center text-white transition-transform ${
+                className={`w-9 h-9 rounded-2xl ${col.bg} flex items-center justify-center text-white transition-transform touch-press ${
                   formData.accentColor === col.id ? "scale-110 ring-2 ring-offset-2 ring-primary" : "opacity-80 hover:opacity-100"
                 }`}
               >
@@ -131,7 +131,7 @@ export function AppearanceAdvancedCard({ initialData, onRefresh }: AppearanceAdv
             <select
               value={formData.borderRadius}
               onChange={(e) => setFormData({ ...formData, borderRadius: e.target.value as any })}
-              className="w-full h-9 px-3 rounded-xl border border-input text-xs bg-background focus:outline-hidden"
+              className="w-full h-10 sm:h-9 px-3 rounded-xl border border-input text-base sm:text-xs bg-background focus:outline-hidden font-medium"
             >
               <option value="sharp">Sharp (Modern Clean)</option>
               <option value="rounded">Rounded (Default 12px)</option>
@@ -144,7 +144,7 @@ export function AppearanceAdvancedCard({ initialData, onRefresh }: AppearanceAdv
             <select
               value={formData.tableDensity}
               onChange={(e) => setFormData({ ...formData, tableDensity: e.target.value as any })}
-              className="w-full h-9 px-3 rounded-xl border border-input text-xs bg-background focus:outline-hidden"
+              className="w-full h-10 sm:h-9 px-3 rounded-xl border border-input text-base sm:text-xs bg-background focus:outline-hidden font-medium"
             >
               <option value="compact">Compact (High Information)</option>
               <option value="comfortable">Comfortable (Balanced Default)</option>
@@ -160,7 +160,7 @@ export function AppearanceAdvancedCard({ initialData, onRefresh }: AppearanceAdv
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span>Live UI Preview</span>
             </span>
-            <span className="text-[11px] text-emerald-600 font-mono">₹ 14,500.00 Net Balance</span>
+            <span className="text-[11px] text-emerald-600 font-mono whitespace-nowrap">₹ 14,500.00 Net Balance</span>
           </div>
           <p className="text-[11px] text-slate-500">
             Preview showing dynamic theme rendering with standard INR (₹) formatting.
@@ -171,7 +171,7 @@ export function AppearanceAdvancedCard({ initialData, onRefresh }: AppearanceAdv
           <Button
             type="button"
             size="sm"
-            className="rounded-xl text-xs gap-1.5 bg-primary"
+            className="w-full sm:w-auto rounded-xl text-xs gap-1.5 bg-primary h-10 sm:h-9 min-h-[38px] px-5 touch-press"
             onClick={handleSave}
             disabled={isPending}
           >

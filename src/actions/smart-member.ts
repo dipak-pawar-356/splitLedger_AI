@@ -30,12 +30,15 @@ export interface SearchResult {
 export async function searchMembers(query: string): Promise<SearchResult[]> {
   try {
     const user = await requireAuth();
+    const { assertRateLimit, RATE_LIMITS } = await import("@/lib/security/rate-limit");
+    assertRateLimit(`member:search:${user.id}`, RATE_LIMITS.search.query);
 
     if (!query || query.trim().length < 2) {
       return [];
     }
 
-    const cleanQuery = query.trim();
+    const { sanitizeText } = await import("@/lib/security/sanitize");
+    const cleanQuery = sanitizeText(query.trim()).slice(0, 100);
 
     // Search for registered users by email, name or phone
     const foundUsers = await db

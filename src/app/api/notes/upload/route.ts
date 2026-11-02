@@ -6,12 +6,21 @@ import { db, withDbRetry } from "@/lib/db";
 import { notes, noteAttachments, noteActivityLogs } from "@/lib/db/schema/schema";
 import { eq, and } from "drizzle-orm";
 import { generatePublicId } from "@/lib/utils";
+import {
+  validateUpload,
+  generateSecureUploadFilename,
+  validateBufferMagicBytes,
+} from "@/lib/security/upload-guard";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { maskErrorForClient } from "@/lib/errors";
 import fs from "fs/promises";
 import path from "path";
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`upload:note:${user.id}`, RATE_LIMITS.uploads.receipts);
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const notePublicId = formData.get("notePublicId") as string | null;
@@ -24,6 +33,16 @@ export async function POST(req: NextRequest) {
 
     if (!file || !notePublicId) {
       return NextResponse.json({ error: "File and notePublicId are required" }, { status: 400 });
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      return NextResponse.json({ error: "File exceeds 15MB limit" }, { status: 400 });
+    }
+
+    const lowerName = (file.name || "").toLowerCase();
+    const blockedExts = [".exe", ".bat", ".cmd", ".sh", ".php", ".js", ".ts", ".html", ".htm"];
+    if (blockedExts.some((ext) => lowerName.endsWith(ext))) {
+      return NextResponse.json({ error: "Executable or HTML file extensions are blocked" }, { status: 400 });
     }
 
     return await withDbRetry(async () => {
@@ -40,9 +59,19 @@ export async function POST(req: NextRequest) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
 
+      if (!isVoice && (file.type.startsWith("image/") || file.type === "application/pdf")) {
+        const isMagicValid = validateBufferMagicBytes(buffer, file.type);
+        if (!isMagicValid) {
+          return NextResponse.json(
+            { error: "File content does not match reported MIME type" },
+            { status: 400 }
+          );
+        }
+      }
+
       const timestamp = Date.now();
       const originalName = customName || file.name || (isVoice ? `Voice_Recording_${timestamp}.webm` : "attachment");
-      const cleanName = originalName.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const uniqueFilename = generateSecureUploadFilename(originalName);
 
       let url: string;
       const { uploadToCloudinary, isCloudinaryConfigured } = await import("@/lib/cloudinary");
@@ -54,8 +83,6 @@ export async function POST(req: NextRequest) {
         });
         url = uploadResult.url;
       } else {
-        const uniqueFilename = `${timestamp}_${cleanName}`;
-
         const uploadDir = path.join(process.cwd(), "public", "uploads", "notes");
         await fs.mkdir(uploadDir, { recursive: true });
         const filePath = path.join(uploadDir, uniqueFilename);
@@ -104,6 +131,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Upload error:", error);
-    return NextResponse.json({ error: error.message || "Failed to upload file" }, { status: 500 });
+    const masked = maskErrorForClient(error);
+    return NextResponse.json(
+      { error: masked.error, correlationId: masked.correlationId },
+      { status: masked.statusCode || 500 }
+    );
   }
 }

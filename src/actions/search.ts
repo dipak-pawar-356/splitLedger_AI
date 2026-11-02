@@ -20,6 +20,8 @@ import { requireAuth } from "@/lib/auth";
 import { ValidationError, DatabaseError } from "@/lib/errors";
 import { getTripDashboardSummary } from "@/actions/trips";
 import { getDocumentDashboardSummary } from "@/actions/documents";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 export interface SearchResultItem {
   id: number | string;
@@ -62,12 +64,13 @@ export interface AdvancedSearchFilters {
 export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]> {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`search:${user.id}`, RATE_LIMITS.search.query);
 
     if (!rawQuery || rawQuery.trim().length === 0) {
       return [];
     }
 
-    const query = rawQuery.trim();
+    const query = sanitizeText(rawQuery.trim());
     const keywords = query.split(/\s+/).filter(Boolean);
     const searchTerm = `%${query}%`;
 
@@ -450,6 +453,7 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
 export async function advancedSearchTransactions(filters: AdvancedSearchFilters) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`search:${user.id}`, RATE_LIMITS.search.query);
 
     const conditions: any[] = [
       eq(transactions.isDeleted, false),

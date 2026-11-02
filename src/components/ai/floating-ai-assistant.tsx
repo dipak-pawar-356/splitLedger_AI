@@ -125,7 +125,7 @@ export function FloatingAIAssistant() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-20 sm:bottom-6 right-6 z-40 p-3.5 rounded-full bg-gradient-to-r from-primary via-indigo-600 to-primary text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 flex items-center gap-2 group cursor-pointer"
+          className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 p-3.5 rounded-full bg-gradient-to-r from-primary via-indigo-600 to-primary text-white shadow-xl hover:shadow-2xl hover:scale-105 active:scale-90 transition-all duration-150 flex items-center gap-2 group cursor-pointer touch-press"
           aria-label="Open AI Financial Assistant"
         >
           <Sparkles className="h-5 w-5 animate-pulse" />
@@ -133,49 +133,61 @@ export function FloatingAIAssistant() {
         </button>
       )}
 
-      {/* Floating Assistant Modal */}
+      {/* Floating Assistant Modal - Full Gemini Mobile Bottom Sheet on Small Phones */}
       {isOpen && (
-        <div className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 z-50 w-[calc(100vw-1.5rem)] sm:w-[460px] md:w-[480px] shadow-2xl rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 bg-card animate-in fade-in slide-in-from-bottom-5 flex flex-col max-h-[88vh]">
-          <Card className="border-0 shadow-none rounded-none flex flex-col h-full bg-card">
-            {/* Header */}
-            <CardHeader className="p-3.5 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-row items-center justify-between border-b border-slate-800 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/30 to-indigo-600/30 border border-primary/40 flex items-center justify-center text-primary shadow-xs">
-                  <Bot className="h-4.5 w-4.5 text-indigo-400" />
-                </div>
-                <div>
-                  <CardTitle className="text-sm font-black flex items-center gap-1.5 text-white">
-                    <span>SplitLedger AI</span>
-                    <Badge variant="secondary" className="bg-primary/25 text-indigo-200 border border-primary/30 text-[9px] py-0 px-1.5 font-bold uppercase tracking-wider">
-                      PRO
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription className="text-[10px] text-slate-300 font-medium">
-                    INR (₹) Real-time Financial Copilot
-                  </CardDescription>
-                </div>
-              </div>
+        <>
+          {/* Mobile Backdrop Overlay */}
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 sm:hidden transition-opacity duration-300" 
+            onClick={() => setIsOpen(false)}
+            aria-hidden="true"
+          />
 
-              <div className="flex items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  title="Reset Chat"
-                  className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
-                  onClick={resetChat}
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
+          <div className="fixed inset-x-0 bottom-0 z-50 sm:inset-auto sm:bottom-6 sm:right-6 w-full sm:w-[460px] md:w-[480px] shadow-2xl rounded-t-[28px] sm:rounded-3xl overflow-hidden border-t sm:border border-slate-200/80 dark:border-slate-800 bg-card animate-in fade-in slide-in-from-bottom duration-250 ease-out flex flex-col max-h-[90vh] sm:max-h-[85vh]">
+            <Card className="border-0 shadow-none rounded-none flex flex-col h-full bg-card">
+              {/* Header */}
+              <CardHeader className="p-3 sm:p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col border-b border-slate-800 shrink-0">
+                {/* Mobile Drawer Grab Bar Indicator */}
+                <div className="sm:hidden w-10 h-1 bg-white/30 rounded-full mx-auto mb-2 shrink-0" />
+                <div className="flex flex-row items-center justify-between w-full">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-primary/30 to-indigo-600/30 border border-primary/40 flex items-center justify-center text-primary shadow-xs">
+                      <Bot className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-indigo-400" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xs sm:text-sm font-black flex items-center gap-1.5 text-white">
+                        <span>SplitLedger AI</span>
+                        <Badge variant="secondary" className="bg-primary/25 text-indigo-200 border border-primary/30 text-[9px] py-0 px-1.5 font-bold uppercase tracking-wider">
+                          PRO
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription className="text-[10px] text-slate-300 font-medium">
+                        INR (₹) Real-time Financial Copilot
+                      </CardDescription>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Reset Chat"
+                      className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer touch-press"
+                      onClick={resetChat}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer touch-press"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
 
             {/* Chat Messages Body */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 min-h-[220px] max-h-[58vh]">
@@ -348,6 +360,7 @@ export function FloatingAIAssistant() {
             </div>
           </Card>
         </div>
+      </>
       )}
     </>
   );

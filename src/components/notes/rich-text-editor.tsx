@@ -632,7 +632,7 @@ export function RichTextEditor({
     <div className="relative flex flex-col h-full border border-slate-200/80 dark:border-slate-800/80 rounded-2xl overflow-hidden bg-white/60 dark:bg-slate-950/40 backdrop-blur-xs shadow-sm transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
       {/* Editor Toolbar */}
       {!readOnly && (
-        <div className="flex items-center gap-1 flex-wrap p-2 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-900/50 text-slate-700 dark:text-slate-200 backdrop-blur-xs select-none">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-nowrap md:flex-wrap p-1.5 sm:p-2 border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 backdrop-blur-md select-none sticky top-0 z-10 touch-pan-x">
           {/* Text Styling */}
           <Button
             type="button"
@@ -996,7 +996,7 @@ export function RichTextEditor({
         onKeyUp={updateActiveFormats}
         onMouseUp={updateActiveFormats}
         onContextMenu={handleEditorContextMenu}
-        className="flex-1 p-5 outline-none overflow-y-auto prose dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 min-h-[280px] focus:outline-none"
+        className="flex-1 p-3.5 sm:p-5 outline-none overflow-y-auto prose dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 min-h-[220px] sm:min-h-[280px] focus:outline-none"
         style={{ minHeight: "280px" }}
       />
 

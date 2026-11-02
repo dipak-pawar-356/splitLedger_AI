@@ -22,6 +22,8 @@ import { generateTransactionId, generateVersionId, generateAuditId } from "@/lib
 import { appCache } from "@/lib/cache";
 import { logger } from "@/lib/logger";
 import { executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 function safeRevalidatePath(path: string, type?: "layout" | "page") {
   try {
@@ -154,11 +156,64 @@ async function checkTransactionPermissions(
 }
 
 // -------------------------------------------------------------
+// Helper: Check if user has permission to read transaction (IDOR Protection)
+// -------------------------------------------------------------
+async function verifyTransactionReadAccess(
+  userId: number,
+  transaction: {
+    id: number;
+    userId?: number | null;
+    createdBy?: number | null;
+    paidBy?: number | null;
+    groupId?: number | null;
+  }
+): Promise<boolean> {
+  if (
+    transaction.userId === userId ||
+    transaction.createdBy === userId ||
+    transaction.paidBy === userId
+  ) {
+    return true;
+  }
+
+  // Check group membership
+  if (transaction.groupId) {
+    const [membership] = await db
+      .select({ id: groupMembers.id })
+      .from(groupMembers)
+      .where(and(eq(groupMembers.groupId, transaction.groupId), eq(groupMembers.userId, userId)))
+      .limit(1);
+
+    if (membership) return true;
+
+    const [group] = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .where(and(eq(groups.id, transaction.groupId), eq(groups.createdBy, userId)))
+      .limit(1);
+
+    if (group) return true;
+  }
+
+  // Check split participation
+  const [split] = await db
+    .select({ id: expenseSplits.id })
+    .from(expenseSplits)
+    .where(and(eq(expenseSplits.transactionId, transaction.id), eq(expenseSplits.userId, userId)))
+    .limit(1);
+
+  if (split) return true;
+
+  return false;
+}
+
+// -------------------------------------------------------------
 // CREATE TRANSACTION
 // -------------------------------------------------------------
 export async function createTransaction(data: CreateTransactionInput) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`tx:create:${user.id}`, RATE_LIMITS.transactions.create);
 
     if (!data.description || data.description.trim().length === 0) {
       throw new ValidationError("Description is required");
@@ -199,10 +254,31 @@ export async function createTransaction(data: CreateTransactionInput) {
 
     const publicId = generateTransactionId();
     const amountInPaise = Math.round(data.amount * 100);
-    const title = data.title?.trim() || data.description.trim();
+    const cleanRawTitle = data.title?.trim() || data.description.trim();
+    const title = sanitizeText(cleanRawTitle).slice(0, 200);
+    const cleanDescription = sanitizeText(data.description.trim()).slice(0, 1000);
+    const cleanNotes = data.notes ? sanitizeText(data.notes.trim()).slice(0, 2000) : null;
+    const cleanLocation = data.location ? sanitizeText(data.location.trim()).slice(0, 200) : null;
     const txDate = data.date ? new Date(data.date) : new Date();
 
     const isContactTx = Boolean(data.contactId);
+    if (data.contactId) {
+      const [contactCheck] = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.id, data.contactId),
+            eq(contacts.userId, user.id),
+            eq(contacts.isDeleted, false)
+          )
+        )
+        .limit(1);
+
+      if (!contactCheck) {
+        throw new AuthorizationError("Contact not found or does not belong to you.");
+      }
+    }
     const isSynced = data.isSyncedToDashboard !== undefined ? Boolean(data.isSyncedToDashboard) : !isContactTx;
 
     // Resolve or find/create category by categoryName if categoryId not directly supplied
@@ -252,14 +328,14 @@ export async function createTransaction(data: CreateTransactionInput) {
         amount: amountInPaise,
         currency: data.currency || "INR",
         title,
-        description: data.description.trim(),
+        description: cleanDescription,
         paymentMethod: data.paymentMethod || null,
         date: txDate,
         status: data.status || "completed",
         receiptUrl: data.receiptUrl || null,
-        notes: data.notes || null,
+        notes: cleanNotes,
         tags: data.tags || null,
-        location: data.location || null,
+        location: cleanLocation,
         isPersonal: !isGroupTransaction,
         createdBy: user.id,
         paidBy: data.paidBy || user.id,
@@ -403,6 +479,7 @@ export async function updateTransaction(
 ) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`tx:update:${user.id}`, RATE_LIMITS.transactions.update);
 
     if (data.amount !== undefined && data.amount <= 0) {
       throw new ValidationError("Amount must be greater than 0");
@@ -468,6 +545,23 @@ export async function updateTransaction(
     }
 
     if (data.contactId !== undefined && data.contactId !== existingTransaction.contactId) {
+      if (data.contactId !== null) {
+        const [contactCheck] = await db
+          .select({ id: contacts.id })
+          .from(contacts)
+          .where(
+            and(
+              eq(contacts.id, data.contactId),
+              eq(contacts.userId, user.id),
+              eq(contacts.isDeleted, false)
+            )
+          )
+          .limit(1);
+
+        if (!contactCheck) {
+          throw new AuthorizationError("Contact not found or does not belong to you.");
+        }
+      }
       changes.contactId = { old: existingTransaction.contactId, new: data.contactId };
     }
 
@@ -695,6 +789,7 @@ export async function updateTransaction(
 export async function deleteTransaction(publicIdOrId: string | number, reason?: string) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`tx:delete:${user.id}`, RATE_LIMITS.actions.delete);
 
     const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingTransaction] = await db
@@ -997,6 +1092,12 @@ export async function getTransaction(idOrPublicId: number | string) {
       .leftJoin(splitContacts, eq(expenseSplits.contactId, splitContacts.id))
       .where(eq(expenseSplits.transactionId, transaction.id));
 
+    // IDOR / BOLA Authorization Check
+    const hasReadAccess = await verifyTransactionReadAccess(user.id, transaction);
+    if (!hasReadAccess) {
+      throw new AuthorizationError("You do not have permission to view this transaction.");
+    }
+
     // Calculate Permissions for current user
     const [groupMember] = transaction.groupId
       ? await db
@@ -1041,13 +1142,25 @@ export async function getTransactionVersionHistory(publicIdOrId: string | number
 
     const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [transaction] = await db
-      .select({ id: transactions.id, publicId: transactions.publicId })
+      .select({
+        id: transactions.id,
+        publicId: transactions.publicId,
+        userId: transactions.userId,
+        createdBy: transactions.createdBy,
+        paidBy: transactions.paidBy,
+        groupId: transactions.groupId,
+      })
       .from(transactions)
       .where(isNumeric ? eq(transactions.id, Number(publicIdOrId)) : eq(transactions.publicId, String(publicIdOrId)))
       .limit(1);
 
     if (!transaction) {
       throw new NotFoundError("Transaction");
+    }
+
+    const hasReadAccess = await verifyTransactionReadAccess(user.id, transaction);
+    if (!hasReadAccess) {
+      throw new AuthorizationError("You do not have permission to view this transaction's version history.");
     }
 
     const versions = await db
@@ -1071,7 +1184,7 @@ export async function getTransactionVersionHistory(publicIdOrId: string | number
 
     return versions;
   } catch (error) {
-    if (error instanceof NotFoundError) {
+    if (error instanceof NotFoundError || error instanceof AuthorizationError) {
       throw error;
     }
     throw new DatabaseError("Failed to fetch transaction version history", { originalError: error });
@@ -1087,13 +1200,25 @@ export async function getTransactionAuditLogs(publicIdOrId: string | number) {
 
     const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [transaction] = await db
-      .select({ id: transactions.id, publicId: transactions.publicId })
+      .select({
+        id: transactions.id,
+        publicId: transactions.publicId,
+        userId: transactions.userId,
+        createdBy: transactions.createdBy,
+        paidBy: transactions.paidBy,
+        groupId: transactions.groupId,
+      })
       .from(transactions)
       .where(isNumeric ? eq(transactions.id, Number(publicIdOrId)) : eq(transactions.publicId, String(publicIdOrId)))
       .limit(1);
 
     if (!transaction) {
       throw new NotFoundError("Transaction");
+    }
+
+    const hasReadAccess = await verifyTransactionReadAccess(user.id, transaction);
+    if (!hasReadAccess) {
+      throw new AuthorizationError("You do not have permission to view this transaction's version history.");
     }
 
     const logs = await db
@@ -1128,7 +1253,7 @@ export async function getTransactionAuditLogs(publicIdOrId: string | number) {
 
     return logs;
   } catch (error) {
-    if (error instanceof NotFoundError) {
+    if (error instanceof NotFoundError || error instanceof AuthorizationError) {
       throw error;
     }
     throw new DatabaseError("Failed to fetch transaction audit logs", { originalError: error });
@@ -1203,15 +1328,21 @@ export async function getTransactions(options?: { limit?: number; groupId?: numb
     ];
 
     if (options?.groupId) {
-      conditions.push(eq(transactions.groupId, options.groupId));
+      conditions.push(
+        eq(transactions.groupId, options.groupId),
+        sql`${transactions.groupId} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id} UNION SELECT id FROM groups WHERE created_by = ${user.id})`
+      );
     } else if (options?.contactId) {
-      conditions.push(eq(transactions.contactId, options.contactId));
+      conditions.push(
+        eq(transactions.contactId, options.contactId),
+        sql`${transactions.contactId} IN (SELECT id FROM contacts WHERE user_id = ${user.id})`
+      );
     } else {
       conditions.push(
         or(
           eq(transactions.userId, user.id),
           eq(transactions.createdBy, user.id),
-          sql`${transactions.groupId} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
+          sql`${transactions.groupId} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id} UNION SELECT id FROM groups WHERE created_by = ${user.id})`
         )!
       );
     }

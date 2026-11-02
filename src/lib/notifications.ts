@@ -25,8 +25,8 @@ export const DASHBOARD_URL = `${APP_BASE_URL}/dashboard`;
 
 function createSmtpTransporter(port: number, secure: boolean) {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const user = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
-  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || "vughrqdcthyeviys";
+  const user = process.env.SMTP_USER || process.env.GMAIL_USER || "";
+  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || "";
 
   if (user && pass) {
     return nodemailer.createTransport({
@@ -36,7 +36,7 @@ function createSmtpTransporter(port: number, secure: boolean) {
       requireTLS: !secure,
       auth: { user, pass },
       tls: {
-        rejectUnauthorized: false,
+        rejectUnauthorized: process.env.NODE_ENV === "production",
       },
       connectionTimeout: 8000,
       greetingTimeout: 8000,
@@ -79,10 +79,11 @@ export async function sendEmailWithStatus(
   text?: string,
   options?: EmailSendOptions
 ): Promise<EmailSendResult> {
-  const cleanTo = to.trim();
-  const authUser = process.env.SMTP_USER || process.env.GMAIL_USER || "dipakpawar3747@gmail.com";
+  const cleanTo = to.trim().replace(/[\r\n]/g, "");
+  const cleanSubject = subject.trim().replace(/[\r\n]/g, " ");
+  const authUser = process.env.SMTP_USER || process.env.GMAIL_USER || "notifications@splitledger.app";
   const from = process.env.SMTP_FROM || `SplitLedger AI <${authUser}>`;
-  const replyTo = options?.replyTo || authUser;
+  const replyTo = options?.replyTo ? options.replyTo.replace(/[\r\n]/g, "") : authUser;
   const plainText = text ? text.trim() : cleanHtmlToPlainText(html);
 
   // App domain and messageId configuration
@@ -107,7 +108,7 @@ export async function sendEmailWithStatus(
     replyTo,
     bcc: options?.bcc,
     cc: options?.cc,
-    subject,
+    subject: cleanSubject,
     html,
     text: plainText,
     messageId: generatedMessageId,
@@ -164,7 +165,7 @@ export async function sendEmailWithStatus(
         replyTo,
         bcc: Array.isArray(options?.bcc) ? options?.bcc : options?.bcc ? [options.bcc] : undefined,
         cc: Array.isArray(options?.cc) ? options?.cc : options?.cc ? [options.cc] : undefined,
-        subject,
+        subject: cleanSubject,
         html,
         text: plainText,
         headers: {

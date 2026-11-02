@@ -89,11 +89,11 @@ export function ProfileHeaderCard({
       {/* Decorative gradient banner */}
       <div className="h-28 bg-gradient-to-r from-primary/20 via-indigo-500/10 to-emerald-500/20 relative" />
 
-      <CardContent className="px-6 pb-6 pt-0 relative">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 -mt-14 mb-6">
+      <CardContent className="px-4 sm:px-6 pb-5 sm:pb-6 pt-0 relative">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 -mt-12 sm:-mt-14 mb-5 sm:mb-6">
           {/* Avatar with Camera Trigger */}
           <div className="relative group self-start">
-            <Avatar className="h-24 w-24 rounded-3xl border-4 border-background shadow-xl ring-2 ring-primary/20">
+            <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-3xl border-4 border-background shadow-xl ring-2 ring-primary/20">
               <AvatarImage src={user.avatar || undefined} className="object-cover" />
               <AvatarFallback className="text-xl font-bold bg-primary/10 text-primary">
                 {(user.name || "U").charAt(0).toUpperCase()}
@@ -103,7 +103,7 @@ export function ProfileHeaderCard({
             <button
               type="button"
               onClick={() => setIsAvatarModalOpen(true)}
-              className="absolute bottom-0 right-0 p-2 rounded-2xl bg-primary text-white shadow-md hover:bg-primary/90 transition-all duration-200 hover:scale-105"
+              className="absolute bottom-0 right-0 p-2 rounded-2xl bg-primary text-white shadow-md hover:bg-primary/90 transition-all duration-200 hover:scale-105 touch-press"
               title="Change Profile Picture"
             >
               <Camera className="h-3.5 w-3.5" />
@@ -111,12 +111,12 @@ export function ProfileHeaderCard({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+          <div className="flex items-center gap-2 self-start md:self-auto flex-wrap w-full sm:w-auto">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="rounded-xl text-xs gap-1.5"
+              className="flex-1 sm:flex-initial rounded-xl text-xs gap-1.5 h-9 min-h-[38px] touch-press"
               onClick={() => setIsAvatarModalOpen(true)}
             >
               <Camera className="h-3.5 w-3.5" />
@@ -126,7 +126,7 @@ export function ProfileHeaderCard({
             <Button
               type="button"
               size="sm"
-              className="rounded-xl text-xs gap-1.5 bg-primary"
+              className="flex-1 sm:flex-initial rounded-xl text-xs gap-1.5 bg-primary h-9 min-h-[38px] touch-press"
               onClick={onEditClick}
             >
               <Edit3 className="h-3.5 w-3.5" />
@@ -136,11 +136,11 @@ export function ProfileHeaderCard({
         </div>
 
         {/* User Identity Details & Live Financial Badge */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6">
           <div className="lg:col-span-2 space-y-3.5">
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
                   {user.name || "SplitLedger Member"}
                 </h2>
                 {user.emailVerified && (
@@ -213,12 +213,12 @@ export function ProfileHeaderCard({
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                   </span>
-                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">UPI VPA:</span>
-                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{activeUpi}</span>
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">UPI VPA:</span>
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 break-all">{activeUpi}</span>
                   <button
                     type="button"
                     onClick={handleCopyUpi}
-                    className="p-1 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                    className="p-1 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors shrink-0 touch-press"
                     title="Copy UPI ID"
                   >
                     {copiedUpi ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-400 hover:text-emerald-500" />}
@@ -228,7 +228,7 @@ export function ProfileHeaderCard({
                 <button
                   type="button"
                   onClick={onUpiClick}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 transition-colors font-medium shadow-xs"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 transition-colors font-medium shadow-xs touch-press"
                 >
                   <AlertCircle className="h-3.5 w-3.5" />
                   <span>Configure Primary UPI for Settlements</span>
@@ -238,13 +238,13 @@ export function ProfileHeaderCard({
               {/* Live Net Settlement Standing */}
               {financialSummary && (
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-xs shadow-xs">
-                  <Wallet className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-[11px] text-slate-500 font-medium">Net Settlement:</span>
-                  <span className={`font-mono font-bold ${
-                    financialSummary.netBalance > 0
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : financialSummary.netBalance < 0
-                      ? "text-rose-600 dark:text-rose-400"
+                  <Wallet className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <span className="text-[11px] text-slate-500 font-medium shrink-0">Net Settlement:</span>
+                  <span className={`font-mono font-bold whitespace-nowrap ${
+                    financialSummary.netBalance > 0 
+                      ? "text-emerald-600 dark:text-emerald-400" 
+                      : financialSummary.netBalance < 0 
+                      ? "text-rose-600 dark:text-rose-400" 
                       : "text-slate-700 dark:text-slate-300"
                   }`}>
                     {financialSummary.netBalance > 0 

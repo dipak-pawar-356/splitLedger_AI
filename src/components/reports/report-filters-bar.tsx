@@ -182,7 +182,7 @@ export function ReportFiltersBar({
         </div>
 
         {/* Quick Period Presets */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 no-scrollbar touch-pan-x">
           {PERIOD_OPTIONS.map((p) => {
             const isSelected = (filters.period || "all") === p.value;
             return (
@@ -191,7 +191,7 @@ export function ReportFiltersBar({
                 type="button"
                 variant={isSelected ? "default" : "outline"}
                 size="sm"
-                className={`rounded-xl text-xs h-8 px-3 whitespace-nowrap transition-all duration-150 active:scale-95 ${
+                className={`rounded-xl text-xs h-8 px-3 whitespace-nowrap transition-all duration-150 active:scale-95 touch-press shrink-0 ${
                   isSelected ? "font-semibold bg-primary text-primary-foreground shadow-sm" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                 }`}
                 onClick={() => onFiltersChange({ ...filters, period: p.value as any, page: 1 })}

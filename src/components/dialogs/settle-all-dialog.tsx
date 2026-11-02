@@ -366,15 +366,15 @@ export function SettleAllDialog({
             </div>
 
             {/* Action Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-xs">
-              <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-xs">
+              <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={selectedIds.size === overview.items.length ? deselectAll : selectAll}
                   disabled={overview.items.length === 0}
-                  className="rounded-xl text-xs h-8 gap-1.5 font-semibold"
+                  className="rounded-xl text-xs h-9 sm:h-8 gap-1.5 font-semibold touch-press"
                 >
                   {selectedIds.size === overview.items.length && overview.items.length > 0 ? (
                     <>
@@ -389,19 +389,19 @@ export function SettleAllDialog({
                   )}
                 </Button>
 
-                <Badge variant="secondary" className="px-2 py-0.5 text-[11px] font-bold">
+                <Badge variant="secondary" className="px-2 py-1 sm:py-0.5 text-[11px] font-bold whitespace-nowrap">
                   {selectedIds.size} Selected • {formatCurrency(selectedTotalAmount, currency)}
                 </Badge>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Button
                   type="button"
                   variant="default"
                   size="sm"
                   disabled={selectedIds.size === 0 || isFetching}
                   onClick={handleProceedToConfirmation}
-                  className="rounded-xl text-xs h-8 gap-1.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                  className="w-full sm:w-auto rounded-xl text-xs h-9 sm:h-8 gap-1.5 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs touch-press"
                 >
                   <span>Settle Selected ({selectedIds.size})</span>
                   <ChevronRight className="h-3.5 w-3.5" />
@@ -576,7 +576,7 @@ export function SettleAllDialog({
                         {/* Right: Amount & Individual Action */}
                         <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
                           <div className="text-right">
-                            <span className="text-lg font-black font-mono text-slate-900 dark:text-slate-100">
+                            <span className="text-base sm:text-lg font-black font-mono text-slate-900 dark:text-slate-100 whitespace-nowrap">
                               {formatCurrency(item.amount, item.currency)}
                             </span>
                             <span className="block text-[10px] uppercase tracking-wider text-slate-400">
@@ -691,13 +691,13 @@ export function SettleAllDialog({
             </div>
 
             {/* Confirmation Action Buttons */}
-            <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-4 border-t border-slate-100 dark:border-slate-800">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setStep("review")}
                 disabled={isLoading}
-                className="rounded-xl text-xs font-semibold h-10"
+                className="w-full sm:w-auto rounded-xl text-xs font-semibold h-10 touch-press"
               >
                 Back to Review
               </Button>
@@ -706,7 +706,7 @@ export function SettleAllDialog({
                 type="button"
                 onClick={handleConfirmAndExecute}
                 disabled={isLoading}
-                className="rounded-xl text-xs font-bold h-10 px-5 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all"
+                className="w-full sm:w-auto rounded-xl text-xs font-bold h-10 px-5 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all touch-press"
               >
                 {isLoading ? (
                   <>

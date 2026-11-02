@@ -11,6 +11,8 @@ import { executeAtomicGroupRecalculation, revalidateGroupHierarchy, safeRevalida
 import { appCache } from "@/lib/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 async function revalidateSettlementPaths(groupId?: number | null, contactId?: number | null) {
   try {
@@ -45,6 +47,7 @@ export async function createSettlement(data: {
 }) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`settlement:create:${user.id}`, RATE_LIMITS.actions.write);
 
     if (data.amount <= 0) {
       throw new ValidationError("Settlement amount must be greater than 0");
@@ -52,6 +55,46 @@ export async function createSettlement(data: {
 
     if (data.fromUserId === data.toUserId) {
       throw new ValidationError("Cannot create settlement with same user");
+    }
+
+    let isAuthorized = false;
+    if (data.groupId) {
+      const [group] = await db
+        .select({ createdBy: groups.createdBy })
+        .from(groups)
+        .where(eq(groups.id, data.groupId))
+        .limit(1);
+
+      if (!group) {
+        throw new NotFoundError("Group");
+      }
+
+      const [membership] = await db
+        .select({ isAdmin: groupMembers.isAdmin })
+        .from(groupMembers)
+        .where(and(eq(groupMembers.groupId, data.groupId), eq(groupMembers.userId, user.id)))
+        .limit(1);
+
+      if (group.createdBy === user.id || membership?.isAdmin || data.fromUserId === user.id || data.toUserId === user.id) {
+        isAuthorized = true;
+      }
+    } else {
+      if (data.fromUserId === user.id || data.toUserId === user.id) {
+        isAuthorized = true;
+      } else if (data.fromContactId || data.toContactId) {
+        const contactIds = [data.fromContactId, data.toContactId].filter(Boolean) as number[];
+        const ownedContacts = await db
+          .select({ id: contacts.id })
+          .from(contacts)
+          .where(and(inArray(contacts.id, contactIds), eq(contacts.userId, user.id)));
+        if (ownedContacts.length > 0) {
+          isAuthorized = true;
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      throw new AuthorizationError("You do not have permission to create this settlement.");
     }
 
     const [settlement] = await db
@@ -65,8 +108,8 @@ export async function createSettlement(data: {
         amount: Math.round(data.amount * 100),
         currency: data.currency || "INR",
         groupId: data.groupId || null,
-        paymentMethod: data.paymentMethod || null,
-        notes: data.notes || null,
+        paymentMethod: data.paymentMethod ? sanitizeText(data.paymentMethod) : null,
+        notes: data.notes ? sanitizeText(data.notes) : null,
         status: "pending",
       })
       .returning();
@@ -75,7 +118,7 @@ export async function createSettlement(data: {
     await revalidateSettlementPaths(data.groupId, data.fromContactId || data.toContactId);
     return settlement;
   } catch (error) {
-    if (error instanceof ValidationError) {
+    if (error instanceof ValidationError || error instanceof AuthorizationError || error instanceof NotFoundError) {
       throw error;
     }
     throw new DatabaseError("Failed to create settlement", { originalError: error });
@@ -94,6 +137,7 @@ export async function updateSettlement(
 ) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`settlement:update:${user.id}`, RATE_LIMITS.actions.write);
 
     if (data.amount !== undefined && data.amount <= 0) {
       throw new ValidationError("Settlement amount must be greater than 0");
@@ -120,10 +164,10 @@ export async function updateSettlement(
       .set({
         ...(data.amount !== undefined && { amount: Math.round(data.amount * 100) }),
         ...(data.currency && { currency: data.currency }),
-        ...(data.paymentMethod !== undefined && { paymentMethod: data.paymentMethod || null }),
+        ...(data.paymentMethod !== undefined && { paymentMethod: data.paymentMethod ? sanitizeText(data.paymentMethod) : null }),
         ...(data.status && { status: data.status }),
         ...(data.status === "completed" && { paidAt: new Date() }),
-        ...(data.notes !== undefined && { notes: data.notes || null }),
+        ...(data.notes !== undefined && { notes: data.notes ? sanitizeText(data.notes) : null }),
         updatedAt: new Date(),
       })
       .where(eq(settlements.id, existingSettlement.id))
@@ -154,6 +198,7 @@ export async function updateSettlement(
 export async function markSettlementAsPaid(publicIdOrId: string | number, paymentMethod?: string) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`settlement:pay:${user.id}`, RATE_LIMITS.actions.write);
 
     const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingSettlement] = await db
@@ -195,7 +240,7 @@ export async function markSettlementAsPaid(publicIdOrId: string | number, paymen
             )
           )
           .limit(1);
-        if (membership) {
+        if (membership?.isAdmin) {
           isAuthorized = true;
         }
       }
@@ -205,7 +250,9 @@ export async function markSettlementAsPaid(publicIdOrId: string | number, paymen
       throw new ValidationError("You do not have permission to mark this settlement as paid");
     }
 
-    const resolvedPaymentMethod = paymentMethod || existingSettlement.paymentMethod || "UPI";
+    const resolvedPaymentMethod = paymentMethod
+      ? sanitizeText(paymentMethod)
+      : (existingSettlement.paymentMethod ? sanitizeText(existingSettlement.paymentMethod) : "UPI");
 
     const [settlement] = await db
       .update(settlements)
@@ -351,9 +398,32 @@ export async function createSettlementsBatch(
 ) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`settlement:batch:${user.id}`, RATE_LIMITS.actions.write);
 
     if (data.length === 0) {
       throw new ValidationError("No settlements to create");
+    }
+
+    // Verify user has access to all specified groups
+    const distinctGroupIds = [...new Set(data.map(s => s.groupId).filter((id): id is number => id !== null && id !== undefined))];
+    for (const gid of distinctGroupIds) {
+      const [hasAccess] = await db
+        .select({ id: groups.id })
+        .from(groups)
+        .where(
+          and(
+            eq(groups.id, gid),
+            or(
+              eq(groups.createdBy, user.id),
+              sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
+            )
+          )
+        )
+        .limit(1);
+
+      if (!hasAccess) {
+        throw new AuthorizationError("You do not have permission to create settlements in this group.");
+      }
     }
 
     // Validate all settlements before inserting
@@ -376,7 +446,8 @@ export async function createSettlementsBatch(
     }
 
     const markCompleted = options?.markAsCompleted ?? (data[0]?.status === "completed");
-    const defaultPaymentMethod = options?.paymentMethod || "UPI";
+    const defaultPaymentMethod = options?.paymentMethod ? sanitizeText(options.paymentMethod) : "UPI";
+    const sanitizedOptionsNotes = options?.notes ? sanitizeText(options.notes) : null;
     const now = new Date();
 
     // Insert all settlements in a single batch
@@ -392,8 +463,8 @@ export async function createSettlementsBatch(
           amount: Math.round(settlement.amount * 100),
           currency: settlement.currency || "INR",
           groupId: settlement.groupId || null,
-          paymentMethod: settlement.paymentMethod || defaultPaymentMethod,
-          notes: settlement.notes || options?.notes || null,
+          paymentMethod: settlement.paymentMethod ? sanitizeText(settlement.paymentMethod) : defaultPaymentMethod,
+          notes: settlement.notes ? sanitizeText(settlement.notes) : sanitizedOptionsNotes,
           status: settlement.status || (markCompleted ? "completed" : "pending"),
           paidAt: (settlement.status === "completed" || markCompleted) ? now : null,
         }))
@@ -476,7 +547,7 @@ export async function createSettlementsBatch(
 
     return insertedSettlements;
   } catch (error) {
-    if (error instanceof ValidationError) {
+    if (error instanceof ValidationError || error instanceof AuthorizationError) {
       throw error;
     }
     throw new DatabaseError("Failed to create settlements", { originalError: error });
@@ -510,6 +581,7 @@ export async function getGroupSettlementDetailsAction(groupIdOrPublicId: string 
 export async function deleteSettlement(publicIdOrId: string | number, reason?: string) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`settlement:delete:${user.id}`, RATE_LIMITS.actions.delete);
 
     const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existing] = await db
@@ -576,7 +648,7 @@ export async function deleteSettlement(publicIdOrId: string | number, reason?: s
         deleted: true,
         deletedAt: new Date(),
         originalAmount: existing.amount,
-        reason: reason || "Admin deletion",
+        reason: reason ? sanitizeText(reason) : "Admin deletion",
       },
     });
 
@@ -656,6 +728,25 @@ export async function calculateGroupSettlements(groupId: number) {
   try {
     const user = await requireAuth();
 
+    // Verify user has access to this group
+    const [hasAccess] = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .where(
+        and(
+          eq(groups.id, groupId),
+          or(
+            eq(groups.createdBy, user.id),
+            sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
+          )
+        )
+      )
+      .limit(1);
+
+    if (!hasAccess) {
+      throw new AuthorizationError("You do not have permission to view settlements for this group.");
+    }
+
     // Get active transactions for the group
     const groupTransactions = await db
       .select({
@@ -714,7 +805,7 @@ export async function calculateGroupSettlements(groupId: number) {
     const optimalSettlements = calculateOptimalSettlements(balances, "INR");
     return optimalSettlements;
   } catch (error) {
-    if (error instanceof NotFoundError) {
+    if (error instanceof NotFoundError || error instanceof AuthorizationError) {
       throw error;
     }
     throw new DatabaseError("Failed to calculate group settlements", { originalError: error });
@@ -724,6 +815,26 @@ export async function calculateGroupSettlements(groupId: number) {
 export async function createSettlementsFromCalculation(groupId: number) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`settlement:recalc:${user.id}`, RATE_LIMITS.actions.write);
+
+    // Verify user has access to this group
+    const [hasAccess] = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .where(
+        and(
+          eq(groups.id, groupId),
+          or(
+            eq(groups.createdBy, user.id),
+            sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
+          )
+        )
+      )
+      .limit(1);
+
+    if (!hasAccess) {
+      throw new AuthorizationError("You do not have permission to recalculate settlements for this group.");
+    }
 
     const result = await executeAtomicGroupRecalculation({
       groupId,
@@ -736,6 +847,9 @@ export async function createSettlementsFromCalculation(groupId: number) {
     revalidatePath("/dashboard");
     return { success: true, count: result.pendingSettlementsCount };
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof NotFoundError) {
+      throw error;
+    }
     throw new DatabaseError("Failed to create settlements from calculation", { originalError: error });
   }
 }
@@ -1025,13 +1139,14 @@ export async function executeSettlementBatchAction(
   }
 ) {
   const user = await requireAuth();
+  await assertRateLimit(`settlement:exec:${user.id}`, RATE_LIMITS.actions.write);
 
   if (!itemsToSettle || itemsToSettle.length === 0) {
     throw new ValidationError("No settlements selected for execution");
   }
 
-  const paymentMethod = options?.paymentMethod || "UPI";
-  const commonNotes = options?.notes?.trim();
+  const paymentMethod = options?.paymentMethod ? sanitizeText(options.paymentMethod) : "UPI";
+  const commonNotes = options?.notes ? sanitizeText(options.notes.trim()) : null;
   const now = new Date();
   const affectedGroupIds = new Set<number>();
   let settledCount = 0;
@@ -1043,7 +1158,7 @@ export async function executeSettlementBatchAction(
     }
 
     if (item.databaseId) {
-      // Mark existing DB record as completed
+      // Mark existing DB record as completed with authorization check
       const [existing] = await db
         .select()
         .from(settlements)
@@ -1056,13 +1171,36 @@ export async function executeSettlementBatchAction(
         .limit(1);
 
       if (existing) {
+        let isAuthorized = existing.fromUserId === user.id || existing.toUserId === user.id;
+        if (!isAuthorized && existing.groupId) {
+          const [groupAccess] = await db
+            .select({ id: groups.id })
+            .from(groups)
+            .where(
+              and(
+                eq(groups.id, existing.groupId),
+                or(
+                  eq(groups.createdBy, user.id),
+                  sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id} AND is_admin = true)`
+                )
+              )
+            )
+            .limit(1);
+          if (groupAccess) isAuthorized = true;
+        }
+
+        if (!isAuthorized) {
+          continue; // Skip unauthorized settlement
+        }
+
+        const sanitizedItemNotes = item.notes ? sanitizeText(item.notes) : undefined;
         await db
           .update(settlements)
           .set({
             status: "completed",
             paidAt: now,
             paymentMethod,
-            notes: commonNotes || item.notes || existing.notes,
+            notes: commonNotes || sanitizedItemNotes || existing.notes,
             updatedAt: now,
           })
           .where(eq(settlements.id, existing.id));
@@ -1108,7 +1246,31 @@ export async function executeSettlementBatchAction(
         totalSettledRupees += existing.amount / 100;
       }
     } else {
+      // Authorization check for suggestion creation
+      if (item.groupId) {
+        const isParticipant = item.fromUserId === user.id || item.toUserId === user.id;
+        const [groupAccess] = await db
+          .select({ id: groups.id })
+          .from(groups)
+          .where(
+            and(
+              eq(groups.id, item.groupId),
+              or(
+                eq(groups.createdBy, user.id),
+                sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id} AND is_admin = true)`
+              )
+            )
+          )
+          .limit(1);
+        if (!groupAccess && !isParticipant) {
+          continue; // Skip unauthorized
+        }
+      } else if (item.fromUserId !== user.id && item.toUserId !== user.id) {
+        continue; // Cannot execute settlement user is not part of
+      }
+
       // It's a calculated suggestion, insert as completed record
+      const sanitizedItemNotes = item.notes ? sanitizeText(item.notes) : undefined;
       const [newSettlement] = await db
         .insert(settlements)
         .values({
@@ -1123,7 +1285,7 @@ export async function executeSettlementBatchAction(
           status: "completed",
           paymentMethod,
           paidAt: now,
-          notes: commonNotes || item.notes || "Settle All Debts Execution",
+          notes: commonNotes || sanitizedItemNotes || "Settle All Debts Execution",
           createdAt: now,
           updatedAt: now,
         })

@@ -1,4 +1,4 @@
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, profiles, transactions, groups, contacts, settlements } from "@/lib/db/schema/schema";
 import { eq, desc, sql, count, gte, and } from "drizzle-orm";
@@ -10,13 +10,10 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
-  const user = await requireAuth();
-
-  // Check if user is admin (in production, this would be a proper role check)
-  // For now, we'll use a simple check based on email or add an isAdmin field to users table
-  const isAdmin = user.email?.includes("admin") || false;
-
-  if (!isAdmin) {
+  let user;
+  try {
+    user = await requireAdmin();
+  } catch {
     return (
       <div className="p-8">
         <Card>

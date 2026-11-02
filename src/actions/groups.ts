@@ -8,6 +8,8 @@ import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } from "@/lib/errors";
 import { generateGroupId, generateAuditId, formatCurrency, isDbIntegerId } from "@/lib/utils";
 import { executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 function buildGroupIdentifierCondition(idOrPublicId: string | number) {
   const strId = String(idOrPublicId).trim();
@@ -33,12 +35,14 @@ export interface CreateGroupInput {
 export async function createGroup(data: CreateGroupInput) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`group:create:${user.id}`, RATE_LIMITS.actions.write);
 
     if (!data.name || data.name.trim().length === 0) {
       throw new ValidationError("Group name is required");
     }
 
-    const trimmedName = data.name.trim();
+    const trimmedName = sanitizeText(data.name).trim().slice(0, 100);
+    const cleanDescription = data.description ? sanitizeText(data.description).trim().slice(0, 500) : null;
 
     // Check for duplicate group name (case-insensitive) for the same owner, excluding deleted groups
     const existingGroups = await db
@@ -67,7 +71,7 @@ export async function createGroup(data: CreateGroupInput) {
         publicId,
         createdBy: user.id,
         name: trimmedName,
-        description: data.description?.trim() || null,
+        description: cleanDescription,
         type: data.type || "friends",
         currency: data.currency || "INR",
         splitMethod: data.splitMethod || "equal",
@@ -124,6 +128,7 @@ export async function updateGroup(
 ) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`group:update:${user.id}`, RATE_LIMITS.actions.write);
 
     const [existingGroup] = await db
       .select()
@@ -419,6 +424,7 @@ export async function restoreGroup(publicIdOrId: string | number) {
 export async function deleteGroup(publicIdOrId: string | number, confirmationName?: string) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`group:delete:${user.id}`, RATE_LIMITS.actions.delete);
 
     const [existingGroup] = await db
       .select()

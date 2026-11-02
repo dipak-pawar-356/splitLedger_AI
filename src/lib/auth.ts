@@ -3,7 +3,7 @@ import { headers, cookies } from "next/headers";
 import { db, withDbRetry } from "@/lib/db";
 import { users } from "@/lib/db/schema/schema";
 import { eq } from "drizzle-orm";
-import { AuthenticationError, DatabaseError } from "@/lib/errors";
+import { AuthenticationError, DatabaseError, AuthorizationError } from "@/lib/errors";
 
 const reactCache = typeof cache === "function" ? cache : ((fn: any) => fn);
 
@@ -38,6 +38,9 @@ const USER_COLUMNS = {
 };
 
 function isDevOrTest(): boolean {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
   return (
     process.env.NODE_ENV === "development" ||
     process.env.NODE_ENV === "test" ||
@@ -47,6 +50,8 @@ function isDevOrTest(): boolean {
 }
 
 function extractUserIdFromClerkJwt(token: string | undefined | null): string | null {
+  // Never decode unverified JWTs in production
+  if (process.env.NODE_ENV === "production") return null;
   if (!token) return null;
   try {
     const parts = token.split(".");
@@ -221,7 +226,27 @@ export const requireAuth = reactCache(async () => {
   return user;
 });
 
-export async function requireAdmin() {
+export const requireAdmin = reactCache(async () => {
   const user = await requireAuth();
+
+  if (isDevOrTest() && (user.email === DEV_USER.email || user.id === DEV_USER.id)) {
+    return user;
+  }
+
+  const adminEmails = (process.env.ADMIN_EMAILS || "dipak@splitledger.ai,admin@splitledger.ai")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  const isEmailAdmin = !!user.email && adminEmails.includes(user.email.toLowerCase());
+
+  if (!isEmailAdmin) {
+    throw new AuthorizationError("Administrative privileges required to access this resource.");
+  }
+
+  // Enforce email verification in production for administrative access
+  if (process.env.NODE_ENV === "production" && !user.emailVerified) {
+    throw new AuthorizationError("Verified email required for administrative access.");
+  }
   return user;
-}
+});

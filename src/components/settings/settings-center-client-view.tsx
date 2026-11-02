@@ -110,9 +110,37 @@ export function SettingsCenterClientView({
         />
       </div>
 
+      {/* Mobile Horizontal Category Scroller */}
+      <div className="lg:hidden relative">
+        <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-3 bg-gradient-to-r from-background to-transparent z-10" />
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-background to-transparent z-10" />
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar p-1.5 rounded-2xl bg-slate-100/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 touch-pan-x">
+          {filteredCategories.map((cat) => {
+            const Icon = cat.icon;
+            const isActive = activeTab === cat.id;
+
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setActiveTab(cat.id)}
+                className={`flex items-center gap-2 px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 touch-press ${
+                  isActive
+                    ? "bg-white dark:bg-slate-800 shadow-xs border border-slate-200/90 dark:border-slate-700 text-primary"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-primary" : "text-slate-400"}`} />
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Navigation Sidebar (7 Core Working Categories) */}
-        <div className="lg:col-span-4 space-y-1.5 p-2 rounded-3xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800">
+        {/* Navigation Sidebar (7 Core Working Categories - Visible on Desktop) */}
+        <div className="hidden lg:block lg:col-span-4 space-y-1.5 p-2 rounded-3xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800">
           {filteredCategories.map((cat) => {
             const Icon = cat.icon;
             const isActive = activeTab === cat.id;

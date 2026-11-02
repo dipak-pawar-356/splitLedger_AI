@@ -16,6 +16,8 @@ import { generatePublicId, generateAuditId, isDbIntegerId } from "@/lib/utils";
 import { redistributeGroupHistoricalExpenses } from "@/actions/historical-redistribution";
 import { recordTimelineEvent, executeAtomicGroupRecalculation, revalidateGroupHierarchy } from "@/lib/settlements/recalculation-engine";
 import { hasDelegatedGroupPermission } from "@/lib/security/rbac";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 /**
  * Get group preview and current user's join status (open to both authenticated & unauthenticated visitors)
@@ -159,6 +161,7 @@ export async function getGroupJoinDetailsAction(groupPublicId: string) {
 export async function submitGroupJoinRequestAction(groupPublicId: string) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`join_req:submit:${user.id}`, RATE_LIMITS.actions.write);
 
     const strId = String(groupPublicId).trim();
     const isDbId = isDbIntegerId(groupPublicId);
@@ -385,6 +388,7 @@ export async function approveJoinRequestAction(data: {
 }) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`join_req:approve:${user.id}`, RATE_LIMITS.actions.write);
 
     const decision = data.participationDecision || data.immediateActivationDecision;
     if (!decision || (decision !== "included" && decision !== "excluded")) {
@@ -598,6 +602,7 @@ export async function activateMemberExpenseParticipationAction(data: {
 }) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`member:activate:${user.id}`, RATE_LIMITS.actions.write);
 
     // 1. Fetch group & verify caller authority
     const [group] = await db
@@ -760,6 +765,7 @@ export async function rejectJoinRequestAction(data: {
 }) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`join_req:reject:${user.id}`, RATE_LIMITS.actions.write);
 
     const [request] = await db
       .select()
@@ -830,7 +836,7 @@ export async function rejectJoinRequestAction(data: {
       .set({
         status: "rejected",
         rejectedAt: new Date(),
-        notes: data.reason || "Rejected by owner",
+        notes: data.reason ? sanitizeText(data.reason) : "Rejected by owner",
         updatedAt: new Date(),
       })
       .where(eq(groupJoinRequests.id, request.id));

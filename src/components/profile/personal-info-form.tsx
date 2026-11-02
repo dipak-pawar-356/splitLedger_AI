@@ -155,7 +155,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="p-6">
+      <CardContent className="p-4 sm:p-6">
         <form onSubmit={handleSubmit} className="space-y-6" suppressHydrationWarning>
           {/* Identity Section */}
           <div className="space-y-4">
@@ -170,7 +170,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Dipak Pawar"
-                  className="rounded-xl text-xs bg-background"
+                  className="rounded-xl text-base sm:text-xs bg-background"
                   required
                 />
               </div>
@@ -183,7 +183,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="dipakpawar"
-                    className="pl-7 rounded-xl text-xs bg-background font-mono"
+                    className="pl-7 rounded-xl text-base sm:text-xs bg-background font-mono"
                   />
                 </div>
               </div>
@@ -193,7 +193,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                 <select
                   value={formData.gender}
                   onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  className="w-full h-9 px-3 rounded-xl border border-input bg-background text-xs"
+                  className="w-full h-10 sm:h-9 px-3 rounded-xl border border-input bg-background text-base sm:text-xs"
                 >
                   <option value="unspecified">Prefer not to say</option>
                   <option value="male">Male</option>
@@ -400,7 +400,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
             <Button
               type="submit"
               size="sm"
-              className="rounded-xl text-xs gap-1.5 bg-primary px-5"
+              className="w-full sm:w-auto rounded-xl text-xs gap-1.5 bg-primary px-5 h-10 sm:h-9 min-h-[38px] touch-press"
               disabled={isPending}
             >
               <Check className="h-3.5 w-3.5" />

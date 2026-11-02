@@ -25,19 +25,19 @@ export function DashboardQuickActions() {
         <span className="text-xs text-slate-400">Direct shortcuts</span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
         {/* 1. Add Transaction */}
         <TransactionDialog
           trigger={
             <Button
               type="button"
               variant="outline"
-              className="card-lift h-auto py-3.5 px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-primary/60 hover:bg-primary/[0.03] transition-all group w-full cursor-pointer"
+              className="card-lift touch-press h-auto py-3 px-2 sm:py-3.5 sm:px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-primary/60 hover:bg-primary/[0.03] transition-all group w-full cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl bg-primary/10 text-primary group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
-                <PlusCircle className="h-5 w-5" />
+              <div className="p-2 sm:p-2.5 rounded-xl bg-primary/10 text-primary group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
+                <PlusCircle className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
               </div>
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
+              <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
                 Add Transaction
               </span>
             </Button>
@@ -50,12 +50,12 @@ export function DashboardQuickActions() {
             <Button
               type="button"
               variant="outline"
-              className="card-lift h-auto py-3.5 px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-emerald-500/60 hover:bg-emerald-500/[0.03] transition-all group w-full cursor-pointer"
+              className="card-lift touch-press h-auto py-3 px-2 sm:py-3.5 sm:px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-emerald-500/60 hover:bg-emerald-500/[0.03] transition-all group w-full cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
-                <Users className="h-5 w-5" />
+              <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
+                <Users className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
               </div>
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
+              <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
                 Create Group
               </span>
             </Button>
@@ -68,12 +68,12 @@ export function DashboardQuickActions() {
             <Button
               type="button"
               variant="outline"
-              className="card-lift h-auto py-3.5 px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-blue-500/60 hover:bg-blue-500/[0.03] transition-all group w-full cursor-pointer"
+              className="card-lift touch-press h-auto py-3 px-2 sm:py-3.5 sm:px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-blue-500/60 hover:bg-blue-500/[0.03] transition-all group w-full cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
-                <UserPlus className="h-5 w-5" />
+              <div className="p-2 sm:p-2.5 rounded-xl bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
+                <UserPlus className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
               </div>
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
+              <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
                 Add Contact
               </span>
             </Button>
@@ -86,12 +86,12 @@ export function DashboardQuickActions() {
             <Button
               type="button"
               variant="outline"
-              className="card-lift h-auto py-3.5 px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-teal-500/60 hover:bg-teal-500/[0.03] transition-all group w-full cursor-pointer"
+              className="card-lift touch-press h-auto py-3 px-2 sm:py-3.5 sm:px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-teal-500/60 hover:bg-teal-500/[0.03] transition-all group w-full cursor-pointer"
             >
-              <div className="p-2.5 rounded-xl bg-teal-100 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
-                <CheckCircle2 className="h-5 w-5" />
+              <div className="p-2 sm:p-2.5 rounded-xl bg-teal-100 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
+                <CheckCircle2 className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
               </div>
-              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
+              <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
                 Settle All
               </span>
             </Button>
@@ -103,12 +103,12 @@ export function DashboardQuickActions() {
           <Button
             type="button"
             variant="outline"
-            className="card-lift h-auto py-3.5 px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-amber-500/60 hover:bg-amber-500/[0.03] transition-all group w-full cursor-pointer"
+            className="card-lift touch-press h-auto py-3 px-2 sm:py-3.5 sm:px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-amber-500/60 hover:bg-amber-500/[0.03] transition-all group w-full cursor-pointer"
           >
-            <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
-              <Sparkles className="h-5 w-5" />
+            <div className="p-2 sm:p-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
+              <Sparkles className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
             </div>
-            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
+            <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
               AI Assistant
             </span>
           </Button>
@@ -119,12 +119,12 @@ export function DashboardQuickActions() {
           <Button
             type="button"
             variant="outline"
-            className="card-lift h-auto py-3.5 px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-purple-500/60 hover:bg-purple-500/[0.03] transition-all group w-full cursor-pointer"
+            className="card-lift touch-press h-auto py-3 px-2 sm:py-3.5 sm:px-3 flex flex-col items-center justify-center gap-2 rounded-2xl border-slate-200/80 dark:border-slate-800 hover:border-purple-500/60 hover:bg-purple-500/[0.03] transition-all group w-full cursor-pointer"
           >
-            <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
-              <PieChart className="h-5 w-5" />
+            <div className="p-2 sm:p-2.5 rounded-xl bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-200">
+              <PieChart className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
             </div>
-            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
+            <span className="text-[11px] sm:text-xs font-semibold text-slate-800 dark:text-slate-200 text-center leading-tight">
               Reports
             </span>
           </Button>

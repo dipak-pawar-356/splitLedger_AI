@@ -9,6 +9,8 @@ import { ValidationError, NotFoundError, DatabaseError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
 import { appCache } from "@/lib/cache";
 import { revalidateContactHierarchy } from "@/lib/settlements/recalculation-engine";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 export async function createContact(data: {
   name: string;
@@ -20,6 +22,7 @@ export async function createContact(data: {
 }) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`contact:create:${user.id}`, RATE_LIMITS.actions.write);
 
     if (!data.name || data.name.trim().length === 0) {
       throw new ValidationError("Contact name is required");
@@ -30,12 +33,12 @@ export async function createContact(data: {
       .values({
         publicId: generatePublicId(),
         userId: user.id,
-        name: data.name,
-        email: data.email || null,
-        phone: data.phone || null,
+        name: sanitizeText(data.name),
+        email: data.email ? sanitizeText(data.email) : null,
+        phone: data.phone ? sanitizeText(data.phone) : null,
         currency: data.currency || "INR",
         openingBalance: Math.round((data.openingBalance || 0) * 100),
-        notes: data.notes || null,
+        notes: data.notes ? sanitizeText(data.notes) : null,
       })
       .returning();
 
@@ -69,6 +72,7 @@ export async function updateContact(
 ) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`contact:update:${user.id}`, RATE_LIMITS.actions.write);
 
     if (data.name !== undefined && data.name.trim().length === 0) {
       throw new ValidationError("Contact name cannot be empty");
@@ -94,18 +98,18 @@ export async function updateContact(
     const [contact] = await db
       .update(contacts)
       .set({
-        ...(data.name && { name: data.name }),
-        ...(data.email !== undefined && { email: data.email || null }),
-        ...(data.phone !== undefined && { phone: data.phone || null }),
+        ...(data.name && { name: sanitizeText(data.name) }),
+        ...(data.email !== undefined && { email: data.email ? sanitizeText(data.email) : null }),
+        ...(data.phone !== undefined && { phone: data.phone ? sanitizeText(data.phone) : null }),
         ...(data.currency !== undefined && { currency: data.currency }),
         ...(data.openingBalance !== undefined && { openingBalance: Math.round(data.openingBalance * 100) }),
-        ...(data.notes !== undefined && { notes: data.notes || null }),
-        ...(data.company !== undefined && { company: data.company || null }),
-        ...(data.address !== undefined && { address: data.address || null }),
-        ...(data.tags !== undefined && { tags: data.tags }),
+        ...(data.notes !== undefined && { notes: data.notes ? sanitizeText(data.notes) : null }),
+        ...(data.company !== undefined && { company: data.company ? sanitizeText(data.company) : null }),
+        ...(data.address !== undefined && { address: data.address ? sanitizeText(data.address) : null }),
+        ...(data.tags !== undefined && { tags: data.tags.map(t => sanitizeText(t)) }),
         ...(data.isFavorite !== undefined && { isFavorite: data.isFavorite }),
         ...(data.isBlocked !== undefined && { isBlocked: data.isBlocked }),
-        ...(data.category !== undefined && { category: data.category || null }),
+        ...(data.category !== undefined && { category: data.category ? sanitizeText(data.category) : null }),
         ...(data.isArchived !== undefined && { isArchived: data.isArchived }),
         updatedAt: new Date(),
       })
@@ -129,6 +133,7 @@ export async function updateContact(
 export async function archiveContact(publicIdOrId: string | number, isArchived: boolean = true) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`contact:archive:${user.id}`, RATE_LIMITS.actions.write);
 
     const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingContact] = await db
@@ -169,6 +174,7 @@ export async function archiveContact(publicIdOrId: string | number, isArchived: 
 export async function deleteContact(publicIdOrId: string | number) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`contact:delete:${user.id}`, RATE_LIMITS.actions.delete);
 
     const isNumeric = typeof publicIdOrId === "number" || /^\d+$/.test(String(publicIdOrId));
     const [existingContact] = await db

@@ -12,6 +12,8 @@ import {
 } from "@/lib/types/recurring";
 import { DatabaseError, ValidationError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 // In-memory stores per user key
 const recurringStore = new Map<string, RecurringTransaction[]>();
@@ -324,6 +326,7 @@ export async function createRecurringSchedule(data: {
   autoCreate?: boolean;
 }): Promise<RecurringTransaction> {
   const user = await requireAuth();
+  await assertRateLimit(`recurring:create:${user.id}`, RATE_LIMITS.actions.write);
   ensureSeedRecurringData(user.id);
   const userKey = `user_${user.id}`;
 
@@ -340,13 +343,13 @@ export async function createRecurringSchedule(data: {
     scope: data.scope || "personal",
     groupId: data.groupId,
     orgId: data.orgId,
-    title: data.title,
-    description: data.description,
+    title: sanitizeText(data.title.trim()),
+    description: data.description ? sanitizeText(data.description.trim()) : undefined,
     amount: data.amount,
     currency: "INR",
     type: data.type,
-    category: data.category,
-    paymentMethod: data.paymentMethod || "UPI",
+    category: sanitizeText(data.category),
+    paymentMethod: data.paymentMethod ? sanitizeText(data.paymentMethod) : "UPI",
     frequency: data.frequency,
     customDays: data.customDays,
     startDate,
@@ -448,6 +451,7 @@ export async function createBill(data: {
   reminderDays?: number;
 }): Promise<BillRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`bill:create:${user.id}`, RATE_LIMITS.actions.write);
   ensureSeedRecurringData(user.id);
   const userKey = `user_${user.id}`;
 
@@ -458,13 +462,13 @@ export async function createBill(data: {
   const bill: BillRecord = {
     id: generatePublicId("bill"),
     userId: user.id,
-    title: data.title,
-    provider: data.provider,
-    category: data.category,
+    title: sanitizeText(data.title.trim()),
+    provider: sanitizeText(data.provider.trim()),
+    category: sanitizeText(data.category),
     amount: data.amount,
     currency: "INR",
     dueDate: data.dueDate,
-    billNumber: data.billNumber,
+    billNumber: data.billNumber ? sanitizeText(data.billNumber.trim()) : undefined,
     reminderDays: data.reminderDays || 3,
     status: "pending",
     createdAt: new Date().toISOString(),
@@ -482,6 +486,7 @@ export async function createBill(data: {
  */
 export async function markBillPaid(billId: string): Promise<BillRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`bill:pay:${user.id}`, RATE_LIMITS.actions.write);
   ensureSeedRecurringData(user.id);
   const userKey = `user_${user.id}`;
 
@@ -509,6 +514,7 @@ export async function createSubscription(data: {
   paymentMethod?: string;
 }): Promise<SubscriptionRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`subscription:create:${user.id}`, RATE_LIMITS.actions.write);
   ensureSeedRecurringData(user.id);
   const userKey = `user_${user.id}`;
 
@@ -519,15 +525,15 @@ export async function createSubscription(data: {
   const sub: SubscriptionRecord = {
     id: generatePublicId("sub"),
     userId: user.id,
-    name: data.name,
-    provider: data.provider,
-    category: data.category,
+    name: sanitizeText(data.name.trim()),
+    provider: sanitizeText(data.provider.trim()),
+    category: sanitizeText(data.category),
     billingCycle: data.billingCycle,
     amount: data.amount,
     currency: "INR",
     renewalDate: data.renewalDate,
     autoRenewal: true,
-    paymentMethod: data.paymentMethod || "Credit Card",
+    paymentMethod: data.paymentMethod ? sanitizeText(data.paymentMethod) : "Credit Card",
     status: "active",
     createdAt: new Date().toISOString(),
   };

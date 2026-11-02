@@ -534,7 +534,7 @@ export function TransactionApprovalCard({
 
         {/* Amount & Status Badge */}
         <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 shrink-0 pl-1 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800">
-          <div className="font-mono text-base sm:text-xl font-black text-slate-900 dark:text-slate-100 tabular-nums">
+          <div className="font-mono text-base sm:text-xl font-black text-slate-900 dark:text-slate-100 tabular-nums whitespace-nowrap">
             ₹{proposal.amount.toLocaleString("en-IN")}
           </div>
           <Badge
@@ -1230,7 +1230,7 @@ export function TransactionApprovalCardGroup({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="w-full h-8 px-1 text-[11px] font-semibold rounded-xl text-emerald-700 dark:text-emerald-400 border-emerald-300/80 dark:border-emerald-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer transition-all flex items-center justify-center gap-1"
+                className="w-full h-8 px-1 text-[11px] font-semibold rounded-xl text-emerald-700 dark:text-emerald-400 border-emerald-300/80 dark:border-emerald-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer touch-press transition-all flex items-center justify-center gap-1"
                 onClick={handleToggleSelectAll}
                 disabled={isBulkApproving}
               >
@@ -1242,7 +1242,7 @@ export function TransactionApprovalCardGroup({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="w-full h-8 px-1 text-[11px] font-semibold rounded-xl text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-all flex items-center justify-center gap-1"
+                className="w-full h-8 px-1 text-[11px] font-semibold rounded-xl text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer touch-press transition-all flex items-center justify-center gap-1"
                 onClick={() => setForceEditAll((prev) => !prev)}
                 disabled={isBulkApproving}
               >
@@ -1254,12 +1254,13 @@ export function TransactionApprovalCardGroup({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="w-full h-8 px-1 text-[11px] font-semibold rounded-xl text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer transition-all flex items-center justify-center gap-1"
+                className="w-full h-8 px-1 text-[11px] font-semibold rounded-xl text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer touch-press transition-all flex items-center justify-center gap-1"
                 onClick={handleRejectSelected}
                 disabled={isBulkApproving || totals.selectedCount === 0}
               >
                 <X className="h-3 w-3 shrink-0" />
-                <span className="truncate">Reject Selected ({totals.selectedCount})</span>
+                <span className="truncate sm:hidden">Reject ({totals.selectedCount})</span>
+                <span className="truncate hidden sm:inline">Reject Selected ({totals.selectedCount})</span>
               </Button>
             </div>
           </div>

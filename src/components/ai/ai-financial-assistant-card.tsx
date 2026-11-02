@@ -399,7 +399,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
 
               {/* Assistant Response Card */}
               {msg.role === "assistant" && (
-                <div className="max-w-[96%] sm:max-w-[90%] space-y-1.5 w-full">
+                <div className="max-w-[98%] sm:max-w-[90%] space-y-1.5 w-full">
                   <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
                     <Bot className="h-3 w-3 text-primary" aria-hidden="true" />
                     <span className="font-bold text-slate-700 dark:text-slate-300">SplitLedger AI Copilot</span>
@@ -407,7 +407,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                     <span>{msg.timestamp}</span>
                   </div>
 
-                  <div className="p-4 sm:p-5 rounded-2xl rounded-tl-xs bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4">
+                  <div className="p-3.5 sm:p-5 rounded-2xl rounded-tl-xs bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5 sm:space-y-4">
                     {/* Verified Status Banner */}
                     <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2.5">
                       <div className="flex items-center gap-2">
@@ -436,16 +436,16 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
 
                     {/* Key Metrics Grid (rendered only when no transaction approval cards exist) */}
                     {msg.response && msg.response.keyMetrics && msg.response.keyMetrics.length > 0 && (!msg.response.detectedTransactions || msg.response.detectedTransactions.length === 0) && (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
                         {msg.response.keyMetrics.map((m, idx) => (
                           <div
                             key={idx}
-                            className="p-2.5 px-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-xs"
+                            className="p-2 sm:p-2.5 sm:px-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-xs"
                           >
                             <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block truncate">
                               {m.label}
                             </span>
-                            <span className="font-mono tabular-nums font-bold text-sm text-slate-900 dark:text-slate-100 block mt-0.5 truncate">
+                            <span className="font-mono tabular-nums font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 block mt-0.5 truncate whitespace-nowrap">
                               {m.value}
                             </span>
                           </div>
@@ -472,7 +472,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
 
                     {/* Action Suggestion Buttons & Payment Method Quick Chips */}
                     {msg.response && msg.response.actionSuggestions && msg.response.actionSuggestions.length > 0 && (
-                      <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex-wrap">
+                      <div className="flex items-center gap-1.5 sm:gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex-wrap">
                         {msg.response.actionSuggestions.map((act, aIdx) =>
                           act.url.startsWith("action:payment:") ? (
                             <Button
@@ -483,13 +483,13 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                                 const val = act.url.replace("action:payment:", "");
                                 handleSend(val);
                               }}
-                              className="rounded-xl text-xs h-7.5 px-3 gap-1.5 font-semibold bg-primary/5 hover:bg-primary/15 text-primary border-primary/20 hover:border-primary/50 cursor-pointer shadow-2xs hover:scale-105 active:scale-95 transition-all"
+                              className="rounded-xl text-xs h-8 sm:h-7.5 px-3 gap-1.5 font-semibold bg-primary/5 hover:bg-primary/15 text-primary border-primary/20 hover:border-primary/50 cursor-pointer shadow-2xs touch-press transition-all"
                             >
                               <span>{act.label}</span>
                             </Button>
                           ) : (
                             <Link key={aIdx} href={act.url}>
-                              <Button variant="outline" size="sm" className="rounded-xl text-xs h-7.5 px-3 gap-1.5 font-semibold hover:border-primary/50">
+                              <Button variant="outline" size="sm" className="rounded-xl text-xs h-8 sm:h-7.5 px-3 gap-1.5 font-semibold hover:border-primary/50 touch-press">
                                 <span>{act.label}</span>
                                 <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
                               </Button>
@@ -591,7 +591,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
             <Button
               type="submit"
               size="sm"
-              className="rounded-2xl h-12 px-5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold gap-2 text-xs shadow-xs hover:shadow-md transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-primary/50 cursor-pointer"
+              className="rounded-2xl h-12 w-12 sm:w-auto px-0 sm:px-5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold gap-2 text-xs shadow-xs hover:shadow-md transition-all shrink-0 focus-visible:ring-2 focus-visible:ring-primary/50 cursor-pointer touch-press flex items-center justify-center"
               disabled={isLoading || !query.trim()}
               aria-label={isLoading ? "Analyzing database records" : "Send question to AI assistant"}
             >
@@ -610,7 +610,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
           </form>
 
           {/* Quick Follow-up Suggestions Footer Bar */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none no-scrollbar pt-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none no-scrollbar pt-1 touch-pan-x">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0 mr-1 flex items-center gap-1">
               <HelpCircle className="h-3 w-3" aria-hidden="true" />
               <span>Quick:</span>
@@ -627,7 +627,7 @@ export function AIFinancialAssistantCard({ categories = [] }: AIFinancialAssista
                 type="button"
                 onClick={() => handleSend(q)}
                 disabled={isLoading}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800/80 hover:bg-primary/10 hover:text-primary text-[11px] font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap transition-colors border border-slate-200/50 dark:border-slate-700/50 cursor-pointer shrink-0"
+                className="px-2.5 py-1.5 sm:py-1 min-h-[32px] sm:min-h-auto rounded-lg bg-slate-100 dark:bg-slate-800/80 hover:bg-primary/10 hover:text-primary text-[11px] font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap transition-colors border border-slate-200/50 dark:border-slate-700/50 cursor-pointer shrink-0 touch-press"
               >
                 {q}
               </button>

@@ -18,6 +18,7 @@ import { generatePublicId } from "@/lib/utils";
 import { ensureContactsSchema } from "@/lib/db/auto-migrate";
 import { isTestingOrAssertionNote } from "@/lib/contacts/contact-parser";
 import { appCache } from "@/lib/cache";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 /**
  * Formula Injection Protection (CWE-1236 / CSV Injection):
@@ -130,6 +131,7 @@ export async function getExistingContactsForImportPreviewAction() {
 export async function importContactsAction(options: ImportOptions): Promise<ImportResult> {
   const startTime = Date.now();
   const user = await requireAuth();
+  await assertRateLimit(`contact:import:${user.id}`, RATE_LIMITS.uploads.receipts);
 
   try {
     await ensureContactsSchema();
@@ -482,6 +484,7 @@ export async function getContactImportHistoryAction() {
  */
 export async function rollbackContactImportAction(importPublicId: string) {
   const user = await requireAuth();
+  await assertRateLimit(`contact:rollback:${user.id}`, RATE_LIMITS.actions.write);
 
   const [importSession] = await db
     .select()
@@ -561,6 +564,7 @@ export async function bulkUpdateContactsAction(
   }
 ) {
   const user = await requireAuth();
+  await assertRateLimit(`contact:bulk:${user.id}`, RATE_LIMITS.actions.write);
 
   if (!contactIds || contactIds.length === 0) {
     throw new ValidationError("No contacts selected for bulk operation");

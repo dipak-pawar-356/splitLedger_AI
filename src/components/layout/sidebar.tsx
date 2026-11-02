@@ -65,7 +65,7 @@ export function Sidebar() {
           isCollapsed ? "lg:w-20" : "lg:w-64",
           // Mobile & Tablet off-canvas slide-over
           isMobileOpen
-            ? "translate-x-0 w-72 shadow-2xl"
+            ? "translate-x-0 w-[82vw] max-w-[288px] sm:w-72 shadow-2xl"
             : "-translate-x-full lg:translate-x-0"
         )}
       >

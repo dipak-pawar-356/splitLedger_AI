@@ -2,11 +2,32 @@ import { runDatabaseMigration } from "@/actions/migrate";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Database, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { Database, Shield } from "lucide-react";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
 
 export default async function MigratePage() {
+  try {
+    await requireAdmin();
+  } catch {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Shield className="h-10 w-10 text-red-500 mx-auto mb-3" />
+              <h2 className="text-lg font-bold">Access Denied</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Database migration tools are restricted to system administrators.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   const result = await runDatabaseMigration();
 
   if (result.success) {

@@ -13,7 +13,8 @@ export async function POST(req: Request) {
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
 
   if (!WEBHOOK_SECRET) {
-    throw new Error("WEBHOOK_SECRET is not set");
+    console.error("CLERK_WEBHOOK_SECRET is not configured");
+    return new Response("Webhook secret not configured", { status: 500 });
   }
 
   const headerPayload = await headers();

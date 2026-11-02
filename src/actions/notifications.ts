@@ -10,6 +10,8 @@ import { ValidationError, NotFoundError, DatabaseError } from "@/lib/errors";
 import { recordAuditLog } from "@/lib/audit";
 import { eventBus } from "@/lib/realtime/event-bus";
 import { DEFAULT_SETTINGS, NotificationPreferences as DetailedNotificationPreferences } from "@/lib/types/settings";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 export interface CreateNotificationInput {
   userId?: number; // Target user ID, defaults to authenticated user
@@ -102,6 +104,7 @@ export interface NotificationPreferences {
 export async function createNotification(data: CreateNotificationInput) {
   try {
     const authUser = await requireAuth();
+    await assertRateLimit(`notif:create:${authUser.id}`, RATE_LIMITS.notifications.broadcast);
     const targetUserId = data.userId || authUser.id;
 
     if (!data.title || data.title.trim().length === 0) {
@@ -121,8 +124,8 @@ export async function createNotification(data: CreateNotificationInput) {
         userId: targetUserId,
         type: data.type || (data.category as any) || "expense",
         category: data.category || "transaction",
-        title: data.title,
-        message: data.message,
+        title: sanitizeText(data.title),
+        message: sanitizeText(data.message),
         priority: data.priority || "medium",
         status: "unread",
         groupId: data.groupId || null,
@@ -473,6 +476,7 @@ export async function archiveNotification(idOrPublicId: number | string) {
 export async function deleteNotification(idOrPublicId: number | string) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`notif:del:${user.id}`, RATE_LIMITS.actions.delete);
     const whereCond = getNotificationWhereCond(user.id, idOrPublicId);
 
     await db
@@ -558,6 +562,7 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
 export async function updateNotificationPreferences(data: Partial<NotificationPreferences>) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`notif:pref:${user.id}`, RATE_LIMITS.settings.profile);
 
     const [existing] = await db
       .select({ id: profiles.id, preferences: profiles.preferences })
@@ -718,6 +723,7 @@ export async function updateDetailedNotificationPreferences(
 ) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`notif:det_pref:${user.id}`, RATE_LIMITS.settings.profile);
 
     return await withDbRetry(async () => {
       const [profile] = await db
@@ -883,7 +889,8 @@ export async function renderNotificationTemplate(
 ): Promise<string> {
   let rendered = templateString;
   for (const [key, value] of Object.entries(variables)) {
-    const regex = new RegExp(`{{\\s*${key}\\s*}}`, "g");
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`{{\\s*${escapedKey}\\s*}}`, "g");
     rendered = rendered.replace(regex, String(value));
   }
   return rendered;

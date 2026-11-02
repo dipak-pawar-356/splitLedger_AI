@@ -929,7 +929,7 @@ export function ContactsClientView({
             setSearchQuery("");
             toast.info("Showing all active contacts");
           }}
-          className={`rounded-3xl border p-4 shadow-xs cursor-pointer relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg ${
+          className={`col-span-2 lg:col-span-1 rounded-3xl border p-4 shadow-xs cursor-pointer relative overflow-hidden transition-all duration-300 group hover:-translate-y-1 hover:shadow-lg touch-card ${
             currentNetBalance >= 0
               ? "bg-gradient-to-br from-emerald-500/10 via-card to-background border-emerald-500/30"
               : "bg-gradient-to-br from-rose-500/10 via-card to-background border-rose-500/30"
@@ -1057,7 +1057,7 @@ export function ContactsClientView({
         </Card>
 
         {/* 5. Running Balance */}
-        <Card className="col-span-2 lg:col-span-1 rounded-3xl border p-4 shadow-xs relative overflow-hidden transition-all duration-300 bg-card border-slate-200/80 dark:border-slate-800/90">
+        <Card className="col-span-1 lg:col-span-1 rounded-3xl border p-4 shadow-xs relative overflow-hidden transition-all duration-300 bg-card border-slate-200/80 dark:border-slate-800/90 touch-card">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span className="font-bold uppercase tracking-wider text-[10px] text-purple-600 dark:text-purple-400">
               Running Balance
@@ -1978,7 +1978,7 @@ export function ContactsClientView({
               className="block group focus:outline-none select-none"
             >
               <Card
-                className={`rounded-3xl border bg-card p-5 space-y-4 shadow-xs relative overflow-hidden transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-xl group-hover:shadow-primary/5 cursor-pointer ${
+                className={`rounded-3xl border bg-card p-4 sm:p-5 space-y-3 sm:space-y-4 shadow-xs relative overflow-hidden transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-xl group-hover:shadow-primary/5 cursor-pointer touch-card h-full flex flex-col justify-between ${
                   isSelected
                     ? "border-primary/80 ring-2 ring-primary/30 bg-primary/[0.04]"
                     : "border-slate-200/80 dark:border-slate-800/90 hover:border-primary/40 dark:hover:border-primary/50"

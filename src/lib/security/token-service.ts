@@ -29,9 +29,25 @@ export const IDLE_SESSION_EXPIRY_SECONDS = 7 * 24 * 60 * 60; // 7 days
 export const ACCESS_TOKEN_COOKIE_NAME = "sl_access_token";
 export const REFRESH_TOKEN_COOKIE_NAME = "sl_refresh_token";
 
+let runtimeEphemeralSecret: Buffer | null = null;
+
 function getAuthSecret(): Buffer {
-  const raw = process.env.SPLITLEDGER_AUTH_SECRET || process.env.CLERK_SECRET_KEY || DEFAULT_SECRET;
-  return crypto.createHash("sha256").update(raw).digest();
+  const configuredSecret = process.env.SPLITLEDGER_AUTH_SECRET || process.env.CLERK_SECRET_KEY;
+  if (configuredSecret && configuredSecret.length > 0) {
+    return crypto.createHash("sha256").update(configuredSecret).digest();
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    if (!runtimeEphemeralSecret) {
+      // In production without explicit secret, generate high-entropy ephemeral secret
+      runtimeEphemeralSecret = crypto.randomBytes(32);
+      console.warn("[SECURITY WARNING] Neither SPLITLEDGER_AUTH_SECRET nor CLERK_SECRET_KEY is configured. Using ephemeral in-memory secret.");
+    }
+    return runtimeEphemeralSecret;
+  }
+
+  // Safe predictable fallback for local testing & Vitest runners
+  return crypto.createHash("sha256").update(DEFAULT_SECRET).digest();
 }
 
 /**

@@ -56,34 +56,34 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
       <DashboardQuickActions />
 
       {/* 4 & 5: Pending Tasks (Action-Required) & Financial Insights (3-5 Short Insights) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-stretch">
         <DashboardPendingTasks tasks={data.pendingTasks} className="h-full flex flex-col justify-between" />
         <DashboardFinancialInsights insights={data.financialInsights} className="h-full flex flex-col justify-between" />
       </div>
 
       {/* 6 & 7: Recent Transactions (Latest 5) & Recent Activity (Latest 5) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-stretch">
         {/* 6. Recent Transactions (Latest 5) */}
         <div className="lg:col-span-2 flex flex-col h-full">
           <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden bg-card flex-1 flex flex-col justify-between h-full">
-            <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 shrink-0">
+            <CardHeader className="p-3.5 sm:p-4 pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 shrink-0">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <div className="flex items-center gap-2 sm:gap-2.5">
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-primary/10 text-primary">
                     <ReceiptIndianRupee className="h-4 w-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    <CardTitle className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">
                       Recent Transactions
                     </CardTitle>
-                    <CardDescription className="text-xs">
+                    <CardDescription className="text-[11px] sm:text-xs">
                       Latest active expenses, income & contact entries
                     </CardDescription>
                   </div>
                 </div>
                 <Link
                   href="/dashboard/transactions"
-                  className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer shrink-0"
                 >
                   <span>View All</span>
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -108,24 +108,24 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
                       <Link
                         key={tx.id}
                         href={`/dashboard/transactions/${tx.publicId}`}
-                        className="p-4 flex items-center justify-between gap-3 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors block group"
+                        className="p-3 sm:p-4 flex items-center justify-between gap-2.5 sm:gap-3 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors block group touch-press"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform ${
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                          <div className={`p-2 sm:p-2.5 rounded-2xl shrink-0 group-hover:scale-105 transition-transform ${
                             isPositive 
                               ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" 
                               : "bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400"
                           }`}>
-                            {isPositive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownLeft className="h-4 w-4" />}
+                            {isPositive ? <ArrowUpRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <ArrowDownLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
                           </div>
 
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors truncate">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                              <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 group-hover:text-primary transition-colors truncate max-w-[150px] sm:max-w-none">
                                 {tx.title || tx.description}
                               </span>
                               {tx.paymentMethod && (
-                                <Badge variant="outline" className="text-[9px] uppercase font-mono px-1.5 py-0 text-slate-500 border-slate-200 dark:border-slate-700">
+                                <Badge variant="outline" className="text-[9px] uppercase font-mono px-1.5 py-0 text-slate-500 border-slate-200 dark:border-slate-700 hidden sm:inline-flex">
                                   {tx.paymentMethod}
                                 </Badge>
                               )}
@@ -133,19 +133,19 @@ async function DashboardContent({ options }: { options?: DashboardOptions }) {
                                 <Paperclip className="h-3 w-3 text-indigo-500 shrink-0" />
                               )}
                             </div>
-                            <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                            <p className="text-[10px] sm:text-[11px] text-slate-400 truncate mt-0.5">
                               {tx.categoryName || "General"} • {tx.groupName ? `Group: ${tx.groupName}` : (tx.contactName || "Personal")} • {formattedDate}
                             </p>
                           </div>
                         </div>
 
                         <div className="text-right shrink-0">
-                          <span className={`text-xs font-black block ${
+                          <span className={`text-xs sm:text-sm font-black block tracking-tight ${
                             isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                           }`}>
                             {isPositive ? "+" : "-"}{formatCurrency(tx.amount / 100, tx.currency)}
                           </span>
-                          <span className="text-[10px] uppercase font-mono text-slate-400 capitalize">
+                          <span className="text-[9px] sm:text-[10px] uppercase font-mono text-slate-400 capitalize">
                             {tx.status}
                           </span>
                         </div>

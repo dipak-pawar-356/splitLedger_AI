@@ -1,7 +1,9 @@
 "use server";
 
 import { requireAuth } from "@/lib/auth";
-import { DatabaseError, AuthorizationError } from "@/lib/errors";
+import { DatabaseError, AuthorizationError, ValidationError } from "@/lib/errors";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 import {
   Organization,
   Department,
@@ -164,21 +166,27 @@ export async function createOrganization(data: {
   baseCurrency?: string;
 }): Promise<Organization> {
   const user = await requireAuth();
+  await assertRateLimit(`org:create:${user.id}`, RATE_LIMITS.actions.write);
 
+  if (!data.name || data.name.trim().length === 0) {
+    throw new ValidationError("Organization name is required");
+  }
+
+  const cleanName = sanitizeText(data.name.trim());
   const id = `org_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const slug = data.name.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 50);
+  const slug = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 50);
 
   const org: Organization = {
     id,
-    name: data.name,
+    name: cleanName,
     slug,
-    industry: data.industry || "General Business",
-    companySize: data.companySize || "10-50 Employees",
-    gstNumber: data.gstNumber,
-    panNumber: data.panNumber,
-    country: data.country || "India",
-    state: data.state,
-    city: data.city,
+    industry: data.industry ? sanitizeText(data.industry.trim()) : "General Business",
+    companySize: data.companySize ? sanitizeText(data.companySize.trim()) : "10-50 Employees",
+    gstNumber: data.gstNumber ? sanitizeText(data.gstNumber.trim().toUpperCase()) : undefined,
+    panNumber: data.panNumber ? sanitizeText(data.panNumber.trim().toUpperCase()) : undefined,
+    country: data.country ? sanitizeText(data.country.trim()) : "India",
+    state: data.state ? sanitizeText(data.state.trim()) : undefined,
+    city: data.city ? sanitizeText(data.city.trim()) : undefined,
     timezone: "Asia/Kolkata",
     baseCurrency: data.baseCurrency || "INR",
     status: "active",
@@ -215,21 +223,31 @@ export async function submitCorporateExpense(
   }
 ): Promise<CorporateExpenseApproval> {
   const user = await requireAuth();
+  await assertRateLimit(`org:expense:${user.id}`, RATE_LIMITS.actions.write);
+
+  if (!data.amount || data.amount <= 0) {
+    throw new ValidationError("Expense amount must be greater than ₹0");
+  }
+
   const org = organizationsStore.get(orgId);
   if (!org || org.ownerId !== user.id) {
     throw new AuthorizationError("Access denied.");
   }
+
+  const cleanTitle = sanitizeText(data.title.trim());
+  const cleanDesc = data.description ? sanitizeText(data.description.trim()) : undefined;
+  const cleanEmpName = sanitizeText(data.employeeName.trim());
 
   const approvalId = `exp_app_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const approval: CorporateExpenseApproval = {
     id: approvalId,
     orgId,
     employeeId: data.employeeId,
-    employeeName: data.employeeName,
+    employeeName: cleanEmpName,
     departmentId: data.departmentId,
     projectId: data.projectId,
-    title: data.title,
-    description: data.description,
+    title: cleanTitle,
+    description: cleanDesc,
     amount: data.amount,
     currency: org.baseCurrency || "INR",
     state: "submitted",
@@ -241,7 +259,7 @@ export async function submitCorporateExpense(
         id: `tl_${Date.now()}`,
         state: "submitted",
         actorId: user.id,
-        actorName: data.employeeName,
+        actorName: cleanEmpName,
         actorRole: "Employee",
         timestamp: new Date().toISOString(),
       },
@@ -265,6 +283,8 @@ export async function reviewCorporateExpense(
   comment?: string
 ): Promise<CorporateExpenseApproval> {
   const user = await requireAuth();
+  await assertRateLimit(`org:review:${user.id}`, RATE_LIMITS.actions.write);
+
   const org = organizationsStore.get(orgId);
   if (!org || org.ownerId !== user.id) {
     throw new AuthorizationError("Access denied.");
@@ -276,6 +296,7 @@ export async function reviewCorporateExpense(
     throw new DatabaseError(`Approval request '${approvalId}' not found.`);
   }
 
+  const cleanComment = comment ? sanitizeText(comment.trim()) : undefined;
   const newState = action === "approve" ? "approved" : "rejected";
   approval.state = newState;
   if (action === "approve") {
@@ -288,7 +309,7 @@ export async function reviewCorporateExpense(
     actorId: user.id,
     actorName: "Organization Admin",
     actorRole: "Reviewer",
-    comment: comment || (action === "approve" ? "Approved for reimbursement" : "Rejected"),
+    comment: cleanComment || (action === "approve" ? "Approved for reimbursement" : "Rejected"),
     timestamp: new Date().toISOString(),
   });
 

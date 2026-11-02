@@ -15,11 +15,12 @@ export async function GET() {
       },
     });
   } catch (error: any) {
+    const isProd = process.env.NODE_ENV === "production";
     return NextResponse.json(
       {
         status: "critical",
         timestamp: new Date().toISOString(),
-        error: error?.message || "Health check execution failed",
+        error: isProd ? "Health check execution failed" : (error?.message || "Health check execution failed"),
       },
       {
         status: 503,

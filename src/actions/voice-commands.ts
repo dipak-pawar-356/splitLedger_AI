@@ -10,6 +10,8 @@ import { createBudget } from "@/actions/budgets";
 import { ParsedVoiceCommand } from "@/lib/ai/voice-parser";
 import { formatCurrency, generatePublicId } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeAndScanPrompt } from "@/lib/security/prompt-guard";
 
 export interface VoiceCommandExecutionResult {
   success: boolean;
@@ -42,6 +44,19 @@ export async function executeVoiceCommand(
 ): Promise<VoiceCommandExecutionResult> {
   try {
     const user = await requireAuth();
+    assertRateLimit(`voice_cmd:${user.id}`, RATE_LIMITS.ai.assistant);
+
+    // Prompt injection scan
+    if (cmd.rawTranscript) {
+      const scan = sanitizeAndScanPrompt(cmd.rawTranscript);
+      if (!scan.isSafe) {
+        return {
+          success: false,
+          action: "security_blocked",
+          message: "Command blocked: security policy violation detected.",
+        };
+      }
+    }
 
     // 1. ADD EXPENSE
     if (cmd.action === "add_expense" && cmd.parameters.amount) {
@@ -515,10 +530,11 @@ export async function executeVoiceCommand(
     };
   } catch (error: any) {
     console.error("Voice Command Execution Error:", error);
+    const isProd = process.env.NODE_ENV === "production";
     return {
       success: false,
       action: cmd.action,
-      message: error?.message || "Failed to execute command in database.",
+      message: isProd ? "Failed to execute command in database." : (error?.message || "Failed to execute command in database."),
     };
   }
 }

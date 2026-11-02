@@ -452,13 +452,13 @@ export function GroupExpenseDialog({
               </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-1.5 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-lg">
+            <div className="grid grid-cols-4 gap-1 sm:gap-1.5 bg-slate-100 dark:bg-slate-800/70 p-1 rounded-lg">
               {(["equal", "exact", "percentage", "shares"] as SplitMethod[]).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setSplitMethod(m)}
-                  className={`py-1.5 text-xs font-semibold rounded-md capitalize transition-all ${
+                  className={`py-1.5 text-xs font-semibold rounded-md capitalize transition-all touch-press ${
                     splitMethod === m
                       ? "bg-white dark:bg-slate-900 text-primary shadow-sm"
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
@@ -622,16 +622,21 @@ export function GroupExpenseDialog({
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-3 border-t">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isLoading}
+              className="w-full sm:w-auto rounded-xl touch-press"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || totalAmountNum <= 0 || !!splitValidationError}>
+            <Button
+              type="submit"
+              disabled={isLoading || totalAmountNum <= 0 || !!splitValidationError}
+              className="w-full sm:w-auto rounded-xl touch-press"
+            >
               {isLoading ? "Saving Expense..." : "Add Group Expense"}
             </Button>
           </div>

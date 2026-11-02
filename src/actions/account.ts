@@ -22,6 +22,7 @@ import { recordAuditLog } from "@/lib/audit";
 import { createNotification } from "@/actions/notifications";
 import { eventBus } from "@/lib/realtime/event-bus";
 import { DatabaseError, ValidationError, NotFoundError } from "@/lib/errors";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { 
   terminateSession, 
   terminateAllOtherSessions, 
@@ -620,6 +621,7 @@ export async function toggleTwoFactorAuth(enabled: boolean) {
 export async function exportPersonalData(format: "json" | "csv" | "pdf" = "json") {
   try {
     const user = await requireAuth();
+    assertRateLimit(`account:export:${user.id}`, RATE_LIMITS.exports.data);
 
     const [userRow, profileRow, userTransactions, userSettlements, userAuditLogs] = await Promise.all([
       db.select().from(users).where(eq(users.id, user.id)).limit(1),

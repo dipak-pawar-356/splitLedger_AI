@@ -1,11 +1,104 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { comments, users } from "@/lib/db/schema/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { comments, users, transactions, settlements, groups, groupMembers } from "@/lib/db/schema/schema";
+import { eq, and, or, desc, sql } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, AuthorizationError } from "@/lib/errors";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
+
+async function verifyCommentTargetAccess(
+  userId: number,
+  target: { transactionId?: number | null; settlementId?: number | null; groupId?: number | null }
+): Promise<boolean> {
+  if (target.transactionId) {
+    const [tx] = await db
+      .select({
+        id: transactions.id,
+        userId: transactions.userId,
+        createdBy: transactions.createdBy,
+        paidBy: transactions.paidBy,
+        groupId: transactions.groupId,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.id, target.transactionId), eq(transactions.isDeleted, false)))
+      .limit(1);
+
+    if (!tx) return false;
+    if (tx.userId === userId || tx.createdBy === userId || tx.paidBy === userId) return true;
+    if (tx.groupId) {
+      const [membership] = await db
+        .select({ id: groups.id })
+        .from(groups)
+        .where(
+          and(
+            eq(groups.id, tx.groupId),
+            or(
+              eq(groups.createdBy, userId),
+              sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${userId})`
+            )
+          )
+        )
+        .limit(1);
+      return !!membership;
+    }
+    return false;
+  }
+
+  if (target.settlementId) {
+    const [st] = await db
+      .select({
+        id: settlements.id,
+        fromUserId: settlements.fromUserId,
+        toUserId: settlements.toUserId,
+        groupId: settlements.groupId,
+      })
+      .from(settlements)
+      .where(and(eq(settlements.id, target.settlementId), eq(settlements.isDeleted, false)))
+      .limit(1);
+
+    if (!st) return false;
+    if (st.fromUserId === userId || st.toUserId === userId) return true;
+    if (st.groupId) {
+      const [membership] = await db
+        .select({ id: groups.id })
+        .from(groups)
+        .where(
+          and(
+            eq(groups.id, st.groupId),
+            or(
+              eq(groups.createdBy, userId),
+              sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${userId})`
+            )
+          )
+        )
+        .limit(1);
+      return !!membership;
+    }
+    return false;
+  }
+
+  if (target.groupId) {
+    const [membership] = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .where(
+        and(
+          eq(groups.id, target.groupId),
+          or(
+            eq(groups.createdBy, userId),
+            sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${userId})`
+          )
+        )
+      )
+      .limit(1);
+    return !!membership;
+  }
+
+  return false;
+}
 
 export async function createComment(data: {
   transactionId?: number;
@@ -19,6 +112,7 @@ export async function createComment(data: {
 }) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`comment:create:${user.id}`, RATE_LIMITS.actions.write);
 
     if (!data.content || data.content.trim().length === 0) {
       throw new ValidationError("Comment content is required");
@@ -28,6 +122,14 @@ export async function createComment(data: {
       throw new ValidationError("Comment must be associated with a transaction, settlement, or group");
     }
 
+    const hasAccess = await verifyCommentTargetAccess(user.id, data);
+    if (!hasAccess) {
+      throw new AuthorizationError("You do not have permission to comment on this item.");
+    }
+
+    const cleanContent = sanitizeText(data.content.trim());
+    const cleanMentions = data.mentions ? sanitizeText(data.mentions.trim()) : null;
+
     const [comment] = await db
       .insert(comments)
       .values({
@@ -36,8 +138,8 @@ export async function createComment(data: {
         settlementId: data.settlementId || null,
         groupId: data.groupId || null,
         parentId: data.parentId || null,
-        content: data.content,
-        mentions: data.mentions || null,
+        content: cleanContent,
+        mentions: cleanMentions,
         attachments: data.attachments || null,
         reactions: data.reactions || null,
       })
@@ -56,7 +158,7 @@ export async function createComment(data: {
 
     return comment;
   } catch (error) {
-    if (error instanceof ValidationError) {
+    if (error instanceof ValidationError || error instanceof AuthorizationError) {
       throw error;
     }
     throw new DatabaseError("Failed to create comment", { originalError: error });
@@ -71,12 +173,13 @@ export async function updateComment(commentId: number, data: {
 }) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`comment:update:${user.id}`, RATE_LIMITS.actions.write);
 
     // Get existing comment
     const [existingComment] = await db
       .select()
       .from(comments)
-      .where(eq(comments.id, commentId))
+      .where(and(eq(comments.id, commentId), eq(comments.userId, user.id)))
       .limit(1);
 
     if (!existingComment) {
@@ -88,16 +191,19 @@ export async function updateComment(commentId: number, data: {
       throw new AuthorizationError("You can only edit your own comments");
     }
 
+    const cleanContent = data.content !== undefined ? sanitizeText(data.content.trim()) : undefined;
+    const cleanMentions = data.mentions !== undefined ? sanitizeText(data.mentions.trim()) : undefined;
+
     const [updatedComment] = await db
       .update(comments)
       .set({
-        ...(data.content && { content: data.content }),
-        ...(data.mentions !== undefined && { mentions: data.mentions }),
+        ...(cleanContent !== undefined && { content: cleanContent }),
+        ...(cleanMentions !== undefined && { mentions: cleanMentions }),
         ...(data.attachments !== undefined && { attachments: data.attachments }),
         ...(data.reactions !== undefined && { reactions: data.reactions }),
         updatedAt: new Date(),
       })
-      .where(eq(comments.id, commentId))
+      .where(and(eq(comments.id, commentId), eq(comments.userId, user.id)))
       .returning();
 
     // Revalidate paths
@@ -123,12 +229,13 @@ export async function updateComment(commentId: number, data: {
 export async function deleteComment(commentId: number) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`comment:delete:${user.id}`, RATE_LIMITS.actions.delete);
 
     // Get existing comment
     const [existingComment] = await db
       .select()
       .from(comments)
-      .where(eq(comments.id, commentId))
+      .where(and(eq(comments.id, commentId), eq(comments.userId, user.id)))
       .limit(1);
 
     if (!existingComment) {
@@ -140,7 +247,7 @@ export async function deleteComment(commentId: number) {
       throw new AuthorizationError("You can only delete your own comments");
     }
 
-    await db.delete(comments).where(eq(comments.id, commentId));
+    await db.delete(comments).where(and(eq(comments.id, commentId), eq(comments.userId, user.id)));
 
     // Revalidate paths
     if (existingComment.transactionId) {
@@ -169,6 +276,15 @@ export async function getComments(data: {
 }) {
   try {
     const user = await requireAuth();
+
+    if (!data.transactionId && !data.settlementId && !data.groupId) {
+      throw new ValidationError("Must specify a transaction, settlement, or group to fetch comments");
+    }
+
+    const hasAccess = await verifyCommentTargetAccess(user.id, data);
+    if (!hasAccess) {
+      throw new AuthorizationError("You do not have permission to view these comments.");
+    }
 
     const whereClause = data.transactionId
       ? eq(comments.transactionId, data.transactionId)
@@ -199,6 +315,9 @@ export async function getComments(data: {
 
     return commentsList;
   } catch (error) {
+    if (error instanceof ValidationError || error instanceof AuthorizationError) {
+      throw error;
+    }
     throw new DatabaseError("Failed to fetch comments", { originalError: error });
   }
 }
@@ -206,6 +325,12 @@ export async function getComments(data: {
 export async function addReaction(commentId: number, reaction: string) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`comment:react:${user.id}`, RATE_LIMITS.actions.default);
+
+    const safeReaction = sanitizeText(reaction).slice(0, 32);
+    if (!safeReaction) {
+      throw new ValidationError("Invalid reaction");
+    }
 
     // Get existing comment
     const [existingComment] = await db
@@ -216,6 +341,11 @@ export async function addReaction(commentId: number, reaction: string) {
 
     if (!existingComment) {
       throw new NotFoundError("Comment");
+    }
+
+    const hasAccess = await verifyCommentTargetAccess(user.id, existingComment);
+    if (!hasAccess) {
+      throw new AuthorizationError("You do not have permission to react to this comment.");
     }
 
     // Parse existing reactions
@@ -265,7 +395,7 @@ export async function addReaction(commentId: number, reaction: string) {
 
     return updatedComment;
   } catch (error) {
-    if (error instanceof NotFoundError) {
+    if (error instanceof NotFoundError || error instanceof AuthorizationError) {
       throw error;
     }
     throw new DatabaseError("Failed to add reaction", { originalError: error });

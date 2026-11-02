@@ -107,7 +107,7 @@ export function DashboardPendingTasks({ tasks, className }: DashboardPendingTask
               <Link
                 key={task.id}
                 href={task.href}
-                className="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors group"
+                className="p-3 sm:p-3.5 flex items-center justify-between gap-2.5 sm:gap-3 hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors group touch-press"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0 group-hover:scale-105 transition-transform">

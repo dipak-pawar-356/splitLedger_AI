@@ -7,7 +7,16 @@ export type ThreatSeverity = "low" | "medium" | "high" | "critical";
 
 export interface SecurityEvent {
   id: string;
-  type: "failed_login" | "rate_limit_exceeded" | "unauthorized_access" | "privilege_escalation" | "malicious_payload";
+  type:
+    | "failed_login"
+    | "rate_limit_exceeded"
+    | "unauthorized_access"
+    | "privilege_escalation"
+    | "malicious_payload"
+    | "ai_abuse"
+    | "suspicious_export"
+    | "token_tampering"
+    | "ssrf_attempt";
   severity: ThreatSeverity;
   userId?: number | string;
   ip?: string;

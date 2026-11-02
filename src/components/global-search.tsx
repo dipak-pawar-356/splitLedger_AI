@@ -109,10 +109,10 @@ export default function GlobalSearch() {
       </div>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20 px-4 animate-in fade-in-0 duration-150">
-          <div className="bg-card w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-12 sm:pt-20 px-3 sm:px-4 animate-in fade-in-0 duration-150">
+          <div className="bg-card w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[85vh] flex flex-col">
             {/* Search Input Header */}
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+            <div className="p-3.5 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 shrink-0">
               <Search className="h-5 w-5 text-primary shrink-0" />
               <input
                 type="text"
@@ -120,7 +120,7 @@ export default function GlobalSearch() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 autoFocus
-                className="w-full bg-transparent border-none text-sm outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+                className="w-full bg-transparent border-none text-base sm:text-sm outline-none text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
               />
               <button
                 type="button"

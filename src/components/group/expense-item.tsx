@@ -45,14 +45,14 @@ export function ExpenseItem({
   const payerDisplayName = userName || contactName || "Group Member";
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-3.5 bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 rounded-xl hover:border-slate-300 dark:hover:border-slate-700 transition-colors gap-2 sm:gap-4">
+    <div className="flex items-center justify-between p-3 sm:p-3.5 bg-card/60 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 rounded-2xl hover:border-slate-300 dark:hover:border-slate-700 transition-colors gap-2.5 sm:gap-4 touch-press">
       <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
-        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${isPositive ? "bg-green-100 dark:bg-green-900/30 text-green-600" : "bg-red-100 dark:bg-red-900/30 text-red-600"}`}>
+        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${isPositive ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" : "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"}`}>
           {isPositive ? <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5" /> : <ArrowDownLeft className="h-4 w-4 sm:h-5 sm:w-5" />}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="font-semibold text-xs sm:text-sm truncate">{description}</p>
+            <p className="font-semibold text-xs sm:text-sm truncate text-slate-900 dark:text-slate-100">{description}</p>
             {receiptUrl && (
               <a 
                 href={receiptUrl} 
@@ -65,7 +65,7 @@ export function ExpenseItem({
               </a>
             )}
           </div>
-          <p className="text-[11px] sm:text-xs text-slate-500 truncate mt-0.5">
+          <p className="text-[10.5px] sm:text-xs text-slate-500 truncate mt-0.5">
             <span className="font-medium text-slate-700 dark:text-slate-300">Paid by:</span> {payerDisplayName}
             {creatorName && creatorName !== payerDisplayName && (
               <span> • Added by: {creatorName}</span>
@@ -75,9 +75,9 @@ export function ExpenseItem({
         </div>
       </div>
 
-      <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800/60">
-        <div className="text-left sm:text-right">
-          <p className={`font-bold text-xs sm:text-sm ${isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="text-right shrink-0">
+          <p className={`font-bold text-xs sm:text-sm whitespace-nowrap tracking-tight ${isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
             {isPositive ? "+" : "-"}
             {formatCurrency(amount / 100)}
           </p>

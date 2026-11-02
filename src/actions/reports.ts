@@ -29,6 +29,8 @@ import {
 } from "@/lib/export/export-engine";
 import { getDashboardData } from "@/actions/dashboard";
 import { revalidatePath } from "next/cache";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 export interface ReportFilterOptions {
   reportType?: 
@@ -976,6 +978,9 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
         )
       );
     const userGroupIds = Array.from(new Set(userGroupsQuery.map((g) => g.id).filter(Boolean))) as number[];
+    if (options.groupId && !userGroupIds.includes(options.groupId)) {
+      throw new AuthorizationError("You do not have permission to access reports for this group.");
+    }
     const targetGroupIds = options.groupId ? [options.groupId] : userGroupIds;
 
     // 2. Standardized Period calculation
@@ -983,29 +988,51 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
 
     const conditions: any[] = [
       eq(transactions.isDeleted, false),
-      or(
-        targetGroupIds.length > 0 ? inArray(transactions.groupId, targetGroupIds) : sql`FALSE`,
-        sql`${transactions.groupId} IN (
-          SELECT id FROM groups WHERE created_by = ${user.id} AND is_deleted = false
-          UNION
-          SELECT group_id FROM group_members WHERE user_id = ${user.id}
-        )`,
-        and(
-          isNull(transactions.groupId),
-          or(
-            eq(transactions.userId, user.id),
-            eq(transactions.createdBy, user.id),
-            eq(transactions.paidBy, user.id)
-          )
-        ),
-        eq(transactions.userId, user.id),
-        eq(transactions.createdBy, user.id),
-        eq(transactions.paidBy, user.id),
-        sql`EXISTS (SELECT 1 FROM expense_splits WHERE expense_splits.transaction_id = transactions.id AND expense_splits.user_id = ${user.id})`
-      ),
     ];
 
+    if (options.groupId) {
+      conditions.push(eq(transactions.groupId, options.groupId));
+    } else {
+      conditions.push(
+        or(
+          targetGroupIds.length > 0 ? inArray(transactions.groupId, targetGroupIds) : sql`FALSE`,
+          sql`${transactions.groupId} IN (
+            SELECT id FROM groups WHERE created_by = ${user.id} AND is_deleted = false
+            UNION
+            SELECT group_id FROM group_members WHERE user_id = ${user.id}
+          )`,
+          and(
+            isNull(transactions.groupId),
+            or(
+              eq(transactions.userId, user.id),
+              eq(transactions.createdBy, user.id),
+              eq(transactions.paidBy, user.id)
+            )
+          ),
+          eq(transactions.userId, user.id),
+          eq(transactions.createdBy, user.id),
+          eq(transactions.paidBy, user.id),
+          sql`EXISTS (SELECT 1 FROM expense_splits WHERE expense_splits.transaction_id = transactions.id AND expense_splits.user_id = ${user.id})`
+        )
+      );
+    }
+
     if (options.contactId) {
+      const [contactCheck] = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.id, options.contactId),
+            eq(contacts.userId, user.id),
+            eq(contacts.isDeleted, false)
+          )
+        )
+        .limit(1);
+
+      if (!contactCheck) {
+        throw new AuthorizationError("Contact not found or does not belong to you.");
+      }
       conditions.push(eq(transactions.contactId, options.contactId));
     } else {
       conditions.push(
@@ -1243,6 +1270,9 @@ export async function getComprehensiveReport(options: ReportFilterOptions = {}) 
       paymentSummary: model.paymentSummary,
     };
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof ValidationError) {
+      throw error;
+    }
     throw new DatabaseError("Failed to generate comprehensive report", { originalError: error });
   }
 }
@@ -1269,6 +1299,9 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
         )
       );
     const userGroupIds = Array.from(new Set(userGroupsQuery.map((g) => g.id).filter(Boolean))) as number[];
+    if (options.groupId && !userGroupIds.includes(options.groupId)) {
+      throw new AuthorizationError("You do not have permission to access analytics for this group.");
+    }
     const targetGroupIds = options.groupId ? [options.groupId] : userGroupIds;
 
     // 2. Determine current period and comparison prior period
@@ -1406,13 +1439,15 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
           )
         ),
 
-      db
-        .select({
-          id: groups.id,
-          name: groups.name,
-        })
-        .from(groups)
-        .where(eq(groups.isDeleted, false)),
+      targetGroupIds.length > 0
+        ? db
+            .select({
+              id: groups.id,
+              name: groups.name,
+            })
+            .from(groups)
+            .where(and(eq(groups.isDeleted, false), inArray(groups.id, targetGroupIds)))
+        : Promise.resolve([]),
 
       targetGroupIds.length > 0
         ? db
@@ -2107,6 +2142,9 @@ export async function getReportAnalytics(options: ReportFilterOptions = {}) {
       recommendations,
     };
   } catch (error) {
+    if (error instanceof AuthorizationError || error instanceof ValidationError) {
+      throw error;
+    }
     throw new DatabaseError("Failed to calculate report analytics", { originalError: error });
   }
 }
@@ -2120,6 +2158,7 @@ export async function exportReportData(
 ) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`report_export:${user.id}`, RATE_LIMITS.exports.reports);
 
     // Fetch full report items (up to 1000 items)
     const reportData = await getComprehensiveReport({
@@ -2140,7 +2179,15 @@ export async function exportReportData(
           splitMethod: groups.splitMethod,
         })
         .from(groups)
-        .where(eq(groups.isDeleted, false))
+        .where(
+          and(
+            eq(groups.isDeleted, false),
+            or(
+              eq(groups.createdBy, user.id),
+              sql`${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id})`
+            )
+          )
+        )
         .limit(20),
       db
         .select({
@@ -2398,13 +2445,31 @@ export async function exportReportData(
         throw new ValidationError("Unsupported export format");
     }
 
+    try {
+      await db.insert(auditLogs).values({
+        publicId: generateReportId(),
+        userId: user.id,
+        action: "report_exported",
+        entityType: "report",
+        entityId: user.id,
+        changes: {
+          format,
+          reportType: filters.reportType || "overview",
+          period: filters.period || "all",
+          groupId: filters.groupId || null,
+        },
+        status: "success",
+        reason: `User generated ${format.toUpperCase()} financial report`,
+      });
+    } catch (_) {}
+
     return {
       filename,
       content,
       mimeType,
     };
   } catch (error) {
-    if (error instanceof ValidationError) throw error;
+    if (error instanceof ValidationError || error instanceof AuthorizationError) throw error;
     throw new DatabaseError("Failed to export report data", { originalError: error });
   }
 }
@@ -2420,6 +2485,7 @@ export async function saveReportConfig(input: {
 }) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`report:save:${user.id}`, RATE_LIMITS.actions.write);
 
     if (!input.name || input.name.trim().length === 0) {
       throw new ValidationError("Report name is required");
@@ -2432,8 +2498,8 @@ export async function saveReportConfig(input: {
       .values({
         publicId,
         userId: user.id,
-        name: input.name.trim(),
-        description: input.description?.trim() || null,
+        name: sanitizeText(input.name.trim()),
+        description: input.description ? sanitizeText(input.description.trim()) : null,
         reportType: input.reportType || "custom",
         filters: input.filters || {},
       })
@@ -2466,6 +2532,7 @@ export async function getSavedReports() {
 export async function deleteSavedReport(publicId: string) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`report:delete:${user.id}`, RATE_LIMITS.actions.delete);
 
     await db
       .delete(savedReports)
@@ -2495,9 +2562,26 @@ export async function createScheduledReport(input: {
 }) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`report:schedule:${user.id}`, RATE_LIMITS.actions.write);
 
     if (!input.name || !input.recipientEmail) {
       throw new ValidationError("Name and recipient email are required");
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(input.recipientEmail.trim())) {
+      throw new ValidationError("Invalid recipient email format");
+    }
+
+    if (input.savedReportId) {
+      const [ownedReport] = await db
+        .select({ id: savedReports.id })
+        .from(savedReports)
+        .where(and(eq(savedReports.id, input.savedReportId), eq(savedReports.userId, user.id)))
+        .limit(1);
+      if (!ownedReport) {
+        throw new AuthorizationError("You do not have access to this saved report template");
+      }
     }
 
     const publicId = generateScheduleId();
@@ -2508,9 +2592,9 @@ export async function createScheduledReport(input: {
         publicId,
         userId: user.id,
         savedReportId: input.savedReportId || null,
-        name: input.name.trim(),
+        name: sanitizeText(input.name.trim()),
         frequency: input.frequency,
-        recipientEmail: input.recipientEmail.trim(),
+        recipientEmail: sanitizeText(input.recipientEmail.trim()).toLowerCase(),
         format: input.format || "pdf",
         isActive: true,
       })
@@ -2519,7 +2603,7 @@ export async function createScheduledReport(input: {
     revalidatePath("/dashboard/reports");
     return { success: true, scheduledReport: scheduled };
   } catch (error) {
-    if (error instanceof ValidationError) throw error;
+    if (error instanceof ValidationError || error instanceof AuthorizationError) throw error;
     throw new DatabaseError("Failed to schedule report", { originalError: error });
   }
 }
@@ -2554,6 +2638,7 @@ export async function getScheduledReports() {
 export async function toggleScheduledReport(publicId: string, isActive: boolean) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`report:toggle:${user.id}`, RATE_LIMITS.actions.write);
 
     await db
       .update(scheduledReports)
@@ -2575,6 +2660,7 @@ export async function toggleScheduledReport(publicId: string, isActive: boolean)
 export async function deleteScheduledReport(publicId: string) {
   try {
     const user = await requireAuth();
+    assertRateLimit(`report:delete_sched:${user.id}`, RATE_LIMITS.actions.delete);
 
     await db
       .delete(scheduledReports)

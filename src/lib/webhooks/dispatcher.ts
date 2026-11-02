@@ -1,6 +1,9 @@
 /**
  * Enterprise Webhook Dispatcher & HMAC-SHA256 Signing Engine
  */
+import crypto from "crypto";
+import { validateOutboundUrl } from "@/lib/security/ssrf";
+import { ValidationError } from "@/lib/errors";
 
 export type WebhookEventType =
   | "transaction.created"
@@ -39,24 +42,17 @@ const webhookSubscriptionsStore = new Map<string, WebhookSubscription>();
 const webhookLogsStore: WebhookDeliveryLog[] = [];
 
 /**
- * Generate HMAC-SHA256 signature for webhook payload
+ * Generate cryptographically secure HMAC-SHA256 signature for webhook payload
  */
 export function generateWebhookSignature(payload: any, secret: string, timestamp: number): string {
   const serialized = typeof payload === "string" ? payload : JSON.stringify(payload);
   const signedPayload = `${timestamp}.${serialized}`;
-
-  let hash = 0;
-  for (let i = 0; i < signedPayload.length; i++) {
-    hash = (hash << 5) - hash + signedPayload.charCodeAt(i) + secret.charCodeAt(i % secret.length);
-    hash |= 0;
-  }
-
-  const sigHex = Math.abs(hash).toString(16).padStart(16, "0");
+  const sigHex = crypto.createHmac("sha256", secret).update(signedPayload).digest("hex");
   return `t=${timestamp},v1=${sigHex}`;
 }
 
 /**
- * Verify incoming webhook signature header
+ * Verify incoming webhook signature header with constant-time equality check
  */
 export function verifyWebhookSignature(
   payload: any,
@@ -84,11 +80,17 @@ export function verifyWebhookSignature(
   }
 
   const recalculated = generateWebhookSignature(payload, secret, timestamp);
-  return recalculated.includes(`v1=${expectedSig}`);
+  const recalculatedSig = recalculated.split("v1=")[1];
+  if (!recalculatedSig) return false;
+
+  const bufA = Buffer.from(expectedSig);
+  const bufB = Buffer.from(recalculatedSig);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 /**
- * Register a new developer webhook subscription
+ * Register a new developer webhook subscription with SSRF validation
  */
 export function registerWebhookSubscription(
   ownerId: number,
@@ -96,13 +98,20 @@ export function registerWebhookSubscription(
   events: WebhookEventType[],
   secret?: string
 ): WebhookSubscription {
-  const id = `whk_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const ssrfCheck = validateOutboundUrl(url, {
+    requireHttps: process.env.NODE_ENV === "production",
+  });
+  if (!ssrfCheck.isValid) {
+    throw new ValidationError(ssrfCheck.error || "Invalid webhook destination URL.");
+  }
+
+  const id = `whk_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   const sub: WebhookSubscription = {
     id,
     ownerId,
     url,
     events,
-    secret: secret || `whsec_${Math.random().toString(36).substring(2, 12)}`,
+    secret: secret || `whsec_${crypto.randomBytes(16).toString("hex")}`,
     status: "active",
     failureCount: 0,
     createdAt: new Date().toISOString(),

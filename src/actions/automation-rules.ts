@@ -12,6 +12,7 @@ import {
   AutomationTrigger,
 } from "@/lib/ai/automation-engine";
 import { revalidatePath } from "next/cache";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 export interface AutomationLogItem {
   id: string;
@@ -56,6 +57,7 @@ export async function saveAutomationRule(
 ): Promise<{ success: boolean; rules: AutomationRule[] }> {
   try {
     const user = await requireAuth();
+    assertRateLimit(`auto:save:${user.id}`, RATE_LIMITS.actions.write);
     const currentRules = await getAutomationRules();
 
     const existingIndex = currentRules.findIndex((r) => r.id === rule.id);
@@ -103,6 +105,7 @@ export async function toggleAutomationRule(
 ): Promise<{ success: boolean; rules: AutomationRule[] }> {
   try {
     const user = await requireAuth();
+    assertRateLimit(`auto:toggle:${user.id}`, RATE_LIMITS.actions.write);
     const currentRules = await getAutomationRules();
 
     const updatedRules = currentRules.map((r) =>
@@ -142,6 +145,7 @@ export async function deleteAutomationRule(
 ): Promise<{ success: boolean; rules: AutomationRule[] }> {
   try {
     const user = await requireAuth();
+    assertRateLimit(`auto:del:${user.id}`, RATE_LIMITS.actions.delete);
     const currentRules = await getAutomationRules();
 
     const updatedRules = currentRules.filter((r) => r.id !== ruleId);

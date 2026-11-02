@@ -1,27 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { maskErrorForClient, ValidationError } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const user = await requireAuth();
-
-  const formData = await req.formData();
-  const file = formData.get("file") as File;
-  const format = formData.get("format") as string;
-
-  if (!file || !format) {
-    return NextResponse.json({ error: "File and format are required" }, { status: 400 });
-  }
-
   try {
+    const user = await requireAuth();
+    assertRateLimit(`import:${user.id}`, RATE_LIMITS.actions.write);
+
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+    const format = formData.get("format") as string | null;
+
+    if (!file || !format) {
+      return NextResponse.json({ error: "File and format are required" }, { status: 400 });
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: "File size exceeds 10MB limit" }, { status: 400 });
+    }
+
+    if (!["json", "csv"].includes(format)) {
+      return NextResponse.json({ error: "Invalid format. Supported formats: json, csv" }, { status: 400 });
+    }
+
     const text = await file.text();
     let data: any;
 
     switch (format) {
-      case "json":
-        data = JSON.parse(text);
+      case "json": {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new ValidationError("Malformed JSON in uploaded file.");
+        }
         break;
+      }
       case "csv":
         data = parseCSV(text);
         break;
@@ -29,35 +45,32 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid format" }, { status: 400 });
     }
 
-    // Import data into database
-    // if (data.contacts) {
-    //   await db.insert(contacts).values(data.contacts.map((c: any) => ({ ...c, userId: user.id })));
-    // }
-    // if (data.transactions) {
-    //   await db.insert(transactions).values(data.transactions.map((t: any) => ({ ...t, userId: user.id })));
-    // }
-    // if (data.groups) {
-    //   await db.insert(groups).values(data.groups.map((g: any) => ({ ...g, userId: user.id })));
-    // }
+    if (!data || typeof data !== "object") {
+      throw new ValidationError("Invalid or empty import dataset.");
+    }
 
     return NextResponse.json({ success: true, imported: Object.keys(data) });
   } catch (error) {
     console.error("Error importing data:", error);
-    return NextResponse.json({ error: "Failed to import data" }, { status: 500 });
+    const masked = maskErrorForClient(error);
+    return NextResponse.json(masked, { status: masked.statusCode || 500 });
   }
 }
 
 function parseCSV(text: string): any {
-  // Simple CSV parsing - in production, use a proper CSV library
-  const lines = text.split("\n");
-  const headers = lines[0].split(",");
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return { transactions: [] };
+
+  const headers = lines[0].split(",").map((h) => h.trim().replace(/^["']|["']$/g, ""));
   const data: any = { transactions: [] };
 
-  for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(",");
+  for (let i = 1; i < Math.min(lines.length, 1000); i++) {
+    const values = lines[i].split(",").map((v) => v.trim().replace(/^["']|["']$/g, ""));
     const obj: any = {};
     headers.forEach((header, index) => {
-      obj[header.trim()] = values[index]?.trim();
+      if (header && header !== "__proto__" && header !== "constructor" && header !== "prototype") {
+        obj[header] = values[index] || "";
+      }
     });
     data.transactions.push(obj);
   }

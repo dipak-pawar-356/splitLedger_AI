@@ -277,12 +277,12 @@ export function ContactDialog({
             </div>
 
             {/* 3 Interactive Selector Cards */}
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
               {/* Option 1: They Owe You (Receivable) */}
               <button
                 type="button"
                 onClick={() => handleSelectBalanceType("owed_to_you")}
-                className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer ${
+                className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer touch-press ${
                   balanceType === "owed_to_you"
                     ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 ring-2 ring-emerald-500/30 shadow-xs"
                     : "border-slate-200 dark:border-slate-800 bg-card hover:border-emerald-300 dark:hover:border-emerald-800/60 hover:bg-emerald-50/20"
@@ -318,7 +318,7 @@ export function ContactDialog({
               <button
                 type="button"
                 onClick={() => handleSelectBalanceType("you_owe")}
-                className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer ${
+                className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer touch-press ${
                   balanceType === "you_owe"
                     ? "border-rose-500 bg-rose-50/70 dark:bg-rose-950/40 text-rose-950 dark:text-rose-100 ring-2 ring-rose-500/30 shadow-xs"
                     : "border-slate-200 dark:border-slate-800 bg-card hover:border-rose-300 dark:hover:border-rose-800/60 hover:bg-rose-50/20"
@@ -354,7 +354,7 @@ export function ContactDialog({
               <button
                 type="button"
                 onClick={() => handleSelectBalanceType("none")}
-                className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer ${
+                className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 cursor-pointer touch-press ${
                   balanceType === "none"
                     ? "border-primary/60 bg-primary/10 text-slate-900 dark:text-slate-100 ring-2 ring-primary/20 shadow-xs"
                     : "border-slate-200 dark:border-slate-800 bg-card hover:border-slate-300 dark:hover:border-slate-700"
@@ -514,17 +514,21 @@ export function ContactDialog({
           </div>
 
           {/* Dialog Action Buttons */}
-          <div className="flex justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button
               type="button"
               variant="outline"
-              className="rounded-xl text-xs h-9 cursor-pointer"
+              className="w-full sm:w-auto rounded-xl text-xs h-10 sm:h-9 cursor-pointer touch-press"
               onClick={() => setOpen(false)}
               disabled={isLoading}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading} className="rounded-xl text-xs h-9 font-semibold cursor-pointer">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full sm:w-auto rounded-xl text-xs h-10 sm:h-9 font-semibold cursor-pointer touch-press"
+            >
               {isLoading ? (isEditing ? "Saving..." : "Creating...") : isEditing ? "Save Changes" : "Create Contact"}
             </Button>
           </div>

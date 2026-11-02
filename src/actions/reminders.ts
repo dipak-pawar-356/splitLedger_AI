@@ -29,6 +29,8 @@ import {
 } from "@/lib/notifications";
 import { getGroupFinancialDetails, type MemberFinancialDetail } from "@/actions/group-financials";
 import { generateWhatsAppLink, formatCurrency, getBaseAppUrl, isDbIntegerId, generatePublicId } from "@/lib/utils";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 export interface CreateReminderInput {
   title?: string;
@@ -106,6 +108,7 @@ export interface GetRemindersFilters {
 export async function createReminder(data: CreateReminderInput) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`reminder:create:${user.id}`, RATE_LIMITS.notifications.broadcast);
 
     // 1. Validate required fields
     if (!data.message || data.message.trim().length === 0) {
@@ -234,14 +237,14 @@ export async function createReminder(data: CreateReminderInput) {
           groupId: targetGroupId,
           transactionId: targetTxId,
           contactId: targetContactId,
-          title: data.title?.trim() || null,
+          title: data.title ? sanitizeText(data.title.trim()) : null,
           recipientType: recipientType === "member" ? "contact" : recipientType,
           recipientId: numericRecipientId,
-          recipientName: data.recipientName?.trim() || null,
-          recipientPhone: data.recipientPhone?.trim() || null,
-          recipientEmail: data.recipientEmail?.trim() || null,
+          recipientName: data.recipientName ? sanitizeText(data.recipientName.trim()) : null,
+          recipientPhone: data.recipientPhone ? sanitizeText(data.recipientPhone.trim()) : null,
+          recipientEmail: data.recipientEmail ? sanitizeText(data.recipientEmail.trim()) : null,
           method: data.method || "whatsapp",
-          message: data.message.trim(),
+          message: sanitizeText(data.message.trim()),
           dueDate: parseDate(data.dueDate),
           reminderDate: parseDate(data.reminderDate) || parseDate(data.dueDate),
           amount: data.amount ? Math.round(data.amount * 100) : null,
@@ -775,6 +778,7 @@ export async function getReminders(filters: GetRemindersFilters = {}) {
 export async function updateReminder(data: UpdateReminderInput) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`reminder:update:${user.id}`, RATE_LIMITS.actions.write);
 
     const [existing] = await withDbRetry(async () =>
       db
@@ -799,14 +803,14 @@ export async function updateReminder(data: UpdateReminderInput) {
       updatedBy: user.id,
     };
 
-    if (data.title !== undefined) updateFields.title = data.title.trim() || null;
+    if (data.title !== undefined) updateFields.title = data.title.trim() ? sanitizeText(data.title.trim()) : null;
     if (data.message !== undefined) {
       if (!data.message.trim()) throw new ValidationError("Message cannot be empty");
-      updateFields.message = data.message.trim();
+      updateFields.message = sanitizeText(data.message.trim());
     }
-    if (data.recipientName !== undefined) updateFields.recipientName = data.recipientName.trim() || null;
-    if (data.recipientPhone !== undefined) updateFields.recipientPhone = data.recipientPhone.trim() || null;
-    if (data.recipientEmail !== undefined) updateFields.recipientEmail = data.recipientEmail.trim() || null;
+    if (data.recipientName !== undefined) updateFields.recipientName = data.recipientName.trim() ? sanitizeText(data.recipientName.trim()) : null;
+    if (data.recipientPhone !== undefined) updateFields.recipientPhone = data.recipientPhone.trim() ? sanitizeText(data.recipientPhone.trim()) : null;
+    if (data.recipientEmail !== undefined) updateFields.recipientEmail = data.recipientEmail.trim() ? sanitizeText(data.recipientEmail.trim()) : null;
     if (data.method !== undefined) updateFields.method = data.method;
     if (data.dueDate !== undefined) updateFields.dueDate = parseDate(data.dueDate);
     if (data.reminderDate !== undefined) updateFields.reminderDate = parseDate(data.reminderDate);
@@ -823,7 +827,7 @@ export async function updateReminder(data: UpdateReminderInput) {
       db
         .update(reminders)
         .set(updateFields)
-        .where(eq(reminders.id, data.id))
+        .where(and(eq(reminders.id, data.id), eq(reminders.userId, user.id)))
         .returning()
     );
 
@@ -869,7 +873,7 @@ export async function toggleCompleteReminder(id: number) {
           updatedAt: new Date(),
           updatedBy: user.id,
         })
-        .where(eq(reminders.id, id))
+        .where(and(eq(reminders.id, id), eq(reminders.userId, user.id)))
         .returning()
     );
 
@@ -909,7 +913,7 @@ export async function togglePinReminder(id: number) {
           updatedAt: new Date(),
           updatedBy: user.id,
         })
-        .where(eq(reminders.id, id))
+        .where(and(eq(reminders.id, id), eq(reminders.userId, user.id)))
         .returning()
     );
 
@@ -949,7 +953,7 @@ export async function toggleArchiveReminder(id: number) {
           updatedAt: new Date(),
           updatedBy: user.id,
         })
-        .where(eq(reminders.id, id))
+        .where(and(eq(reminders.id, id), eq(reminders.userId, user.id)))
         .returning()
     );
 
@@ -968,6 +972,7 @@ export async function toggleArchiveReminder(id: number) {
 export async function deleteReminder(id: number) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`reminder:del:${user.id}`, RATE_LIMITS.actions.delete);
 
     const [existing] = await withDbRetry(async () =>
       db
@@ -990,7 +995,7 @@ export async function deleteReminder(id: number) {
           deletedBy: user.id,
           updatedAt: new Date(),
         })
-        .where(eq(reminders.id, id))
+        .where(and(eq(reminders.id, id), eq(reminders.userId, user.id)))
     );
 
     // Audit log
@@ -1125,6 +1130,7 @@ export async function bulkCompleteReminders(ids: number[]) {
 export async function bulkDeleteReminders(ids: number[]) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`reminder:bulk_del:${user.id}`, RATE_LIMITS.actions.delete);
     if (!ids.length) return { success: true, count: 0 };
 
     await withDbRetry(async () =>

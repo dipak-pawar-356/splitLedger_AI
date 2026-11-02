@@ -1,4 +1,17 @@
+/**
+ * Enterprise Application Error Handling & Defensive Error Masking Engine
+ * 
+ * Ensures production responses never leak:
+ * - Stack traces
+ * - SQL / Database syntax & constraint errors
+ * - File system paths
+ * - Internal server configuration & secrets
+ */
+import crypto from "crypto";
+
 export class AppError extends Error {
+  public correlationId: string;
+
   constructor(
     message: string,
     public code: string,
@@ -7,6 +20,7 @@ export class AppError extends Error {
   ) {
     super(message);
     this.name = 'AppError';
+    this.correlationId = `err_${Date.now().toString(36)}_${crypto.randomBytes(4).toString("hex")}`;
   }
 }
 
@@ -42,7 +56,7 @@ export class NotFoundError extends AppError {
 }
 
 export class ConflictError extends AppError {
-  constructor(message: string) {
+  constructor(message: string = 'Resource conflict detected') {
     super(message, 'CONFLICT_ERROR', 409);
     this.name = 'ConflictError';
   }
@@ -68,25 +82,48 @@ export function handleError(error: unknown): AppError {
   }
 
   if (error instanceof Error) {
-    // Handle specific error types
-    if (error.message.includes('unique constraint') || error.message.includes('duplicate')) {
-      return new ConflictError(error.message);
+    const rawMsg = error.message.toLowerCase();
+    // Handle specific database constraint error types safely
+    if (rawMsg.includes('unique constraint') || rawMsg.includes('duplicate')) {
+      return new ConflictError('A record with these details already exists.');
     }
-    if (error.message.includes('foreign key')) {
-      return new ValidationError('Invalid reference to related data');
+    if (rawMsg.includes('foreign key')) {
+      return new ValidationError('Invalid reference to related data.');
     }
-    if (error.message.includes('not found')) {
+    if (rawMsg.includes('not found')) {
       return new NotFoundError();
     }
     
-    return new ServerError(error.message, { originalError: error.message });
+    // Log detailed internal error securely on server
+    console.error(`[SERVER_EXCEPTION] [${new Date().toISOString()}]:`, error);
+    return new ServerError('An unexpected server error occurred.', { originalError: error.message });
   }
 
-  return new ServerError('An unexpected error occurred');
+  return new ServerError('An unexpected error occurred.');
 }
 
+/**
+ * Return safe, user-friendly error message for production presentation
+ */
 export function getErrorMessage(error: unknown): string {
+  const isProd = process.env.NODE_ENV === "production";
   const appError = handleError(error);
+
+  if (isProd) {
+    // Only safe client-facing errors keep their exact message
+    if (
+      appError instanceof ValidationError ||
+      appError instanceof AuthenticationError ||
+      appError instanceof AuthorizationError ||
+      appError instanceof NotFoundError ||
+      appError instanceof ConflictError
+    ) {
+      return appError.message;
+    }
+    // Database and internal server errors are strictly masked
+    return 'An unexpected error occurred. Please try again later.';
+  }
+
   return appError.message;
 }
 
@@ -98,4 +135,26 @@ export function getErrorCode(error: unknown): string {
 export function getErrorStatusCode(error: unknown): number {
   const appError = handleError(error);
   return appError.statusCode;
+}
+
+/**
+ * Return production-safe JSON response payload for API route handlers
+ */
+export function maskErrorForClient(error: unknown): {
+  success: false;
+  error: string;
+  code: string;
+  statusCode: number;
+  correlationId?: string;
+} {
+  const appError = handleError(error);
+  const safeMessage = getErrorMessage(appError);
+
+  return {
+    success: false,
+    error: safeMessage,
+    code: appError.code,
+    statusCode: appError.statusCode,
+    ...(process.env.NODE_ENV === "production" ? { correlationId: appError.correlationId } : {}),
+  };
 }

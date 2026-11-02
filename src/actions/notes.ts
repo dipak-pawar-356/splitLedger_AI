@@ -7,6 +7,7 @@ import { requireAuth } from "@/lib/auth";
 import { generatePublicId, formatDate } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
 import { appCache } from "@/lib/cache";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 import {
   extractExpensesFromNote,
   getNoteFinancialSummary,
@@ -2514,6 +2515,7 @@ export async function exportNoteDocument(
   options?: ExportNoteOptions
 ) {
   const user = await requireAuth();
+  assertRateLimit(`note_export:${user.id}`, RATE_LIMITS.exports.reports);
 
   return await withDbRetry(async () => {
     const [note] = await db

@@ -1,11 +1,13 @@
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST() {
   try {
+    await requireAdmin();
     console.log("Starting migration to add missing columns...");
     
     // Step 1: Add missing columns as nullable first
@@ -525,6 +527,10 @@ export async function POST() {
     return NextResponse.json({ success: true, message: "Migration completed successfully" });
   } catch (error) {
     console.error("Migration failed:", error);
-    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
+    const isProd = process.env.NODE_ENV === "production";
+    return NextResponse.json(
+      { success: false, error: isProd ? "Migration failed due to internal error." : String(error) },
+      { status: 500 }
+    );
   }
 }

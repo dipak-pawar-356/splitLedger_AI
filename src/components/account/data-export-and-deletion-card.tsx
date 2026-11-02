@@ -113,18 +113,18 @@ export function DataExportAndDeletionCard() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <p className="text-xs text-slate-500 max-w-md leading-relaxed">
               Export includes personal ledger entries, group expense shares, receipts metadata, and immutable audit logs.
             </p>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="rounded-xl text-xs gap-1.5"
+                className="flex-1 sm:flex-initial rounded-xl text-xs gap-1.5 h-9 min-h-[36px] touch-press"
                 onClick={() => handleExport("json")}
                 disabled={isExporting}
               >
@@ -136,7 +136,7 @@ export function DataExportAndDeletionCard() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="rounded-xl text-xs gap-1.5"
+                className="flex-1 sm:flex-initial rounded-xl text-xs gap-1.5 h-9 min-h-[36px] touch-press"
                 onClick={() => handleExport("csv")}
                 disabled={isExporting}
               >
@@ -160,7 +160,7 @@ export function DataExportAndDeletionCard() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
               Restore Factory Settings
@@ -174,7 +174,7 @@ export function DataExportAndDeletionCard() {
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-xl text-xs gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 shrink-0"
+            className="w-full sm:w-auto rounded-xl text-xs gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 shrink-0 h-9 min-h-[36px] touch-press"
             onClick={() => setIsResetOpen(true)}
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -195,7 +195,7 @@ export function DataExportAndDeletionCard() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="p-6 space-y-4">
+        <CardContent className="p-4 sm:p-6 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
@@ -210,7 +210,7 @@ export function DataExportAndDeletionCard() {
               type="button"
               variant="outline"
               size="sm"
-              className="rounded-xl text-xs gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 shrink-0"
+              className="w-full sm:w-auto rounded-xl text-xs gap-1.5 text-amber-700 border-amber-300 hover:bg-amber-50 shrink-0 h-9 min-h-[36px] touch-press"
               onClick={() => setIsDeactivateOpen(true)}
             >
               <PauseCircle className="h-3.5 w-3.5" />
@@ -232,7 +232,7 @@ export function DataExportAndDeletionCard() {
               type="button"
               variant="destructive"
               size="sm"
-              className="rounded-xl text-xs gap-1.5 shrink-0 bg-rose-600 hover:bg-rose-700"
+              className="w-full sm:w-auto rounded-xl text-xs gap-1.5 shrink-0 bg-rose-600 hover:bg-rose-700 h-9 min-h-[36px] touch-press"
               onClick={() => setIsDeleteOpen(true)}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -291,7 +291,7 @@ export function DataExportAndDeletionCard() {
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               placeholder="Type DELETE to confirm"
-              className="w-full h-9 px-3 rounded-xl border border-input text-xs font-mono bg-background"
+              className="w-full h-10 sm:h-9 px-3 rounded-xl border border-input text-base sm:text-xs font-mono bg-background"
             />
           </div>
 

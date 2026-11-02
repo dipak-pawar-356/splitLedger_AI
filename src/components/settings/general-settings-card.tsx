@@ -55,7 +55,7 @@ export function GeneralSettingsCard({ initialData, onRefresh }: GeneralSettingsC
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="p-6">
+      <CardContent className="p-4 sm:p-6">
         <form onSubmit={handleSave} className="space-y-6 max-w-2xl" suppressHydrationWarning>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5" suppressHydrationWarning>
@@ -67,7 +67,7 @@ export function GeneralSettingsCard({ initialData, onRefresh }: GeneralSettingsC
                 value={formData.displayName}
                 onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
                 placeholder="e.g. Dipak Pawar"
-                className="rounded-xl text-xs bg-background"
+                className="rounded-xl text-base sm:text-xs bg-background"
                 required
                 suppressHydrationWarning
               />
@@ -84,7 +84,7 @@ export function GeneralSettingsCard({ initialData, onRefresh }: GeneralSettingsC
               <select
                 value={formData.defaultLandingPage}
                 onChange={(e) => setFormData({ ...formData, defaultLandingPage: e.target.value })}
-                className="w-full h-9 px-3 rounded-xl border border-input text-xs bg-background focus:outline-hidden font-medium"
+                className="w-full h-10 sm:h-9 px-3 rounded-xl border border-input text-base sm:text-xs bg-background focus:outline-hidden font-medium"
               >
                 <option value="/dashboard">Main Dashboard (/dashboard)</option>
                 <option value="/dashboard/groups">My Groups (/dashboard/groups)</option>
@@ -152,7 +152,7 @@ export function GeneralSettingsCard({ initialData, onRefresh }: GeneralSettingsC
             <Button
               type="submit"
               size="sm"
-              className="rounded-xl text-xs gap-1.5 bg-primary px-5"
+              className="w-full sm:w-auto rounded-xl text-xs gap-1.5 bg-primary px-5 h-10 sm:h-9 min-h-[38px] touch-press"
               disabled={isPending}
             >
               <Save className="h-3.5 w-3.5" />

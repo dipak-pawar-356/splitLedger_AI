@@ -11,7 +11,8 @@ import {
   TaxInvoice,
   AccountingDashboardMetrics,
 } from "@/lib/types/accounting";
-import { DatabaseError, ValidationError } from "@/lib/errors";
+import { DatabaseError, ValidationError, AuthorizationError } from "@/lib/errors";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 // In-memory accounting store per tenant
 const businessProfilesStore = new Map<string, BusinessProfile>();
@@ -108,8 +109,14 @@ export async function recordJournalEntry(data: {
   lines: JournalEntryLine[];
 }): Promise<JournalEntry> {
   const user = await requireAuth();
+  assertRateLimit(`accounting:journal:${user.id}`, RATE_LIMITS.actions.write);
   ensureSeedAccounting(user.id, user.name || "User");
   const businessId = data.businessId || `biz_${user.id}_01`;
+
+  const business = businessProfilesStore.get(businessId);
+  if (!business || business.userId !== user.id) {
+    throw new AuthorizationError("Business profile not found or access denied.");
+  }
 
   const totalDebit = data.lines.reduce((sum, l) => sum + (l.debit || 0), 0);
   const totalCredit = data.lines.reduce((sum, l) => sum + (l.credit || 0), 0);
@@ -159,6 +166,11 @@ export async function generateFinancialStatements(businessId?: string): Promise<
   const user = await requireAuth();
   ensureSeedAccounting(user.id, user.name || "User");
   const bId = businessId || `biz_${user.id}_01`;
+
+  const business = businessProfilesStore.get(bId);
+  if (!business || business.userId !== user.id) {
+    throw new AuthorizationError("Business profile not found or access denied.");
+  }
   const accounts = accountsStore.get(bId) || [];
 
   // 1. Trial Balance Items
@@ -231,6 +243,11 @@ export async function calculateGstSummary(businessId?: string): Promise<GSTSumma
   const user = await requireAuth();
   ensureSeedAccounting(user.id, user.name || "User");
   const bId = businessId || `biz_${user.id}_01`;
+
+  const business = businessProfilesStore.get(bId);
+  if (!business || business.userId !== user.id) {
+    throw new AuthorizationError("Business profile not found or access denied.");
+  }
   const accounts = accountsStore.get(bId) || [];
 
   const gstOutput = accounts.find((a) => a.code === "2010")?.balance || 18000;
@@ -264,8 +281,14 @@ export async function createTaxInvoice(data: {
   isInterstate?: boolean;
 }): Promise<TaxInvoice> {
   const user = await requireAuth();
+  assertRateLimit(`accounting:invoice:${user.id}`, RATE_LIMITS.actions.write);
   ensureSeedAccounting(user.id, user.name || "User");
   const bId = data.businessId || `biz_${user.id}_01`;
+
+  const business = businessProfilesStore.get(bId);
+  if (!business || business.userId !== user.id) {
+    throw new AuthorizationError("Business profile not found or access denied.");
+  }
 
   const subtotal = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
   const items = data.items.map((i) => ({ ...i, total: i.quantity * i.unitPrice }));
@@ -322,7 +345,10 @@ export async function getAccountingDashboardSummary(businessId?: string): Promis
   ensureSeedAccounting(user.id, user.name || "User");
   const bId = businessId || `biz_${user.id}_01`;
 
-  const business = businessProfilesStore.get(bId)!;
+  const business = businessProfilesStore.get(bId);
+  if (!business || business.userId !== user.id) {
+    throw new AuthorizationError("Business profile not found or access denied.");
+  }
   const accounts = accountsStore.get(bId) || [];
   const journalEntries = journalEntriesStore.get(bId) || [];
   const invoices = invoicesStore.get(bId) || [];
@@ -355,6 +381,7 @@ export async function exportAccountingData(
   businessId?: string
 ): Promise<string> {
   const user = await requireAuth();
+  assertRateLimit(`accounting:export:${user.id}`, RATE_LIMITS.exports.reports);
   ensureSeedAccounting(user.id, user.name || "User");
   const bId = businessId || `biz_${user.id}_01`;
   const summary = await getAccountingDashboardSummary(bId);

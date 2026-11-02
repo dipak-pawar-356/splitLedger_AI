@@ -62,7 +62,7 @@ export async function checkSystemHealth(): Promise<SystemHealthReport> {
       name: "Neon PostgreSQL Database",
       status: "critical",
       latencyMs,
-      message: err?.message || "Database connection failed",
+      message: process.env.NODE_ENV === "production" ? "Database connection failed" : (err?.message || "Database connection failed"),
       lastChecked: timestamp,
     });
   }

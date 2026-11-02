@@ -165,11 +165,11 @@ export default function ExportReportDialog({
           </div>
         </div>
 
-        <DialogFooter className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
-          <Button variant="outline" size="sm" className="rounded-xl text-xs" onClick={() => setOpen(false)}>
+        <DialogFooter className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto rounded-xl text-xs h-10 sm:h-9 min-h-[38px] touch-press" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button size="sm" className="rounded-xl text-xs px-4 font-semibold" onClick={handleExport} disabled={isExporting}>
+          <Button size="sm" className="w-full sm:w-auto rounded-xl text-xs px-4 font-semibold h-10 sm:h-9 min-h-[38px] touch-press" onClick={handleExport} disabled={isExporting}>
             {isExporting ? "Exporting..." : `Export ${format.toUpperCase()}`}
           </Button>
         </DialogFooter>

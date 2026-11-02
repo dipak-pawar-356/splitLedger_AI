@@ -73,21 +73,21 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
       {/* Profile Completion Indicator Pill */}
       <Link
         href="/dashboard/profile"
-        className="self-start sm:self-center shrink-0 p-2.5 sm:px-4 sm:py-2.5 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60 hover:border-primary/40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-3 group shadow-xs"
+        className="w-full sm:w-auto shrink-0 p-2.5 sm:px-4 sm:py-2.5 rounded-2xl bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60 hover:border-primary/40 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center justify-between sm:justify-start gap-3 group shadow-xs touch-press"
       >
-        <div className="space-y-1">
+        <div className="space-y-1 flex-1 sm:flex-initial">
           <div className="flex items-center justify-between gap-3 text-[11px]">
             <span className="font-semibold text-slate-600 dark:text-slate-300">Profile Completion</span>
             <span className="font-black text-primary">{user.profileCompletion}%</span>
           </div>
-          <div className="w-28 sm:w-32 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+          <div className="w-full sm:w-32 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
             <div
               className="bg-primary h-full rounded-full transition-all duration-500"
               style={{ width: `${user.profileCompletion}%` }}
             />
           </div>
         </div>
-        <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+        <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all shrink-0" />
       </Link>
     </div>
   );

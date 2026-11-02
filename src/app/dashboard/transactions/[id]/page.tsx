@@ -114,34 +114,34 @@ export default async function TransactionDetailPage({
 
       {/* Main Header Banner */}
       <Card className="rounded-3xl border shadow-sm overflow-hidden bg-card">
-        <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-start gap-4">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+        <div className="p-4 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0 ${
               isPositive 
                 ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" 
                 : "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
             }`}>
-              {isPositive ? <ArrowUpRight className="h-7 w-7" /> : <ArrowDownLeft className="h-7 w-7" />}
+              {isPositive ? <ArrowUpRight className="h-6 w-6 sm:h-7 sm:w-7" /> : <ArrowDownLeft className="h-6 w-6 sm:h-7 sm:w-7" />}
             </div>
 
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            <div className="space-y-1 min-w-0 flex-1">
+              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 break-words">
                   {txData.title || txData.description}
                 </h1>
-                <Badge variant="outline" className="font-mono text-xs text-slate-500 rounded-lg">
+                <Badge variant="outline" className="font-mono text-[10px] sm:text-xs text-slate-500 rounded-lg">
                   {txData.publicId}
                 </Badge>
                 {txData.version > 1 && (
-                  <Badge variant="secondary" className="text-xs font-semibold rounded-lg">
+                  <Badge variant="secondary" className="text-[10px] sm:text-xs font-semibold rounded-lg">
                     v{txData.version}
                   </Badge>
                 )}
               </div>
 
-              <p className="text-sm text-slate-500">{txData.description}</p>
+              <p className="text-xs sm:text-sm text-slate-500 break-words">{txData.description}</p>
 
-              <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap pt-1">
+              <div className="flex items-center gap-2 sm:gap-3 text-xs text-slate-500 flex-wrap pt-1">
                 <span className="flex items-center gap-1">
                   <Calendar className="h-3.5 w-3.5" />
                   {formatDate(txData.date)}
@@ -170,9 +170,9 @@ export default async function TransactionDetailPage({
             </div>
           </div>
 
-          <div className="text-left md:text-right border-t md:border-t-0 pt-4 md:pt-0 border-slate-100 dark:border-slate-800">
+          <div className="text-left md:text-right border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800">
             <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Total Amount</p>
-            <p className={`text-3xl font-extrabold tracking-tight mt-0.5 ${
+            <p className={`text-2xl sm:text-3xl font-extrabold tracking-tight mt-0.5 whitespace-nowrap ${
               isPositive 
                 ? "text-emerald-600 dark:text-emerald-400" 
                 : "text-rose-600 dark:text-rose-400"
@@ -197,7 +197,7 @@ export default async function TransactionDetailPage({
 
       {/* Detail Tabs */}
       <Tabs defaultValue={initialTab} className="w-full">
-        <TabsList className="w-full justify-start rounded-2xl p-1 bg-slate-100 dark:bg-slate-800/80 overflow-x-auto">
+        <TabsList className="w-full justify-start rounded-2xl p-1 bg-slate-100 dark:bg-slate-800/80 overflow-x-auto no-scrollbar flex-nowrap shrink-0 touch-pan-x">
           <TabsTrigger value="overview" className="rounded-xl text-xs font-semibold px-4 gap-1.5">
             <IndianRupee className="h-3.5 w-3.5" />
             <span>Overview & Splits</span>

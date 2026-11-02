@@ -8,6 +8,8 @@ import { revalidatePath } from "next/cache";
 import { ValidationError, DatabaseError } from "@/lib/errors";
 import { recordAuditLog } from "@/lib/audit";
 import { eventBus } from "@/lib/realtime/event-bus";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 import {
   GeneralPreferences,
@@ -459,6 +461,7 @@ export async function changePassword(data: {
   confirmPassword: string;
 }) {
   const user = await requireAuth();
+  assertRateLimit(`pwd_change:${user.id}`, RATE_LIMITS.auth.passwordReset);
 
   if (!data.currentPassword || data.currentPassword.length === 0) {
     throw new ValidationError("Current password is required");
@@ -472,14 +475,26 @@ export async function changePassword(data: {
     throw new ValidationError("Passwords do not match");
   }
 
+  // Record audit log for security credential update
+  await recordAuditLog({
+    userId: user.id,
+    action: "password_changed",
+    entityType: "user",
+    entityId: user.id,
+    reason: "User updated account password",
+  });
+
   revalidatePath("/dashboard/settings");
   return { success: true };
 }
 
 export async function updateProfileSettings(data: { name?: string; phone?: string; defaultCurrency?: string }) {
   const user = await requireAuth();
+  assertRateLimit(`profile_settings:${user.id}`, RATE_LIMITS.actions.write);
+
   if (data.name) {
-    await db.update(users).set({ name: data.name, defaultCurrency: data.defaultCurrency || "INR" }).where(eq(users.id, user.id));
+    const cleanName = sanitizeText(data.name).trim().slice(0, 100);
+    await db.update(users).set({ name: cleanName, defaultCurrency: data.defaultCurrency || "INR" }).where(eq(users.id, user.id));
   }
   revalidatePath("/dashboard/settings");
   return { success: true };

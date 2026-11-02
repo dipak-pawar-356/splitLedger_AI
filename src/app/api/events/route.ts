@@ -4,6 +4,7 @@ import { eventBus, RealtimeEvent } from "@/lib/realtime/event-bus";
 import { db } from "@/lib/db";
 import { groupMembers } from "@/lib/db/schema/schema";
 import { eq } from "drizzle-orm";
+import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -13,6 +14,11 @@ export async function GET(req: NextRequest) {
     const user = await getCurrentUser();
     if (!user) {
       return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const rateCheck = checkRateLimit(`sse:conn:${user.id}`, 30, 60000);
+    if (!rateCheck.allowed) {
+      return new NextResponse("Too many event stream connections. Please wait.", { status: 429 });
     }
 
     // Fetch user groups to subscribe to group events

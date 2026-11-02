@@ -62,26 +62,26 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
       <Card className="rounded-3xl border shadow-sm bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white overflow-hidden relative hover:shadow-xl transition-all duration-300">
         <div className="absolute right-0 top-0 w-80 h-full bg-primary/20 blur-3xl pointer-events-none" />
 
-        <CardContent className="p-6 sm:p-7 space-y-6 relative z-10">
+        <CardContent className="p-4 sm:p-7 space-y-4 sm:space-y-6 relative z-10">
           {/* Header Info */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-3xl font-extrabold text-white tracking-tight">
                   {group.name}
                 </h1>
-                <Badge className="bg-primary/30 text-indigo-200 border-primary/40 text-xs capitalize font-medium">
+                <Badge className="bg-primary/30 text-indigo-200 border-primary/40 text-[10px] sm:text-xs capitalize font-medium">
                   <Tag className="h-3 w-3 mr-1 inline" />
                   {group.type}
                 </Badge>
                 {group.isOwner && (
-                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-xs font-medium">
+                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px] sm:text-xs font-medium">
                     Owner
                   </Badge>
                 )}
                 <Badge 
                   onClick={() => canConfigure && setSplitSettingsOpen(true)}
-                  className={`text-xs font-medium ${
+                  className={`text-[10px] sm:text-xs font-medium ${
                     canConfigure ? "cursor-pointer hover:bg-emerald-500/30 hover:scale-105 active:scale-95 transition-all" : ""
                   } bg-emerald-500/20 text-emerald-300 border-emerald-500/30 flex items-center gap-1`}
                   title={canConfigure ? "Click to configure split calculation rules" : undefined}
@@ -103,7 +103,7 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
                   {group.description}
                 </p>
               )}
-              <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-1.5">
+              <p className="text-[10px] sm:text-[11px] text-slate-400 flex items-center gap-1.5 mt-1.5 flex-wrap">
                 <Calendar className="h-3 w-3 inline" />
                 <span>Created {formatDate(group.createdAt)}</span>
                 <span>•</span>
@@ -112,11 +112,11 @@ export function GroupOverviewBanner({ group, overview }: GroupOverviewBannerProp
             </div>
 
             {/* Total Group Expense */}
-            <div className="text-left md:text-right shrink-0">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+            <div className="text-left md:text-right shrink-0 border-t md:border-t-0 pt-2 md:pt-0 border-white/10">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
                 Total Group Expenses
               </span>
-              <span className="text-3xl font-black text-white tracking-tight">
+              <span className="text-2xl sm:text-3xl font-black text-white tracking-tight whitespace-nowrap">
                 {formatCurrency(overview.totalExpenses)}
               </span>
             </div>

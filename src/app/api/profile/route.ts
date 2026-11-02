@@ -7,10 +7,14 @@ import { users, profiles } from "@/lib/db/schema/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { appCache } from "@/lib/cache";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { maskErrorForClient } from "@/lib/errors";
 
 export async function GET() {
   try {
     const user = await requireAuth();
+    assertRateLimit(`profile_get:${user.id}`, RATE_LIMITS.settings.profile);
+
     const [profile] = await db
       .select({ username: profiles.username })
       .from(profiles)
@@ -26,24 +30,43 @@ export async function GET() {
       defaultCurrency: user.defaultCurrency,
     });
   } catch (error) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const masked = maskErrorForClient(error);
+    return NextResponse.json(masked, { status: masked.statusCode || 401 });
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
     const user = await requireAuth();
+
+    // Rate limiting: 10 profile updates per minute per user
+    assertRateLimit(`profile_update:${user.id}`, { limit: 10, windowMs: 60000 });
+
     const body = await request.json();
     const { name } = body;
 
-    if (!name || name.trim().length === 0) {
+    if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json(
         { error: "Name is required" },
         { status: 400 }
       );
     }
 
-    const trimmedName = name.trim();
+    // Sanitize name: strip HTML tags and control chars, enforce max 100 chars
+    const sanitizedName = name
+      .replace(/<[^>]*>/g, "")
+      .replace(/[\x00-\x1F\x7F]/g, "")
+      .trim()
+      .slice(0, 100);
+
+    if (sanitizedName.length === 0) {
+      return NextResponse.json(
+        { error: "Name cannot be empty" },
+        { status: 400 }
+      );
+    }
+
+    const trimmedName = sanitizedName;
 
     await db
       .update(users)
@@ -82,10 +105,10 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true, name: trimmedName });
   } catch (error) {
-    console.error("Profile update error:", error);
+    const masked = maskErrorForClient(error);
     return NextResponse.json(
-      { error: "Failed to update profile" },
-      { status: 500 }
+      { error: masked.error, correlationId: masked.correlationId },
+      { status: masked.statusCode || 500 }
     );
   }
 }

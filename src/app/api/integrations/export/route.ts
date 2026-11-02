@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { exportReportData } from "@/actions/reports";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { maskErrorForClient } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    await requireAuth();
+    const user = await requireAuth();
+    assertRateLimit(`export:${user.id}`, RATE_LIMITS.exports.reports);
 
     const body = await req.json();
     const { format = "csv", filters = {} } = body;
@@ -25,15 +28,18 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error("Error exporting report data:", error);
-    const status = error.statusCode || 500;
-    return NextResponse.json({ error: error.message || "Failed to export data" }, { status });
+    const masked = maskErrorForClient(error);
+    return NextResponse.json(
+      { error: masked.error, correlationId: masked.correlationId },
+      { status: masked.statusCode || 500 }
+    );
   }
 }
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth();
+    const user = await requireAuth();
+    assertRateLimit(`export:${user.id}`, RATE_LIMITS.exports.reports);
 
     const url = new URL(req.url);
     const format = (url.searchParams.get("format") || "csv") as any;
@@ -61,8 +67,10 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error("Error in export GET handler:", error);
-    const status = error.statusCode || 500;
-    return NextResponse.json({ error: error.message || "Failed to export data" }, { status });
+    const masked = maskErrorForClient(error);
+    return NextResponse.json(
+      { error: masked.error, correlationId: masked.correlationId },
+      { status: masked.statusCode || 500 }
+    );
   }
 }

@@ -11,6 +11,7 @@ import {
   ItemizedSplitAllocation,
 } from "@/lib/types/receipts";
 import { ValidationError } from "@/lib/errors";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 // In-memory invoice hash registry to prevent duplicate uploads in current session
 const knownInvoiceRegistry = new Set<string>();
@@ -74,9 +75,10 @@ export async function scanAndParseReceipt(
   rawText: string,
   groupId?: number
 ): Promise<ParsedReceiptData & { validation: ReceiptValidationAudit }> {
-  await requireAuth();
+  const user = await requireAuth();
+  assertRateLimit(`receipt_scan:${user.id}`, RATE_LIMITS.uploads.receipts);
 
-  const trimmedText = rawText.trim();
+  const trimmedText = (rawText || "").slice(0, 10000).trim();
   const lowerText = trimmedText.toLowerCase();
 
   // 1. Detect GSTIN (15-character Indian GST format: 2 digits + 5 letters + 4 digits + 1 letter + 1 char + Z + 1 char)

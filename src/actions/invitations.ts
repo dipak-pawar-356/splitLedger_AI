@@ -8,10 +8,13 @@ import { revalidatePath } from "next/cache";
 import { ValidationError, NotFoundError, DatabaseError, ConflictError, AuthorizationError } from "@/lib/errors";
 import { generateSecureToken, generateInvitationUrl, generateInvitationId, generateInvitationToken, generateWhatsAppLink, generatePublicId, isDbIntegerId } from "@/lib/utils";
 import { sendEmailNotification, sendEmailWithStatus, getInvitationEmailTemplate, getInvitationWhatsAppMessage, type EmailSendResult } from "@/lib/notifications";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 export async function getOrCreateGroupInviteLink(groupIdOrPublicId: string | number) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`invite:link:${user.id}`, RATE_LIMITS.actions.write);
 
     const strId = String(groupIdOrPublicId).trim();
     const isDbId = isDbIntegerId(groupIdOrPublicId);
@@ -113,6 +116,7 @@ export async function createInvitation(data: {
 }) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`invite:create:${user.id}`, RATE_LIMITS.actions.write);
 
     if (!data.email || data.email.trim().length === 0) {
       throw new ValidationError("Email is required");
@@ -148,7 +152,9 @@ export async function createInvitation(data: {
       throw new AuthorizationError("You must be a member of this group to send invitations");
     }
 
-    const cleanEmail = data.email.trim().toLowerCase();
+    const cleanEmail = sanitizeText(data.email.trim().toLowerCase());
+    const cleanName = data.name ? sanitizeText(data.name.trim()) : null;
+    const cleanPhone = data.phone ? sanitizeText(data.phone.trim()) : null;
 
     // Check if invitation already exists for this email and group
     const [existingInvitation] = await db
@@ -190,8 +196,8 @@ export async function createInvitation(data: {
           groupId: group.id,
           invitedBy: user.id,
           email: cleanEmail,
-          phone: data.phone?.trim() || null,
-          name: data.name?.trim() || null,
+          phone: cleanPhone,
+          name: cleanName,
           token,
           status: "pending",
           expiresAt,
@@ -239,6 +245,7 @@ export async function createInvitation(data: {
 export async function acceptInvitation(token: string) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`invite:accept:${user.id}`, RATE_LIMITS.actions.write);
 
     // Find invitation by token
     const [invitation] = await db
@@ -347,6 +354,7 @@ export async function acceptInvitation(token: string) {
 export async function declineInvitation(token: string) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`invite:decline:${user.id}`, RATE_LIMITS.actions.write);
 
     const [invitation] = await db
       .select()
@@ -379,6 +387,7 @@ export async function declineInvitation(token: string) {
 export async function cancelInvitation(invitationId: number) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`invite:cancel:${user.id}`, RATE_LIMITS.actions.delete);
 
     const [invitation] = await db
       .select()
@@ -416,6 +425,7 @@ export async function cancelInvitation(invitationId: number) {
 export async function resendInvitation(invitationId: number) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`invite:resend:${user.id}`, RATE_LIMITS.actions.write);
 
     const [invitation] = await db
       .select()
@@ -584,6 +594,7 @@ async function mergeGuestContact(contactId: number, userId: number) {
 export async function revokeGroupInviteLink(groupIdOrPublicId: string | number) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`invite:revoke:${user.id}`, RATE_LIMITS.actions.write);
 
     const strId = String(groupIdOrPublicId).trim();
     const isDbId = isDbIntegerId(groupIdOrPublicId);
@@ -641,6 +652,7 @@ export async function revokeGroupInviteLink(groupIdOrPublicId: string | number) 
 export async function generateNewGroupInviteLink(groupIdOrPublicId: string | number) {
   try {
     const user = await requireAuth();
+    await assertRateLimit(`invite:gen:${user.id}`, RATE_LIMITS.actions.write);
 
     const strId = String(groupIdOrPublicId).trim();
     const isDbId = isDbIntegerId(groupIdOrPublicId);

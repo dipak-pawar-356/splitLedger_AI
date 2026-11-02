@@ -19,10 +19,31 @@ if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/splitledger";
 }
 
+const isProd = process.env.NODE_ENV === "production";
+
+const cspHeader = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://challenges.cloudflare.com https://*.clerk.accounts.dev https://clerk.splitledger.ai https://*.clerk.com",
+  "worker-src 'self' blob:",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://img.clerk.com https://*.clerk.com https:",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "connect-src 'self' https://*.clerk.accounts.dev https://clerk.splitledger.ai https://*.clerk.com https://api.clerk.com https://*.neon.tech wss://*.neon.tech https://res.cloudinary.com",
+  "frame-src 'self' https://challenges.cloudflare.com https://*.clerk.accounts.dev https://*.clerk.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
+  productionBrowserSourceMaps: false,
+  compiler: {
+    removeConsole: isProd ? { exclude: ["error"] } : false,
+  },
   transpilePackages: ["date-fns"],
   serverExternalPackages: ["@neondatabase/serverless"],
   images: {
@@ -93,6 +114,22 @@ const nextConfig: NextConfig = {
           {
             key: "Strict-Transport-Security",
             value: "max-age=63072000; includeSubDomains; preload",
+          },
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin",
+          },
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "same-origin",
+          },
+          {
+            key: "Cross-Origin-Embedder-Policy",
+            value: "credentialless",
+          },
+          {
+            key: "Content-Security-Policy",
+            value: cspHeader,
           },
         ],
       },

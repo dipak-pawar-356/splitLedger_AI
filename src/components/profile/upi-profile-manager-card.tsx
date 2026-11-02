@@ -154,10 +154,10 @@ export function UpiProfileManagerCard({
         </div>
       </CardHeader>
 
-      <CardContent className="p-6 space-y-6">
+      <CardContent className="p-4 sm:p-6 space-y-5 sm:space-y-6">
         {/* Missing UPI Notice */}
         {!activeUpi && !isEditing && (
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="space-y-1">
               <p className="text-xs font-bold text-amber-900 dark:text-amber-300">
@@ -184,7 +184,7 @@ export function UpiProfileManagerCard({
                   if (error) setError(null);
                 }}
                 placeholder="e.g. yourname@okhdfcbank or 9876543210@paytm"
-                className="rounded-xl text-xs font-mono bg-background"
+                className="rounded-xl text-base sm:text-xs font-mono bg-background"
                 autoFocus
               />
               {error && (
@@ -210,19 +210,19 @@ export function UpiProfileManagerCard({
                     setUpiInput(`${prefix}${handle}`);
                     if (error) setError(null);
                   }}
-                  className="text-[11px] px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono transition-colors border border-slate-200 dark:border-slate-700"
+                  className="text-[11px] px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono transition-colors border border-slate-200 dark:border-slate-700 touch-press"
                 >
                   {handle}
                 </button>
               ))}
             </div>
 
-            <div className="flex items-center gap-2 pt-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2">
               <Button
                 type="submit"
                 size="sm"
                 disabled={isSaving}
-                className="rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 px-4"
+                className="rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 px-4 h-10 sm:h-9 min-h-[38px] touch-press"
               >
                 {isSaving ? (
                   <>
@@ -247,7 +247,7 @@ export function UpiProfileManagerCard({
                     setIsEditing(false);
                     setError(null);
                   }}
-                  className="rounded-xl text-xs font-medium"
+                  className="rounded-xl text-xs font-medium h-10 sm:h-9 touch-press"
                 >
                   Cancel
                 </Button>

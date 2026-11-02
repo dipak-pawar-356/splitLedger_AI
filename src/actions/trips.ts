@@ -26,6 +26,8 @@ import { DatabaseError, ValidationError } from "@/lib/errors";
 import { generatePublicId, generateTripPublicId, generateEventPublicId } from "@/lib/utils";
 import { ensureEnterpriseSessionData } from "@/actions/enterprise-operations";
 import { createEmptyLogisticsHub } from "@/lib/default-logistics";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 // In-memory persistent session stores per user
 const tripsStore = new Map<string, TripRecord[]>();
@@ -1736,12 +1738,17 @@ export async function createTripWizard(data: {
   };
 }): Promise<TripRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`trip:create:${user.id}`, RATE_LIMITS.actions.write);
   ensureUserStores(user.id, user.name || "User");
   const userKey = `user_${user.id}`;
 
   if (!data.name || data.name.trim().length === 0) {
     throw new ValidationError("Trip name is required.");
   }
+
+  const sanitizedName = sanitizeText(data.name.trim());
+  const sanitizedDest = sanitizeText(data.destination.trim());
+  const sanitizedDesc = data.description ? sanitizeText(data.description) : undefined;
 
   if (data.totalBudget <= 0) {
     throw new ValidationError("Total trip budget must be greater than ₹0.");
@@ -1919,6 +1926,7 @@ export async function addTripExpense(
   }
 ): Promise<TripRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`trip:expense:${user.id}`, RATE_LIMITS.transactions.create);
   ensureUserStores(user.id, user.name || "User");
   const userKey = `user_${user.id}`;
 
@@ -1937,7 +1945,7 @@ export async function addTripExpense(
 
   const newExpense: TripExpense = {
     id: generatePublicId("exp"),
-    title: data.title.trim(),
+    title: sanitizeText(data.title.trim()),
     category: data.category || "Miscellaneous",
     amount: Math.round(data.amount),
     date: data.date || new Date().toISOString().split("T")[0],
@@ -1950,9 +1958,9 @@ export async function addTripExpense(
         ? data.splitBetweenMemberIds
         : trip.members.map((m) => m.id),
     paymentMethod: data.paymentMethod || "UPI",
-    location: data.location?.trim(),
-    notes: data.notes?.trim(),
-    tags: data.tags || [],
+    location: data.location ? sanitizeText(data.location.trim()) : undefined,
+    notes: data.notes ? sanitizeText(data.notes.trim()) : undefined,
+    tags: data.tags ? data.tags.map(t => sanitizeText(t)) : [],
     status: "pending",
     createdAt: new Date().toISOString(),
   };
@@ -1977,6 +1985,7 @@ export async function addTripExpense(
  */
 export async function deleteTripExpense(tripId: string, expenseId: string): Promise<TripRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`trip:expense_del:${user.id}`, RATE_LIMITS.transactions.delete);
   ensureUserStores(user.id, user.name || "User");
   const userKey = `user_${user.id}`;
 
@@ -2400,6 +2409,7 @@ export async function archiveTrip(tripId: string, archive: boolean = true): Prom
  */
 export async function deleteTrip(tripId: string): Promise<boolean> {
   const user = await requireAuth();
+  await assertRateLimit(`trip:delete:${user.id}`, RATE_LIMITS.actions.delete);
   ensureUserStores(user.id, user.name || "User");
   const userKey = `user_${user.id}`;
 
@@ -3136,6 +3146,7 @@ export async function createTrip(data: any): Promise<TripRecord> {
 }
 
 export async function createEvent(data: any) {
+  await requireAuth();
   if (data.budgetAmount !== undefined && data.budgetAmount <= 0) {
     throw new ValidationError("Event budget must be greater than ₹0.");
   }
@@ -3146,6 +3157,7 @@ export async function createEvent(data: any) {
 }
 
 export async function deleteEvent(id: string) {
+  await requireAuth();
   return true;
 }
 

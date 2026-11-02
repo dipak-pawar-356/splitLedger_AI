@@ -45,7 +45,7 @@ export function DashboardFinancialInsights({ insights, className }: FinancialIns
         </div>
       </CardHeader>
 
-      <CardContent className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
+      <CardContent className="p-3.5 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
         <div className="space-y-4">
           {/* Headline */}
           <div className="p-3.5 rounded-2xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/50">

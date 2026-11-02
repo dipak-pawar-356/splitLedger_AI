@@ -2,6 +2,8 @@
 
 import { requireAuth } from "@/lib/auth";
 import { generatePublicId } from "@/lib/utils";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 export interface VaultDocument {
   id: string;
@@ -69,19 +71,20 @@ export async function uploadVaultDocument(data: {
   merchantName: string;
 }): Promise<VaultDocument> {
   const user = await requireAuth();
+  await assertRateLimit(`vault:upload:${user.id}`, RATE_LIMITS.uploads.receipts);
   ensureStores(user.id);
   const userKey = `user_${user.id}`;
 
   const doc: VaultDocument = {
     id: generatePublicId("vlt"),
-    fileName: data.fileName,
-    originalName: data.originalName,
-    fileType: data.fileType,
+    fileName: sanitizeText(data.fileName),
+    originalName: sanitizeText(data.originalName),
+    fileType: sanitizeText(data.fileType),
     fileSize: data.fileSize,
-    docType: data.docType,
-    module: data.module,
+    docType: sanitizeText(data.docType),
+    module: sanitizeText(data.module),
     amount: data.amount,
-    merchantName: data.merchantName,
+    merchantName: sanitizeText(data.merchantName),
     status: "pending",
     currency: "INR",
     createdAt: new Date().toISOString(),
@@ -100,6 +103,7 @@ export async function createInvoice(data: {
   items: Array<{ description: string; quantity: number; unitPrice: number; taxRate: number }>;
 }): Promise<InvoiceRecord> {
   const user = await requireAuth();
+  await assertRateLimit(`invoice:create:${user.id}`, RATE_LIMITS.actions.write);
   ensureStores(user.id);
   const userKey = `user_${user.id}`;
 
@@ -109,8 +113,8 @@ export async function createInvoice(data: {
 
   const invoice: InvoiceRecord = {
     id: generatePublicId("ivc"),
-    customerName: data.customerName,
-    customerGst: data.customerGst,
+    customerName: sanitizeText(data.customerName),
+    customerGst: data.customerGst ? sanitizeText(data.customerGst) : undefined,
     dueDate: data.dueDate,
     subtotal,
     totalTax,

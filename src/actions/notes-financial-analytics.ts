@@ -5,6 +5,8 @@ import { notes } from "@/lib/db/schema/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth";
 import { appCache } from "@/lib/cache";
+import { ValidationError } from "@/lib/errors";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 import {
   extractExpensesFromNote,
   aggregateFinancialNotes,
@@ -67,7 +69,16 @@ export async function analyzeSingleNoteContentAction(
   count: number;
   categories: Array<{ name: string; amount: number; count: number }>;
 }> {
-  await requireAuth();
+  const user = await requireAuth();
+  await assertRateLimit(`notes:analyze:${user.id}`, RATE_LIMITS.ai.assistant);
+
+  if (typeof content !== "string") {
+    throw new ValidationError("Note content must be a valid string.");
+  }
+
+  if (content.length > 50000) {
+    throw new ValidationError("Note content exceeds maximum allowable length of 50,000 characters.");
+  }
 
   const expenses = extractExpensesFromNote(content, new Date(), noteId, noteTitle);
   const summary = getNoteFinancialSummary(expenses, noteTitle);

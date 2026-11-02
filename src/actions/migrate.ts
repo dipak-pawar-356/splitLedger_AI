@@ -3,9 +3,11 @@
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/lib/auth";
 
 export async function runDatabaseMigration() {
   try {
+    await requireAdmin();
     console.log("Starting migration to add missing columns...");
     
     // Step 1: Add missing columns as nullable first
@@ -286,6 +288,7 @@ export async function runDatabaseMigration() {
     return { success: true, message: "Migration completed successfully" };
   } catch (error) {
     console.error("Migration failed:", error);
-    return { success: false, error: String(error) };
+    const isProd = process.env.NODE_ENV === "production";
+    return { success: false, error: isProd ? "Migration failed due to internal error." : String(error) };
   }
 }

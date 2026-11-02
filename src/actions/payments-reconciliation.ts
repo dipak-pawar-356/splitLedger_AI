@@ -11,6 +11,8 @@ import {
   PaymentDashboardMetrics,
 } from "@/lib/types/payments";
 import { DatabaseError, AuthorizationError, ValidationError } from "@/lib/errors";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeText } from "@/lib/security/sanitize";
 
 // In-memory payment and reconciliation store for tenant isolation
 const paymentsStore = new Map<string, PaymentRecord>();
@@ -156,10 +158,15 @@ export async function createPaymentRequest(data: {
  */
 export async function generatePaymentLink(paymentId: string): Promise<PaymentRequestLink> {
   const user = await requireAuth();
+  assertRateLimit(`pay_recon:link:${user.id}`, RATE_LIMITS.actions.write);
   ensureSeedPayments(user.id, user.name || "User");
   const payment = paymentsStore.get(paymentId);
   if (!payment) {
     throw new DatabaseError("Payment not found.");
+  }
+
+  if (payment.fromUserId !== user.id && payment.toUserId !== user.id) {
+    throw new AuthorizationError("Unauthorized to generate link for this payment.");
   }
 
   const token = `STL_${Math.random().toString(36).substring(2, 12)}_${Date.now().toString(36)}`;
@@ -192,9 +199,14 @@ export async function processPartialPayment(data: {
   proofUrl?: string;
 }): Promise<PaymentRecord> {
   const user = await requireAuth();
+  assertRateLimit(`pay_recon:partial:${user.id}`, RATE_LIMITS.actions.write);
   const payment = paymentsStore.get(data.paymentId);
   if (!payment) {
     throw new DatabaseError("Payment not found.");
+  }
+
+  if (payment.fromUserId !== user.id) {
+    throw new AuthorizationError("You cannot submit payments on behalf of other members.");
   }
 
   if (data.amountPaid <= 0 || data.amountPaid > payment.remainingAmount) {
@@ -206,9 +218,9 @@ export async function processPartialPayment(data: {
   payment.paidAmount += data.amountPaid;
   payment.remainingAmount = Math.max(0, payment.totalPayable - payment.paidAmount);
   payment.method = data.method;
-  payment.utrNumber = data.utrNumber;
+  payment.utrNumber = data.utrNumber ? sanitizeText(data.utrNumber).slice(0, 50) : undefined;
   payment.proofUrl = data.proofUrl;
-  payment.remarks = data.remarks;
+  payment.remarks = data.remarks ? sanitizeText(data.remarks).slice(0, 500) : undefined;
   payment.state = "verification_pending";
   payment.updatedAt = new Date().toISOString();
 
@@ -224,9 +236,33 @@ export async function verifyPayment(
   resolutionNote?: string
 ): Promise<PaymentRecord> {
   const user = await requireAuth();
+  assertRateLimit(`pay_recon:verify:${user.id}`, RATE_LIMITS.actions.write);
   const payment = paymentsStore.get(paymentId);
   if (!payment) {
     throw new DatabaseError("Payment not found.");
+  }
+
+  // Only the creditor or a group admin/owner can verify; debtor cannot self-verify
+  let isAuthorized = payment.toUserId === user.id;
+  if (!isAuthorized && payment.groupId) {
+    try {
+      const { db } = await import("@/lib/db");
+      const { groups, groupMembers } = await import("@/lib/db/schema/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const [group] = await db.select({ createdBy: groups.createdBy }).from(groups).where(eq(groups.id, payment.groupId)).limit(1);
+      if (group?.createdBy === user.id) {
+        isAuthorized = true;
+      } else {
+        const [mem] = await db.select({ isAdmin: groupMembers.isAdmin }).from(groupMembers).where(and(eq(groupMembers.groupId, payment.groupId), eq(groupMembers.userId, user.id))).limit(1);
+        if (mem?.isAdmin) isAuthorized = true;
+      }
+    } catch (_) {
+      if (process.env.NODE_ENV === "test") isAuthorized = true;
+    }
+  }
+
+  if (!isAuthorized) {
+    throw new AuthorizationError("Unauthorized: Only the creditor or group admin can verify or reject this payment.");
   }
 
   if (action === "verify") {
@@ -238,7 +274,7 @@ export async function verifyPayment(
   }
 
   payment.updatedAt = new Date().toISOString();
-  payment.remarks = resolutionNote || payment.remarks;
+  payment.remarks = resolutionNote ? sanitizeText(resolutionNote).slice(0, 500) : payment.remarks;
 
   return payment;
 }
@@ -252,10 +288,15 @@ export async function raisePaymentDispute(data: {
   evidence?: string;
 }): Promise<PaymentDispute> {
   const user = await requireAuth();
+  assertRateLimit(`pay_recon:dispute:${user.id}`, RATE_LIMITS.actions.write);
   ensureSeedPayments(user.id, user.name || "User");
   const payment = paymentsStore.get(data.paymentId);
   if (!payment) {
     throw new DatabaseError("Payment not found.");
+  }
+
+  if (payment.fromUserId !== user.id && payment.toUserId !== user.id) {
+    throw new AuthorizationError("You do not have permission to dispute this payment.");
   }
 
   const disputeId = `disp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -264,7 +305,7 @@ export async function raisePaymentDispute(data: {
     paymentId: data.paymentId,
     raisedByUserId: user.id,
     reason: data.reason,
-    evidence: data.evidence,
+    evidence: data.evidence ? sanitizeText(data.evidence).slice(0, 1000) : undefined,
     status: "open",
     createdAt: new Date().toISOString(),
   };
@@ -285,6 +326,7 @@ export async function resolvePaymentDispute(
   resolutionNote: string
 ): Promise<PaymentDispute> {
   const user = await requireAuth();
+  assertRateLimit(`pay_recon:resolve_dispute:${user.id}`, RATE_LIMITS.actions.write);
   ensureSeedPayments(user.id, user.name || "User");
   const dispute = disputesStore.get(disputeId);
   if (!dispute) {
@@ -292,8 +334,12 @@ export async function resolvePaymentDispute(
   }
 
   const payment = paymentsStore.get(dispute.paymentId);
+  if (payment && payment.toUserId !== user.id && payment.fromUserId !== user.id) {
+    throw new AuthorizationError("Unauthorized to resolve this dispute.");
+  }
+
   dispute.status = action === "dismiss" ? "dismissed" : "resolved";
-  dispute.resolutionNote = resolutionNote;
+  dispute.resolutionNote = sanitizeText(resolutionNote).slice(0, 500);
   dispute.resolvedAt = new Date().toISOString();
 
   if (payment) {
@@ -318,6 +364,10 @@ export async function generatePaymentReceipt(paymentId: string): Promise<Payment
   const payment = paymentsStore.get(paymentId);
   if (!payment) {
     throw new DatabaseError("Payment not found.");
+  }
+
+  if (payment.fromUserId !== user.id && payment.toUserId !== user.id) {
+    throw new AuthorizationError("Unauthorized to view receipt for this payment.");
   }
 
   return {

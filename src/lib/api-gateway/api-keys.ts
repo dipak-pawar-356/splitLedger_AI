@@ -1,6 +1,7 @@
 /**
  * Enterprise API Gateway, API Key Management & Scope Authorization Engine
  */
+import crypto from "crypto";
 
 export type ApiScope =
   | "transactions:read"
@@ -32,12 +33,7 @@ export interface ApiKeyRecord {
 const apiKeysStore = new Map<string, ApiKeyRecord>();
 
 function hashKey(secretKey: string): string {
-  let hash = 0;
-  for (let i = 0; i < secretKey.length; i++) {
-    hash = (hash << 5) - hash + secretKey.charCodeAt(i);
-    hash |= 0;
-  }
-  return `hash_${Math.abs(hash).toString(16).padStart(16, "0")}`;
+  return crypto.createHash("sha256").update(secretKey).digest("hex");
 }
 
 /**
@@ -49,10 +45,8 @@ export function generateApiKey(
   scopes: ApiScope[] = ["transactions:read", "groups:read"],
   rateLimitPerMinute: number = 1000
 ): { keyRecord: ApiKeyRecord; secretKey: string } {
-  const id = `key_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const randomEntropy = Array.from({ length: 24 }, () =>
-    Math.floor(Math.random() * 36).toString(36)
-  ).join("");
+  const id = `key_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  const randomEntropy = crypto.randomBytes(24).toString("base64url").replace(/[^a-zA-Z0-9]/g, "").slice(0, 32);
 
   const secretKey = `sk_live_${randomEntropy}`;
   const keyPrefix = secretKey.slice(0, 14);
@@ -116,9 +110,13 @@ export function validateApiKeyAndScope(
 }
 
 /**
- * Seed initial test API key for developer tests
+ * Seed initial test API key for developer tests (disabled in production)
  */
 export function seedDeveloperApiKey(ownerId: number = 1): string {
+  if (process.env.NODE_ENV === "production") {
+    return "";
+  }
+
   const existingKey = Array.from(apiKeysStore.values()).find((k) => k.ownerId === ownerId);
   if (existingKey) {
     return "sk_live_dev_test_key_sample_123456";

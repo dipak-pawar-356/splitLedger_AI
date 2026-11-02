@@ -194,7 +194,7 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="type">Type *</Label>
               <Controller
@@ -253,7 +253,7 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
                     setValue("categoryName", preset.category);
                     setValue("description", preset.desc);
                   }}
-                  className={`px-2.5 py-1 text-xs rounded-lg border transition-all font-medium ${
+                  className={`px-2.5 py-1 text-xs rounded-lg border transition-all font-medium touch-press ${
                     currentCat === preset.category
                       ? "bg-primary text-primary-foreground border-primary shadow-xs"
                       : "bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/80 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
@@ -265,7 +265,7 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="currency">Currency *</Label>
               <Controller
@@ -336,7 +336,7 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div className="space-y-2">
               <Label htmlFor="paymentMethod">Payment Method</Label>
               <Controller
@@ -450,16 +450,21 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
             )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isLoading}
+              className="w-full sm:w-auto rounded-xl touch-press"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full sm:w-auto rounded-xl touch-press"
+            >
               {isLoading ? "Creating..." : "Create Transaction"}
             </Button>
           </div>

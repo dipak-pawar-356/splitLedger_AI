@@ -1,0 +1,85 @@
+name: SplitLedger AI DevSecOps & Security Pipeline
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+  schedule:
+    # Run automated vulnerability scanning every Monday at 04:00 UTC
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  secret-scan:
+    name: Secret & Credential Leak Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect Hardcoded Secrets & Tokens (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch || 'main' }}
+          head: HEAD
+          extra_args: --only-verified
+
+  dependency-audit:
+    name: Supply Chain & Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Validate Package Lockfile Integrity
+        run: npm ci --ignore-scripts
+
+      - name: Audit Production Dependencies for Known CVEs
+        run: npm audit --audit-level=high --omit=dev
+        continue-on-error: true
+
+  static-analysis:
+    name: Static Application Security Testing (SAST)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: TypeScript Security Typecheck
+        run: npx tsc --noEmit
+
+      - name: Run Security & RBAC Test Suite
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/splitledger
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+          CLERK_SECRET_KEY: sk_test_sample_ci_secret_key
+          NODE_ENV: test
+        run: npx vitest run src/lib/security/__tests__/ src/lib/__tests__/security-hardening.test.ts
+

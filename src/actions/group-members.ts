@@ -47,6 +47,24 @@ export async function addGroupMember(data: {
       throw new ValidationError("Either userId or contactId must be provided");
     }
 
+    if (data.contactId) {
+      const [contactCheck] = await db
+        .select({ id: contacts.id })
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.id, data.contactId),
+            eq(contacts.userId, user.id),
+            eq(contacts.isDeleted, false)
+          )
+        )
+        .limit(1);
+
+      if (!contactCheck) {
+        throw new AuthorizationError("Contact not found or does not belong to you.");
+      }
+    }
+
     // Verify caller is admin/owner of the group
     if (group.createdBy !== user.id) {
       const [callerMembership] = await db
@@ -325,6 +343,24 @@ export async function updateMemberRole(memberId: number, groupIdOrPublicId: numb
       }
     }
 
+    const [targetMember] = await db
+      .select({ id: groupMembers.id, userId: groupMembers.userId })
+      .from(groupMembers)
+      .where(and(eq(groupMembers.id, memberId), eq(groupMembers.groupId, group.id)))
+      .limit(1);
+
+    if (!targetMember) {
+      throw new NotFoundError("Group member");
+    }
+
+    if (targetMember.userId === group.createdBy) {
+      throw new ValidationError("Cannot modify group owner role");
+    }
+
+    if (targetMember.userId === user.id && !isAdmin) {
+      throw new ValidationError("Administrators cannot revoke their own admin permissions");
+    }
+
     const [updated] = await db
       .update(groupMembers)
       .set({ isAdmin })
@@ -334,6 +370,24 @@ export async function updateMemberRole(memberId: number, groupIdOrPublicId: numb
     if (!updated) {
       throw new NotFoundError("Group member");
     }
+
+    // Record audit log for permission change
+    try {
+      await db.insert(auditLogs).values({
+        publicId: generatePublicId("aud"),
+        userId: user.id,
+        action: "member_role_updated",
+        entityType: "group_member",
+        entityId: memberId,
+        changes: {
+          groupId: group.id,
+          targetUserId: targetMember.userId,
+          isAdmin,
+        },
+        status: "success",
+        reason: isAdmin ? "Promoted to Group Admin" : "Demoted from Group Admin",
+      });
+    } catch (_) {}
 
     try {
       await revalidateGroupHierarchy(group.id);

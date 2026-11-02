@@ -23,28 +23,37 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-  // Allow internal Next.js Server Action forwarding without middleware re-interception
-  if (request.headers.get("x-action-forwarded") === "1") {
-    return;
-  }
-
   const authObj = await auth();
 
-  const isRealClerkConfig = 
-    Boolean(process.env.CLERK_SECRET_KEY) && 
+  const isRealClerkConfig =
+    Boolean(process.env.CLERK_SECRET_KEY) &&
     !process.env.CLERK_SECRET_KEY?.includes("sample_ci") &&
     !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.includes("ZXhhbXBsZQ");
 
-  if (!isPublicRoute(request) && isRealClerkConfig) {
-    authObj.protect();
+  if (!isPublicRoute(request)) {
+    if (isRealClerkConfig) {
+      authObj.protect();
+    } else if (process.env.NODE_ENV === "production") {
+      const nativeToken = request.cookies.get("sl_access_token")?.value;
+      if (!authObj?.userId && !nativeToken) {
+        const signInUrl = new URL("/sign-in", request.url);
+        signInUrl.searchParams.set("redirect_url", request.nextUrl.pathname);
+        return NextResponse.redirect(signInUrl);
+      }
+    }
   }
 
+  // Sanitize incoming headers to prevent client-side header spoofing
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("x-clerk-user-id");
+  requestHeaders.delete("x-sl-access-token");
+
+  // Only set authenticated userId from verified server-side authObj
   if (authObj?.userId) {
     requestHeaders.set("x-clerk-user-id", authObj.userId);
   }
 
-  // Forward native SplitLedger access token if present
+  // Forward native SplitLedger access token ONLY from secure httpOnly cookie
   const nativeToken = request.cookies.get("sl_access_token")?.value;
   if (nativeToken) {
     requestHeaders.set("x-sl-access-token", nativeToken);
@@ -56,11 +65,24 @@ export default clerkMiddleware(async (auth, request) => {
     },
   });
 
-  // Inject security headers on responses
+  // Inject production-grade security headers
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-XSS-Protection", "1; mode=block");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  response.headers.set("Cross-Origin-Embedder-Policy", "credentialless");
+  response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+
+  // Prevent caching of sensitive financial views and authenticated API payloads
+  const pathname = request.nextUrl.pathname;
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/api")) {
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("Expires", "0");
+  }
 
   return response;
 });

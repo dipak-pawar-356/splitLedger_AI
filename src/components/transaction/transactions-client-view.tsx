@@ -145,15 +145,15 @@ export function TransactionsClientView({
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
-          <TabsList className="rounded-xl p-1 bg-slate-100 dark:bg-slate-800">
-            <TabsTrigger value="active" className="rounded-lg text-xs font-semibold px-4 gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-2">
+          <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:flex rounded-xl p-1 bg-slate-100 dark:bg-slate-800">
+            <TabsTrigger value="active" className="rounded-lg text-xs font-semibold px-3 sm:px-4 gap-1.5 sm:gap-2">
               <span>Active Transactions</span>
               <Badge variant="secondary" className="rounded-full text-[10px] px-1.5 py-0 h-4 font-mono">
                 {activeTransactions.length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="deleted" className="rounded-lg text-xs font-semibold px-4 gap-2">
+            <TabsTrigger value="deleted" className="rounded-lg text-xs font-semibold px-3 sm:px-4 gap-1.5 sm:gap-2">
               <span>Deleted / Trash</span>
               {deletedTransactions.length > 0 && (
                 <Badge variant="destructive" className="rounded-full text-[10px] px-1.5 py-0 h-4 font-mono">
@@ -164,7 +164,7 @@ export function TransactionsClientView({
           </TabsList>
 
           {/* Search & Type Filters */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
             <div className="relative min-w-0 flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input
@@ -172,7 +172,7 @@ export function TransactionsClientView({
                 placeholder="Search transactions..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 text-xs rounded-xl w-full"
+                className="pl-9 h-10 sm:h-9 text-base sm:text-xs rounded-xl w-full"
               />
             </div>
 
@@ -181,7 +181,7 @@ export function TransactionsClientView({
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value)}
-                  className="h-9 px-3 text-xs rounded-xl border border-input bg-background font-medium w-full sm:w-auto"
+                  className="h-10 sm:h-9 px-3 text-xs rounded-xl border border-input bg-background font-medium w-full sm:w-auto touch-press cursor-pointer"
                 >
                   <option value="all">All Types</option>
                   <option value="paid">Paid</option>
@@ -195,7 +195,7 @@ export function TransactionsClientView({
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-9 px-3 text-xs rounded-xl border border-input bg-background font-medium w-full sm:w-auto"
+                  className="h-10 sm:h-9 px-3 text-xs rounded-xl border border-input bg-background font-medium w-full sm:w-auto touch-press cursor-pointer"
                 >
                   <option value="all">All Statuses</option>
                   <option value="completed">Completed</option>
@@ -270,7 +270,7 @@ export function TransactionsClientView({
 
                     <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                       <div className="text-right shrink-0">
-                        <p className={`font-bold text-xs sm:text-base ${
+                        <p className={`font-bold text-xs sm:text-base whitespace-nowrap tracking-tight ${
                           isPositive 
                             ? "text-emerald-600 dark:text-emerald-400" 
                             : "text-rose-600 dark:text-rose-400"
@@ -336,7 +336,7 @@ export function TransactionsClientView({
                       <div className="flex sm:hidden items-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-slate-400 hover:text-slate-700">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-slate-700 touch-press">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>

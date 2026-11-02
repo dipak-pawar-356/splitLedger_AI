@@ -17,6 +17,9 @@ import {
   detectTransactionTrigger,
   ProposedTransaction,
 } from "@/lib/ai/nlp-transaction-parser";
+import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { sanitizeAndScanPrompt } from "@/lib/security/prompt-guard";
+import { recordAuditLog } from "@/lib/audit";
 
 function safeRevalidate(path: string) {
   try {
@@ -117,6 +120,7 @@ export async function approveConversationalTransaction(
   proposal: ProposedTransaction
 ): Promise<{ success: boolean; transactionId: number; publicId: string; message: string }> {
   const user = await requireAuth();
+  assertRateLimit(`ai:approve:${user.id}`, RATE_LIMITS.transactions.create);
 
   if (!proposal.amount || proposal.amount <= 0) {
     throw new ValidationError("Transaction amount must be greater than ₹0.");
@@ -134,6 +138,22 @@ export async function approveConversationalTransaction(
     groupId: proposal.groupId || undefined,
     paymentMethod: proposal.paymentMethod || "UPI",
     notes: proposal.notes || "Approved via SplitLedger Conversational AI Assistant",
+  });
+
+  // Record structured audit log for AI transaction approval
+  await recordAuditLog({
+    userId: user.id,
+    action: "ai_transaction_approved",
+    entityType: "transaction",
+    entityId: tx.id,
+    entityPublicId: tx.publicId,
+    changes: {
+      title: proposal.title,
+      amount: proposal.amount,
+      type: proposal.type || "paid",
+      source: "conversational_ai",
+    },
+    reason: "Approved via SplitLedger Conversational AI Assistant",
   });
 
   safeRevalidate("/dashboard");
@@ -156,6 +176,13 @@ export async function approveBatchConversationalTransactions(
   proposals: ProposedTransaction[]
 ): Promise<{ success: boolean; count: number; results: Array<{ id: number; publicId: string; title: string; amount: number }> }> {
   await requireAuth();
+
+  if (!Array.isArray(proposals) || proposals.length === 0) {
+    throw new ValidationError("Proposals array is required");
+  }
+  if (proposals.length > 50) {
+    throw new ValidationError("Cannot batch approve more than 50 transactions at once.");
+  }
 
   const results: Array<{ id: number; publicId: string; title: string; amount: number }> = [];
 
@@ -187,14 +214,24 @@ export async function askFinancialAssistant(
   pendingDrafts?: ProposedTransaction[]
 ): Promise<AIAssistantResponse> {
   try {
-    let user;
-    try {
-      user = await requireAuth();
-    } catch {
-      user = { id: 1, name: "Member", email: "user@splitledger.app", defaultCurrency: "INR" };
+    const user = await requireAuth();
+    assertRateLimit(`ai:${user.id}`, RATE_LIMITS.ai.assistant, "AI Assistant rate limit reached. Please wait a moment.");
+
+    // Anti-Prompt-Injection & Delimiter Sanitization
+    const scan = sanitizeAndScanPrompt(question);
+    if (!scan.isSafe) {
+      return {
+        answer: scan.sanitizedText,
+        insights: ["Security alert: Prompt injection or instruction override blocked."],
+        keyMetrics: [],
+        actionSuggestions: [{ label: "View Ledger", url: "/dashboard/transactions" }],
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
     }
+
+    const safeQuestion = scan.sanitizedText;
     const ctx = await getFinancialKnowledgeContext(user.id);
-    const qLower = question.toLowerCase().trim();
+    const qLower = safeQuestion.toLowerCase().trim();
     const now = new Date();
 
     const allTx = ctx.transactions?.all || [];
