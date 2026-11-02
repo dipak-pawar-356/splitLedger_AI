@@ -31,6 +31,8 @@ import {
   Mic,
 } from "lucide-react";
 import { SplitLedgerAiIcon } from "@/components/ai/split-ledger-ai-icon";
+import { FinancialIntelligenceControlCenter } from "@/components/ai/financial-intelligence-control-center";
+import { FinancialForecastingEnterpriseView } from "@/components/ai/financial-forecasting-enterprise-view";
 import { FinancialHealthScoreCard } from "@/components/ai/financial-health-score-card";
 import { AIInsightsFeed } from "@/components/ai/ai-insights-feed";
 import { SmartRecommendationsView } from "@/components/ai/smart-recommendations-view";
@@ -74,9 +76,9 @@ export function FinancialIntelligenceClientView({
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
   const subSubjects = [
-    { id: "assistant", label: "Financial Intelligence", icon: SplitLedgerAiIcon, color: "text-primary" },
+    { id: "assistant", label: "AI Financial Assistant", icon: SplitLedgerAiIcon, color: "text-primary" },
+    { id: "insights", label: "Financial Intelligence", icon: ShieldCheck, color: "text-amber-500" },
     { id: "voice-automation", label: "Voice & Automation", icon: Mic, color: "text-indigo-500" },
-    { id: "insights", label: "Health & Business Intel", icon: ShieldCheck, color: "text-amber-500" },
     { id: "subscriptions", label: "Subscriptions", icon: Repeat, color: "text-purple-500" },
     {
       id: "budgets",
@@ -337,7 +339,7 @@ export function FinancialIntelligenceClientView({
             </motion.div>
           )}
 
-          {/* TAB 3: Financial Health Score & Business Intelligence */}
+          {/* TAB 3: Financial Intelligence Real-Time Control Center */}
           {activeTab === "insights" && (
             <motion.div
               key="insights"
@@ -348,16 +350,12 @@ export function FinancialIntelligenceClientView({
               {...tabMotionProps}
               className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
-              <FinancialHealthScoreCard healthScore={data.healthScore} />
-              <BusinessIntelligenceCard intelligence={data} />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AIInsightsFeed insights={data.aiInsights} />
-                <SmartRecommendationsView
-                  recommendations={data.recommendations}
-                  onOpenBudgetDialog={handleCreateBudget}
-                  onEditBudget={handleEditBudget}
-                />
-              </div>
+              <FinancialIntelligenceControlCenter
+                data={data}
+                onOpenBudgetDialog={handleCreateBudget}
+                onRefresh={handleRefresh}
+                isRefreshing={isRefreshing}
+              />
             </motion.div>
           )}
 
@@ -407,13 +405,9 @@ export function FinancialIntelligenceClientView({
               {...tabMotionProps}
               className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
-              <FinancialForecastingCard
-                forecasts={data.forecasts}
-                cashFlow={data.cashFlow}
-              />
-              <AIFinancialCharts
-                cashFlow={data.cashFlow}
-                categoryBreakdown={data.categoryBreakdown}
+              <FinancialForecastingEnterpriseView
+                data={data}
+                onOpenBudgetDialog={handleCreateBudget}
               />
             </motion.div>
           )}

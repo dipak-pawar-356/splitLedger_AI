@@ -98,9 +98,79 @@ export interface FinancialForecast {
   predictedIncome: number; // in rupees
   predictedExpense: number; // in rupees
   predictedSavings: number; // in rupees
-  confidencePct: number;
+  confidencePct?: number;
   projectedBudgetUsagePct: number;
   expectedSettlementLoad: number; // in rupees
+  basis?: string;
+}
+
+export interface FinancialControlCenterMetrics {
+  totalIncome: number;
+  totalExpense: number;
+  netCashFlow: number;
+  savings: number;
+  savingsRate: number;
+  receivable: number;
+  payable: number;
+  largestExpense: { title: string; amount: number; date: Date | string; categoryName: string } | null;
+  largestIncome: { title: string; amount: number; date: Date | string; categoryName: string } | null;
+  mostUsedCategory: { name: string; count: number; amount: number; percentage: number } | null;
+  highestSpendingDay: { date: string; day: string; amount: number } | null;
+  highestIncomeDay: { date: string; day: string; amount: number } | null;
+  averageDailySpending: number;
+  averageDailyIncome: number;
+  transactionCount: number;
+  budgetRemaining: number;
+  pendingSettlementsCount: number;
+  pendingSettlementsAmount: number;
+  overdueReceivables: number;
+  recentActivity: Array<{
+    id: number;
+    title: string;
+    amount: number;
+    type: string;
+    date: Date | string;
+    categoryName: string;
+  }>;
+  monthlyComparison: {
+    currentMonthExpense: number;
+    lastMonthExpense: number;
+    diffExpense: number;
+    percentChangeExpense: number | null;
+    currentMonthIncome: number;
+    lastMonthIncome: number;
+    diffIncome: number;
+    percentChangeIncome: number | null;
+  };
+  categoryDistribution: Array<{
+    name: string;
+    amount: number;
+    percentage: number;
+    count: number;
+  }>;
+  dailySpendingHistory: Array<{
+    date: string;
+    amount: number;
+    count: number;
+  }>;
+  runningBalanceHistory: Array<{
+    date: string;
+    balance: number;
+    income: number;
+    expense: number;
+  }>;
+  categoryGrowth: {
+    largestGrowingCategory: { name: string; diff: number; percentage: number } | null;
+    largestDecliningCategory: { name: string; diff: number; percentage: number } | null;
+    topCategory: { name: string; amount: number; percentage: number } | null;
+    monthlyGrowthPct: number | null;
+  };
+  recurringSummary: {
+    recurringExpenseTotal: number;
+    recurringIncomeTotal: number;
+    count: number;
+  };
+  hasVerifiedData: boolean;
 }
 
 export interface CashFlowAnalysis {
@@ -115,6 +185,7 @@ export interface CashFlowAnalysis {
 }
 
 export interface FinancialIntelligenceData {
+  controlCenter: FinancialControlCenterMetrics;
   healthScore: FinancialHealthScore;
   aiInsights: AIInsight[];
   recommendations: SmartRecommendation[];
@@ -166,6 +237,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       userProfileRaw,
       activeGroupsRaw,
       owingContactsRaw,
+      recentTransactionsRaw,
     ] = await Promise.all([
       getBudgetsWithProgress(),
 
@@ -196,10 +268,12 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       db
         .select({
           id: transactions.id,
+          title: transactions.title,
           amount: transactions.amount,
           type: transactions.type,
           categoryId: transactions.categoryId,
           categoryName: categories.name,
+          date: transactions.date,
         })
         .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
@@ -313,6 +387,30 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
             sql`${contacts.openingBalance} > 0`
           )
         ),
+
+      // Recent transactions (last 30) for verified recent activity feed & recurring check
+      db
+        .select({
+          id: transactions.id,
+          title: transactions.title,
+          amount: transactions.amount,
+          type: transactions.type,
+          categoryId: transactions.categoryId,
+          categoryName: categories.name,
+          date: transactions.date,
+          isRecurring: transactions.isRecurring,
+        })
+        .from(transactions)
+        .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        .where(
+          and(
+            eq(transactions.isDeleted, false),
+            eq(transactions.userId, user.id),
+            or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
+          )
+        )
+        .orderBy(desc(transactions.date))
+        .limit(30),
     ]);
 
     // Current Month Metrics
@@ -481,8 +579,72 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
             date: now,
           });
         }
+      } else if (prevAmt > 0 && currentAmt < prevAmt) {
+        const reduction = Math.round(((prevAmt - currentAmt) / prevAmt) * 100);
+        if (reduction >= 15) {
+          aiInsights.push({
+            id: `insight-cat-reduce-${cat}`,
+            type: "category_surge",
+            severity: "positive",
+            title: `${cat} Expense Reduction`,
+            description: `${cat} spending reduced by ${reduction}% (saved ₹${(prevAmt - currentAmt).toFixed(2)} compared to last month).`,
+            metricValue: `-${reduction}%`,
+            date: now,
+          });
+        }
       }
     });
+
+    if (lastMonthExpenses > 0 && currentMonthExpenses > 0) {
+      const diff = Math.round(currentMonthExpenses - lastMonthExpenses);
+      if (diff > 0) {
+        aiInsights.push({
+          id: "insight-month-diff",
+          type: "category_surge",
+          severity: "warning",
+          title: "Monthly Outflow Variance",
+          description: `You spent ₹${diff.toLocaleString("en-IN")} more overall compared to last month.`,
+          metricValue: `+₹${diff.toLocaleString("en-IN")}`,
+          date: now,
+        });
+      } else if (diff < 0) {
+        aiInsights.push({
+          id: "insight-month-diff",
+          type: "savings_alert",
+          severity: "positive",
+          title: "Monthly Expense Savings",
+          description: `You spent ₹${Math.abs(diff).toLocaleString("en-IN")} less overall compared to last month.`,
+          metricValue: `-₹${Math.abs(diff).toLocaleString("en-IN")}`,
+          date: now,
+        });
+      }
+    }
+
+    const salaryTx = currentMonthTransactionsRaw.find((t) => (t.type === "received" || t.type === "lent" || t.type === "repaid") && (t.title?.toLowerCase().includes("salary") || t.categoryName?.toLowerCase().includes("salary")));
+    if (salaryTx) {
+      aiInsights.push({
+        id: "insight-salary-received",
+        type: "milestone",
+        severity: "positive",
+        title: "Salary Inflow Confirmed",
+        description: `You received ₹${(salaryTx.amount / 100).toLocaleString("en-IN")} in verified salary income.`,
+        metricValue: `+₹${(salaryTx.amount / 100).toLocaleString("en-IN")}`,
+        date: now,
+      });
+    }
+
+    if (completedSettlements.length > 0) {
+      const settledSum = completedSettlements.reduce((s, x) => s + x.amount / 100, 0);
+      aiInsights.push({
+        id: "insight-settlements-completed",
+        type: "milestone",
+        severity: "positive",
+        title: "Settlements Reconciled",
+        description: `You settled ₹${Math.round(settledSum).toLocaleString("en-IN")} across ${completedSettlements.length} verified transactions.`,
+        metricValue: `₹${Math.round(settledSum).toLocaleString("en-IN")}`,
+        date: now,
+      });
+    }
 
     if (savingsRate > 25) {
       aiInsights.push({
@@ -662,7 +824,25 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     }
 
     // ----------------------------------------------------
-    // SECTION 7: Forecasting Model (1M, 1Q, 6M, 1Y)
+    // SECTION 7: Cash Flow Analysis & Historical Flows
+    // ----------------------------------------------------
+    const monthlyFlowMap = new Map<string, { inflow: number; outflow: number }>();
+    sixMonthTransactionsRaw.forEach((row) => {
+      const entry = monthlyFlowMap.get(row.month) || { inflow: 0, outflow: 0 };
+      entry.inflow += Number(row.income) / 100;
+      entry.outflow += Number(row.expense) / 100;
+      monthlyFlowMap.set(row.month, entry);
+    });
+
+    const monthlyFlows = Array.from(monthlyFlowMap.entries()).map(([month, flow]) => ({
+      month,
+      inflow: flow.inflow,
+      outflow: flow.outflow,
+      net: flow.inflow - flow.outflow,
+    }));
+
+    // ----------------------------------------------------
+    // SECTION 8: Forecasting Model (1M, 1Q, 6M, 1Y)
     // ----------------------------------------------------
     const avgMonthlyExp = sixMonthTransactionsRaw.length > 0
       ? sixMonthTransactionsRaw.reduce((sum, m) => sum + Number(m.expense) / 100, 0) / Math.max(1, new Set(sixMonthTransactionsRaw.map(m => m.month)).size)
@@ -683,9 +863,9 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         predictedIncome: projInc,
         predictedExpense: projExp,
         predictedSavings: projInc - projExp,
-        confidencePct: 92,
         projectedBudgetUsagePct: projExp > 0 ? Math.min(100, Math.round((projExp / Math.max(1, totalBudgetAllocated || projExp)) * 100)) : 0,
         expectedSettlementLoad: Math.round(pendingPayables),
+        basis: `Based on verified monthly trajectory of ₹${projExp.toLocaleString("en-IN")}/mo outflow across ${monthlyFlows.length || 1} active cycle(s).`,
       },
       {
         period: "1q",
@@ -693,9 +873,9 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         predictedIncome: projInc * 3,
         predictedExpense: projExp * 3,
         predictedSavings: (projInc - projExp) * 3,
-        confidencePct: 86,
         projectedBudgetUsagePct: projExp > 0 ? Math.min(100, Math.round((projExp / Math.max(1, totalBudgetAllocated || projExp)) * 100)) : 0,
         expectedSettlementLoad: Math.round(pendingPayables * 1.5),
+        basis: `Extrapolated 3-month run-rate for planned quarterly liquidity planning.`,
       },
       {
         period: "6m",
@@ -703,9 +883,9 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         predictedIncome: projInc * 6,
         predictedExpense: projExp * 6,
         predictedSavings: (projInc - projExp) * 6,
-        confidencePct: 80,
         projectedBudgetUsagePct: projExp > 0 ? Math.min(100, Math.round((projExp / Math.max(1, totalBudgetAllocated || projExp)) * 100)) : 0,
         expectedSettlementLoad: Math.round(pendingPayables * 2),
+        basis: `Mid-year financial trajectory assuming constant verified burn velocity.`,
       },
       {
         period: "1y",
@@ -713,29 +893,11 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
         predictedIncome: projInc * 12,
         predictedExpense: projExp * 12,
         predictedSavings: (projInc - projExp) * 12,
-        confidencePct: 74,
         projectedBudgetUsagePct: projExp > 0 ? Math.min(100, Math.round((projExp / Math.max(1, totalBudgetAllocated || projExp)) * 100)) : 0,
         expectedSettlementLoad: Math.round(pendingPayables * 3),
+        basis: `Annualized runway projection strictly derived from historical averages.`,
       },
     ];
-
-    // ----------------------------------------------------
-    // SECTION 8: Cash Flow Analysis
-    // ----------------------------------------------------
-    const monthlyFlowMap = new Map<string, { inflow: number; outflow: number }>();
-    sixMonthTransactionsRaw.forEach((row) => {
-      const entry = monthlyFlowMap.get(row.month) || { inflow: 0, outflow: 0 };
-      entry.inflow += Number(row.income) / 100;
-      entry.outflow += Number(row.expense) / 100;
-      monthlyFlowMap.set(row.month, entry);
-    });
-
-    const monthlyFlows = Array.from(monthlyFlowMap.entries()).map(([month, flow]) => ({
-      month,
-      inflow: flow.inflow,
-      outflow: flow.outflow,
-      net: flow.inflow - flow.outflow,
-    }));
 
     // Largest inflow & outflow from live transactions
     const sortedInflows = currentMonthTransactionsRaw
@@ -789,6 +951,204 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
       }))
       .sort((a, b) => b.amount - a.amount);
 
+    // ----------------------------------------------------
+    // SECTION 15: Financial Intelligence Control Center (Verified Metrics)
+    // ----------------------------------------------------
+    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const dailyOutflowMap = new Map<string, { day: string; amount: number }>();
+    const dailyInflowMap = new Map<string, { day: string; amount: number }>();
+
+    currentMonthTransactionsRaw.forEach((t) => {
+      const d = new Date(t.date);
+      const dateKey = d.toISOString().split("T")[0];
+      const dayName = dayNames[d.getDay()];
+      const amt = t.amount / 100;
+
+      if (t.type === "paid" || t.type === "borrowed") {
+        const existing = dailyOutflowMap.get(dateKey) || { day: dayName, amount: 0 };
+        existing.amount += amt;
+        dailyOutflowMap.set(dateKey, existing);
+      } else if (t.type === "received" || t.type === "lent" || t.type === "repaid") {
+        const existing = dailyInflowMap.get(dateKey) || { day: dayName, amount: 0 };
+        existing.amount += amt;
+        dailyInflowMap.set(dateKey, existing);
+      }
+    });
+
+    let highestSpendingDay: { date: string; day: string; amount: number } | null = null;
+    dailyOutflowMap.forEach((val, date) => {
+      if (!highestSpendingDay || val.amount > highestSpendingDay.amount) {
+        highestSpendingDay = { date, day: val.day, amount: Math.round(val.amount) };
+      }
+    });
+
+    let highestIncomeDay: { date: string; day: string; amount: number } | null = null;
+    dailyInflowMap.forEach((val, date) => {
+      if (!highestIncomeDay || val.amount > highestIncomeDay.amount) {
+        highestIncomeDay = { date, day: val.day, amount: Math.round(val.amount) };
+      }
+    });
+
+    const elapsedDays = Math.max(1, now.getDate());
+    const averageDailySpending = Math.round(currentMonthExpenses / elapsedDays);
+    const averageDailyIncome = Math.round(currentMonthIncome / elapsedDays);
+
+    const categoryCountMap = new Map<string, { count: number; amount: number }>();
+    currentMonthTransactionsRaw.forEach((t) => {
+      if (t.type === "paid" || t.type === "borrowed") {
+        const cat = t.categoryName || "General";
+        const existing = categoryCountMap.get(cat) || { count: 0, amount: 0 };
+        existing.count += 1;
+        existing.amount += t.amount / 100;
+        categoryCountMap.set(cat, existing);
+      }
+    });
+
+    let mostUsedCategory: { name: string; count: number; amount: number; percentage: number } | null = null;
+    categoryCountMap.forEach((val, name) => {
+      if (!mostUsedCategory || val.count > mostUsedCategory.count) {
+        mostUsedCategory = {
+          name,
+          count: val.count,
+          amount: Math.round(val.amount),
+          percentage: currentMonthExpenses > 0 ? Math.round((val.amount / currentMonthExpenses) * 100) : 0,
+        };
+      }
+    });
+
+    let largestGrowingCategory: { name: string; diff: number; percentage: number } | null = null;
+    let largestDecliningCategory: { name: string; diff: number; percentage: number } | null = null;
+
+    categorySpendingMap.forEach((currentAmt, cat) => {
+      const prevAmt = lastMonthCatMap.get(cat) || 0;
+      const diff = currentAmt - prevAmt;
+      if (prevAmt > 0) {
+        const pct = Math.round((diff / prevAmt) * 100);
+        if (diff > 0 && (!largestGrowingCategory || diff > largestGrowingCategory.diff)) {
+          largestGrowingCategory = { name: cat, diff: Math.round(diff), percentage: pct };
+        } else if (diff < 0 && (!largestDecliningCategory || Math.abs(diff) > largestDecliningCategory.diff)) {
+          largestDecliningCategory = { name: cat, diff: Math.round(Math.abs(diff)), percentage: Math.abs(pct) };
+        }
+      } else if (currentAmt > 0 && !largestGrowingCategory) {
+        largestGrowingCategory = { name: cat, diff: Math.round(currentAmt), percentage: 100 };
+      }
+    });
+
+    const lastMonthIncome = lastMonthTransactionsRaw
+      .filter((t) => t.type === "received" || t.type === "lent" || t.type === "repaid")
+      .reduce((sum, t) => sum + t.amount / 100, 0);
+
+    const diffExpense = Math.round(currentMonthExpenses - lastMonthExpenses);
+    const percentChangeExpense = lastMonthExpenses > 0 ? Math.round(((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100) : null;
+    const diffIncome = Math.round(currentMonthIncome - lastMonthIncome);
+    const percentChangeIncome = lastMonthIncome > 0 ? Math.round(((currentMonthIncome - lastMonthIncome) / lastMonthIncome) * 100) : null;
+
+    // Daily spending 30 days
+    const dailyMap30 = new Map<string, { amount: number; count: number }>();
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      dailyMap30.set(dateStr, { amount: 0, count: 0 });
+    }
+    recentTransactionsRaw.forEach((t) => {
+      if (t.type === "paid" || t.type === "borrowed") {
+        const d = new Date(t.date);
+        const dateStr = d.toISOString().split("T")[0];
+        if (dailyMap30.has(dateStr)) {
+          const entry = dailyMap30.get(dateStr)!;
+          entry.amount += t.amount / 100;
+          entry.count += 1;
+        }
+      }
+    });
+
+    const dailySpendingHistory = Array.from(dailyMap30.entries()).map(([date, val]) => ({
+      date,
+      amount: Math.round(val.amount),
+      count: val.count,
+    }));
+
+    let cumulative = 0;
+    const runningBalanceHistory = monthlyFlows.map((f) => {
+      cumulative += f.net;
+      return {
+        date: f.month,
+        balance: Math.round(cumulative),
+        income: Math.round(f.inflow),
+        expense: Math.round(f.outflow),
+      };
+    });
+
+    const recurringTx = recentTransactionsRaw.filter((t) => t.isRecurring);
+    const recurringExpenseTotal = recurringTx
+      .filter((t) => t.type === "paid" || t.type === "borrowed")
+      .reduce((sum, t) => sum + t.amount / 100, 0);
+    const recurringIncomeTotal = recurringTx
+      .filter((t) => t.type === "received" || t.type === "lent" || t.type === "repaid")
+      .reduce((sum, t) => sum + t.amount / 100, 0);
+
+    const hasVerifiedData = currentMonthTransactionsRaw.length > 0 || sixMonthTransactionsRaw.length > 0 || allSettlementsRaw.length > 0;
+
+    const controlCenter: FinancialControlCenterMetrics = {
+      totalIncome: Math.round(currentMonthIncome),
+      totalExpense: Math.round(currentMonthExpenses),
+      netCashFlow: Math.round(currentMonthIncome - currentMonthExpenses),
+      savings: Math.round(currentSavings),
+      savingsRate,
+      receivable: Math.round(pendingReceivables + totalPendingDebtRupees),
+      payable: Math.round(pendingPayables),
+      largestExpense: largestOutflow ? { ...largestOutflow, categoryName: sortedOutflows[0]?.categoryName || "General" } : null,
+      largestIncome: largestInflow ? { ...largestInflow, categoryName: sortedInflows[0]?.categoryName || "Income" } : null,
+      mostUsedCategory,
+      highestSpendingDay,
+      highestIncomeDay,
+      averageDailySpending,
+      averageDailyIncome,
+      transactionCount: currentMonthTransactionsRaw.length,
+      budgetRemaining: Math.max(0, userBudgets.reduce((s, b) => s + b.remaining, 0)),
+      pendingSettlementsCount: allSettlementsRaw.filter((s) => s.status === "pending").length,
+      pendingSettlementsAmount: Math.round(allSettlementsRaw.filter((s) => s.status === "pending").reduce((s, x) => s + x.amount / 100, 0)),
+      overdueReceivables: Math.round(pendingReceivables + totalPendingDebtRupees),
+      recentActivity: recentTransactionsRaw.slice(0, 15).map((t) => ({
+        id: t.id,
+        title: t.title || "Transaction",
+        amount: t.amount / 100,
+        type: t.type,
+        date: t.date,
+        categoryName: t.categoryName || "General",
+      })),
+      monthlyComparison: {
+        currentMonthExpense: Math.round(currentMonthExpenses),
+        lastMonthExpense: Math.round(lastMonthExpenses),
+        diffExpense,
+        percentChangeExpense,
+        currentMonthIncome: Math.round(currentMonthIncome),
+        lastMonthIncome: Math.round(lastMonthIncome),
+        diffIncome,
+        percentChangeIncome,
+      },
+      categoryDistribution: Array.from(categorySpendingMap.entries()).map(([name, amt]) => ({
+        name,
+        amount: Math.round(amt),
+        percentage: currentMonthExpenses > 0 ? Math.round((amt / currentMonthExpenses) * 100) : 0,
+        count: categoryCountMap.get(name)?.count || 1,
+      })),
+      dailySpendingHistory,
+      runningBalanceHistory,
+      categoryGrowth: {
+        largestGrowingCategory,
+        largestDecliningCategory,
+        topCategory: categoryBreakdown.length > 0 ? { name: categoryBreakdown[0].name, amount: categoryBreakdown[0].amount, percentage: categoryBreakdown[0].percentage } : null,
+        monthlyGrowthPct: percentChangeExpense,
+      },
+      recurringSummary: {
+        recurringExpenseTotal: Math.round(recurringExpenseTotal),
+        recurringIncomeTotal: Math.round(recurringIncomeTotal),
+        count: recurringTx.length,
+      },
+      hasVerifiedData,
+    };
+
     // Dynamic Executive Narrative
     const topCatName = categoryBreakdown.length > 0 ? categoryBreakdown[0].name : "General Outflow";
     const executiveNarrative = generateExecutiveReportNarrative("monthly", {
@@ -798,6 +1158,7 @@ export async function getFinancialIntelligence(): Promise<FinancialIntelligenceD
     });
 
     return {
+      controlCenter,
       healthScore: {
         score: totalHealthScore,
         previousScore,

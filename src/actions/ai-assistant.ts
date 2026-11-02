@@ -706,9 +706,20 @@ export async function askFinancialAssistant(
     };
 
     const isShowOnly = qLower.startsWith("show only ") || qLower.startsWith("only ") || (qLower.startsWith("show ") && qLower.includes("only"));
+    const isCategorySpendQuery =
+      isShowOnly ||
+      qLower.includes("spend on ") ||
+      qLower.includes("spent on ") ||
+      qLower.includes("spending on ") ||
+      qLower.includes("expense on ") ||
+      qLower.includes("expenses on ") ||
+      qLower.includes("cost on ") ||
+      qLower.includes("kharcha on ") ||
+      /how\s+much\s+(?:did\s+i\s+spend|have\s+i\s+spent|i\s+spent|i\s+spend)\s+on\s+/i.test(qLower);
+
     let targetCatInfo: { label: string; keywords: string[] } | null = null;
 
-    if (isShowOnly) {
+    if (isCategorySpendQuery || isShowOnly) {
       for (const [_, info] of Object.entries(categoryKeywordsMap)) {
         if (info.keywords.some((k) => qLower.includes(k))) {
           targetCatInfo = info;
@@ -724,14 +735,17 @@ export async function askFinancialAssistant(
         return targetCatInfo!.keywords.some((k) => text.includes(k));
       });
       const totalAmt = matchedTx.reduce((s, t) => s + t.amount / 100, 0);
+      const count = matchedTx.length;
+      const averageAmt = count > 0 ? totalAmt / count : 0;
 
-      if (matchedTx.length === 0) {
+      if (count === 0) {
         return {
-          answer: `You have no recorded expenses for **${targetCatInfo.label}** in this period.`,
+          answer: `You have no verified expenses recorded under **${targetCatInfo.label}** in this period.`,
           insights: [`Zero transactions found matching "${targetCatInfo.label}".`],
           keyMetrics: [
             { label: `${targetCatInfo.label} Total`, value: "₹0.00" },
             { label: "Transactions", value: "0" },
+            { label: "Average Spend", value: "₹0.00" },
           ],
           actionSuggestions: [
             { label: "Create Transaction", url: `action:input:create transition ${targetCatInfo.label} ` },
@@ -741,21 +755,40 @@ export async function askFinancialAssistant(
         };
       }
 
+      const sortedByAmt = [...matchedTx].sort((a, b) => b.amount - a.amount);
+      const largestTx = sortedByAmt[0];
+      const dates = matchedTx.map((t) => new Date(t.date).getTime()).filter((t) => !isNaN(t));
+      const earliestDate = dates.length > 0 ? new Date(Math.min(...dates)).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : "";
+      const latestDate = dates.length > 0 ? new Date(Math.max(...dates)).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : "";
+      const dateRangeStr = earliestDate === latestDate ? earliestDate : `${earliestDate} – ${latestDate}`;
+
       const listItems = matchedTx.map((t) => {
         const dateStr = new Date(t.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
         return `• **${t.title || t.description || "Expense"}:** ${formatCurrency(t.amount / 100, "INR")} (${dateStr})`;
       }).join("\n");
 
+      const largestTxLine = largestTx
+        ? `\n• **Largest Single Expense:** ${largestTx.title || largestTx.description} for **${formatCurrency(largestTx.amount / 100, "INR")}** (${new Date(largestTx.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" })})`
+        : "";
+
       return {
-        answer: `Here are your **${targetCatInfo.label}** expenses for this month totaling **${formatCurrency(totalAmt, "INR")}** across **${matchedTx.length} transaction${matchedTx.length === 1 ? "" : "s"}**:\n\n${listItems}`,
+        answer: `You have spent **${formatCurrency(totalAmt, "INR")}** across **${count} verified transaction${count === 1 ? "" : "s"}** on **${targetCatInfo.label}** (${dateRangeStr}):\n\n` +
+          `• **Total Outflow:** ${formatCurrency(totalAmt, "INR")}\n` +
+          `• **Transaction Count:** ${count}\n` +
+          `• **Average per Transaction:** ${formatCurrency(averageAmt, "INR")}\n` +
+          `• **Date Range:** ${dateRangeStr}` +
+          largestTxLine +
+          `\n\n**Itemized Records:**\n${listItems}`,
         insights: [
           `Total ${targetCatInfo.label} Outflow: ${formatCurrency(totalAmt, "INR")}`,
-          `Recorded Entries: ${matchedTx.length}`,
+          `Transaction count: ${count} (Average: ${formatCurrency(averageAmt, "INR")})`,
           currentMonthExpenses > 0 ? `Represents ${Math.round((totalAmt / currentMonthExpenses) * 100)}% of your monthly spend.` : "Keep tracking your daily expenses.",
         ],
         keyMetrics: [
           { label: `${targetCatInfo.label} Total`, value: formatCurrency(totalAmt, "INR") },
-          { label: "Transactions", value: `${matchedTx.length}` },
+          { label: "Transactions", value: `${count}` },
+          { label: "Average Spend", value: formatCurrency(averageAmt, "INR") },
+          { label: "Largest Expense", value: largestTx ? formatCurrency(largestTx.amount / 100, "INR") : "₹0.00" },
         ],
         actionSuggestions: [
           { label: "View Ledger", url: "/dashboard/transactions" },
@@ -1371,45 +1404,76 @@ export async function askFinancialAssistant(
       };
     }
 
-    // 2.5 CATEGORY BREAKDOWN / WHERE IS MY MONEY GOING
+    // 2.5 WHERE IS MY MONEY GOING? (COMPREHENSIVE CASH FLOW & OUTFLOW ANALYSIS)
     if (
-      qLower.includes("category breakdown") ||
       qLower.includes("where is my money going") ||
+      qLower.includes("where did my money go") ||
+      qLower.includes("where does my money go") ||
+      qLower.includes("where am i spending") ||
+      qLower.includes("category breakdown") ||
       qLower.includes("spend the most on") ||
       qLower.includes("top category") ||
       qLower.includes("top categories") ||
       qLower.includes("category spend") ||
-      qLower.includes("categories") ||
       qLower.includes("costs me the most") ||
       qLower.includes("cost me the most") ||
       qLower.includes("which category")
     ) {
       const sorted = Object.entries(ctx.transactions.categoryTotals).sort((a, b) => b[1] - a[1]);
-      if (sorted.length === 0) {
+      if (sorted.length === 0 && currentMonthExpenses === 0) {
         return {
-          answer: "You have no recorded category expenses for this month yet.",
+          answer: "You have no recorded expenses for this month yet. Your cash flow is completely untouched.",
           insights: ["Add expenses with categories like Food, Travel, or Bills to see breakdown."],
-          keyMetrics: [{ label: "Categories Tracked", value: "0" }],
+          keyMetrics: [{ label: "Monthly Outflow", value: "₹0.00" }],
           actionSuggestions: [{ label: "Add Expense", url: "/dashboard/transactions" }],
           timestamp: new Date().toISOString(),
         };
       }
 
+      // 1. Highest Categories
       const topCat = sorted[0];
       const catList = sorted.slice(0, 5).map(([cat, amt]) => `• **${cat}:** ${formatCurrency(amt, "INR")} (${Math.round((amt / Math.max(1, currentMonthExpenses)) * 100)}% of monthly spend)`).join("\n");
 
+      // 2. Largest Merchants / Transactions
+      const sortedThisMonthTx = [...thisMonthExpensesTx].sort((a, b) => b.amount - a.amount);
+      const topTxList = sortedThisMonthTx.slice(0, 3).map((t) => {
+        const dStr = new Date(t.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+        return `• **${t.title || t.description || "Expense"}:** ${formatCurrency(t.amount / 100, "INR")} (${t.categoryName || "General"}, ${dStr})`;
+      }).join("\n");
+
+      // 3. Recurring Expenses
+      const recurringList = (ctx.transactions?.all || []).filter((t: any) => t.isRecurring && (t.type === "paid" || t.type === "borrowed"));
+      const recurringTotal = recurringList.reduce((s: number, t: any) => s + t.amount / 100, 0);
+
+      // 4. Daily and Weekly spending averages
+      const elapsedDays = Math.max(1, now.getDate());
+      const dailyAvg = currentMonthExpenses / elapsedDays;
+      const weeklyAvg = dailyAvg * 7;
+
       return {
-        answer: `Here is where your money is going this month (**${formatCurrency(currentMonthExpenses, "INR")}** total across ${ctx.transactions.currentMonth.length} transactions):\n\n${catList}\n\nYour highest outflow category is **${topCat[0]}** (${formatCurrency(topCat[1], "INR")}).`,
-        insights: sorted.slice(0, 5).map(([cat, amt]) => `• ${cat}: ${formatCurrency(amt, "INR")} (${Math.round((amt / Math.max(1, currentMonthExpenses)) * 100)}%)`),
+        answer: `Here is the verified breakdown of where your money is going this month (**${formatCurrency(currentMonthExpenses, "INR")}** total across ${thisMonthExpensesTx.length || ctx.transactions.currentMonth.length} transactions):\n\n` +
+          `**1. Top Spending Categories:**\n${catList}\n\n` +
+          (topTxList ? `**2. Largest Single Expenses:**\n${topTxList}\n\n` : "") +
+          (recurringList.length > 0 ? `**3. Recurring Commitments:** ${recurringList.length} recurring expense(s) totaling **${formatCurrency(recurringTotal, "INR")}**.\n\n` : "") +
+          `**4. Spending Velocity:**\n` +
+          `• **Daily Average:** ~${formatCurrency(dailyAvg, "INR")}/day (${elapsedDays} days elapsed)\n` +
+          `• **Weekly Projected Burn:** ~${formatCurrency(weeklyAvg, "INR")}/week\n` +
+          `• **Monthly Total Outflow:** ${formatCurrency(currentMonthExpenses, "INR")}`,
+        insights: [
+          topCat ? `Main spending driver: ${topCat[0]} (${formatCurrency(topCat[1], "INR")} - ${Math.round((topCat[1] / Math.max(1, currentMonthExpenses)) * 100)}%)` : "No categorized spending drivers.",
+          `Daily spending velocity: ~${formatCurrency(dailyAvg, "INR")}/day`,
+          recurringList.length > 0 ? `Recurring expenses: ${formatCurrency(recurringTotal, "INR")}` : "No recurring expenses flagged.",
+        ],
         keyMetrics: [
-          { label: "Top Category", value: topCat[0] },
-          { label: "Top Category Spend", value: formatCurrency(topCat[1], "INR") },
-          { label: "Total Categories", value: `${sorted.length}` },
           { label: "Monthly Outflow", value: formatCurrency(currentMonthExpenses, "INR") },
+          { label: "Top Category", value: topCat ? topCat[0] : "General" },
+          { label: "Daily Average", value: formatCurrency(dailyAvg, "INR") },
+          { label: "Weekly Average", value: formatCurrency(weeklyAvg, "INR") },
         ],
         actionSuggestions: [
           { label: "View Analytics", url: "/dashboard/analytics" },
           { label: "Manage Budgets", url: "/dashboard/budgets" },
+          { label: "View Ledger", url: "/dashboard/transactions" },
         ],
         timestamp: new Date().toISOString(),
       };
@@ -1478,13 +1542,64 @@ export async function askFinancialAssistant(
       };
     }
 
-    // 3.2 SHOW PENDING SETTLEMENTS / WHO OWES ME
+    // 3.2 WHO OWES ME MONEY? (STRICTLY VERIFIED RECEIVABLES ONLY)
+    if (
+      qLower.includes("who owes me") ||
+      qLower.includes("who owes money") ||
+      qLower.includes("anyone owes me") ||
+      qLower.includes("my receivables") ||
+      qLower.includes("paisa kis se lena") ||
+      qLower.includes("pending receivables")
+    ) {
+      const receivablesTotal = ctx.settlements.receivablesTotal;
+      const debtors = ctx.settlements.debtorRanking;
+
+      if (receivablesTotal === 0 || debtors.length === 0) {
+        return {
+          answer: "None of your group members or contacts currently owe you money. All receivable balances are completely settled up!",
+          insights: ["Zero outstanding receivables across your verified ledger."],
+          keyMetrics: [
+            { label: "Total Receivables", value: "₹0.00" },
+            { label: "Active Debtors", value: "0" },
+            { label: "Settlement Status", value: "All Settled" },
+          ],
+          actionSuggestions: [
+            { label: "View Ledger", url: "/dashboard/transactions" },
+            { label: "View Groups", url: "/dashboard/groups" },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const debtorList = debtors.map((d) => `• **${d.name}:** owes **${formatCurrency(d.amount, "INR")}**${d.groupName ? ` (in ${d.groupName})` : ""}`).join("\n");
+
+      return {
+        answer: `You have **${formatCurrency(receivablesTotal, "INR")}** in verified pending receivables across **${debtors.length} contact${debtors.length === 1 ? "" : "s"}**:\n\n${debtorList}\n\nYou can send polite payment reminders via WhatsApp or record a settlement when received.`,
+        insights: [
+          `Total uncollected receivables: ${formatCurrency(receivablesTotal, "INR")}`,
+          `Pending debtors count: ${debtors.length}`,
+          `Top debtor: ${debtors[0].name} (${formatCurrency(debtors[0].amount, "INR")})`,
+        ],
+        keyMetrics: [
+          { label: "Total Receivables", value: formatCurrency(receivablesTotal, "INR") },
+          { label: "Pending Debtors", value: `${debtors.length}` },
+          { label: "Highest Receivable", value: formatCurrency(debtors[0].amount, "INR") },
+        ],
+        actionSuggestions: [
+          { label: "Send Reminders", url: "/dashboard/ai" },
+          { label: "Settlement Center", url: "/dashboard/settlements" },
+          { label: "View Groups", url: "/dashboard/groups" },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 3.2b SHOW PENDING SETTLEMENTS (COMBINED RECEIVABLES & PAYABLES)
     if (
       qLower.includes("pending settlement") ||
       qLower.includes("settlement is pending") ||
       qLower.includes("settlements are pending") ||
       qLower.includes("which settlement") ||
-      qLower.includes("who owes me") ||
       qLower.includes("unsettled") ||
       qLower.includes("paisa lena")
     ) {

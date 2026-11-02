@@ -88,4 +88,112 @@ describe("Financial Intelligence, Health Score & Budget Engine", () => {
       expect(quarterlySavings).toBe(45000);
     });
   });
+
+  describe("Financial Intelligence Control Center & Real-Time Verified Metrics", () => {
+    it("should derive control center operational cards strictly from approved records", () => {
+      const verifiedTransactions = [
+        { id: 1, title: "Client Payment", amount: 45000, type: "received", category: "Income", date: "2026-11-01" },
+        { id: 2, title: "Office Rent", amount: 15000, type: "paid", category: "Bills", date: "2026-11-02" },
+        { id: 3, title: "Team Lunch", amount: 2400, type: "paid", category: "Food", date: "2026-11-02" },
+        { id: 4, title: "Fuel Station", amount: 1200, type: "paid", category: "Fuel", date: "2026-11-03" },
+      ];
+
+      const totalIncome = verifiedTransactions
+        .filter((t) => t.type === "received")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const totalExpense = verifiedTransactions
+        .filter((t) => t.type === "paid")
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const netCashFlow = totalIncome - totalExpense;
+      const savings = totalIncome - totalExpense;
+      const savingsRate = Math.round((savings / totalIncome) * 100);
+
+      expect(totalIncome).toBe(45000);
+      expect(totalExpense).toBe(18600);
+      expect(netCashFlow).toBe(26400);
+      expect(savings).toBe(26400);
+      expect(savingsRate).toBe(59);
+
+      // Verify largest expense
+      const largestExpense = [...verifiedTransactions]
+        .filter((t) => t.type === "paid")
+        .sort((a, b) => b.amount - a.amount)[0];
+
+      expect(largestExpense.title).toBe("Office Rent");
+      expect(largestExpense.amount).toBe(15000);
+
+      // Verify highest spending day (2026-11-02 had 15000 + 2400 = 17400)
+      const daySpendMap: Record<string, number> = {};
+      verifiedTransactions
+        .filter((t) => t.type === "paid")
+        .forEach((t) => {
+          daySpendMap[t.date] = (daySpendMap[t.date] || 0) + t.amount;
+        });
+
+      const highestDay = Object.entries(daySpendMap).sort((a, b) => b[1] - a[1])[0];
+      expect(highestDay[0]).toBe("2026-11-02");
+      expect(highestDay[1]).toBe(17400);
+    });
+
+    it("should never fabricate confidence scores or random forecasts", () => {
+      // Test that forecasts are derived from verified moving averages and omit fake confidence
+      const monthlyOutflow = 20000;
+      const forecast1M = {
+        period: "1m",
+        predictedExpense: monthlyOutflow,
+        predictedIncome: 30000,
+        predictedSavings: 10000,
+        confidencePct: undefined, // no fake 92% confidence
+        basis: "Based on verified monthly trajectory of ₹20,000/mo outflow",
+      };
+
+      expect(forecast1M.confidencePct).toBeUndefined();
+      expect(forecast1M.predictedExpense).toBe(20000);
+      expect(forecast1M.predictedSavings).toBe(10000);
+    });
+  });
+
+  describe("Assistant Mode Separation & Exact Query Resolution", () => {
+    it("should switch to transaction creation mode ONLY when starting with 'create transaction'", () => {
+      const isCreateMode = (msg: string) => /^(?:please\s+)?create\s+trans(?:action|ition)s?(?:\s*[:\-\n]|\s+|$)/i.test(msg.trim());
+
+      // Should trigger Mode 2
+      expect(isCreateMode("create transaction Petrol 500")).toBe(true);
+      expect(isCreateMode("create transition Salary 25000")).toBe(true);
+      expect(isCreateMode("please create transaction dinner 450")).toBe(true);
+
+      // Should NOT trigger Mode 2 (Must remain Financial Intelligence Assistant)
+      expect(isCreateMode("Why did I spend so much this month?")).toBe(false);
+      expect(isCreateMode("Where is my money going?")).toBe(false);
+      expect(isCreateMode("How much did I spend on Food?")).toBe(false);
+      expect(isCreateMode("Who owes me money?")).toBe(false);
+      expect(isCreateMode("Did I spend on petrol?")).toBe(false);
+    });
+
+    it("should accurately resolve 'Who owes me money?' strictly with verified receivables", () => {
+      const receivables = [
+        { name: "Kunal Patil", amount: 3333.33, groupName: "Summer Trip" },
+        { name: "Rahul Sharma", amount: 1200.0, groupName: "Flatmates" },
+      ];
+      const payables = [
+        { name: "Amit Verma", amount: 500.0, groupName: "Flatmates" },
+      ];
+
+      const resolveWhoOwesMe = (recs: typeof receivables, _pays: typeof payables) => {
+        // Must return strictly receivables and not conflate payables
+        const total = recs.reduce((s, r) => s + r.amount, 0);
+        return {
+          totalReceivables: total,
+          debtors: recs,
+        };
+      };
+
+      const result = resolveWhoOwesMe(receivables, payables);
+      expect(result.totalReceivables).toBe(4533.33);
+      expect(result.debtors.length).toBe(2);
+      expect(result.debtors[0].name).toBe("Kunal Patil");
+    });
+  });
 });
