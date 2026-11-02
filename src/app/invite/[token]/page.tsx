@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { invitations, groups, groupMembers, users, contacts, settlements, transactions, expenseSplits, groupJoinRequests } from "@/lib/db/schema/schema";
@@ -11,6 +12,15 @@ import { revalidatePath } from "next/cache";
 import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: "Group Invitation",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
+};
 
 export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

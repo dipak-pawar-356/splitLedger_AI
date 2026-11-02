@@ -1,29 +1,28 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { SplitLedgerAiIcon } from "@/components/ai/split-ledger-ai-icon";
+import { Home, ArrowLeft } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "404 - Page Not Found",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
+};
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950 text-center space-y-6">
+    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950 text-center space-y-6">
       <div className="p-4 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-3xl text-indigo-600 dark:text-indigo-400">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="48"
-          height="48"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-12 w-12"
-        >
-          <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-        </svg>
+        <SplitLedgerAiIcon size={48} className="text-indigo-600 dark:text-indigo-400" />
       </div>
 
       <div className="space-y-2 max-w-md">
-        <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100">404 - Page Not Found</h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          The financial ledger record or page you are looking for does not exist or has been moved.
+        <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100">404 — Ledger Record Not Found</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          The financial ledger record or destination you are seeking cannot be located or has been archived.
         </p>
       </div>
 
@@ -32,24 +31,17 @@ export default function NotFound() {
           href="/dashboard"
           className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors shadow-sm"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-4 w-4"
-          >
-            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
+          <Home className="h-4 w-4" />
           <span>Go to Dashboard</span>
         </Link>
+        <Link
+          href="/"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Home</span>
+        </Link>
       </div>
-    </div>
+    </main>
   );
 }

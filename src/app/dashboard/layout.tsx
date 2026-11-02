@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { requireAuth } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -9,6 +10,20 @@ import { SidebarProvider } from "@/components/layout/sidebar-context";
 import { PageTransition } from "@/components/layout/page-transition";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Financial Dashboard",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noarchive: true,
+    },
+  },
+};
 
 export default async function DashboardLayout({
   children,

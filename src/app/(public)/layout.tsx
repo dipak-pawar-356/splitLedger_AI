@@ -1,26 +1,22 @@
 import type { Metadata } from "next";
 import { PublicNavbar } from "@/components/layout/public-navbar";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { createPageMetadata } from "@/lib/seo/config";
 
-export const metadata: Metadata = {
-  title: "SplitLedger AI — Intelligent Group Expense Ledger",
+export const metadata: Metadata = createPageMetadata({
+  title: "Smart Expense Tracker, Personal Finance & Group Ledger",
   description:
-    "The cleanest way for roommates, trips, and friends to track expenses, minimize debts, and settle instantly with dynamic UPI.",
-  openGraph: {
-    title: "SplitLedger AI — Intelligent Group Expense Ledger",
-    description:
-      "The cleanest way for roommates, trips, and friends to track expenses, minimize debts, and settle instantly with dynamic UPI.",
-    type: "website",
-    locale: "en_US",
-    siteName: "SplitLedger AI",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "SplitLedger AI — Intelligent Group Expense Ledger",
-    description:
-      "The cleanest way for roommates, trips, and friends to track expenses, minimize debts, and settle instantly with dynamic UPI.",
-  },
-};
+    "SplitLedger AI is an intelligent financial management platform that helps individuals and groups manage expenses, settlements, receivables, payables, notes, analytics, reports, AI-assisted transaction management, and financial insights securely in real time.",
+  path: "/",
+  keywords: [
+    "Expense Tracker",
+    "Personal Finance",
+    "Group Expense Management",
+    "Debt Simplification",
+    "UPI Split",
+    "AI Financial Assistant",
+  ],
+});
 
 export default function PublicLayout({
   children,

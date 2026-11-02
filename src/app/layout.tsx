@@ -4,8 +4,15 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ClerkAuthProvider } from "@/components/providers/clerk-provider";
 import { Toaster } from "@/components/ui/sonner";
-
 import { RealtimeProvider } from "@/components/providers/realtime-provider";
+import { SITE_CONFIG } from "@/lib/seo/config";
+import {
+  JsonLd,
+  createOrganizationSchema,
+  createWebSiteSchema,
+  createSoftwareApplicationSchema,
+} from "@/lib/seo/structured-data";
+import { EnterpriseAnalytics } from "@/components/analytics/enterprise-analytics";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,8 +28,60 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "SplitLedger AI - Smart Expense Sharing",
-  description: "AI-powered expense sharing and personal ledger management",
+  metadataBase: new URL(SITE_CONFIG.url),
+  title: {
+    default: SITE_CONFIG.defaultTitle,
+    template: SITE_CONFIG.titleTemplate,
+  },
+  description: SITE_CONFIG.defaultDescription,
+  applicationName: SITE_CONFIG.name,
+  authors: SITE_CONFIG.authors,
+  creator: SITE_CONFIG.creator,
+  publisher: SITE_CONFIG.publisher,
+  keywords: SITE_CONFIG.keywords,
+  alternates: {
+    canonical: SITE_CONFIG.url,
+    languages: {
+      "en-IN": SITE_CONFIG.url,
+      "en-US": `${SITE_CONFIG.url}/en-US`,
+      "x-default": SITE_CONFIG.url,
+    },
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: SITE_CONFIG.locale,
+    url: SITE_CONFIG.url,
+    siteName: SITE_CONFIG.name,
+    title: SITE_CONFIG.defaultTitle,
+    description: SITE_CONFIG.defaultDescription,
+    images: [
+      {
+        url: `${SITE_CONFIG.url}${SITE_CONFIG.ogImage}`,
+        width: 512,
+        height: 512,
+        alt: `${SITE_CONFIG.name} — Intelligent Financial Platform`,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_CONFIG.defaultTitle,
+    description: SITE_CONFIG.defaultDescription,
+    images: [`${SITE_CONFIG.url}${SITE_CONFIG.ogImage}`],
+    creator: SITE_CONFIG.social.twitter,
+    site: SITE_CONFIG.social.twitter,
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -36,6 +95,13 @@ export const metadata: Metadata = {
     ],
     shortcut: "/favicon.ico",
   },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
+    yandex: process.env.NEXT_PUBLIC_YANDEX_VERIFICATION || undefined,
+    other: {
+      "msvalidate.01": process.env.NEXT_PUBLIC_BING_VERIFICATION || "",
+    },
+  },
 };
 
 export default function RootLayout({
@@ -45,6 +111,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <JsonLd
+          data={[
+            createOrganizationSchema(),
+            createWebSiteSchema(),
+            createSoftwareApplicationSchema(),
+          ]}
+        />
+      </head>
       <body className={inter.className} suppressHydrationWarning>
         <ClerkAuthProvider>
           <ThemeProvider
@@ -57,6 +132,7 @@ export default function RootLayout({
               {children}
             </RealtimeProvider>
             <Toaster />
+            <EnterpriseAnalytics />
           </ThemeProvider>
         </ClerkAuthProvider>
       </body>

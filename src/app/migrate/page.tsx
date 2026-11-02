@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { runDatabaseMigration } from "@/actions/migrate";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +7,15 @@ import { Database, Shield } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: "Database Migration Console",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
+};
 
 export default async function MigratePage() {
   try {

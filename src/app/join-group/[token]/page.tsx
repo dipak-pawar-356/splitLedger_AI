@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { groups, invitations } from "@/lib/db/schema/schema";
 import { eq, and, or } from "drizzle-orm";
@@ -7,6 +8,15 @@ import { notFound } from "next/navigation";
 import { isDbIntegerId } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Join Group Ledger",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+  },
+};
 
 export default async function JoinGroupPage({
   params,
