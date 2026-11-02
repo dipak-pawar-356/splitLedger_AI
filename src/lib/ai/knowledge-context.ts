@@ -7,6 +7,7 @@
  */
 
 import { db, withDbRetry } from "@/lib/db";
+import { appCache } from "@/lib/cache";
 import {
   transactions,
   categories,
@@ -207,8 +208,11 @@ export async function getFinancialKnowledgeContext(
   userId: number
 ): Promise<FinancialKnowledgeContext> {
   try {
-    return await withDbRetry(async () => {
-      const now = new Date();
+    return await appCache.getOrSet(
+      `ai:knowledge_context:${userId}`,
+      async () => {
+        return await withDbRetry(async () => {
+          const now = new Date();
       const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
@@ -702,7 +706,10 @@ export async function getFinancialKnowledgeContext(
     recentOcrReceipts: rawReceiptsRows,
     gatheredAt: new Date().toISOString(),
   };
-    });
+        });
+      },
+      { ttlMs: 30000, tags: [`user:${userId}`, "ai", "dashboard"] }
+    );
   } catch (error) {
     console.warn("[KnowledgeContext] Database connection unavailable, falling back to safe empty context:", error);
     return getSafeFallbackContext(userId);

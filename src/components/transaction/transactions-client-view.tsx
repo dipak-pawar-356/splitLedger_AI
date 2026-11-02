@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -38,6 +38,7 @@ import { EditTransactionDialog } from "@/components/dialogs/edit-transaction-dia
 import { DeleteConfirmDialog } from "@/components/dialogs/delete-confirm-dialog";
 import { RestoreConfirmDialog } from "@/components/dialogs/restore-confirm-dialog";
 import { deleteTransaction } from "@/actions/transactions";
+import { emitFinancialEvent } from "@/lib/events/financial-events";
 import { useRouter } from "next/navigation";
 
 interface ActiveTransactionItem {
@@ -102,34 +103,40 @@ export function TransactionsClientView({
   const [deletingTx, setDeletingTx] = useState<ActiveTransactionItem | null>(null);
   const [restoringTx, setRestoringTx] = useState<DeletedTransactionItem | null>(null);
 
-  // Filter Active
-  const filteredActive = activeTransactions.filter((tx) => {
-    const matchesSearch = 
-      (tx.title && tx.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      tx.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (tx.contactName && tx.contactName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (tx.groupName && tx.groupName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (tx.categoryName && tx.categoryName.toLowerCase().includes(searchQuery.toLowerCase()));
+  // Memoized Filtered Active Transactions with Single-Pass Normalized Search
+  const filteredActive = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return activeTransactions.filter((tx) => {
+      const matchesSearch = !q ||
+        (tx.title && tx.title.toLowerCase().includes(q)) ||
+        tx.description.toLowerCase().includes(q) ||
+        (tx.contactName && tx.contactName.toLowerCase().includes(q)) ||
+        (tx.groupName && tx.groupName.toLowerCase().includes(q)) ||
+        (tx.categoryName && tx.categoryName.toLowerCase().includes(q));
 
-    const matchesType = typeFilter === "all" || tx.type === typeFilter;
-    const matchesStatus = statusFilter === "all" || tx.status === statusFilter;
+      const matchesType = typeFilter === "all" || tx.type === typeFilter;
+      const matchesStatus = statusFilter === "all" || tx.status === statusFilter;
 
-    return matchesSearch && matchesType && matchesStatus;
-  });
+      return matchesSearch && matchesType && matchesStatus;
+    });
+  }, [activeTransactions, searchQuery, typeFilter, statusFilter]);
 
-  // Filter Deleted
-  const filteredDeleted = deletedTransactions.filter((tx) => {
-    return (
-      (tx.title && tx.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      tx.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (tx.contactName && tx.contactName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (tx.groupName && tx.groupName.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  });
+  // Memoized Filtered Deleted Transactions
+  const filteredDeleted = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return deletedTransactions.filter((tx) => {
+      return !q ||
+        (tx.title && tx.title.toLowerCase().includes(q)) ||
+        tx.description.toLowerCase().includes(q) ||
+        (tx.contactName && tx.contactName.toLowerCase().includes(q)) ||
+        (tx.groupName && tx.groupName.toLowerCase().includes(q));
+    });
+  }, [deletedTransactions, searchQuery]);
 
   const handleDeleteConfirm = async () => {
     if (deletingTx) {
       await deleteTransaction(deletingTx.publicId);
+      emitFinancialEvent("transaction:deleted", { entityId: deletingTx.publicId });
       setDeletingTx(null);
       router.refresh();
     }

@@ -123,6 +123,7 @@ export function Sidebar() {
               <Link
                 key={item.name}
                 href={item.href}
+                prefetch={true}
                 onClick={closeMobile}
                 title={isCollapsed ? item.name : undefined}
                 className={cn(

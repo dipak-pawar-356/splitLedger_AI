@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, X, FileText, Users, CreditCard, Tag, MessageSquare, Calendar, Activity, Contact } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ export default function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const searchCacheRef = useRef<Map<string, SearchResultItem[]>>(new Map());
   const router = useRouter();
 
   useEffect(() => {
@@ -32,16 +33,27 @@ export default function GlobalSearch() {
   }, []);
 
   useEffect(() => {
-    const performSearch = async () => {
-      if (query.trim().length < 2) {
-        setResults([]);
-        return;
-      }
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setResults([]);
+      setIsLoading(false);
+      return;
+    }
 
+    // Instant response if query is already cached in-memory
+    if (searchCacheRef.current.has(trimmed)) {
+      setResults(searchCacheRef.current.get(trimmed)!);
+      setIsLoading(false);
+      return;
+    }
+
+    const performSearch = async () => {
       setIsLoading(true);
       try {
-        const res = await globalSearch(query.trim());
-        setResults(res || []);
+        const res = await globalSearch(trimmed);
+        const searchResults = res || [];
+        searchCacheRef.current.set(trimmed, searchResults);
+        setResults(searchResults);
       } catch (error) {
         console.error("Search failed:", error);
       } finally {
@@ -49,7 +61,7 @@ export default function GlobalSearch() {
       }
     };
 
-    const debounceTimer = setTimeout(performSearch, 250);
+    const debounceTimer = setTimeout(performSearch, 180);
     return () => clearTimeout(debounceTimer);
   }, [query]);
 

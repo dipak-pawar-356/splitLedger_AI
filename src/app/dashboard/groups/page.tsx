@@ -40,35 +40,34 @@ export default async function GroupsPage({
     const user = await requireAuth();
     const params = await searchParams;
 
-    // 1. Fetch all groups user is an active member or creator of
-    const rawGroups = await db
-      .select({
-        id: groups.id,
-        publicId: groups.publicId,
-        name: groups.name,
-        description: groups.description,
-        type: groups.type,
-        currency: groups.currency,
-        coverImage: groups.coverImage,
-        splitMethod: groups.splitMethod,
-        createdBy: groups.createdBy,
-        creatorName: users.name,
-        createdAt: groups.createdAt,
-        updatedAt: groups.updatedAt,
-        isActive: groups.isActive,
-      })
-      .from(groups)
-      .leftJoin(users, eq(groups.createdBy, users.id))
-      .where(
-        and(
-          sql`(${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id} AND membership_status = 'active') OR ${groups.createdBy} = ${user.id})`,
-          eq(groups.isDeleted, false)
+    // 1. Concurrently fetch all groups, join requests, and pending memberships in a single parallel batch
+    const [rawGroups, rawJoinRequests, rawPendingMembers] = await Promise.all([
+      db
+        .select({
+          id: groups.id,
+          publicId: groups.publicId,
+          name: groups.name,
+          description: groups.description,
+          type: groups.type,
+          currency: groups.currency,
+          coverImage: groups.coverImage,
+          splitMethod: groups.splitMethod,
+          createdBy: groups.createdBy,
+          creatorName: users.name,
+          createdAt: groups.createdAt,
+          updatedAt: groups.updatedAt,
+          isActive: groups.isActive,
+        })
+        .from(groups)
+        .leftJoin(users, eq(groups.createdBy, users.id))
+        .where(
+          and(
+            sql`(${groups.id} IN (SELECT group_id FROM group_members WHERE user_id = ${user.id} AND membership_status = 'active') OR ${groups.createdBy} = ${user.id})`,
+            eq(groups.isDeleted, false)
+          )
         )
-      )
-      .orderBy(desc(groups.createdAt));
+        .orderBy(desc(groups.createdAt)),
 
-    // 2. Fetch pending join requests where current user is awaiting approval
-    const [rawJoinRequests, rawPendingMembers] = await Promise.all([
       db
         .select({
           requestId: groupJoinRequests.id,
@@ -97,6 +96,7 @@ export default async function GroupsPage({
           )
         )
         .orderBy(desc(groupJoinRequests.createdAt)),
+
       db
         .select({
           groupId: groups.id,

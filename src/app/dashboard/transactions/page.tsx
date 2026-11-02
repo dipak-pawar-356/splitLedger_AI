@@ -46,16 +46,14 @@ export default async function TransactionsPage() {
     const deletedByUsers = alias(users, "deleted_by_users");
     const creatorUsers = alias(users, "creator_users");
 
-    // Clean up any lingering orphaned transactions for deleted contacts
-    try {
-      await db.execute(sql`
-        UPDATE transactions 
-        SET is_deleted = true, deleted_at = NOW(), updated_at = NOW() 
-        WHERE is_deleted = false 
-          AND contact_id IS NOT NULL 
-          AND contact_id IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = true)
-      `);
-    } catch (_) {}
+    // Clean up any lingering orphaned transactions for deleted contacts asynchronously in background
+    db.execute(sql`
+      UPDATE transactions 
+      SET is_deleted = true, deleted_at = NOW(), updated_at = NOW() 
+      WHERE is_deleted = false 
+        AND contact_id IS NOT NULL 
+        AND contact_id IN (SELECT id FROM contacts WHERE user_id = ${user.id} AND is_deleted = true)
+    `).catch(() => {});
 
     // Fetch active transactions, deleted transactions, and statistics
     const [activeTxList, deletedTxList, monthlyStats, totalStats] = await Promise.all([

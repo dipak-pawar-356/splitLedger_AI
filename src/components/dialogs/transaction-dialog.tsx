@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Upload } from "lucide-react";
 import { transactionSchema, type TransactionFormData } from "@/validators";
 import { createTransaction } from "@/actions/transactions";
+import { emitFinancialEvent } from "@/lib/events/financial-events";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -155,6 +156,8 @@ export function TransactionDialog({ trigger, onSuccess, contactId, groupId, grou
       console.log("Transaction created:", result);
 
       toast.success("Transaction created successfully!");
+      emitFinancialEvent("transaction:created", { entityId: result?.id || result?.publicId });
+      emitFinancialEvent("expense:created");
       reset();
       setReceiptFile(null);
       setOpen(false);

@@ -324,12 +324,10 @@ export async function getDashboardData(options?: DashboardOptions): Promise<Dash
           const exactPrevMonthName = monthNames[exactPrevMonthIdx];
           const exactPriorMonthName = monthNames[exactPriorMonthIdx];
 
-          // Ensure database schema is up-to-date
-          try {
-            await ensureDatabaseSchema();
-          } catch (schemaErr) {
+          // Ensure database schema is checked in the background without blocking render path
+          ensureDatabaseSchema().catch((schemaErr) => {
             console.warn("Dashboard auto-migrate check warning:", schemaErr);
-          }
+          });
 
           // Parallel Batch Queries
           const [

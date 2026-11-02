@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { RotateCcw, CheckCircle2 } from "lucide-react";
 import { restoreTransaction } from "@/actions/transactions";
+import { emitFinancialEvent } from "@/lib/events/financial-events";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -30,6 +31,7 @@ export function RestoreConfirmDialog({
     setIsRestoring(true);
     try {
       await restoreTransaction(transactionPublicId);
+      emitFinancialEvent("transaction:created", { entityId: transactionPublicId });
       toast.success("Transaction restored successfully!");
       onOpenChange(false);
       onSuccess?.();

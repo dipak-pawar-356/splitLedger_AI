@@ -394,15 +394,16 @@ export async function askFinancialAssistant(
       });
 
       if (parseRes.hasTransactions && parseRes.transactions.length > 0) {
-        const enriched: ProposedTransaction[] = [];
-        for (const t of parseRes.transactions) {
-          const dup = await checkPossibleDuplicate(user.id, t.amount, t.title, t.categoryId, t.contactId);
-          enriched.push({
-            ...t,
-            isPossibleDuplicate: dup.isDuplicate,
-            duplicateInfo: dup.existing,
-          });
-        }
+        const enriched: ProposedTransaction[] = await Promise.all(
+          parseRes.transactions.map(async (t) => {
+            const dup = await checkPossibleDuplicate(user.id, t.amount, t.title, t.categoryId, t.contactId);
+            return {
+              ...t,
+              isPossibleDuplicate: dup.isDuplicate,
+              duplicateInfo: dup.existing,
+            };
+          })
+        );
 
         let finalTransactions: ProposedTransaction[] = enriched;
         if (isAppending && pendingDrafts && pendingDrafts.length > 0) {

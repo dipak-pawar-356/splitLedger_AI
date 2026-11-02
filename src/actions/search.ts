@@ -106,13 +106,20 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
       );
     }
 
-    let formattedTx: SearchResultItem[] = [];
-    let formattedGroups: SearchResultItem[] = [];
-    let formattedContacts: SearchResultItem[] = [];
-    let formattedSettlements: SearchResultItem[] = [];
-
-    try {
-      const txResults = await db
+    // Concurrently execute all multi-entity search queries via Promise.allSettled
+    const [
+      txRes,
+      groupRes,
+      budgetRes,
+      noteRes,
+      receiptRes,
+      contactRes,
+      settlementRes,
+      tripRes,
+      docRes,
+    ] = await Promise.allSettled([
+      // 1. Transactions
+      db
         .select({
           id: transactions.id,
           publicId: transactions.publicId,
@@ -132,22 +139,10 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
         .leftJoin(contacts, eq(transactions.contactId, contacts.id))
         .where(and(...transactionConditions))
         .orderBy(desc(transactions.date))
-        .limit(10);
+        .limit(10),
 
-      formattedTx = txResults.map((tx) => ({
-        id: tx.id,
-        publicId: tx.publicId,
-        type: "transaction",
-        title: tx.title || tx.description,
-        subtitle: `${tx.categoryName || "General"} • ${tx.groupName ? `Group: ${tx.groupName}` : (tx.contactName || "Personal")}`,
-        amount: tx.amount,
-        currency: tx.currency,
-        date: tx.date,
-        link: `/dashboard/transactions/${tx.publicId}`,
-        metadata: { type: tx.type },
-      }));
-
-      const groupResults = await db
+      // 2. Groups
+      db
         .select({
           id: groups.id,
           publicId: groups.publicId,
@@ -161,10 +156,7 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
         .where(
           and(
             eq(groups.isDeleted, false),
-            or(
-              eq(groups.createdBy, user.id),
-              eq(groupMembers.userId, user.id)
-            ),
+            or(eq(groups.createdBy, user.id), eq(groupMembers.userId, user.id)),
             or(
               ilike(groups.name, searchTerm),
               ilike(groups.description, searchTerm),
@@ -173,27 +165,10 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
           )
         )
         .groupBy(groups.id, groups.publicId, groups.name, groups.description, groups.createdAt, groups.type)
-        .limit(5);
+        .limit(5),
 
-      formattedGroups = groupResults.map((g) => ({
-        id: g.id,
-        publicId: g.publicId,
-        type: "group",
-        title: g.name,
-        subtitle: g.description || `Group (${g.type})`,
-        date: g.createdAt,
-        link: `/dashboard/groups/${g.publicId || g.id}`,
-      }));
-    } catch (_dbErr) {
-      // Graceful fallback for mock unit tests without live Postgres
-    }
-
-    // Real Cross-module Search (Budgets & Notes)
-    const extraResults: SearchResultItem[] = [];
-
-    try {
-      // 1. Search Live Budgets
-      const budgetResults = await db
+      // 3. Budgets
+      db
         .select({
           id: budgets.id,
           publicId: budgets.publicId,
@@ -210,24 +185,10 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
             ilike(budgets.name, searchTerm)
           )
         )
-        .limit(5);
+        .limit(5),
 
-      budgetResults.forEach((b) => {
-        extraResults.push({
-          id: b.id,
-          publicId: b.publicId,
-          type: "budget",
-          title: b.name,
-          subtitle: `Budget Target • ${b.currency}`,
-          amount: b.amount / 100,
-          currency: b.currency,
-          date: b.startDate,
-          link: "/dashboard/budgets",
-        });
-      });
-
-      // 2. Search Live Notes
-      const noteResults = await db
+      // 4. Notes & Journal
+      db
         .select({
           id: notes.id,
           publicId: notes.publicId,
@@ -240,15 +201,121 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
           and(
             eq(notes.userId, user.id),
             eq(notes.isDeleted, false),
+            or(ilike(notes.title, searchTerm), ilike(notes.plainText, searchTerm))
+          )
+        )
+        .limit(5),
+
+      // 5. Receipts & Invoices
+      db
+        .select({
+          id: receipts.id,
+          merchant: receipts.merchant,
+          extractedAmount: receipts.extractedAmount,
+          createdAt: receipts.createdAt,
+        })
+        .from(receipts)
+        .where(ilike(receipts.merchant, searchTerm))
+        .limit(4),
+
+      // 6. Contacts
+      db
+        .select({
+          id: contacts.id,
+          publicId: contacts.publicId,
+          name: contacts.name,
+          email: contacts.email,
+          phone: contacts.phone,
+          createdAt: contacts.createdAt,
+        })
+        .from(contacts)
+        .where(
+          and(
+            eq(contacts.userId, user.id),
+            eq(contacts.isDeleted, false),
             or(
-              ilike(notes.title, searchTerm),
-              ilike(notes.plainText, searchTerm)
+              ilike(contacts.name, searchTerm),
+              ilike(contacts.phone, searchTerm),
+              ilike(contacts.email, searchTerm)
             )
           )
         )
-        .limit(5);
+        .limit(5),
 
-      noteResults.forEach((n) => {
+      // 7. Settlements
+      db
+        .select({
+          id: settlements.id,
+          publicId: settlements.publicId,
+          amount: settlements.amount,
+          currency: settlements.currency,
+          status: settlements.status,
+          createdAt: settlements.createdAt,
+        })
+        .from(settlements)
+        .where(
+          and(
+            eq(settlements.isDeleted, false),
+            or(eq(settlements.fromUserId, user.id), eq(settlements.toUserId, user.id)),
+            ilike(settlements.publicId, searchTerm)
+          )
+        )
+        .limit(5),
+
+      // 8. Trips & Events
+      getTripDashboardSummary().catch(() => ({ trips: [] })),
+
+      // 9. Document Vault
+      getDocumentDashboardSummary().catch(() => ({ documents: [], invoices: [] })),
+    ]);
+
+    const formattedTx: SearchResultItem[] = txRes.status === "fulfilled"
+      ? txRes.value.map((tx) => ({
+          id: tx.id,
+          publicId: tx.publicId,
+          type: "transaction",
+          title: tx.title || tx.description,
+          subtitle: `${tx.categoryName || "General"} • ${tx.groupName ? `Group: ${tx.groupName}` : (tx.contactName || "Personal")}`,
+          amount: tx.amount,
+          currency: tx.currency,
+          date: tx.date,
+          link: `/dashboard/transactions/${tx.publicId}`,
+          metadata: { type: tx.type },
+        }))
+      : [];
+
+    const formattedGroups: SearchResultItem[] = groupRes.status === "fulfilled"
+      ? groupRes.value.map((g) => ({
+          id: g.id,
+          publicId: g.publicId,
+          type: "group",
+          title: g.name,
+          subtitle: g.description || `Group (${g.type})`,
+          date: g.createdAt,
+          link: `/dashboard/groups/${g.publicId || g.id}`,
+        }))
+      : [];
+
+    const extraResults: SearchResultItem[] = [];
+
+    if (budgetRes.status === "fulfilled") {
+      budgetRes.value.forEach((b) => {
+        extraResults.push({
+          id: b.id,
+          publicId: b.publicId,
+          type: "budget",
+          title: b.name,
+          subtitle: `Budget Target • ${b.currency}`,
+          amount: b.amount / 100,
+          currency: b.currency,
+          date: b.startDate,
+          link: "/dashboard/budgets",
+        });
+      });
+    }
+
+    if (noteRes.status === "fulfilled") {
+      noteRes.value.forEach((n) => {
         extraResults.push({
           id: n.id,
           publicId: n.publicId,
@@ -259,20 +326,10 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
           link: "/dashboard/notes",
         });
       });
+    }
 
-      // 3. Search Receipts & OCR
-      const receiptResults = await db
-        .select({
-          id: receipts.id,
-          merchant: receipts.merchant,
-          extractedAmount: receipts.extractedAmount,
-          createdAt: receipts.createdAt,
-        })
-        .from(receipts)
-        .where(ilike(receipts.merchant, searchTerm))
-        .limit(4);
-
-      receiptResults.forEach((r) => {
+    if (receiptRes.status === "fulfilled") {
+      receiptRes.value.forEach((r) => {
         extraResults.push({
           id: r.id,
           type: "invoice",
@@ -283,15 +340,43 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
           link: "/dashboard/transactions",
         });
       });
-    } catch {
-      // graceful fallback
     }
 
-    // 4. Search Trips & Events
-    try {
-      const tripSummary = await getTripDashboardSummary();
-      const lowerQuery = query.toLowerCase();
-      (tripSummary.trips || []).forEach((t) => {
+    if (contactRes.status === "fulfilled") {
+      contactRes.value.forEach((c) => {
+        extraResults.push({
+          id: c.id,
+          publicId: c.publicId,
+          type: "contact",
+          title: c.name,
+          subtitle: c.phone || c.email || "Contact Ledger",
+          date: c.createdAt,
+          link: `/dashboard/contacts/${c.id}`,
+        });
+      });
+    }
+
+    if (settlementRes.status === "fulfilled") {
+      settlementRes.value.forEach((s) => {
+        extraResults.push({
+          id: s.id,
+          publicId: s.publicId,
+          type: "settlement",
+          title: `Settlement #${s.publicId}`,
+          subtitle: `Status: ${s.status}`,
+          amount: s.amount / 100,
+          currency: s.currency,
+          date: s.createdAt,
+          link: "/dashboard/settlements",
+        });
+      });
+    }
+
+    const lowerQuery = query.toLowerCase();
+
+    if (tripRes.status === "fulfilled" && tripRes.value) {
+      const tripSummary = tripRes.value as any;
+      (tripSummary.trips || []).forEach((t: any) => {
         if (
           t.name.toLowerCase().includes(lowerQuery) ||
           t.destination.toLowerCase().includes(lowerQuery)
@@ -309,19 +394,15 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
           });
         }
       });
-    } catch {
-      // graceful fallback
     }
 
-    // 5. Search Document Vault & Invoices
-    try {
-      const docSummary = await getDocumentDashboardSummary();
-      const lowerQuery = query.toLowerCase();
-      (docSummary.documents || []).forEach((d) => {
+    if (docRes.status === "fulfilled" && docRes.value) {
+      const docSummary = docRes.value as any;
+      (docSummary.documents || []).forEach((d: any) => {
         if (
           d.fileName.toLowerCase().includes(lowerQuery) ||
           d.originalName.toLowerCase().includes(lowerQuery) ||
-          d.merchantName.toLowerCase().includes(lowerQuery)
+          d.merchantName?.toLowerCase().includes(lowerQuery)
         ) {
           extraResults.push({
             id: d.id,
@@ -336,9 +417,9 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
           });
         }
       });
-      (docSummary.invoices || []).forEach((inv) => {
+      (docSummary.invoices || []).forEach((inv: any) => {
         if (
-          inv.customerName.toLowerCase().includes(lowerQuery) ||
+          inv.customerName?.toLowerCase().includes(lowerQuery) ||
           (inv.customerGst && inv.customerGst.toLowerCase().includes(lowerQuery))
         ) {
           extraResults.push({
@@ -354,11 +435,9 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
           });
         }
       });
-    } catch {
-      // graceful fallback
     }
 
-    return [...formattedTx, ...formattedGroups, ...formattedContacts, ...formattedSettlements, ...extraResults];
+    return [...formattedTx, ...formattedGroups, ...extraResults];
   } catch (error) {
     if (error instanceof ValidationError) throw error;
     return [];
