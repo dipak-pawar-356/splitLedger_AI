@@ -1,12 +1,12 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { 
-  transactions, 
-  contacts, 
-  groups, 
-  categories, 
-  comments, 
+import {
+  transactions,
+  contacts,
+  groups,
+  categories,
+  comments,
   settlements,
   groupMembers,
   users,
@@ -271,29 +271,29 @@ export async function globalSearch(rawQuery: string): Promise<SearchResultItem[]
 
     const formattedTx: SearchResultItem[] = txRes.status === "fulfilled"
       ? txRes.value.map((tx) => ({
-          id: tx.id,
-          publicId: tx.publicId,
-          type: "transaction",
-          title: tx.title || tx.description,
-          subtitle: `${tx.categoryName || "General"} • ${tx.groupName ? `Group: ${tx.groupName}` : (tx.contactName || "Personal")}`,
-          amount: tx.amount,
-          currency: tx.currency,
-          date: tx.date,
-          link: `/dashboard/transactions/${tx.publicId}`,
-          metadata: { type: tx.type },
-        }))
+        id: tx.id,
+        publicId: tx.publicId,
+        type: "transaction",
+        title: tx.title || tx.description,
+        subtitle: `${tx.categoryName || "General"} • ${tx.groupName ? `Group: ${tx.groupName}` : (tx.contactName || "Personal")}`,
+        amount: tx.amount,
+        currency: tx.currency,
+        date: tx.date,
+        link: `/dashboard/transactions/${tx.publicId}`,
+        metadata: { type: tx.type },
+      }))
       : [];
 
     const formattedGroups: SearchResultItem[] = groupRes.status === "fulfilled"
       ? groupRes.value.map((g) => ({
-          id: g.id,
-          publicId: g.publicId,
-          type: "group",
-          title: g.name,
-          subtitle: g.description || `Group (${g.type})`,
-          date: g.createdAt,
-          link: `/dashboard/groups/${g.publicId || g.id}`,
-        }))
+        id: g.id,
+        publicId: g.publicId,
+        type: "group",
+        title: g.name,
+        subtitle: g.description || `Group (${g.type})`,
+        date: g.createdAt,
+        link: `/dashboard/groups/${g.publicId || g.id}`,
+      }))
       : [];
 
     const extraResults: SearchResultItem[] = [];

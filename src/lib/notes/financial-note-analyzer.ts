@@ -798,24 +798,35 @@ export function cleanNoteContentText(content: string): string {
     .replace(/<\/div>/gi, "\n")
     .replace(/<\/li>/gi, "\n")
     .replace(/<\/tr>/gi, "\n")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&amp;nbsp;/gi, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&#160;/gi, " ")
-    .replace(/\u00a0/g, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&nbsp;/gi, " ");
+    .replace(/<[^>]*>/g, " ");
+
+  // Iteratively decode HTML entities until no encoded non-breaking spaces or ampersands remain
+  let prevText = "";
+  while (prevText !== text) {
+    prevText = text;
+    text = text
+      .replace(/&amp;nbsp;/gi, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&#160;/gi, " ")
+      .replace(/\u00a0/g, " ")
+      .replace(/&ensp;/gi, " ")
+      .replace(/&emsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'");
+  }
 
   // 2. Split lines and process multi-transaction lines
   const rawLines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const formattedLines: string[] = [];
 
   for (const rawLine of rawLines) {
-    let line = rawLine.replace(/[ \t]+/g, " ").trim();
+    let line = rawLine
+      .replace(/(&nbsp;|&#160;|\u00a0|&amp;nbsp;)+/gi, " ")
+      .replace(/[ \t]+/g, " ")
+      .trim();
     if (!line) continue;
 
     // Check if line contains date prefix followed by item: e.g. "01/10/2026 Chips - 20"
@@ -833,10 +844,10 @@ export function cleanNoteContentText(content: string): string {
     }
 
     // Split multiple space-separated or comma-separated transactions:
-    // e.g. "Recharge - 399 Groceries - 1850" or "Chips - 20, Petrol - 500"
+    // e.g. "Recharge - 399 Groceries - 1850" or "Chips - 20, Petrol - 500" or "Mess - 40 Tea - 60"
     if (/(?:[-:]\s*₹?\s*\d+.*?){2,}/.test(line)) {
       const parts = line
-        .split(/(?<=\b\d+(?:\.\d{1,2})?(?:\s*(?:rs|inr|\/-))?)(?:\s|&nbsp;|\u00a0)+(?=[A-Za-z][^-\n:]*?[-:]\s*₹?\s*\d+)/i)
+        .split(/(?<=\b\d+(?:\.\d{1,2})?(?:\s*(?:rs|inr|\/-))?)(?:[\s,;]+)(?=[A-Za-z][^-\n:]*?[-:]\s*₹?\s*\d+)/i)
         .map((p) => p.trim())
         .filter(Boolean);
       if (parts.length > 1) {

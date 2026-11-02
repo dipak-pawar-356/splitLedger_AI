@@ -265,7 +265,10 @@ export function RichTextEditor({
     const target = e.target as HTMLElement;
     const anchor = target.closest("a");
     if (anchor && anchor.href) {
-      if (e.ctrlKey || e.metaKey || readOnly) {
+      const isTouchDevice =
+        typeof window !== "undefined" &&
+        window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+      if (e.ctrlKey || e.metaKey || readOnly || isTouchDevice) {
         e.preventDefault();
         e.stopPropagation();
         window.open(anchor.href, "_blank", "noopener,noreferrer");

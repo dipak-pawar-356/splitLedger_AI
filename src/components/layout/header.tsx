@@ -33,8 +33,9 @@ export function Header({ initialUser }: HeaderProps = {}) {
           <Menu className="h-5 w-5" />
         </button>
 
-        <Link href="/dashboard" className="lg:hidden flex items-center shrink-0 mr-1" title="SplitLedger AI">
-          <SplitLedgerBrand size="sm" />
+        <Link href="/dashboard" className="lg:hidden flex items-center shrink-0 mr-0.5 sm:mr-1" title="SplitLedger AI">
+          <SplitLedgerBrand size="sm" showText={false} className="sm:hidden" />
+          <SplitLedgerBrand size="sm" className="hidden sm:flex" />
         </Link>
 
         <GlobalSearch />

@@ -131,7 +131,7 @@ export function ProfileMenu({ initialUser }: ProfileMenuProps = {}) {
             )}
           </div>
           <span className="hidden md:inline text-sm font-medium">{userName}</span>
-          <ChevronDown className="h-4 w-4 text-slate-500" />
+          <ChevronDown className="h-4 w-4 text-slate-500 hidden sm:inline" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
