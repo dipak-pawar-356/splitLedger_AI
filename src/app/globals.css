@@ -150,6 +150,17 @@
   .skeleton-shimmer {
     @apply relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/20 dark:before:via-white/5 before:to-transparent;
   }
+  /* ================= 1px Semantic Gradient Border for Financial Summary Cards ================= */
+  .fin-border-gradient {
+    position: absolute;
+    inset: 0;
+    border-radius: 1rem;
+    padding: 1px;
+    pointer-events: none;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
   /* ================= 60 FPS GPU-Accelerated Floating Card Interaction System ================= */
   .card-premium {
     position: relative;
