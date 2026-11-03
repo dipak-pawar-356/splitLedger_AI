@@ -290,6 +290,139 @@
     transform: scaleX(1);
     transform-origin: bottom left;
   }
+
+  /* ================= AI MODULE EXCLUSIVE ENTERPRISE DESIGN SYSTEM ================= */
+  .ai-module-scope {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* AI Glass Surface with Soft Inner Lighting */
+  .ai-glass-surface {
+    position: relative;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    background-color: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  }
+  .dark .ai-glass-surface {
+    background-color: rgba(15, 23, 42, 0.65);
+    box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.35), 0 2px 8px -1px rgba(0, 0, 0, 0.2);
+  }
+
+  /* AI Card Hover: Lift 6px, Scale 1.015, soft shadow expansion, 180-220ms ease-out */
+  .ai-card-hover {
+    position: relative;
+    cursor: pointer;
+    will-change: transform, box-shadow, border-color, filter;
+    transition: 
+      transform 200ms ease-out,
+      box-shadow 200ms ease-out,
+      border-color 200ms ease-out,
+      filter 200ms ease-out;
+  }
+
+  .ai-card-hover:hover {
+    transform: translateY(-6px) scale(1.015) !important;
+    box-shadow: 
+      0 18px 32px -8px rgba(0, 0, 0, 0.12),
+      0 8px 16px -4px rgba(0, 0, 0, 0.06),
+      0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+    filter: brightness(1.025);
+    z-index: 10;
+  }
+
+  .dark .ai-card-hover:hover {
+    box-shadow: 
+      0 22px 38px -10px rgba(0, 0, 0, 0.65),
+      0 12px 22px -6px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+    filter: brightness(1.035);
+  }
+
+  /* AI Icon Micro-interaction: rotate 2.5deg, scale 1.08, subtle glow */
+  .ai-icon-container {
+    will-change: transform, filter;
+    transition: transform 200ms ease-out, filter 200ms ease-out;
+  }
+
+  .ai-card-hover:hover .ai-icon-container,
+  .group:hover .ai-icon-container {
+    transform: scale(1.08) rotate(2.5deg) !important;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.18)) brightness(1.12) !important;
+  }
+
+  /* AI Card Numeric Values Brighten Slightly */
+  .ai-number-val {
+    transition: filter 200ms ease-out;
+  }
+  .ai-card-hover:hover .ai-number-val {
+    filter: brightness(1.1);
+  }
+
+  /* AI Card Titles Brighten */
+  .ai-card-title {
+    transition: filter 200ms ease-out, color 200ms ease-out;
+  }
+  .ai-card-hover:hover .ai-card-title {
+    filter: brightness(1.08);
+  }
+
+  /* AI Button Micro-interaction: lift, glow, border brighten, scale 0.98 on active */
+  .ai-btn-premium {
+    will-change: transform, box-shadow, filter;
+    transition: 
+      transform 180ms ease-out,
+      box-shadow 180ms ease-out,
+      border-color 180ms ease-out,
+      filter 180ms ease-out;
+  }
+  .ai-btn-premium:hover:not(:disabled) {
+    transform: translateY(-2px);
+    filter: brightness(1.06);
+    box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.16);
+  }
+  .ai-btn-premium:active:not(:disabled) {
+    transform: scale(0.98) translateY(0);
+  }
+
+  /* AI Subsection Gradient Border Tokens (1px high-resolution mask) */
+  .ai-border-fin-intel {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.55), rgba(20, 184, 166, 0.35), rgba(6, 182, 212, 0.5));
+  }
+  .ai-border-health {
+    background: linear-gradient(135deg, rgba(20, 184, 166, 0.55), rgba(16, 185, 129, 0.35), rgba(5, 150, 105, 0.5));
+  }
+  .ai-border-budget {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.55), rgba(59, 130, 246, 0.35), rgba(6, 182, 212, 0.5));
+  }
+  .ai-border-forecasting {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.55), rgba(99, 102, 241, 0.35), rgba(56, 189, 248, 0.5));
+  }
+  .ai-border-ocr {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.55), rgba(217, 70, 239, 0.35), rgba(236, 72, 153, 0.5));
+  }
+  .ai-border-subscriptions {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.55), rgba(139, 92, 246, 0.35), rgba(124, 58, 237, 0.5));
+  }
+  .ai-border-voice {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.55), rgba(99, 102, 241, 0.35), rgba(139, 92, 246, 0.5));
+  }
+  .ai-border-assistant {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.55), rgba(20, 184, 166, 0.35), rgba(16, 185, 129, 0.5));
+  }
+  .ai-border-recommendations {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.55), rgba(249, 115, 22, 0.35), rgba(234, 88, 12, 0.5));
+  }
+  .ai-border-analytics {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.55), rgba(56, 189, 248, 0.35), rgba(6, 182, 212, 0.5));
+  }
+  .ai-border-forecast-cards {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.55), rgba(139, 92, 246, 0.35), rgba(168, 85, 247, 0.5));
+  }
+  .ai-border-charts {
+    background: linear-gradient(135deg, rgba(30, 58, 138, 0.6), rgba(37, 99, 235, 0.4), rgba(6, 182, 212, 0.5));
+  }
 }
 
 /* Accessibility: Gentle transitions for prefers-reduced-motion without breaking interactive feedback */
@@ -305,7 +438,15 @@
   .btn-premium:active,
   .icon-premium,
   .icon-premium:hover,
-  .card-premium:hover .icon-premium {
+  .card-premium:hover .icon-premium,
+  .ai-card-hover,
+  .ai-card-hover:hover,
+  .ai-icon-container,
+  .ai-icon-container:hover,
+  .ai-card-hover:hover .ai-icon-container,
+  .ai-btn-premium,
+  .ai-btn-premium:hover,
+  .ai-btn-premium:active {
     transform: none !important;
     transition: none !important;
   }

@@ -44,8 +44,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 export function AISubscriptionsCard() {
-  const [subscriptions, setSubscriptions] = useState<DetectedSubscription[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [subscriptions, setSubscriptions] = useState<DetectedSubscription[]>(DEFAULT_CURATED_SUBSCRIPTIONS);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -311,16 +311,17 @@ export function AISubscriptionsCard() {
   return (
     <div className="space-y-6">
       {/* 1. MASTER SUBSCRIPTION CONTROL HEADER */}
-      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs bg-card overflow-hidden">
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs bg-card overflow-hidden ai-glass-surface ai-border-subscriptions p-[1px]">
+        <div className="bg-card/95 rounded-[23px] overflow-hidden">
         <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20 shadow-xs shrink-0">
+              <div className="p-2.5 rounded-2xl bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20 shadow-xs shrink-0 ai-icon-container">
                 <Repeat className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+                  <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 ai-card-title">
                     Recurring Subscriptions & Utility Calendar
                   </CardTitle>
                   <Badge variant="outline" className="text-[10px] text-purple-600 border-purple-300 dark:border-purple-800 bg-purple-500/5 font-bold">
@@ -338,7 +339,7 @@ export function AISubscriptionsCard() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 px-3.5 rounded-xl text-xs font-bold gap-1.5 hover:border-purple-500/40"
+                className="h-9 px-3.5 rounded-xl text-xs font-bold gap-1.5 hover:border-purple-500/40 ai-btn-premium"
                 onClick={loadSubscriptions}
                 disabled={isLoading}
                 aria-label="Rescan transaction history for recurring bills"
@@ -350,7 +351,7 @@ export function AISubscriptionsCard() {
               <Button
                 type="button"
                 size="sm"
-                className="h-9 px-3.5 rounded-xl text-xs font-bold gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-xs"
+                className="h-9 px-3.5 rounded-xl text-xs font-bold gap-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-xs ai-btn-premium"
                 onClick={() => setIsAddSubOpen(true)}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -359,184 +360,257 @@ export function AISubscriptionsCard() {
             </div>
           </div>
         </CardHeader>
+        </div>
       </Card>
 
       {/* 2. TOP SUMMARY METRIC CARDS (8 LIVE ENTERPRISE CARDS) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div
+        variants={shouldReduceMotion ? undefined : {
+          hidden: { opacity: 0 },
+          show: { opacity: 1, transition: { staggerChildren: 0.03 } }
+        }}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+      >
         {/* Card 1: Active Subscriptions */}
-        <Card className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg transition-all duration-200 group">
-          <div className="fin-border-gradient bg-gradient-to-br from-purple-500/40 via-violet-500/25 to-purple-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-purple-800 dark:text-purple-300">
-              Active Subscriptions
-            </span>
-            <div className="p-1.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-              <Repeat className="h-4 w-4" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-purple-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
+            <div className="fin-border-gradient bg-gradient-to-br from-purple-500/40 via-violet-500/25 to-purple-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-purple-800 dark:text-purple-300 ai-card-title">
+                Active Subscriptions
+              </span>
+              <div className="p-1.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20 shadow-xs ai-icon-container">
+                <Repeat className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10 text-2xl font-black text-purple-600 dark:text-purple-400 font-mono tabular-nums">
-            <AnimatedCounter value={activeSubs.length} duration={0.5} />
-          </div>
-          <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-purple-500/15 pt-1.5">
-            <span>Verified Commitments</span>
-            <span className="font-bold text-purple-600 dark:text-purple-400">
-              {subscriptions.length} detected total
-            </span>
-          </div>
-        </Card>
+            <div className="relative z-10 text-2xl font-black text-purple-600 dark:text-purple-400 font-mono tabular-nums ai-number-val">
+              <AnimatedCounter value={activeSubs.length} duration={0.5} />
+            </div>
+            <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-purple-500/15 pt-1.5">
+              <span>Verified Commitments</span>
+              <span className="font-bold text-purple-600 dark:text-purple-400">
+                {subscriptions.length} detected total
+              </span>
+            </div>
+          </Card>
+        </motion.div>
 
         {/* Card 2: Monthly Subscription Cost */}
-        <Card className="relative overflow-hidden rounded-2xl border border-rose-500/20 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg transition-all duration-200 group">
-          <div className="fin-border-gradient bg-gradient-to-br from-rose-500/40 via-red-500/25 to-rose-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-rose-800 dark:text-rose-300">
-              Monthly Subscription Cost
-            </span>
-            <div className="p-1.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-              <Calendar className="h-4 w-4" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-rose-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
+            <div className="fin-border-gradient bg-gradient-to-br from-rose-500/40 via-red-500/25 to-rose-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-rose-800 dark:text-rose-300 ai-card-title">
+                Monthly Subscription Cost
+              </span>
+              <div className="p-1.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20 shadow-xs ai-icon-container">
+                <Calendar className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10 text-2xl font-black text-rose-600 dark:text-rose-400 font-mono tabular-nums">
-            <AnimatedCounter value={formatCurrency(totalMonthlyCost, "INR")} duration={0.5} />
-          </div>
-          <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-rose-500/15 pt-1.5">
-            <span>Calculated Outflow</span>
-            <span className="font-bold text-rose-600 dark:text-rose-400">Monthly recurring</span>
-          </div>
-        </Card>
+            <div className="relative z-10 text-2xl font-black text-rose-600 dark:text-rose-400 font-mono tabular-nums ai-number-val">
+              <AnimatedCounter value={formatCurrency(totalMonthlyCost, "INR")} duration={0.5} />
+            </div>
+            <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-rose-500/15 pt-1.5">
+              <span>Calculated Outflow</span>
+              <span className="font-bold text-rose-600 dark:text-rose-400">Monthly recurring</span>
+            </div>
+          </Card>
+        </motion.div>
 
         {/* Card 3: Annual Run Rate */}
-        <Card className="relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg transition-all duration-200 group">
-          <div className="fin-border-gradient bg-gradient-to-br from-indigo-500/40 via-blue-500/25 to-indigo-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-indigo-800 dark:text-indigo-300">
-              Annual Run Rate
-            </span>
-            <div className="p-1.5 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-              <Zap className="h-4 w-4" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-indigo-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
+            <div className="fin-border-gradient bg-gradient-to-br from-indigo-500/40 via-blue-500/25 to-indigo-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-indigo-800 dark:text-indigo-300 ai-card-title">
+                Annual Run Rate
+              </span>
+              <div className="p-1.5 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-xs ai-icon-container">
+                <Zap className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10 text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono tabular-nums">
-            <AnimatedCounter value={formatCurrency(annualRunRate, "INR")} duration={0.5} />
-          </div>
-          <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-indigo-500/15 pt-1.5">
-            <span>12-Month Projected Drain</span>
-            <span className="font-bold text-indigo-600 dark:text-indigo-400">Prorated Pace</span>
-          </div>
-        </Card>
+            <div className="relative z-10 text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono tabular-nums ai-number-val">
+              <AnimatedCounter value={formatCurrency(annualRunRate, "INR")} duration={0.5} />
+            </div>
+            <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-indigo-500/15 pt-1.5">
+              <span>12-Month Projected Drain</span>
+              <span className="font-bold text-indigo-600 dark:text-indigo-400">Prorated Pace</span>
+            </div>
+          </Card>
+        </motion.div>
 
         {/* Card 4: Upcoming Payments (Next 30 Days) */}
-        <Card className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg transition-all duration-200 group">
-          <div className="fin-border-gradient bg-gradient-to-br from-amber-500/40 via-orange-500/25 to-amber-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-amber-800 dark:text-amber-300">
-              Upcoming (Next 30 Days)
-            </span>
-            <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-              <Clock className="h-4 w-4" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-amber-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
+            <div className="fin-border-gradient bg-gradient-to-br from-amber-500/40 via-orange-500/25 to-amber-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-amber-800 dark:text-amber-300 ai-card-title">
+                Upcoming (Next 30 Days)
+              </span>
+              <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-xs ai-icon-container">
+                <Clock className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10 text-2xl font-black text-amber-600 dark:text-amber-400 font-mono tabular-nums">
-            <AnimatedCounter value={formatCurrency(upcoming30DaysCost, "INR")} duration={0.5} />
-          </div>
-          <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-amber-500/15 pt-1.5">
-            <span>Due within 30 days</span>
-            <span className="font-bold text-amber-600 dark:text-amber-400">{next30DaysPayments.length} bills pending</span>
-          </div>
-        </Card>
+            <div className="relative z-10 text-2xl font-black text-amber-600 dark:text-amber-400 font-mono tabular-nums ai-number-val">
+              <AnimatedCounter value={formatCurrency(upcoming30DaysCost, "INR")} duration={0.5} />
+            </div>
+            <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-amber-500/15 pt-1.5">
+              <span>Due within 30 days</span>
+              <span className="font-bold text-amber-600 dark:text-amber-400">{next30DaysPayments.length} bills pending</span>
+            </div>
+          </Card>
+        </motion.div>
 
         {/* Card 5: Average Subscription Cost */}
-        <Card className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg transition-all duration-200 group">
-          <div className="fin-border-gradient bg-gradient-to-br from-emerald-500/40 via-teal-500/25 to-emerald-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 dark:text-emerald-300">
-              Average Subscription Cost
-            </span>
-            <div className="p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <ShieldCheck className="h-4 w-4" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
+            <div className="fin-border-gradient bg-gradient-to-br from-emerald-500/40 via-teal-500/25 to-emerald-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 dark:text-emerald-300 ai-card-title">
+                Average Subscription Cost
+              </span>
+              <div className="p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs ai-icon-container">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10 text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">
-            <AnimatedCounter value={formatCurrency(averageSubCost, "INR")} duration={0.5} />
-          </div>
-          <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-emerald-500/15 pt-1.5">
-            <span>Mean Recurring Cost</span>
-            <span className="font-bold text-emerald-600 dark:text-emerald-400">per service</span>
-          </div>
-        </Card>
+            <div className="relative z-10 text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums ai-number-val">
+              <AnimatedCounter value={formatCurrency(averageSubCost, "INR")} duration={0.5} />
+            </div>
+            <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-emerald-500/15 pt-1.5">
+              <span>Mean Recurring Cost</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">per service</span>
+            </div>
+          </Card>
+        </motion.div>
 
         {/* Card 6: Highest Subscription */}
-        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg transition-all duration-200 group">
-          <div className="fin-border-gradient bg-gradient-to-br from-blue-500/40 via-indigo-500/25 to-blue-700/35 opacity-50 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="font-bold uppercase tracking-wider text-[10px]">Highest Subscription</span>
-            <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-600">
-              <TrendingUp className="h-4 w-4" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
+            <div className="fin-border-gradient bg-gradient-to-br from-blue-500/40 via-indigo-500/25 to-blue-700/35 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="font-bold uppercase tracking-wider text-[10px] ai-card-title">Highest Subscription</span>
+              <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-600 shadow-xs ai-icon-container">
+                <TrendingUp className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10">
-            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-              {highestSub ? highestSub.name : "None detected"}
-            </p>
-            <p className="text-xl font-black text-slate-900 dark:text-slate-100 font-mono tabular-nums mt-0.5">
-              {highestSub ? formatCurrency(highestSub.monthlyAmount, "INR") : "₹0.00"}
-            </p>
-          </div>
-          <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1.5">
-            <span>Peak commitment</span>
-            <span className="font-bold text-slate-600 dark:text-slate-300">
-              {highestSub ? highestSub.category : "—"}
-            </span>
-          </div>
-        </Card>
+            <div className="relative z-10">
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                {highestSub ? highestSub.name : "None detected"}
+              </p>
+              <p className="text-xl font-black text-slate-900 dark:text-slate-100 font-mono tabular-nums mt-0.5 ai-number-val">
+                {highestSub ? formatCurrency(highestSub.monthlyAmount, "INR") : "₹0.00"}
+              </p>
+            </div>
+            <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1.5">
+              <span>Peak commitment</span>
+              <span className="font-bold text-slate-600 dark:text-slate-300">
+                {highestSub ? highestSub.category : "—"}
+              </span>
+            </div>
+          </Card>
+        </motion.div>
 
         {/* Card 7: Lowest Subscription */}
-        <Card className="relative overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg transition-all duration-200 group">
-          <div className="fin-border-gradient bg-gradient-to-br from-teal-500/40 via-emerald-500/25 to-teal-700/35 opacity-50 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="font-bold uppercase tracking-wider text-[10px]">Lowest Subscription</span>
-            <div className="p-1.5 rounded-xl bg-teal-500/10 text-teal-600">
-              <TrendingDown className="h-4 w-4" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
+            <div className="fin-border-gradient bg-gradient-to-br from-teal-500/40 via-emerald-500/25 to-teal-700/35 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="font-bold uppercase tracking-wider text-[10px] ai-card-title">Lowest Subscription</span>
+              <div className="p-1.5 rounded-xl bg-teal-500/10 text-teal-600 shadow-xs ai-icon-container">
+                <TrendingDown className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10">
-            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-              {lowestSub ? lowestSub.name : "None detected"}
-            </p>
-            <p className="text-xl font-black text-slate-900 dark:text-slate-100 font-mono tabular-nums mt-0.5">
-              {lowestSub ? formatCurrency(lowestSub.monthlyAmount, "INR") : "₹0.00"}
-            </p>
-          </div>
-          <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1.5">
-            <span>Base commitment</span>
-            <span className="font-bold text-slate-600 dark:text-slate-300">
-              {lowestSub ? lowestSub.category : "—"}
-            </span>
-          </div>
-        </Card>
+            <div className="relative z-10">
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                {lowestSub ? lowestSub.name : "None detected"}
+              </p>
+              <p className="text-xl font-black text-slate-900 dark:text-slate-100 font-mono tabular-nums mt-0.5 ai-number-val">
+                {lowestSub ? formatCurrency(lowestSub.monthlyAmount, "INR") : "₹0.00"}
+              </p>
+            </div>
+            <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1.5">
+              <span>Base commitment</span>
+              <span className="font-bold text-slate-600 dark:text-slate-300">
+                {lowestSub ? lowestSub.category : "—"}
+              </span>
+            </div>
+          </Card>
+        </motion.div>
 
         {/* Card 8: Potential Savings */}
-        <Card className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-lg transition-all duration-200 group">
-          <div className="fin-border-gradient bg-gradient-to-br from-emerald-500/40 via-teal-500/25 to-emerald-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 dark:text-emerald-300">
-              Potential Savings
-            </span>
-            <div className="p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <Sparkles className="h-4 w-4" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
+            <div className="fin-border-gradient bg-gradient-to-br from-emerald-500/40 via-teal-500/25 to-emerald-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 dark:text-emerald-300 ai-card-title">
+                Potential Savings
+              </span>
+              <div className="p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs ai-icon-container">
+                <Sparkles className="h-4 w-4" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10 text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">
-            <AnimatedCounter value={formatCurrency(potentialSavingsMonthly, "INR")} duration={0.5} />
-          </div>
-          <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-emerald-500/15 pt-1.5">
-            <span>Optimization Room</span>
-            <span className="font-bold text-emerald-600 dark:text-emerald-400">
-              {potentialSavingsMonthly > 0 ? "Annual Switch Feasible" : "Efficient"}
-            </span>
-          </div>
-        </Card>
-      </div>
+            <div className="relative z-10 text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums ai-number-val">
+              <AnimatedCounter value={formatCurrency(potentialSavingsMonthly, "INR")} duration={0.5} />
+            </div>
+            <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-emerald-500/15 pt-1.5">
+              <span>Optimization Room</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                {potentialSavingsMonthly > 0 ? "Annual Switch Feasible" : "Efficient"}
+              </span>
+            </div>
+          </Card>
+        </motion.div>
+      </motion.div>
 
       {/* 3. EMPTY STATE OR FULL ENTERPRISE SUITE */}
       {subscriptions.length === 0 ? (

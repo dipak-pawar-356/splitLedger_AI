@@ -143,145 +143,148 @@ export function FinancialIntelligenceControlCenter({
   return (
     <div className="space-y-6">
       {/* Control Center Header & Responsive Period Selector */}
-      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs bg-card overflow-hidden">
-        <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs shrink-0">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
-                    Financial Intelligence Control Center
-                  </CardTitle>
-                  <Badge variant="outline" className="text-[10px] font-bold text-emerald-600 border-emerald-300 dark:border-emerald-800 bg-emerald-500/5">
-                    Live Verified Records
-                  </Badge>
-                  {isPeriodLoading && (
-                    <Badge variant="secondary" className="text-[10px] font-mono text-primary animate-pulse">
-                      Calculating...
-                    </Badge>
-                  )}
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs bg-card overflow-hidden ai-glass-surface ai-border-fin-intel p-[1px]">
+        <div className="bg-card/95 rounded-[23px] overflow-hidden">
+          <CardHeader className="pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-900/40">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs shrink-0 ai-icon-container">
+                  <ShieldCheck className="h-5 w-5" />
                 </div>
-                <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Real-time aggregation across approved ledger transactions, settlements, and active spending boundaries
-                </CardDescription>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <CardTitle className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 ai-card-title">
+                      Financial Intelligence Control Center
+                    </CardTitle>
+                    <Badge variant="outline" className="text-[10px] font-bold text-emerald-600 border-emerald-300 dark:border-emerald-800 bg-emerald-500/5 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Live Verified Records</span>
+                    </Badge>
+                    {isPeriodLoading && (
+                      <Badge variant="secondary" className="text-[10px] font-mono text-primary animate-pulse">
+                        Calculating...
+                      </Badge>
+                    )}
+                  </div>
+                  <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Real-time aggregation across approved ledger transactions, settlements, and active spending boundaries
+                  </CardDescription>
+                </div>
               </div>
-            </div>
 
-            {/* Comprehensive Period Selector Engine */}
-            <div className="flex items-center gap-2 self-start lg:self-auto flex-wrap">
-              <div
-                role="radiogroup"
-                aria-label="Intelligence period filter"
-                className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 backdrop-blur-xs text-xs font-semibold overflow-x-auto max-w-full"
-              >
-                {PRIMARY_PERIODS.map((tab) => {
-                  const isSelected = selectedPeriod === tab.key;
-                  return (
+              {/* Comprehensive Period Selector Engine */}
+              <div className="flex items-center gap-2 self-start lg:self-auto flex-wrap">
+                <div
+                  role="radiogroup"
+                  aria-label="Intelligence period filter"
+                  className="flex items-center p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-800/80 border border-slate-300/40 dark:border-slate-700/60 backdrop-blur-xs text-xs font-semibold overflow-x-auto max-w-full"
+                >
+                  {PRIMARY_PERIODS.map((tab) => {
+                    const isSelected = selectedPeriod === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => handlePeriodClick(tab.key)}
+                        className={`relative px-3 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-all shrink-0 ai-btn-premium ${
+                          isSelected
+                            ? "text-primary-foreground shadow-xs"
+                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                        }`}
+                      >
+                        {isSelected && (
+                          <motion.div
+                            layoutId="fc-period-pill"
+                            className="absolute inset-0 bg-primary rounded-xl"
+                            transition={shouldReduceMotion ? { duration: 0 } : { type: "spring", stiffness: 450, damping: 32 }}
+                          />
+                        )}
+                        <span className="relative z-10">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+
+                  {/* More Periods Dropdown Trigger */}
+                  <div className="relative">
                     <button
-                      key={tab.key}
                       type="button"
-                      role="radio"
-                      aria-checked={isSelected}
-                      onClick={() => handlePeriodClick(tab.key)}
-                      className={`relative px-3 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-all shrink-0 ${
-                        isSelected
-                          ? "text-primary-foreground shadow-xs"
+                      onClick={() => setIsDropdownOpen((prev) => !prev)}
+                      className={`relative px-2.5 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 ai-btn-premium ${
+                        isExtendedSelected
+                          ? "bg-primary text-primary-foreground shadow-xs"
                           : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                       }`}
+                      aria-expanded={isDropdownOpen}
+                      aria-label="More period filters"
                     >
-                      {isSelected && (
-                        <motion.div
-                          layoutId="fc-period-pill"
-                          className="absolute inset-0 bg-primary rounded-xl"
-                          transition={shouldReduceMotion ? { duration: 0 } : { type: "spring", stiffness: 450, damping: 32 }}
-                        />
-                      )}
-                      <span className="relative z-10">{tab.label}</span>
+                      <span>{isExtendedSelected ? extendedSelectedLabel : "More"}</span>
+                      <ChevronDown className={`h-3 w-3 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
                     </button>
-                  );
-                })}
 
-                {/* More Periods Dropdown Trigger */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsDropdownOpen((prev) => !prev)}
-                    className={`relative px-2.5 py-1.5 min-h-[32px] rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 ${
-                      isExtendedSelected
-                        ? "bg-primary text-primary-foreground shadow-xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-                    }`}
-                    aria-expanded={isDropdownOpen}
-                    aria-label="More period filters"
-                  >
-                    <span>{isExtendedSelected ? extendedSelectedLabel : "More"}</span>
-                    <ChevronDown className={`h-3 w-3 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {isDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-1.5 w-44 rounded-2xl border border-slate-200 dark:border-slate-800 bg-background/95 backdrop-blur-md shadow-xl p-1.5 z-50 space-y-0.5">
-                      {EXTENDED_PERIODS.map((item) => (
-                        <button
-                          key={item.key}
-                          type="button"
-                          onClick={() => handlePeriodClick(item.key)}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-colors flex items-center justify-between ${
-                            selectedPeriod === item.key
-                              ? "bg-primary/10 text-primary font-bold"
-                              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          }`}
-                        >
-                          <span>{item.label}</span>
-                          {selectedPeriod === item.key && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                    {/* Dropdown Menu */}
+                    {isDropdownOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 w-44 rounded-2xl border border-slate-200 dark:border-slate-800 bg-background/95 backdrop-blur-md shadow-xl p-1.5 z-50 space-y-0.5">
+                        {EXTENDED_PERIODS.map((item) => (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={() => handlePeriodClick(item.key)}
+                            className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-colors flex items-center justify-between ${
+                              selectedPeriod === item.key
+                                ? "bg-primary/10 text-primary font-bold"
+                                : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            }`}
+                          >
+                            <span>{item.label}</span>
+                            {selectedPeriod === item.key && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {onRefresh && (
+                {onRefresh && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={onRefresh}
+                    disabled={isRefreshing || isPeriodLoading}
+                    className="rounded-xl h-9 min-h-[36px] px-3 text-xs font-bold gap-1.5 ai-btn-premium"
+                    aria-label="Refresh financial control center"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing || isPeriodLoading ? "animate-spin text-primary" : ""}`} />
+                    <span className="hidden sm:inline">Sync</span>
+                  </Button>
+                )}
+
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={onRefresh}
-                  disabled={isRefreshing || isPeriodLoading}
-                  className="rounded-xl h-9 min-h-[36px] px-3 text-xs font-bold gap-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-[0.98] transition-all"
-                  aria-label="Refresh financial control center"
+                  onClick={() => {
+                    setIsSimulatedSurplus((prev) => !prev);
+                    toast.info(
+                      !isSimulatedSurplus
+                        ? "Surplus Mode Enabled: Watch cards & animations automatically convert to Emerald Green!"
+                        : "Reverted to Live Verified Ledger Data"
+                    );
+                  }}
+                  className={`rounded-xl h-9 min-h-[36px] px-3 text-xs font-bold gap-1.5 ai-btn-premium transition-all ${
+                    isSimulatedSurplus
+                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black shadow-md shadow-emerald-500/15"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+                  }`}
+                  aria-label="Toggle surplus simulation mode"
                 >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing || isPeriodLoading ? "animate-spin text-primary" : ""}`} />
-                  <span className="hidden sm:inline">Sync</span>
+                  <Sparkles className={`h-3.5 w-3.5 ${isSimulatedSurplus ? "text-emerald-500 animate-spin" : "text-amber-500"}`} />
+                  <span className="hidden sm:inline">{isSimulatedSurplus ? "Surplus Mode Active" : "Simulate Surplus"}</span>
                 </Button>
-              )}
-
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setIsSimulatedSurplus((prev) => !prev);
-                  toast.info(
-                    !isSimulatedSurplus
-                      ? "Surplus Mode Enabled: Watch cards & animations automatically convert to Emerald Green!"
-                      : "Reverted to Live Verified Ledger Data"
-                  );
-                }}
-                className={`rounded-xl h-9 min-h-[36px] px-3 text-xs font-bold gap-1.5 active:scale-[0.98] transition-all ${
-                  isSimulatedSurplus
-                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black"
-                    : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
-                }`}
-                aria-label="Toggle surplus simulation mode"
-              >
-                <Sparkles className={`h-3.5 w-3.5 ${isSimulatedSurplus ? "text-emerald-500 animate-spin" : "text-amber-500"}`} />
-                <span className="hidden sm:inline">{isSimulatedSurplus ? "Surplus Mode Active" : "Simulate Surplus"}</span>
-              </Button>
+              </div>
             </div>
-          </div>
-        </CardHeader>
+          </CardHeader>
+        </div>
       </Card>
 
       {/* ZERO VERIFIED DATA BANNER (Rendered conditionally while preserving header) */}
@@ -338,7 +341,7 @@ export function FinancialIntelligenceControlCenter({
       <motion.div
         variants={shouldReduceMotion ? undefined : {
           hidden: { opacity: 0 },
-          show: { opacity: 1, transition: { staggerChildren: 0.04 } }
+          show: { opacity: 1, transition: { staggerChildren: 0.035 } }
         }}
         initial="hidden"
         animate="show"
@@ -347,26 +350,26 @@ export function FinancialIntelligenceControlCenter({
         {/* 1. Total Income — Emerald Green (#10B981) */}
         <motion.div
           variants={shouldReduceMotion ? undefined : {
-            hidden: { opacity: 0, y: 12 },
-            show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 26 } }
+            hidden: { opacity: 0, y: 18 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
           }}
-          whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
         >
-          <Card className="relative overflow-hidden h-full rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-2 shadow-2xs hover:shadow-xl hover:shadow-emerald-500/10 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
             {/* 1px Emerald Gradient Border */}
             <div className="fin-border-gradient bg-gradient-to-br from-emerald-500/40 via-teal-500/25 to-emerald-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
             <div className="pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full bg-emerald-500/15 blur-xl opacity-30 group-hover:opacity-70 transition-opacity" />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
-              <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 dark:text-emerald-300">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-emerald-800 dark:text-emerald-300 ai-card-title">
                 Total Income
               </span>
-              <div className="p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-xs">
+              <div className="p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs ai-icon-container">
                 <TrendingUp className="h-4 w-4" />
               </div>
             </div>
 
-            <div className="relative z-10 text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums tracking-tight">
+            <div className="relative z-10 text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums tracking-tight ai-number-val">
               <AnimatedCounter value={formatCurrency(effectiveTotalIncome)} duration={0.6} />
             </div>
 
@@ -386,26 +389,26 @@ export function FinancialIntelligenceControlCenter({
         {/* 2. Total Expense — Ruby Red (#EF4444) */}
         <motion.div
           variants={shouldReduceMotion ? undefined : {
-            hidden: { opacity: 0, y: 12 },
-            show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 26 } }
+            hidden: { opacity: 0, y: 18 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
           }}
-          whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
         >
-          <Card className="relative overflow-hidden h-full rounded-2xl border border-rose-500/20 bg-card p-4 space-y-2 shadow-2xs hover:shadow-xl hover:shadow-rose-500/10 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-rose-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
             {/* 1px Ruby -> Crimson Gradient Border */}
             <div className="fin-border-gradient bg-gradient-to-br from-rose-500/40 via-red-500/25 to-rose-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
             <div className="pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full bg-rose-500/15 blur-xl opacity-30 group-hover:opacity-70 transition-opacity" />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
-              <span className="font-bold uppercase tracking-wider text-[10px] text-rose-800 dark:text-rose-300">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-rose-800 dark:text-rose-300 ai-card-title">
                 Total Expense
               </span>
-              <div className="p-1.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20 group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-xs">
+              <div className="p-1.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20 shadow-xs ai-icon-container">
                 <TrendingDown className="h-4 w-4" />
               </div>
             </div>
 
-            <div className="relative z-10 text-2xl font-black text-rose-600 dark:text-rose-400 font-mono tabular-nums tracking-tight">
+            <div className="relative z-10 text-2xl font-black text-rose-600 dark:text-rose-400 font-mono tabular-nums tracking-tight ai-number-val">
               <AnimatedCounter value={formatCurrency(effectiveTotalExpense)} duration={0.6} />
             </div>
 
@@ -425,12 +428,12 @@ export function FinancialIntelligenceControlCenter({
         {/* 3. Net Cash Flow — Dynamic Emerald / Ruby Red */}
         <motion.div
           variants={shouldReduceMotion ? undefined : {
-            hidden: { opacity: 0, y: 12 },
-            show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 26 } }
+            hidden: { opacity: 0, y: 18 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
           }}
-          whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
         >
-          <Card className={`relative overflow-hidden h-full rounded-2xl border p-4 space-y-2 shadow-2xs hover:shadow-xl active:scale-[0.98] transition-all duration-300 cursor-pointer group ${
+          <Card className={`relative overflow-hidden h-full rounded-2xl border p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-300 cursor-pointer group ai-glass-surface ai-card-hover ${
             isNetPositive
               ? "border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/50 hover:shadow-emerald-500/15"
               : "border-rose-500/30 bg-rose-500/5 hover:border-rose-500/50 hover:shadow-rose-500/15"
@@ -445,12 +448,12 @@ export function FinancialIntelligenceControlCenter({
             }`} />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
-              <span className={`font-bold uppercase tracking-wider text-[10px] transition-colors duration-300 ${
+              <span className={`font-bold uppercase tracking-wider text-[10px] transition-colors duration-300 ai-card-title ${
                 isNetPositive ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"
               }`}>
                 Net Cash Flow
               </span>
-              <div className={`p-1.5 rounded-xl border group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-xs ${
+              <div className={`p-1.5 rounded-xl border transition-all duration-300 shadow-xs ai-icon-container ${
                 isNetPositive
                   ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                   : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
@@ -459,7 +462,7 @@ export function FinancialIntelligenceControlCenter({
               </div>
             </div>
 
-            <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight transition-colors duration-300 ${
+            <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight transition-colors duration-300 ai-number-val ${
               isNetPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
             }`}>
               <AnimatedCounter
@@ -480,12 +483,12 @@ export function FinancialIntelligenceControlCenter({
         {/* 4. Savings & Savings Rate — DYNAMIC REACTIVE COLOR (Exceeds/Positive = Emerald Green, Negative = Deep Rose) */}
         <motion.div
           variants={shouldReduceMotion ? undefined : {
-            hidden: { opacity: 0, y: 12 },
-            show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 26 } }
+            hidden: { opacity: 0, y: 18 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
           }}
-          whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
         >
-          <Card className={`relative overflow-hidden h-full rounded-2xl border p-4 space-y-2 shadow-2xs hover:shadow-xl active:scale-[0.98] transition-all duration-300 cursor-pointer group ${
+          <Card className={`relative overflow-hidden h-full rounded-2xl border p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-300 cursor-pointer group ai-glass-surface ai-card-hover ${
             isSavingsPositive
               ? "border-emerald-500/40 bg-emerald-500/10 hover:border-emerald-500/60 hover:shadow-emerald-500/20"
               : "border-rose-500/30 bg-rose-500/5 hover:border-rose-500/50 hover:shadow-rose-500/15"
@@ -501,12 +504,12 @@ export function FinancialIntelligenceControlCenter({
             }`} />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
-              <span className={`font-bold uppercase tracking-wider text-[10px] transition-colors duration-300 ${
+              <span className={`font-bold uppercase tracking-wider text-[10px] transition-colors duration-300 ai-card-title ${
                 isSavingsPositive ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"
               }`}>
                 Savings
               </span>
-              <div className={`p-1.5 rounded-xl border group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-xs ${
+              <div className={`p-1.5 rounded-xl border transition-all duration-300 shadow-xs ai-icon-container ${
                 isSavingsPositive
                   ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40"
                   : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
@@ -515,7 +518,7 @@ export function FinancialIntelligenceControlCenter({
               </div>
             </div>
 
-            <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight transition-colors duration-300 ${
+            <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight transition-colors duration-300 ai-number-val ${
               isSavingsPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
             }`}>
               <AnimatedCounter
@@ -538,26 +541,26 @@ export function FinancialIntelligenceControlCenter({
         {/* 5. Total Receivable — Royal Sapphire (#2563EB) */}
         <motion.div
           variants={shouldReduceMotion ? undefined : {
-            hidden: { opacity: 0, y: 12 },
-            show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 26 } }
+            hidden: { opacity: 0, y: 18 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
           }}
-          whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
         >
-          <Card className="relative overflow-hidden h-full rounded-2xl border border-blue-500/20 bg-card p-4 space-y-2 shadow-2xs hover:shadow-xl hover:shadow-blue-500/10 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-blue-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
             {/* 1px Royal Blue -> Sky Blue Gradient */}
             <div className="fin-border-gradient bg-gradient-to-br from-blue-600/40 via-indigo-500/25 to-sky-600/35 opacity-70 group-hover:opacity-100 transition-opacity" />
             <div className="pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full bg-blue-500/15 blur-xl opacity-30 group-hover:opacity-70 transition-opacity" />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
-              <span className="font-bold uppercase tracking-wider text-[10px] text-blue-800 dark:text-blue-300">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-blue-800 dark:text-blue-300 ai-card-title">
                 Total Receivable
               </span>
-              <div className="p-1.5 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20 group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-xs">
+              <div className="p-1.5 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20 shadow-xs ai-icon-container">
                 <ArrowUpRight className="h-4 w-4" />
               </div>
             </div>
 
-            <div className="relative z-10 text-2xl font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums tracking-tight">
+            <div className="relative z-10 text-2xl font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums tracking-tight ai-number-val">
               <AnimatedCounter value={formatCurrency(controlCenter.receivable)} duration={0.6} />
             </div>
 
@@ -571,26 +574,26 @@ export function FinancialIntelligenceControlCenter({
         {/* 6. Total Payable — Burnished Gold (#D97706) */}
         <motion.div
           variants={shouldReduceMotion ? undefined : {
-            hidden: { opacity: 0, y: 12 },
-            show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 26 } }
+            hidden: { opacity: 0, y: 18 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
           }}
-          whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
         >
-          <Card className="relative overflow-hidden h-full rounded-2xl border border-amber-500/20 bg-card p-4 space-y-2 shadow-2xs hover:shadow-xl hover:shadow-amber-500/10 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-amber-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
             {/* 1px Gold -> Amber Gradient */}
             <div className="fin-border-gradient bg-gradient-to-br from-amber-500/40 via-orange-500/25 to-amber-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
             <div className="pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-500/15 blur-xl opacity-30 group-hover:opacity-70 transition-opacity" />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
-              <span className="font-bold uppercase tracking-wider text-[10px] text-amber-800 dark:text-amber-300">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-amber-800 dark:text-amber-300 ai-card-title">
                 Total Payable
               </span>
-              <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-xs">
+              <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-xs ai-icon-container">
                 <ArrowDownRight className="h-4 w-4" />
               </div>
             </div>
 
-            <div className="relative z-10 text-2xl font-black text-amber-600 dark:text-amber-400 font-mono tabular-nums tracking-tight">
+            <div className="relative z-10 text-2xl font-black text-amber-600 dark:text-amber-400 font-mono tabular-nums tracking-tight ai-number-val">
               <AnimatedCounter value={formatCurrency(controlCenter.payable)} duration={0.6} />
             </div>
 
@@ -601,29 +604,29 @@ export function FinancialIntelligenceControlCenter({
           </Card>
         </motion.div>
 
-        {/* 7. Budget Remaining — Dynamic Capacity 4-tier (Indigo >= 80%, Blue 50-79%, Amber 20-49%, Red < 20%) */}
+        {/* 7. Budget Remaining — Dynamic Capacity 4-tier */}
         <motion.div
           variants={shouldReduceMotion ? undefined : {
-            hidden: { opacity: 0, y: 12 },
-            show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 26 } }
+            hidden: { opacity: 0, y: 18 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
           }}
-          whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
         >
-          <Card className="relative overflow-hidden h-full rounded-2xl border border-indigo-500/20 bg-card p-4 space-y-2 shadow-2xs hover:shadow-xl hover:shadow-indigo-500/10 active:scale-[0.98] transition-all duration-200 cursor-pointer group">
+          <Card className="relative overflow-hidden h-full rounded-2xl border border-indigo-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
             {/* 1px Indigo -> Lavender Gradient */}
             <div className="fin-border-gradient bg-gradient-to-br from-indigo-500/40 via-purple-500/25 to-indigo-700/35 opacity-70 group-hover:opacity-100 transition-opacity" />
             <div className="pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full bg-indigo-500/15 blur-xl opacity-30 group-hover:opacity-70 transition-opacity" />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
-              <span className="font-bold uppercase tracking-wider text-[10px] text-indigo-800 dark:text-indigo-300">
+              <span className="font-bold uppercase tracking-wider text-[10px] text-indigo-800 dark:text-indigo-300 ai-card-title">
                 Budget Remaining
               </span>
-              <div className="p-1.5 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-xs">
+              <div className="p-1.5 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shadow-xs ai-icon-container">
                 <Target className="h-4 w-4" />
               </div>
             </div>
 
-            <div className="relative z-10 text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono tabular-nums tracking-tight">
+            <div className="relative z-10 text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono tabular-nums tracking-tight ai-number-val">
               <AnimatedCounter value={formatCurrency(controlCenter.budgetRemaining)} duration={0.6} />
             </div>
 
@@ -634,15 +637,15 @@ export function FinancialIntelligenceControlCenter({
           </Card>
         </motion.div>
 
-        {/* 8. Pending Settlements — Dynamic (Sunset Orange if pending > 0, Emerald Green if 0) */}
+        {/* 8. Pending Settlements — Dynamic */}
         <motion.div
           variants={shouldReduceMotion ? undefined : {
-            hidden: { opacity: 0, y: 12 },
-            show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 26 } }
+            hidden: { opacity: 0, y: 18 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }
           }}
-          whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
         >
-          <Card className={`relative overflow-hidden h-full rounded-2xl border p-4 space-y-2 shadow-2xs hover:shadow-xl active:scale-[0.98] transition-all duration-300 cursor-pointer group ${
+          <Card className={`relative overflow-hidden h-full rounded-2xl border p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-300 cursor-pointer group ai-glass-surface ai-card-hover ${
             controlCenter.pendingSettlementsCount > 0
               ? "border-orange-500/20 bg-card hover:shadow-orange-500/10"
               : "border-emerald-500/20 bg-card hover:shadow-emerald-500/10"
@@ -657,12 +660,12 @@ export function FinancialIntelligenceControlCenter({
             }`} />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
-              <span className={`font-bold uppercase tracking-wider text-[10px] transition-colors duration-300 ${
+              <span className={`font-bold uppercase tracking-wider text-[10px] transition-colors duration-300 ai-card-title ${
                 controlCenter.pendingSettlementsCount > 0 ? "text-orange-800 dark:text-orange-300" : "text-emerald-800 dark:text-emerald-300"
               }`}>
                 Pending Settlements
               </span>
-              <div className={`p-1.5 rounded-xl border group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-xs ${
+              <div className={`p-1.5 rounded-xl border shadow-xs ai-icon-container ${
                 controlCenter.pendingSettlementsCount > 0
                   ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/20"
                   : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
@@ -671,7 +674,7 @@ export function FinancialIntelligenceControlCenter({
               </div>
             </div>
 
-            <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight transition-colors duration-300 ${
+            <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight transition-colors duration-300 ai-number-val ${
               controlCenter.pendingSettlementsCount > 0 ? "text-orange-600 dark:text-orange-400" : "text-emerald-600 dark:text-emerald-400"
             }`}>
               <AnimatedCounter value={formatCurrency(controlCenter.pendingSettlementsAmount)} duration={0.6} />
@@ -693,166 +696,215 @@ export function FinancialIntelligenceControlCenter({
       <motion.div
         variants={shouldReduceMotion ? undefined : {
           hidden: { opacity: 0 },
-          show: { opacity: 1, transition: { staggerChildren: 0.04 } }
+          show: { opacity: 1, transition: { staggerChildren: 0.03 } }
         }}
         initial="hidden"
         animate="show"
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
       >
         {/* Largest Expense */}
-        <Card className="relative overflow-hidden rounded-2xl border border-rose-500/20 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
-          <div className="fin-border-gradient bg-gradient-to-br from-rose-500/30 via-red-500/20 to-rose-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
-              Largest Expense Entry
-            </span>
-            <Badge variant="outline" className="text-[9px] font-mono border-rose-200 dark:border-rose-900 text-rose-600 bg-rose-500/5">
-              {controlCenter.largestExpense?.categoryName || "General"}
-            </Badge>
-          </div>
-          <div className="relative z-10 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-              {controlCenter.largestExpense?.title || "No expense logged"}
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden rounded-2xl border border-rose-500/20 bg-card p-4 space-y-1.5 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover h-full">
+            <div className="fin-border-gradient bg-gradient-to-br from-rose-500/30 via-red-500/20 to-rose-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 ai-card-title">
+                Largest Expense Entry
+              </span>
+              <Badge variant="outline" className="text-[9px] font-mono border-rose-200 dark:border-rose-900 text-rose-600 bg-rose-500/5">
+                {controlCenter.largestExpense?.categoryName || "General"}
+              </Badge>
+            </div>
+            <div className="relative z-10 flex items-baseline justify-between gap-2">
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                {controlCenter.largestExpense?.title || "No expense logged"}
+              </p>
+              <span className="text-lg font-black font-mono text-rose-600 dark:text-rose-400 tabular-nums shrink-0 ai-number-val">
+                {controlCenter.largestExpense ? (
+                  <AnimatedCounter value={formatCurrency(controlCenter.largestExpense.amount)} />
+                ) : "₹0.00"}
+              </span>
+            </div>
+            <p className="relative z-10 text-[10px] text-slate-400">
+              {controlCenter.largestExpense
+                ? `Logged on ${new Date(controlCenter.largestExpense.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`
+                : "Zero outflow recorded in this cycle"}
             </p>
-            <span className="text-lg font-black font-mono text-rose-600 dark:text-rose-400 tabular-nums shrink-0">
-              {controlCenter.largestExpense ? (
-                <AnimatedCounter value={formatCurrency(controlCenter.largestExpense.amount)} />
-              ) : "₹0.00"}
-            </span>
-          </div>
-          <p className="relative z-10 text-[10px] text-slate-400">
-            {controlCenter.largestExpense
-              ? `Logged on ${new Date(controlCenter.largestExpense.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`
-              : "Zero outflow recorded in this cycle"}
-          </p>
-        </Card>
+          </Card>
+        </motion.div>
 
         {/* Largest Income */}
-        <Card className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
-          <div className="fin-border-gradient bg-gradient-to-br from-emerald-500/30 via-teal-500/20 to-emerald-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-              Largest Income Entry
-            </span>
-            <Badge variant="outline" className="text-[9px] font-mono border-emerald-200 dark:border-emerald-900 text-emerald-600 bg-emerald-500/5">
-              {controlCenter.largestIncome?.categoryName || "Inflow"}
-            </Badge>
-          </div>
-          <div className="relative z-10 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-              {controlCenter.largestIncome?.title || "No income logged"}
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-1.5 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover h-full">
+            <div className="fin-border-gradient bg-gradient-to-br from-emerald-500/30 via-teal-500/20 to-emerald-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 ai-card-title">
+                Largest Income Entry
+              </span>
+              <Badge variant="outline" className="text-[9px] font-mono border-emerald-200 dark:border-emerald-900 text-emerald-600 bg-emerald-500/5">
+                {controlCenter.largestIncome?.categoryName || "Inflow"}
+              </Badge>
+            </div>
+            <div className="relative z-10 flex items-baseline justify-between gap-2">
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                {controlCenter.largestIncome?.title || "No income logged"}
+              </p>
+              <span className="text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0 ai-number-val">
+                {controlCenter.largestIncome ? (
+                  <AnimatedCounter value={formatCurrency(controlCenter.largestIncome.amount)} />
+                ) : "₹0.00"}
+              </span>
+            </div>
+            <p className="relative z-10 text-[10px] text-slate-400">
+              {controlCenter.largestIncome
+                ? `Recorded on ${new Date(controlCenter.largestIncome.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`
+                : "Zero inflow recorded in this cycle"}
             </p>
-            <span className="text-lg font-black font-mono text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0">
-              {controlCenter.largestIncome ? (
-                <AnimatedCounter value={formatCurrency(controlCenter.largestIncome.amount)} />
-              ) : "₹0.00"}
-            </span>
-          </div>
-          <p className="relative z-10 text-[10px] text-slate-400">
-            {controlCenter.largestIncome
-              ? `Recorded on ${new Date(controlCenter.largestIncome.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`
-              : "Zero inflow recorded in this cycle"}
-          </p>
-        </Card>
+          </Card>
+        </motion.div>
 
         {/* Most Used Category */}
-        <Card className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
-          <div className="fin-border-gradient bg-gradient-to-br from-violet-500/30 via-purple-500/20 to-violet-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400">
-              Most Used Category
-            </span>
-            <Badge variant="outline" className="text-[9px] font-mono border-violet-200 dark:border-violet-900 text-violet-600 bg-violet-500/5">
-              {controlCenter.mostUsedCategory ? `${controlCenter.mostUsedCategory.percentage}% of Spend` : "None"}
-            </Badge>
-          </div>
-          <div className="relative z-10 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-              {controlCenter.mostUsedCategory?.name || "Uncategorized"}
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-card p-4 space-y-1.5 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover h-full">
+            <div className="fin-border-gradient bg-gradient-to-br from-violet-500/30 via-purple-500/20 to-violet-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400 ai-card-title">
+                Most Used Category
+              </span>
+              <Badge variant="outline" className="text-[9px] font-mono border-violet-200 dark:border-violet-900 text-violet-600 bg-violet-500/5">
+                {controlCenter.mostUsedCategory ? `${controlCenter.mostUsedCategory.percentage}% of Spend` : "None"}
+              </Badge>
+            </div>
+            <div className="relative z-10 flex items-baseline justify-between gap-2">
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                {controlCenter.mostUsedCategory?.name || "Uncategorized"}
+              </p>
+              <span className="text-lg font-black font-mono text-violet-600 dark:text-violet-400 tabular-nums shrink-0 ai-number-val">
+                {controlCenter.mostUsedCategory ? (
+                  <AnimatedCounter value={formatCurrency(controlCenter.mostUsedCategory.amount)} />
+                ) : "₹0.00"}
+              </span>
+            </div>
+            <p className="relative z-10 text-[10px] text-slate-400">
+              {controlCenter.mostUsedCategory
+                ? `${controlCenter.mostUsedCategory.count} verified transaction(s)`
+                : "No categorized expenses recorded"}
             </p>
-            <span className="text-lg font-black font-mono text-violet-600 dark:text-violet-400 tabular-nums shrink-0">
-              {controlCenter.mostUsedCategory ? (
-                <AnimatedCounter value={formatCurrency(controlCenter.mostUsedCategory.amount)} />
-              ) : "₹0.00"}
-            </span>
-          </div>
-          <p className="relative z-10 text-[10px] text-slate-400">
-            {controlCenter.mostUsedCategory
-              ? `${controlCenter.mostUsedCategory.count} verified transaction(s)`
-              : "No categorized expenses recorded"}
-          </p>
-        </Card>
+          </Card>
+        </motion.div>
 
         {/* Highest Spending Day */}
-        <Card className="relative overflow-hidden rounded-2xl border border-rose-500/20 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
-          <div className="fin-border-gradient bg-gradient-to-br from-rose-500/30 via-red-500/20 to-rose-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs text-slate-500">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Highest Spending Day</span>
-            <div className="p-1 rounded-lg bg-rose-500/10 text-rose-500">
-              <Calendar className="h-3.5 w-3.5" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden rounded-2xl border border-rose-500/20 bg-card p-4 space-y-1.5 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover h-full">
+            <div className="fin-border-gradient bg-gradient-to-br from-rose-500/30 via-red-500/20 to-rose-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs text-slate-500">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 ai-card-title">Highest Spending Day</span>
+              <div className="p-1 rounded-lg bg-rose-500/10 text-rose-500 ai-icon-container">
+                <Calendar className="h-3.5 w-3.5" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-              {controlCenter.highestSpendingDay ? `${controlCenter.highestSpendingDay.day} (${controlCenter.highestSpendingDay.date})` : "None"}
-            </p>
-            <span className="text-base font-black font-mono text-rose-600 dark:text-rose-400 tabular-nums shrink-0">
-              {controlCenter.highestSpendingDay ? (
-                <AnimatedCounter value={formatCurrency(controlCenter.highestSpendingDay.amount)} />
-              ) : "₹0.00"}
-            </span>
-          </div>
-          <p className="relative z-10 text-[10px] text-slate-400">Peak single-day debit velocity</p>
-        </Card>
+            <div className="relative z-10 flex items-baseline justify-between gap-2">
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                {controlCenter.highestSpendingDay ? `${controlCenter.highestSpendingDay.day} (${controlCenter.highestSpendingDay.date})` : "None"}
+              </p>
+              <span className="text-base font-black font-mono text-rose-600 dark:text-rose-400 tabular-nums shrink-0 ai-number-val">
+                {controlCenter.highestSpendingDay ? (
+                  <AnimatedCounter value={formatCurrency(controlCenter.highestSpendingDay.amount)} />
+                ) : "₹0.00"}
+              </span>
+            </div>
+            <p className="relative z-10 text-[10px] text-slate-400">Peak single-day debit velocity</p>
+          </Card>
+        </motion.div>
 
         {/* Highest Income Day */}
-        <Card className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
-          <div className="fin-border-gradient bg-gradient-to-br from-emerald-500/30 via-teal-500/20 to-emerald-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs text-slate-500">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Highest Income Day</span>
-            <div className="p-1 rounded-lg bg-emerald-500/10 text-emerald-500">
-              <Calendar className="h-3.5 w-3.5" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-1.5 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover h-full">
+            <div className="fin-border-gradient bg-gradient-to-br from-emerald-500/30 via-teal-500/20 to-emerald-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs text-slate-500">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 ai-card-title">Highest Income Day</span>
+              <div className="p-1 rounded-lg bg-emerald-500/10 text-emerald-500 ai-icon-container">
+                <Calendar className="h-3.5 w-3.5" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
-              {controlCenter.highestIncomeDay ? `${controlCenter.highestIncomeDay.day} (${controlCenter.highestIncomeDay.date})` : "None"}
-            </p>
-            <span className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0">
-              {controlCenter.highestIncomeDay ? (
-                <AnimatedCounter value={formatCurrency(controlCenter.highestIncomeDay.amount)} />
-              ) : "₹0.00"}
-            </span>
-          </div>
-          <p className="relative z-10 text-[10px] text-slate-400">Peak single-day credit receipt</p>
-        </Card>
+            <div className="relative z-10 flex items-baseline justify-between gap-2">
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">
+                {controlCenter.highestIncomeDay ? `${controlCenter.highestIncomeDay.day} (${controlCenter.highestIncomeDay.date})` : "None"}
+              </p>
+              <span className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0 ai-number-val">
+                {controlCenter.highestIncomeDay ? (
+                  <AnimatedCounter value={formatCurrency(controlCenter.highestIncomeDay.amount)} />
+                ) : "₹0.00"}
+              </span>
+            </div>
+            <p className="relative z-10 text-[10px] text-slate-400">Peak single-day credit receipt</p>
+          </Card>
+        </motion.div>
 
         {/* Daily Spending & Income Run-Rates */}
-        <Card className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-card p-4 space-y-1.5 shadow-2xs hover:-translate-y-1 hover:shadow-md active:scale-[0.98] transition-all duration-200 cursor-pointer group">
-          <div className="fin-border-gradient bg-gradient-to-br from-amber-500/30 via-orange-500/20 to-amber-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
-          <div className="relative z-10 flex items-center justify-between text-xs text-slate-500">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">Daily Run-Rates</span>
-            <div className="p-1 rounded-lg bg-amber-500/10 text-amber-500">
-              <Zap className="h-3.5 w-3.5" />
+        <motion.div
+          variants={shouldReduceMotion ? undefined : {
+            hidden: { opacity: 0, y: 14 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] } }
+          }}
+          whileHover={shouldReduceMotion ? undefined : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }}
+        >
+          <Card className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-card p-4 space-y-1.5 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover h-full">
+            <div className="fin-border-gradient bg-gradient-to-br from-amber-500/30 via-orange-500/20 to-amber-700/25 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10 flex items-center justify-between text-xs text-slate-500">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 ai-card-title">Daily Run-Rates</span>
+              <div className="p-1 rounded-lg bg-amber-500/10 text-amber-500 ai-icon-container">
+                <Zap className="h-3.5 w-3.5" />
+              </div>
             </div>
-          </div>
-          <div className="relative z-10 flex justify-between items-center text-xs">
-            <span className="text-slate-400">Avg Spend:</span>
-            <span className="font-bold font-mono text-rose-600 dark:text-rose-400 tabular-nums">
-              <AnimatedCounter value={formatCurrency(controlCenter.averageDailySpending)} />/day
-            </span>
-          </div>
-          <div className="relative z-10 flex justify-between items-center text-xs">
-            <span className="text-slate-400">Avg Inflow:</span>
-            <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">
-              <AnimatedCounter value={formatCurrency(controlCenter.averageDailyIncome)} />/day
-            </span>
-          </div>
-        </Card>
+            <div className="relative z-10 flex justify-between items-center text-xs">
+              <span className="text-slate-400">Avg Spend:</span>
+              <span className="font-bold font-mono text-rose-600 dark:text-rose-400 tabular-nums ai-number-val">
+                <AnimatedCounter value={formatCurrency(controlCenter.averageDailySpending)} />/day
+              </span>
+            </div>
+            <div className="relative z-10 flex justify-between items-center text-xs">
+              <span className="text-slate-400">Avg Inflow:</span>
+              <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400 tabular-nums ai-number-val">
+                <AnimatedCounter value={formatCurrency(controlCenter.averageDailyIncome)} />/day
+              </span>
+            </div>
+          </Card>
+        </motion.div>
       </motion.div>
 
       {/* DYNAMIC VERIFIED INSIGHTS SECTION */}
-      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden shadow-xs">
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden shadow-xs ai-glass-surface ai-border-assistant p-[1px]">
+        <div className="bg-card/95 rounded-[23px] overflow-hidden">
         <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -911,19 +963,21 @@ export function FinancialIntelligenceControlCenter({
             </div>
           )}
         </CardContent>
+        </div>
       </Card>
 
       {/* TWO COLUMN GRID: RECENT VERIFIED ACTIVITY & CATEGORY BREAKDOWN */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Activity */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden shadow-xs">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden shadow-xs ai-glass-surface ai-border-analytics p-[1px]">
+          <div className="bg-card/95 rounded-[23px] overflow-hidden">
           <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm font-bold">Recent Verified Activity</CardTitle>
+                <CardTitle className="text-sm font-bold ai-card-title">Recent Verified Activity</CardTitle>
               </div>
-              <Button asChild variant="ghost" size="sm" className="text-xs h-7 gap-1 font-bold">
+              <Button asChild variant="ghost" size="sm" className="text-xs h-7 gap-1 font-bold ai-btn-premium">
                 <Link href="/dashboard/transactions">
                   <span>View All</span>
                   <ArrowRight className="h-3 w-3" />
@@ -962,15 +1016,17 @@ export function FinancialIntelligenceControlCenter({
               })
             )}
           </CardContent>
+          </div>
         </Card>
 
         {/* Category Breakdown */}
-        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden shadow-xs">
+        <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card overflow-hidden shadow-xs ai-glass-surface ai-border-analytics p-[1px]">
+          <div className="bg-card/95 rounded-[23px] overflow-hidden">
           <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Layers className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm font-bold">Category Distribution</CardTitle>
+                <CardTitle className="text-sm font-bold ai-card-title">Category Distribution</CardTitle>
               </div>
               <Badge variant="outline" className="text-[10px] font-mono">
                 {controlCenter.categoryDistribution.length} Categories
@@ -1000,6 +1056,7 @@ export function FinancialIntelligenceControlCenter({
               ))
             )}
           </CardContent>
+          </div>
         </Card>
       </div>
     </div>

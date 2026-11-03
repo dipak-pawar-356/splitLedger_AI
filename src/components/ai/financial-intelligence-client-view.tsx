@@ -206,14 +206,14 @@ export function FinancialIntelligenceClientView({
         transition: { duration: 0.15 },
       }
     : {
-        initial: { opacity: 0, y: 8 },
+        initial: { opacity: 0, y: 18 },
         animate: { opacity: 1, y: 0 },
-        exit: { opacity: 0, y: -8 },
-        transition: { duration: 0.2, ease: "easeOut" },
+        exit: { opacity: 0, y: -12 },
+        transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] },
       };
 
   return (
-    <div className="space-y-6 pb-12" suppressHydrationWarning>
+    <div className="space-y-6 pb-12 ai-module-scope" suppressHydrationWarning>
       {/* Screen Reader Live Announcement */}
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {isRefreshing ? "Synchronizing database records..." : "Financial intelligence dashboard updated"}
@@ -226,8 +226,9 @@ export function FinancialIntelligenceClientView({
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
               AI Financial Intelligence & Assistant
             </h1>
-            <Badge variant="secondary" className="bg-primary/10 text-primary font-bold text-xs">
-              ₹ INR Live
+            <Badge variant="secondary" className="bg-primary/10 text-primary font-bold text-xs flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>₹ INR Live</span>
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -239,7 +240,7 @@ export function FinancialIntelligenceClientView({
           <Button
             size="sm"
             variant="outline"
-            className="rounded-xl text-xs font-semibold gap-1.5 h-9 min-h-[36px] sm:min-h-[38px] px-3.5 focus-visible:ring-2 focus-visible:ring-primary/40"
+            className="ai-btn-premium rounded-xl text-xs font-semibold gap-1.5 h-9 min-h-[36px] sm:min-h-[38px] px-3.5 focus-visible:ring-2 focus-visible:ring-primary/40"
             onClick={handleRefresh}
             disabled={isRefreshing}
             aria-label={isRefreshing ? "Synchronizing database records" : "Refresh financial intelligence"}
@@ -250,7 +251,7 @@ export function FinancialIntelligenceClientView({
 
           <Button
             size="sm"
-            className="rounded-xl text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground h-9 min-h-[36px] sm:min-h-[38px] px-3.5 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
+            className="ai-btn-premium rounded-xl text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground h-9 min-h-[36px] sm:min-h-[38px] px-3.5 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
             onClick={handleCreateBudget}
             aria-label="Create a new budget target"
           >
