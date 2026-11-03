@@ -22,6 +22,7 @@ import { recordAuditLog } from "@/lib/audit";
 import { createNotification } from "@/actions/notifications";
 import { eventBus } from "@/lib/realtime/event-bus";
 import { DatabaseError, ValidationError, NotFoundError } from "@/lib/errors";
+import { escapeCsvValue } from "@/lib/export/export-engine";
 import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { 
   terminateSession, 
@@ -655,9 +656,15 @@ export async function exportPersonalData(format: "json" | "csv" | "pdf" = "json"
       mimeType = "application/json";
       filename = `splitledger_personal_archive_${Date.now()}.json`;
     } else {
-      // CSV format
+      // CSV format with OWASP formula-injection neutralization
       const txRows = userTransactions.map((t) =>
-        `"${t.publicId}","${t.title}","${t.amount / 100}","${t.type}","${t.date.toISOString()}"`
+        [
+          escapeCsvValue(t.publicId),
+          escapeCsvValue(t.title || t.description || ""),
+          escapeCsvValue((t.amount / 100).toFixed(2)),
+          escapeCsvValue(t.type),
+          escapeCsvValue(t.date ? new Date(t.date).toISOString() : ""),
+        ].join(",")
       );
       content = `Public ID,Title,Amount (INR),Type,Date\n${txRows.join("\n")}`;
       mimeType = "text/csv";

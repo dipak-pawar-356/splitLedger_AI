@@ -8,6 +8,7 @@ import { generatePublicId, formatDate } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
 import { appCache } from "@/lib/cache";
 import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
+import { escapeCsvValue } from "@/lib/export/export-engine";
 import {
   extractExpensesFromNote,
   getNoteFinancialSummary,
@@ -2797,10 +2798,10 @@ export async function exportNoteDocument(
 
     if (format === "csv") {
       const csvLines: string[] = [];
-      csvLines.push(`"Report","${titleToUse.replace(/"/g, '""')}"`);
-      csvLines.push(`"Author","${authorName.replace(/"/g, '""')}"`);
-      csvLines.push(`"Category","${categoryName.replace(/"/g, '""')}"`);
-      csvLines.push(`"ExportedAt","${exportTimeStr}"`);
+      csvLines.push(`${escapeCsvValue("Report")},${escapeCsvValue(titleToUse)}`);
+      csvLines.push(`${escapeCsvValue("Author")},${escapeCsvValue(authorName)}`);
+      csvLines.push(`${escapeCsvValue("Category")},${escapeCsvValue(categoryName)}`);
+      csvLines.push(`${escapeCsvValue("ExportedAt")},${escapeCsvValue(exportTimeStr)}`);
       csvLines.push("");
 
       if (hasFinancial) {
@@ -2808,7 +2809,12 @@ export async function exportNoteDocument(
         csvLines.push('"Date","Description","Category","Amount (INR)"');
         for (const item of incomeItems) {
           csvLines.push(
-            `"${formatTransactionDisplayDate(item.date)}","${item.description.replace(/"/g, '""')}","${(item.category || "Salary").replace(/"/g, '""')}","${item.amount.toFixed(2)}"`
+            [
+              escapeCsvValue(formatTransactionDisplayDate(item.date)),
+              escapeCsvValue(item.description),
+              escapeCsvValue(item.category || "Salary"),
+              escapeCsvValue(item.amount.toFixed(2)),
+            ].join(",")
           );
         }
         csvLines.push(`"TOTAL INCOME","","","${financial.totalIncome.toFixed(2)}"`);
@@ -2818,7 +2824,12 @@ export async function exportNoteDocument(
         csvLines.push('"Date","Description","Category","Amount (INR)"');
         for (const item of expenseItems) {
           csvLines.push(
-            `"${formatTransactionDisplayDate(item.date)}","${item.description.replace(/"/g, '""')}","${(item.category || "General").replace(/"/g, '""')}","${item.amount.toFixed(2)}"`
+            [
+              escapeCsvValue(formatTransactionDisplayDate(item.date)),
+              escapeCsvValue(item.description),
+              escapeCsvValue(item.category || "General"),
+              escapeCsvValue(item.amount.toFixed(2)),
+            ].join(",")
           );
         }
         csvLines.push(`"TOTAL EXPENSE","","","${financial.totalExpense.toFixed(2)}"`);
