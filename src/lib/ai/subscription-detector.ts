@@ -283,7 +283,7 @@ export function detectSubscriptions(
   }>
 ): DetectedSubscription[] {
   if (!transactionsList || transactionsList.length === 0) {
-    return DEFAULT_CURATED_SUBSCRIPTIONS;
+    return [];
   }
 
   const detected: DetectedSubscription[] = [];
@@ -522,15 +522,5 @@ export function detectSubscriptions(
     }
   });
 
-  if (detected.length === 0) {
-    return DEFAULT_CURATED_SUBSCRIPTIONS;
-  }
-
-  // Supplement with non-overlapping curated subscriptions so user always sees full portfolio
-  const detectedNames = new Set(detected.map((d) => d.name.toLowerCase()));
-  const extraCurated = DEFAULT_CURATED_SUBSCRIPTIONS.filter(
-    (c) => !detectedNames.has(c.name.toLowerCase())
-  );
-
-  return [...detected, ...extraCurated.slice(0, Math.max(0, 8 - detected.length))];
+  return detected;
 }

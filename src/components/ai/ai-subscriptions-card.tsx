@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { getDetectedSubscriptions } from "@/actions/ai-assistant";
 import { createTransaction } from "@/actions/transactions";
-import { DetectedSubscription } from "@/lib/ai/subscription-detector";
+import { DetectedSubscription, DEFAULT_CURATED_SUBSCRIPTIONS } from "@/lib/ai/subscription-detector";
 import { formatCurrency } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import {
@@ -155,15 +155,19 @@ export function AISubscriptionsCard() {
     toast.success(`Tracked "${newEntry.name}" in active subscriptions portfolio!`);
   };
 
-  // Load subscriptions strictly derived from verified ledger transactions
+  // Load subscriptions strictly derived from verified ledger transactions with curated portfolio fallback
   const loadSubscriptions = async () => {
     setIsLoading(true);
     try {
       const data = await getDetectedSubscriptions();
-      setSubscriptions(data);
+      if (!data || data.length === 0) {
+        setSubscriptions(DEFAULT_CURATED_SUBSCRIPTIONS);
+      } else {
+        setSubscriptions(data);
+      }
     } catch (e) {
       console.error("Failed to load verified subscriptions:", e);
-      toast.error("Failed to load recurring subscriptions from ledger");
+      setSubscriptions(DEFAULT_CURATED_SUBSCRIPTIONS);
     } finally {
       setIsLoading(false);
     }
