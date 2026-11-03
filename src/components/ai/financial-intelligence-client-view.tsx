@@ -444,7 +444,7 @@ export function FinancialIntelligenceClientView({
             </motion.div>
           )}
 
-          {/* TAB 7: Receipt OCR Scanner */}
+          {/* TAB 7: Enterprise Document AI & Receipt Intelligence Center */}
           {activeTab === "ocr" && (
             <motion.div
               key="ocr"
@@ -455,116 +455,12 @@ export function FinancialIntelligenceClientView({
               {...tabMotionProps}
               className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* OCR Scanner Card */}
-                <motion.div
-                  whileHover={shouldReduceMotion ? {} : { y: -3 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4 hover:border-blue-500/50 transition-all bg-card relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
-                    <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 w-fit">
-                      <Camera className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
-                          Receipt OCR Scanner
-                        </CardTitle>
-                        <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
-                          AI Vision
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        Upload grocery, restaurant, or fuel bills to automatically extract amounts, taxes, and itemized splits.
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="w-full rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-sm min-h-[38px]"
-                      onClick={() => setIsReceiptModalOpen(true)}
-                      aria-label="Open OCR receipt scanner dialog"
-                    >
-                      <Upload className="h-3.5 w-3.5 mr-1.5" />
-                      Open OCR Scanner Modal
-                    </Button>
-                  </Card>
-                </motion.div>
-
-                {/* Smart Categorization */}
-                <motion.div
-                  whileHover={shouldReduceMotion ? {} : { y: -3 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4 hover:border-emerald-500/50 transition-all bg-card relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
-                    <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 w-fit">
-                      <Zap className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
-                          Smart Categorization
-                        </CardTitle>
-                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">
-                          Active
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        Automatically assigns categories and tags based on merchant title, transaction patterns, and notes.
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full rounded-xl text-xs font-semibold hover:bg-emerald-50 dark:hover:bg-emerald-950/30 min-h-[38px]"
-                      onClick={() => {
-                        toast.success("Categorization models active on all incoming ledger transactions.");
-                      }}
-                      aria-label="Model status info"
-                    >
-                      Categorization Active
-                    </Button>
-                  </Card>
-                </motion.div>
-
-                {/* Subscription Audit */}
-                <motion.div
-                  whileHover={shouldReduceMotion ? {} : { y: -3 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-4 hover:border-purple-500/50 transition-all bg-card relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500" />
-                    <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 w-fit">
-                      <Brain className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
-                          Subscription Audit
-                        </CardTitle>
-                        <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 text-[10px] font-bold">
-                          Recurring
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        Identifies recurring monthly utilities, gym memberships, and duplicate digital subscriptions.
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full rounded-xl text-xs font-semibold hover:bg-purple-50 dark:hover:bg-purple-950/30 min-h-[38px]"
-                      onClick={() => {
-                        setActiveTab("subscriptions");
-                      }}
-                      aria-label="Jump to subscriptions tab"
-                    >
-                      View Subscriptions
-                    </Button>
-                  </Card>
-                </motion.div>
-              </div>
+              <AIReceiptScannerModal
+                isOpen={true}
+                onOpenChange={() => {}}
+                isEmbedded={true}
+                onExpenseCreated={() => handleRefresh()}
+              />
             </motion.div>
           )}
         </AnimatePresence>

@@ -175,6 +175,30 @@ export function FinancialForecastingEnterpriseView({
     }
   }, [selectedPeriod]);
 
+  // Exact dated window for the selected forecast horizon
+  const forecastDateRange = useMemo(() => {
+    const today = new Date();
+    const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    let endOfForecast: Date;
+    switch (selectedPeriod) {
+      case "1m":
+        endOfForecast = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+        break;
+      case "1q":
+        endOfForecast = new Date(today.getFullYear(), today.getMonth() + 4, 0);
+        break;
+      case "6m":
+        endOfForecast = new Date(today.getFullYear(), today.getMonth() + 7, 0);
+        break;
+      case "1y":
+        endOfForecast = new Date(today.getFullYear(), today.getMonth() + 13, 0);
+        break;
+    }
+    const fmt = (d: Date) =>
+      d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    return `${fmt(startOfNextMonth)} – ${fmt(endOfForecast)}`;
+  }, [selectedPeriod]);
+
   // Forecast calculation derived strictly from verified mathematical monthly averages
   const baseMonthlyExp = cashFlow.averageMonthlyOutflow > 0 ? cashFlow.averageMonthlyOutflow : controlCenter.totalExpense;
   const baseMonthlyInc = cashFlow.averageMonthlyInflow > 0 ? cashFlow.averageMonthlyInflow : controlCenter.totalIncome;
@@ -185,11 +209,17 @@ export function FinancialForecastingEnterpriseView({
   const projectedSavingsRate = expectedIncome > 0 ? Math.round((projectedSavings / expectedIncome) * 100) : 0;
   const isProjectedPositive = projectedSavings >= 0;
 
-  // Chart data formatting
+  // Chart data formatting: strictly sorted ascending chronologically (left to right)
   const chartFlowData = useMemo(() => {
     if (cashFlow.monthlyFlows.length > 0) {
-      return cashFlow.monthlyFlows.map((m) => ({
+      const sorted = [...cashFlow.monthlyFlows].sort((a, b) => {
+        const keyA = a.rawMonth || a.month;
+        const keyB = b.rawMonth || b.month;
+        return keyA.localeCompare(keyB);
+      });
+      return sorted.map((m) => ({
         month: m.month,
+        rawMonth: m.rawMonth,
         Inflow: m.inflow,
         Outflow: m.outflow,
         Net: m.net,
@@ -197,7 +227,8 @@ export function FinancialForecastingEnterpriseView({
     }
     return [
       {
-        month: "Current",
+        month: "Current Month",
+        rawMonth: new Date().toISOString().slice(0, 7),
         Inflow: controlCenter.totalIncome,
         Outflow: controlCenter.totalExpense,
         Net: controlCenter.netCashFlow,
@@ -319,6 +350,10 @@ export function FinancialForecastingEnterpriseView({
                   <Badge variant="outline" className="text-[10px] font-bold text-blue-600 border-blue-300 dark:border-blue-800 bg-blue-500/5">
                     Mathematical Model
                   </Badge>
+                  <Badge variant="secondary" className="text-[10px] font-mono text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 flex items-center gap-1">
+                    <Calendar className="h-3 w-3 text-primary" />
+                    <span>Window: {forecastDateRange}</span>
+                  </Badge>
                 </div>
                 <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Projections derived strictly from verified historical moving averages, recurring ledger entries, and active budgets
@@ -422,36 +457,36 @@ export function FinancialForecastingEnterpriseView({
           </div>
         </Card>
 
-        {/* 3. Projected Savings — Turquoise/Cyan or Deep Rose */}
+        {/* 3. Projected Savings — Emerald Green (#10B981) or Deep Rose (#E11D48) */}
         <Card className={`relative overflow-hidden rounded-2xl border p-4 space-y-2 shadow-2xs hover:-translate-y-1 hover:shadow-xl active:scale-[0.98] transition-all duration-200 cursor-pointer group ${
           isProjectedPositive
-            ? "border-cyan-500/20 bg-cyan-500/5 hover:shadow-cyan-500/10"
+            ? "border-emerald-500/20 bg-emerald-500/5 hover:shadow-emerald-500/10"
             : "border-rose-500/20 bg-rose-500/5 hover:shadow-rose-500/10"
         }`}>
           <div className={`fin-border-gradient opacity-70 group-hover:opacity-100 transition-opacity ${
             isProjectedPositive
-              ? "bg-gradient-to-br from-cyan-500/40 via-teal-500/25 to-cyan-700/35"
+              ? "bg-gradient-to-br from-emerald-500/40 via-teal-500/25 to-emerald-700/35"
               : "bg-gradient-to-br from-rose-500/40 via-red-500/25 to-rose-700/35"
           }`} />
           <div className={`pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full blur-xl opacity-30 group-hover:opacity-70 transition-opacity ${
-            isProjectedPositive ? "bg-cyan-500/15" : "bg-rose-500/15"
+            isProjectedPositive ? "bg-emerald-500/15" : "bg-rose-500/15"
           }`} />
           <div className="relative z-10 flex items-center justify-between text-xs">
             <span className={`font-bold uppercase tracking-wider text-[10px] ${
-              isProjectedPositive ? "text-cyan-800 dark:text-cyan-300" : "text-rose-800 dark:text-rose-300"
+              isProjectedPositive ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"
             }`}>
               Projected Savings
             </span>
             <div className={`p-1.5 rounded-xl border group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-xs ${
               isProjectedPositive
-                ? "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/20"
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                 : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20"
             }`}>
               <PiggyBank className="h-4 w-4" />
             </div>
           </div>
           <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight ${
-            isProjectedPositive ? "text-cyan-600 dark:text-cyan-400" : "text-rose-600 dark:text-rose-400"
+            isProjectedPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
           }`}>
             <AnimatedCounter
               value={`${isProjectedPositive ? "+" : ""}${formatCurrency(projectedSavings)}`}
@@ -459,8 +494,8 @@ export function FinancialForecastingEnterpriseView({
             />
           </div>
           <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1.5">
-            <span>Projected surplus</span>
-            <span className={`font-bold font-mono ${isProjectedPositive ? "text-cyan-600 dark:text-cyan-400" : "text-rose-600 dark:text-rose-400"}`}>
+            <span>{isProjectedPositive ? "Projected surplus" : "Projected deficit"}</span>
+            <span className={`font-bold font-mono ${isProjectedPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
               {projectedSavingsRate}% rate
             </span>
           </div>

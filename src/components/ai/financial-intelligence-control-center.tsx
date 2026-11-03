@@ -32,6 +32,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 export type { PeriodFilter };
 
@@ -72,10 +73,20 @@ export function FinancialIntelligenceControlCenter({
   isPeriodLoading = false,
 }: FinancialIntelligenceControlCenterProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isSimulatedSurplus, setIsSimulatedSurplus] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 
   const { controlCenter, aiInsights } = data;
   const hasTransactionsInPeriod = controlCenter.transactionCount > 0;
+
+  // Dynamic values that react to live ledger or interactive threshold simulation
+  const effectiveTotalIncome = isSimulatedSurplus ? 25000 : controlCenter.totalIncome;
+  const effectiveTotalExpense = isSimulatedSurplus ? 5000 : controlCenter.totalExpense;
+  const effectiveNetCashFlow = isSimulatedSurplus ? 20000 : controlCenter.netCashFlow;
+  const effectiveSavings = isSimulatedSurplus ? 20000 : controlCenter.savings;
+  const effectiveSavingsRate = isSimulatedSurplus ? 80 : controlCenter.savingsRate;
+  const isNetPositive = effectiveNetCashFlow >= 0;
+  const isSavingsPositive = effectiveSavings >= 0;
 
   // Comparison labels
   const periodLabel = useMemo(() => {
@@ -123,7 +134,6 @@ export function FinancialIntelligenceControlCenter({
     }
   };
 
-  const isNetPositive = controlCenter.netCashFlow >= 0;
   const isExtendedSelected = EXTENDED_PERIODS.some((p) => p.key === selectedPeriod);
   const extendedSelectedLabel = EXTENDED_PERIODS.find((p) => p.key === selectedPeriod)?.label;
 
@@ -247,6 +257,28 @@ export function FinancialIntelligenceControlCenter({
                   <span className="hidden sm:inline">Sync</span>
                 </Button>
               )}
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setIsSimulatedSurplus((prev) => !prev);
+                  toast.info(
+                    !isSimulatedSurplus
+                      ? "Surplus Mode Enabled: Watch cards & animations automatically convert to Emerald Green!"
+                      : "Reverted to Live Verified Ledger Data"
+                  );
+                }}
+                className={`rounded-xl h-9 min-h-[36px] px-3 text-xs font-bold gap-1.5 active:scale-[0.98] transition-all ${
+                  isSimulatedSurplus
+                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black"
+                    : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400"
+                }`}
+                aria-label="Toggle surplus simulation mode"
+              >
+                <Sparkles className={`h-3.5 w-3.5 ${isSimulatedSurplus ? "text-emerald-500 animate-spin" : "text-amber-500"}`} />
+                <span className="hidden sm:inline">{isSimulatedSurplus ? "Surplus Mode Active" : "Simulate Surplus"}</span>
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -335,13 +367,15 @@ export function FinancialIntelligenceControlCenter({
             </div>
 
             <div className="relative z-10 text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums tracking-tight">
-              <AnimatedCounter value={formatCurrency(controlCenter.totalIncome)} duration={0.6} />
+              <AnimatedCounter value={formatCurrency(effectiveTotalIncome)} duration={0.6} />
             </div>
 
             <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-emerald-500/15 pt-1.5">
               <span>Verified receipts</span>
               <span className="font-bold text-slate-600 dark:text-slate-300">
-                {pctIncome !== null
+                {isSimulatedSurplus
+                  ? "+150% Simulated"
+                  : pctIncome !== null
                   ? `${pctIncome >= 0 ? "+" : ""}${pctIncome}% ${comparisonSubtitle}`
                   : "Verified inflow"}
               </span>
@@ -372,13 +406,15 @@ export function FinancialIntelligenceControlCenter({
             </div>
 
             <div className="relative z-10 text-2xl font-black text-rose-600 dark:text-rose-400 font-mono tabular-nums tracking-tight">
-              <AnimatedCounter value={formatCurrency(controlCenter.totalExpense)} duration={0.6} />
+              <AnimatedCounter value={formatCurrency(effectiveTotalExpense)} duration={0.6} />
             </div>
 
             <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-rose-500/15 pt-1.5">
               <span>Verified outflows</span>
               <span className="font-bold text-slate-600 dark:text-slate-300">
-                {pctExpense !== null
+                {isSimulatedSurplus
+                  ? "-35% Simulated"
+                  : pctExpense !== null
                   ? `${pctExpense > 0 ? "+" : ""}${pctExpense}% ${comparisonSubtitle}`
                   : "Verified debits"}
               </span>
@@ -394,47 +430,47 @@ export function FinancialIntelligenceControlCenter({
           }}
           whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
         >
-          <Card className={`relative overflow-hidden h-full rounded-2xl border p-4 space-y-2 shadow-2xs hover:shadow-xl active:scale-[0.98] transition-all duration-200 cursor-pointer group ${
+          <Card className={`relative overflow-hidden h-full rounded-2xl border p-4 space-y-2 shadow-2xs hover:shadow-xl active:scale-[0.98] transition-all duration-300 cursor-pointer group ${
             isNetPositive
-              ? "border-emerald-500/20 bg-card hover:shadow-emerald-500/10"
-              : "border-rose-500/20 bg-card hover:shadow-rose-500/10"
+              ? "border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/50 hover:shadow-emerald-500/15"
+              : "border-rose-500/30 bg-rose-500/5 hover:border-rose-500/50 hover:shadow-rose-500/15"
           }`}>
-            <div className={`fin-border-gradient opacity-70 group-hover:opacity-100 transition-opacity ${
+            <div className={`fin-border-gradient opacity-80 group-hover:opacity-100 transition-opacity duration-300 ${
               isNetPositive
-                ? "bg-gradient-to-br from-emerald-500/40 via-teal-500/25 to-emerald-700/35"
-                : "bg-gradient-to-br from-rose-500/40 via-red-500/25 to-rose-700/35"
+                ? "bg-gradient-to-br from-emerald-500/50 via-teal-400/30 to-emerald-600/40"
+                : "bg-gradient-to-br from-rose-500/50 via-red-500/30 to-rose-700/40"
             }`} />
-            <div className={`pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full blur-xl opacity-30 group-hover:opacity-70 transition-opacity ${
-              isNetPositive ? "bg-emerald-500/15" : "bg-rose-500/15"
+            <div className={`pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full blur-xl opacity-30 group-hover:opacity-70 transition-opacity duration-300 ${
+              isNetPositive ? "bg-emerald-500/20" : "bg-rose-500/20"
             }`} />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
-              <span className={`font-bold uppercase tracking-wider text-[10px] ${
+              <span className={`font-bold uppercase tracking-wider text-[10px] transition-colors duration-300 ${
                 isNetPositive ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"
               }`}>
                 Net Cash Flow
               </span>
-              <div className={`p-1.5 rounded-xl border group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-xs ${
+              <div className={`p-1.5 rounded-xl border group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-xs ${
                 isNetPositive
-                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                  : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                  : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
               }`}>
                 <Wallet className="h-4 w-4" />
               </div>
             </div>
 
-            <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight ${
+            <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight transition-colors duration-300 ${
               isNetPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
             }`}>
               <AnimatedCounter
-                value={`${isNetPositive ? "+" : ""}${formatCurrency(controlCenter.netCashFlow)}`}
+                value={`${isNetPositive ? "+" : ""}${formatCurrency(effectiveNetCashFlow)}`}
                 duration={0.6}
               />
             </div>
 
             <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1.5">
               <span>Period liquidity</span>
-              <span className={`font-bold ${isNetPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+              <span className={`font-bold transition-colors duration-300 ${isNetPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                 {isNetPositive ? "Net surplus" : "Deficit funded"}
               </span>
             </div>
@@ -450,29 +486,29 @@ export function FinancialIntelligenceControlCenter({
           whileHover={shouldReduceMotion ? undefined : { y: -4, scale: 1.015 }}
         >
           <Card className={`relative overflow-hidden h-full rounded-2xl border p-4 space-y-2 shadow-2xs hover:shadow-xl active:scale-[0.98] transition-all duration-300 cursor-pointer group ${
-            controlCenter.savings >= 0
-              ? "border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/50 hover:shadow-emerald-500/15"
+            isSavingsPositive
+              ? "border-emerald-500/40 bg-emerald-500/10 hover:border-emerald-500/60 hover:shadow-emerald-500/20"
               : "border-rose-500/30 bg-rose-500/5 hover:border-rose-500/50 hover:shadow-rose-500/15"
           }`}>
             {/* Automatic Color Transition Border: Emerald -> Mint vs Rose -> Crimson */}
             <div className={`fin-border-gradient opacity-80 group-hover:opacity-100 transition-opacity duration-300 ${
-              controlCenter.savings >= 0
-                ? "bg-gradient-to-br from-emerald-500/50 via-teal-400/30 to-emerald-600/40"
+              isSavingsPositive
+                ? "bg-gradient-to-br from-emerald-500/60 via-teal-400/40 to-emerald-600/50"
                 : "bg-gradient-to-br from-rose-500/50 via-red-500/30 to-rose-700/40"
             }`} />
             <div className={`pointer-events-none absolute -top-8 -right-8 h-24 w-24 rounded-full blur-xl opacity-30 group-hover:opacity-70 transition-opacity duration-300 ${
-              controlCenter.savings >= 0 ? "bg-emerald-500/20" : "bg-rose-500/20"
+              isSavingsPositive ? "bg-emerald-500/25" : "bg-rose-500/20"
             }`} />
 
             <div className="relative z-10 flex items-center justify-between text-xs">
               <span className={`font-bold uppercase tracking-wider text-[10px] transition-colors duration-300 ${
-                controlCenter.savings >= 0 ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"
+                isSavingsPositive ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"
               }`}>
                 Savings
               </span>
               <div className={`p-1.5 rounded-xl border group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 shadow-xs ${
-                controlCenter.savings >= 0
-                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                isSavingsPositive
+                  ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/40"
                   : "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
               }`}>
                 <PiggyBank className="h-4 w-4" />
@@ -480,20 +516,20 @@ export function FinancialIntelligenceControlCenter({
             </div>
 
             <div className={`relative z-10 text-2xl font-black font-mono tabular-nums tracking-tight transition-colors duration-300 ${
-              controlCenter.savings >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+              isSavingsPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
             }`}>
               <AnimatedCounter
-                value={`${controlCenter.savings >= 0 ? "+" : ""}${formatCurrency(controlCenter.savings)}`}
+                value={`${isSavingsPositive ? "+" : ""}${formatCurrency(effectiveSavings)}`}
                 duration={0.6}
               />
             </div>
 
             <div className="relative z-10 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 dark:border-slate-800 pt-1.5">
-              <span>{controlCenter.savings >= 0 ? "Retained surplus" : "Deficit draw"}</span>
+              <span>{isSavingsPositive ? "Retained surplus" : "Deficit draw"}</span>
               <span className={`font-bold font-mono transition-colors duration-300 ${
-                controlCenter.savings >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                isSavingsPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
               }`}>
-                {controlCenter.savingsRate}% rate
+                {effectiveSavingsRate}% rate
               </span>
             </div>
           </Card>
