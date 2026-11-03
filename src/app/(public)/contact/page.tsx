@@ -145,6 +145,7 @@ export default function ContactPage() {
         </motion.div>
 
         {/* ================= SUPPORT CHANNELS (CARDS) ================= */}
+        <h2 className="sr-only">Direct Support and Contact Channels</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12 md:mb-14">
           {/* Email Support */}
           <motion.div

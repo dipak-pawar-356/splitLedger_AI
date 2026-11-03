@@ -159,6 +159,7 @@ export default function FeaturesPage() {
         </motion.div>
 
         {/* ================= 8 CORE FEATURE CARDS ================= */}
+        <h2 className="sr-only">Core Financial Capabilities and Feature Modules</h2>
         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-14 md:mb-16">
           <AnimatePresence mode="popLayout">
             {filteredFeatures.map((feature, idx) => {
