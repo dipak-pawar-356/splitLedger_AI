@@ -200,7 +200,7 @@ export interface CashFlowAnalysis {
   averageMonthlyOutflow: number;
   largestInflow: { title: string; amount: number; date: Date | string } | null;
   largestOutflow: { title: string; amount: number; date: Date | string } | null;
-  monthlyFlows: Array<{ month: string; inflow: number; outflow: number; net: number }>;
+  monthlyFlows: Array<{ month: string; rawMonth?: string; inflow: number; outflow: number; net: number }>;
 }
 
 export interface FinancialIntelligenceData {
@@ -960,7 +960,7 @@ export async function getFinancialIntelligence(
     }
 
     // ----------------------------------------------------
-    // SECTION 7: Cash Flow Analysis & Historical Flows
+    // SECTION 7: Cash Flow Analysis & Historical Flows (Strict Chronological 6-Month Sequence)
     // ----------------------------------------------------
     const monthlyFlowMap = new Map<string, { inflow: number; outflow: number }>();
     sixMonthTransactionsRaw.forEach((row) => {
@@ -970,12 +970,27 @@ export async function getFinancialIntelligence(
       monthlyFlowMap.set(row.month, entry);
     });
 
-    const monthlyFlows = Array.from(monthlyFlowMap.entries()).map(([month, flow]) => ({
-      month,
-      inflow: flow.inflow,
-      outflow: flow.outflow,
-      net: flow.inflow - flow.outflow,
-    }));
+    const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const chronologicalMonths: Array<{ key: string; label: string }> = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const key = `${yyyy}-${mm}`;
+      const label = `${MONTH_LABELS[d.getMonth()]} ${yyyy}`;
+      chronologicalMonths.push({ key, label });
+    }
+
+    const monthlyFlows = chronologicalMonths.map(({ key, label }) => {
+      const flow = monthlyFlowMap.get(key) || { inflow: 0, outflow: 0 };
+      return {
+        month: label,
+        rawMonth: key,
+        inflow: Math.round(flow.inflow),
+        outflow: Math.round(flow.outflow),
+        net: Math.round(flow.inflow - flow.outflow),
+      };
+    });
 
     // ----------------------------------------------------
     // SECTION 8: Forecasting Model (1M, 1Q, 6M, 1Y)
@@ -1403,7 +1418,13 @@ export async function getFinancialIntelligence(
       },
       productivityInsights: {
         mostActiveDayOfWeek: sixMonthTransactionsRaw.length > 0 ? sixMonthTransactionsRaw[0].dayOfWeek.trim() : "Saturday",
-        peakSpendingMonth: monthlyFlows.length > 0 ? monthlyFlows[0].month : "Current Month",
+        peakSpendingMonth: (() => {
+          if (monthlyFlows.length > 0) {
+            const sorted = [...monthlyFlows].sort((a, b) => b.outflow - a.outflow);
+            if (sorted[0].outflow > 0) return sorted[0].month;
+          }
+          return "Current Month";
+        })(),
         averageSettlementDelayDays: 2.4,
       },
     };
