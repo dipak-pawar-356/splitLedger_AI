@@ -65,6 +65,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { parseSafeDate, getSafeIsoDateStr } from "@/lib/budget-utils";
 import { toast } from "sonner";
 import { BudgetDetailsDashboard } from "./budget-details-dashboard";
 import { BudgetIncreaseModal } from "./budget-increase-modal";
@@ -77,7 +78,35 @@ interface BudgetsDashboardViewProps {
 
 export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewProps) {
   const router = useRouter();
-  const [metrics, setMetrics] = useState<BudgetDashboardMetrics>(initialMetrics);
+
+  const safeInitialMetrics: BudgetDashboardMetrics = useMemo(() => {
+    return {
+      totalBudgetAllocated: initialMetrics?.totalBudgetAllocated ?? 0,
+      totalSpent: initialMetrics?.totalSpent ?? 0,
+      totalRemaining: initialMetrics?.totalRemaining ?? 0,
+      overallUsagePercent: initialMetrics?.overallUsagePercent ?? 0,
+      activeSavingsGoalsCount: initialMetrics?.activeSavingsGoalsCount ?? 0,
+      totalSavedAcrossGoals: initialMetrics?.totalSavedAcrossGoals ?? 0,
+      currency: initialMetrics?.currency || "INR",
+      budgets: Array.isArray(initialMetrics?.budgets) ? initialMetrics.budgets : [],
+      savingsGoals: Array.isArray(initialMetrics?.savingsGoals) ? initialMetrics.savingsGoals : [],
+      spendingLimits: Array.isArray(initialMetrics?.spendingLimits) ? initialMetrics.spendingLimits : [],
+      forecast: initialMetrics?.forecast || {
+        projectedMonthlySpend: 0,
+        exhaustionDate: null,
+        remainingDailyBudget: 0,
+        averageDailyBurn: 0,
+        isOverBudgetRisk: false,
+      },
+      verifiedIncome: initialMetrics?.verifiedIncome ?? 0,
+      verifiedExpenses: initialMetrics?.verifiedExpenses ?? 0,
+      currentNetSavings: initialMetrics?.currentNetSavings ?? 0,
+      expectedSavings: initialMetrics?.expectedSavings ?? 0,
+      savingsRate: initialMetrics?.savingsRate ?? 0,
+    };
+  }, [initialMetrics]);
+
+  const [metrics, setMetrics] = useState<BudgetDashboardMetrics>(safeInitialMetrics);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = () => {
@@ -94,10 +123,10 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
 
   // Selected Budget ID for the Details Panel
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(() => {
-    const active = initialMetrics.budgets.find(
-      (b) => b.status === "active" && b.computedStatus !== "expired" && b.computedStatus !== "completed"
+    const active = safeInitialMetrics.budgets.find(
+      (b) => b && b.status === "active" && b.computedStatus !== "expired" && b.computedStatus !== "completed"
     );
-    return active ? active.id : initialMetrics.budgets[0]?.id || null;
+    return active ? active.id : safeInitialMetrics.budgets[0]?.id || null;
   });
 
   // Modal States
@@ -139,25 +168,26 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
   // Available unique categories
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
-    metrics.budgets.forEach((b) => {
-      if (b.category) set.add(b.category);
+    (metrics?.budgets || []).forEach((b) => {
+      if (b?.category) set.add(b.category);
     });
     return Array.from(set);
-  }, [metrics.budgets]);
+  }, [metrics?.budgets]);
 
   // Filtered Budgets according to Smart Filters
   const filteredBudgets = useMemo(() => {
-    return metrics.budgets.filter((b) => {
+    return (metrics?.budgets || []).filter((b) => {
+      if (!b) return false;
       // 1. Time range filter
       if (filters.timeRange !== "all") {
         const now = new Date();
-        const start = new Date(b.startDate);
-        const end = new Date(b.endDate || b.startDate);
+        const start = parseSafeDate(b.startDate);
+        const end = parseSafeDate(b.endDate || b.startDate);
 
         if (filters.timeRange === "today") {
-          const todayStr = now.toISOString().split("T")[0];
-          const startStr = start.toISOString().split("T")[0];
-          const endStr = end.toISOString().split("T")[0];
+          const todayStr = getSafeIsoDateStr(now);
+          const startStr = getSafeIsoDateStr(start);
+          const endStr = getSafeIsoDateStr(end);
           if (todayStr < startStr || todayStr > endStr) return false;
         } else if (filters.timeRange === "week") {
           const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
@@ -175,8 +205,8 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
           const yearStart = new Date(now.getFullYear(), 0, 1);
           if (end < yearStart) return false;
         } else if (filters.timeRange === "custom") {
-          if (filters.customStartDate && new Date(b.startDate) < new Date(filters.customStartDate)) return false;
-          if (filters.customEndDate && new Date(b.endDate || b.startDate) > new Date(filters.customEndDate)) return false;
+          if (filters.customStartDate && parseSafeDate(b.startDate) < parseSafeDate(filters.customStartDate)) return false;
+          if (filters.customEndDate && parseSafeDate(b.endDate || b.startDate) > parseSafeDate(filters.customEndDate)) return false;
         }
       }
 

@@ -35,6 +35,8 @@ import {
   serializeBudgetMetadata,
   calculateBudgetDatesFromPreset,
   computeCountdownText,
+  parseSafeDate,
+  getSafeIsoDateStr,
 } from "@/lib/budget-utils";
 
 export interface BudgetProgress {
@@ -218,8 +220,8 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
         return memBudgets
           .filter((b) => b.status !== "archived")
           .map((b, idx) => {
-            const budgetStart = new Date(b.startDate || now).getTime();
-            const budgetEnd = new Date(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
+            const budgetStart = parseSafeDate(b.startDate || now).getTime();
+            const budgetEnd = parseSafeDate(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
             const totalDays = Math.max(1, Math.ceil((budgetEnd - budgetStart) / 86400000));
             const daysPassed = Math.max(0, Math.min(totalDays, Math.ceil((now.getTime() - budgetStart) / 86400000)));
             const daysRemaining = Math.max(0, Math.ceil((budgetEnd - now.getTime()) / 86400000));
@@ -352,8 +354,8 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
     const now = new Date();
 
     return dbBudgets.map((b) => {
-      const budgetStart = new Date(b.startDate).getTime();
-      const budgetEnd = new Date(b.endDate).getTime();
+      const budgetStart = parseSafeDate(b.startDate || now).getTime();
+      const budgetEnd = parseSafeDate(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
       const nowTime = now.getTime();
 
       const totalDays = Math.max(1, Math.ceil((budgetEnd - budgetStart) / 86400000));
@@ -925,8 +927,8 @@ export async function getBudgetHistory(): Promise<BudgetHistoryItem[]> {
     const now = new Date();
 
     return allBudgets.map((b) => {
-      const budgetStart = new Date(b.startDate).getTime();
-      const budgetEnd = new Date(b.endDate).getTime();
+      const budgetStart = parseSafeDate(b.startDate || now).getTime();
+      const budgetEnd = parseSafeDate(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
 
       const matchingTxs = userExpenses.filter((tx) => {
         const txTime = new Date(tx.date).getTime();
@@ -1055,8 +1057,8 @@ export async function getBudgetDashboardSummary(): Promise<BudgetDashboardMetric
     percentageUsed: b.percentage,
     currency: b.currency || "INR",
     status: b.status === "archived" ? "archived" : "active",
-    startDate: typeof b.startDate === "string" ? b.startDate : b.startDate.toISOString(),
-    endDate: typeof b.endDate === "string" ? b.endDate : b.endDate.toISOString(),
+    startDate: getSafeIsoDateStr(b.startDate),
+    endDate: getSafeIsoDateStr(b.endDate),
     alertThresholds: [{ percent: b.alertThreshold || 80, triggered: b.percentage >= (b.alertThreshold || 80) }],
     createdAt: new Date().toISOString(),
 

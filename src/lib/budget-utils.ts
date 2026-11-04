@@ -139,3 +139,21 @@ export function computeCountdownText(
   return `${daysRemaining} Days Left`;
 }
 
+export function parseSafeDate(val: any): Date {
+  if (!val) return new Date();
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? new Date() : val;
+  }
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+export function getSafeIsoDateStr(val: any): string {
+  try {
+    return parseSafeDate(val).toISOString().split("T")[0];
+  } catch {
+    return new Date().toISOString().split("T")[0];
+  }
+}
+
+

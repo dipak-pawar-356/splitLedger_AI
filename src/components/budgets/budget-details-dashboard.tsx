@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { BudgetRecord } from "@/lib/types/budgets";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { parseSafeDate, getSafeIsoDateStr } from "@/lib/budget-utils";
 import {
   Tooltip,
   TooltipContent,
@@ -71,7 +72,7 @@ import {
 import { BudgetProgressRing } from "./budget-progress-ring";
 
 interface BudgetDetailsDashboardProps {
-  budget: BudgetRecord;
+  budget: BudgetRecord | null | undefined;
   allBudgets: BudgetRecord[];
   onSelectBudget: (b: BudgetRecord) => void;
   onOpenIncreaseModal: (b: BudgetRecord) => void;
@@ -97,8 +98,27 @@ export function BudgetDetailsDashboard({
   verifiedIncome = 0,
   verifiedExpenses = 0,
 }: BudgetDetailsDashboardProps) {
+  const [isMounted, setIsMounted] = useState(false);
   const [selectedChartTab, setSelectedChartTab] = useState<"trend" | "burn_rate" | "comparison">("trend");
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!budget) {
+    return (
+      <div className="py-20 text-center border-2 border-dashed rounded-3xl p-8 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
+        <PieChart className="h-12 w-12 text-slate-400 mx-auto" />
+        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">
+          No Budget Selected
+        </h3>
+        <p className="text-xs text-slate-500 max-w-md mx-auto">
+          Please select or create a budget to view duration intelligence and dynamic metrics.
+        </p>
+      </div>
+    );
+  }
 
   // 1. Core Financial Baseline Values (Always from verified ledger records)
   const currency = budget.currency || "INR";
@@ -250,7 +270,7 @@ export function BudgetDetailsDashboard({
     const daysLeft = Math.floor(remainingBudget / averageDailySpend);
     const d = new Date();
     d.setDate(d.getDate() + daysLeft);
-    return d.toISOString().split("T")[0];
+    return getSafeIsoDateStr(d);
   }, [remainingBudget, averageDailySpend]);
 
   // 8. Recharts Time-Series Chart Data
@@ -263,8 +283,8 @@ export function BudgetDetailsDashboard({
       budgetCap: number;
     }> = [];
 
-    const start = new Date(budget.startDate);
-    const end = new Date(budget.endDate || new Date());
+    const start = parseSafeDate(budget.startDate);
+    const end = parseSafeDate(budget.endDate || new Date());
     const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
     const idealDailyRate = currentBudget / totalDays;
 
@@ -279,7 +299,7 @@ export function BudgetDetailsDashboard({
 
     for (let day = 0; day <= totalDays; day += step) {
       const pointDate = new Date(start.getTime() + day * 86400000);
-      const dateStr = pointDate.toISOString().split("T")[0];
+      const dateStr = getSafeIsoDateStr(pointDate);
       const daySpend = dailyMap.get(dateStr) || (day <= daysPassed ? Math.round(totalSpent / Math.max(1, daysPassed)) : 0);
 
       if (day <= daysPassed) {
@@ -324,17 +344,19 @@ export function BudgetDetailsDashboard({
       badgeText: string;
     }> = [];
 
+    const budgetIdSafe = String(budget.id || (budget as any).publicId || "0").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
+
     // Milestone 1: Budget Started
     events.push({
       id: "event-started",
       title: "Budget Started",
       eventType: "started",
-      date: budget.startDate ? new Date(budget.startDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      date: getSafeIsoDateStr(budget.startDate),
       time: "00:00 AM",
       amount: originalBudget,
       remainingBudget: originalBudget,
       remainingDays: totalDurationDays,
-      ledgerReference: `LEDG-INIT-${budget.id.slice(0, 8).toUpperCase()}`,
+      ledgerReference: `LEDG-INIT-${budgetIdSafe || "00000000"}`,
       notes: "Initial approved baseline established on ledger",
       colorClass: "bg-blue-600 text-white",
       badgeText: "Royal Blue Baseline",
@@ -343,19 +365,20 @@ export function BudgetDetailsDashboard({
     // Milestone 2+: Revisions & Additional Budget Added
     if (budget.increases && budget.increases.length > 0) {
       budget.increases.forEach((inc, idx) => {
+        const incIdSafe = String(inc?.id || idx).replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
         events.push({
-          id: `event-rev-${inc.id || idx}`,
+          id: `event-rev-${incIdSafe || idx}`,
           title: `Budget Revised (v${idx + 2})`,
           eventType: "revised",
-          date: inc.date,
-          time: inc.time || "12:00 PM",
-          amount: inc.addedAmount,
-          remainingBudget: inc.updatedBudget,
-          remainingDays: inc.remainingDays,
-          ledgerReference: `LEDG-REV-${(inc.id || `${idx}`).slice(0, 8).toUpperCase()}`,
-          notes: inc.reason || "Budget revision approved",
+          date: getSafeIsoDateStr(inc?.date),
+          time: inc?.time || "12:00 PM",
+          amount: inc?.addedAmount || 0,
+          remainingBudget: inc?.updatedBudget || remainingBudget,
+          remainingDays: inc?.remainingDays ?? daysRemaining,
+          ledgerReference: `LEDG-REV-${incIdSafe || "00000000"}`,
+          notes: inc?.reason || "Budget revision approved",
           colorClass: "bg-sky-600 text-white",
-          badgeText: `+${formatCurrency(inc.addedAmount, currency)} Added`,
+          badgeText: `+${formatCurrency(inc?.addedAmount || 0, currency)} Added`,
         });
       });
     } else if (additionalBudget > 0) {
@@ -363,12 +386,12 @@ export function BudgetDetailsDashboard({
         id: "event-added",
         title: "Additional Budget Added",
         eventType: "added",
-        date: budget.updatedAt ? new Date(budget.updatedAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+        date: getSafeIsoDateStr(budget.updatedAt),
         time: "12:00 PM",
         amount: additionalBudget,
         remainingBudget: remainingBudget,
         remainingDays: daysRemaining,
-        ledgerReference: `LEDG-ADD-ADJUST`,
+        ledgerReference: `LEDG-ADD-${budgetIdSafe || "00000000"}`,
         notes: "Ceiling revised without resetting baseline",
         colorClass: "bg-sky-600 text-white",
         badgeText: `+${formatCurrency(additionalBudget, currency)}`,
@@ -381,12 +404,12 @@ export function BudgetDetailsDashboard({
         id: "event-near-limit",
         title: "Budget Near Limit",
         eventType: "near_limit",
-        date: budget.lastExpense?.date || new Date().toISOString().split("T")[0],
+        date: getSafeIsoDateStr(budget.lastExpense?.date),
         time: "Threshold Active",
         amount: totalSpent,
         remainingBudget: remainingBudget,
         remainingDays: daysRemaining,
-        ledgerReference: "LEDG-WARN-85PCT",
+        ledgerReference: `LEDG-WARN-${budgetIdSafe || "85PCT"}`,
         notes: "Expenditure reached 85% of allowed limit",
         colorClass: "bg-orange-500 text-white",
         badgeText: "85% Warning",
@@ -399,12 +422,12 @@ export function BudgetDetailsDashboard({
         id: "event-crossed",
         title: "Budget Crossed",
         eventType: "crossed",
-        date: budget.lastExpense?.date || new Date().toISOString().split("T")[0],
+        date: getSafeIsoDateStr(budget.lastExpense?.date),
         time: "Cap Exceeded",
         amount: totalSpent,
         remainingBudget: 0,
         remainingDays: daysRemaining,
-        ledgerReference: "LEDG-EXCEED-CAP",
+        ledgerReference: `LEDG-EXCEED-${budgetIdSafe || "CAP"}`,
         notes: "Expenditures exceeded current allocated cap",
         colorClass: "bg-rose-600 text-white",
         badgeText: "Ceiling Exceeded",
@@ -418,12 +441,12 @@ export function BudgetDetailsDashboard({
           id: "event-completed",
           title: "Budget Completed",
           eventType: "completed",
-          date: budget.endDate ? new Date(budget.endDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+          date: getSafeIsoDateStr(budget.endDate),
           time: "11:59 PM",
           amount: totalSpent,
           remainingBudget: remainingBudget,
           remainingDays: 0,
-          ledgerReference: "LEDG-TERM-SUCCESS",
+          ledgerReference: `LEDG-TERM-${budgetIdSafe || "CMPL"}`,
           notes: "Term completed safely within budget limits",
           colorClass: "bg-emerald-600 text-white",
           badgeText: "Goal Achieved",
@@ -433,12 +456,12 @@ export function BudgetDetailsDashboard({
           id: "event-expired",
           title: "Budget Expired",
           eventType: "expired",
-          date: budget.endDate ? new Date(budget.endDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+          date: getSafeIsoDateStr(budget.endDate),
           time: "11:59 PM",
           amount: totalSpent,
           remainingBudget: 0,
           remainingDays: 0,
-          ledgerReference: "LEDG-TERM-EXPIRED",
+          ledgerReference: `LEDG-EXPR-${budgetIdSafe || "TERM"}`,
           notes: "Validity period ended",
           colorClass: "bg-slate-500 text-white",
           badgeText: "Term Ended",
@@ -452,12 +475,12 @@ export function BudgetDetailsDashboard({
         id: "event-savings",
         title: "Savings Achieved",
         eventType: "savings_achieved",
-        date: new Date().toISOString().split("T")[0],
+        date: getSafeIsoDateStr(new Date()),
         time: "Real-Time",
         amount: remainingBudget,
         remainingBudget: remainingBudget,
         remainingDays: daysRemaining,
-        ledgerReference: "LEDG-SAV-VERIFIED",
+        ledgerReference: `LEDG-SAV-${budgetIdSafe || "VERIFIED"}`,
         notes: "Surplus protected under active spending limit",
         colorClass: "bg-emerald-600 text-white",
         badgeText: formatCurrency(remainingBudget, currency),
@@ -1374,83 +1397,89 @@ export function BudgetDetailsDashboard({
             </div>
 
             <div className="h-64 w-full pt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                {selectedChartTab === "trend" ? (
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
-                    <RechartsTooltip
-                      formatter={(val: number) => [`₹${val.toLocaleString("en-IN")}`, "Spending"]}
-                      contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="spend"
-                      stroke="#4f46e5"
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill="url(#spendGrad)"
-                    />
-                  </AreaChart>
-                ) : selectedChartTab === "burn_rate" ? (
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="cumulGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#dc2626" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#dc2626" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
-                    <RechartsTooltip
-                      formatter={(val: number, name: string) => [
-                        `₹${val.toLocaleString("en-IN")}`,
-                        name === "cumulativeSpend" ? "Cumulative Spend" : "Ideal Spend Line",
-                      ]}
-                      contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="cumulativeSpend"
-                      stroke="#dc2626"
-                      strokeWidth={2.5}
-                      fill="url(#cumulGrad)"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="idealSpend"
-                      stroke="#059669"
-                      strokeDasharray="4 4"
-                      strokeWidth={2}
-                      fill="none"
-                    />
-                    <ReferenceLine y={currentBudget} stroke="#4f46e5" strokeDasharray="3 3" label="Current Cap" />
-                  </AreaChart>
-                ) : (
-                  <BarChart data={comparisonData}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
-                    <RechartsTooltip
-                      formatter={(val: number) => [`₹${val.toLocaleString("en-IN")}`, "Amount"]}
-                      contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
-                    />
-                    <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
-                      {comparisonData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                )}
-              </ResponsiveContainer>
+              {isMounted ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  {selectedChartTab === "trend" ? (
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
+                      <RechartsTooltip
+                        formatter={(val: number) => [`₹${val.toLocaleString("en-IN")}`, "Spending"]}
+                        contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="spend"
+                        stroke="#4f46e5"
+                        strokeWidth={2.5}
+                        fillOpacity={1}
+                        fill="url(#spendGrad)"
+                      />
+                    </AreaChart>
+                  ) : selectedChartTab === "burn_rate" ? (
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="cumulGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#dc2626" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#dc2626" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
+                      <RechartsTooltip
+                        formatter={(val: number, name: string) => [
+                          `₹${val.toLocaleString("en-IN")}`,
+                          name === "cumulativeSpend" ? "Cumulative Spend" : "Ideal Spend Line",
+                        ]}
+                        contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="cumulativeSpend"
+                        stroke="#dc2626"
+                        strokeWidth={2.5}
+                        fill="url(#cumulGrad)"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="idealSpend"
+                        stroke="#059669"
+                        strokeDasharray="4 4"
+                        strokeWidth={2}
+                        fill="none"
+                      />
+                      <ReferenceLine y={currentBudget} stroke="#4f46e5" strokeDasharray="3 3" label="Current Cap" />
+                    </AreaChart>
+                  ) : (
+                    <BarChart data={comparisonData}>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
+                      <RechartsTooltip
+                        formatter={(val: number) => [`₹${val.toLocaleString("en-IN")}`, "Amount"]}
+                        contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
+                      />
+                      <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
+                        {comparisonData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  )}
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-xs text-slate-400">
+                  Loading charts...
+                </div>
+              )}
             </div>
           </Card>
         </div>
