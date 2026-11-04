@@ -3,7 +3,18 @@
  */
 
 export type BudgetPeriod = "daily" | "weekly" | "monthly" | "yearly" | "custom";
+export type BudgetDurationPreset = "daily" | "weekly" | "monthly" | "quarterly" | "half_yearly" | "yearly" | "custom";
 export type BudgetStatus = "active" | "paused" | "completed" | "archived";
+export type BudgetComputedStatus = 
+  | "upcoming"
+  | "active"
+  | "ending_soon"
+  | "completed"
+  | "expired"
+  | "exceeded"
+  | "paused"
+  | "cancelled";
+
 export type BudgetType = 
   | "personal"
   | "category"
@@ -17,6 +28,19 @@ export type BudgetType =
   | "custom";
 export type GoalPriority = "high" | "medium" | "low";
 
+export interface BudgetIncreaseHistoryItem {
+  id: string;
+  date: string;
+  previousBudget: number;
+  addedAmount: number;
+  updatedBudget: number;
+  remainingDays: number;
+  reason?: string;
+  notes?: string;
+  performedBy: string;
+  time: string;
+}
+
 export interface BudgetRecord {
   id: string; // Random 16-char ID (bud_...)
   userId: number;
@@ -29,7 +53,7 @@ export interface BudgetRecord {
   category: string;
   budgetType: BudgetType;
   period: BudgetPeriod;
-  allocatedAmount: number; // in rupees
+  allocatedAmount: number; // in rupees (current total budget)
   spentAmount: number; // in rupees
   remainingAmount: number; // in rupees
   percentageUsed: number; // e.g. 75%
@@ -44,6 +68,37 @@ export interface BudgetRecord {
   alertThresholds: Array<{ percent: number; triggered: boolean }>;
   createdAt: string;
   updatedAt?: string;
+
+  // Real-Time Enterprise Budget Intelligence fields
+  originalAmount?: number;
+  additionalAmount?: number;
+  increaseCount?: number;
+  increases?: BudgetIncreaseHistoryItem[];
+  durationPreset?: BudgetDurationPreset;
+  totalDurationDays?: number;
+  daysPassed?: number;
+  daysRemaining?: number;
+  remainingHours?: number;
+  remainingWeeks?: number;
+  remainingMonths?: number;
+  countdownText?: string;
+  timelinePercentage?: number;
+  computedStatus?: BudgetComputedStatus;
+  averageDailySpend?: number;
+  dailyAllowance?: number;
+  projectedEndSpend?: number;
+  expectedRemaining?: number;
+  expectedSavings?: number;
+  previousExpectedSavings?: number;
+  savingsImpact?: number;
+  growthPercentage?: number;
+  lastExpense?: {
+    date: string;
+    amount: number;
+    title?: string;
+  } | null;
+  dailySpending?: Array<{ date: string; amount: number; title?: string }>;
+  aiInsights?: string[];
 }
 
 export interface SavingsGoal {
@@ -107,4 +162,9 @@ export interface BudgetDashboardMetrics {
   savingsGoals: SavingsGoal[];
   spendingLimits: SpendingLimit[];
   forecast?: BudgetForecast;
+  verifiedIncome?: number;
+  verifiedExpenses?: number;
+  currentNetSavings?: number;
+  expectedSavings?: number;
+  savingsRate?: number;
 }

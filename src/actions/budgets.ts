@@ -16,6 +16,9 @@ import { revalidatePath } from "next/cache";
 import {
   BudgetRecord,
   BudgetType,
+  BudgetDurationPreset,
+  BudgetComputedStatus,
+  BudgetIncreaseHistoryItem,
   SavingsGoal,
   SpendingLimit,
   BudgetDashboardMetrics,
@@ -26,6 +29,145 @@ import { DatabaseError, ValidationError } from "@/lib/errors";
 import { generatePublicId } from "@/lib/utils";
 import { assertRateLimit, RATE_LIMITS } from "@/lib/security/rate-limit";
 import { sanitizeText } from "@/lib/security/sanitize";
+
+export interface BudgetMetadataPayload {
+  __splitLedgerMeta: boolean;
+  originalAmount: number;
+  durationPreset?: BudgetDurationPreset;
+  userNotes?: string;
+  increases: BudgetIncreaseHistoryItem[];
+}
+
+export function parseBudgetMetadata(rawNotes: string | null | undefined, currentAmount: number): {
+  originalAmount: number;
+  increases: BudgetIncreaseHistoryItem[];
+  userNotes: string;
+  durationPreset?: BudgetDurationPreset;
+} {
+  if (!rawNotes) {
+    return {
+      originalAmount: currentAmount,
+      increases: [],
+      userNotes: "",
+    };
+  }
+  try {
+    const parsed = JSON.parse(rawNotes);
+    if (parsed && typeof parsed === "object" && (parsed.__splitLedgerMeta || parsed.originalAmount !== undefined)) {
+      return {
+        originalAmount: typeof parsed.originalAmount === "number" ? parsed.originalAmount : currentAmount,
+        increases: Array.isArray(parsed.increases) ? parsed.increases : [],
+        userNotes: parsed.userNotes || "",
+        durationPreset: parsed.durationPreset,
+      };
+    }
+  } catch {
+    // rawNotes is plain text notes
+  }
+  return {
+    originalAmount: currentAmount,
+    increases: [],
+    userNotes: rawNotes,
+  };
+}
+
+export function serializeBudgetMetadata(
+  originalAmount: number,
+  increases: BudgetIncreaseHistoryItem[],
+  userNotes?: string,
+  durationPreset?: BudgetDurationPreset
+): string {
+  const payload: BudgetMetadataPayload = {
+    __splitLedgerMeta: true,
+    originalAmount,
+    increases,
+    userNotes: userNotes || "",
+    durationPreset,
+  };
+  return JSON.stringify(payload);
+}
+
+export function calculateBudgetDatesFromPreset(
+  preset: BudgetDurationPreset | string | undefined,
+  customStart?: string | Date,
+  customEnd?: string | Date
+): { startDate: Date; endDate: Date; totalDays: number } {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+  if (preset === "daily") {
+    const start = new Date(todayStart);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { startDate: start, endDate: end, totalDays: 1 };
+  }
+  if (preset === "weekly") {
+    const start = new Date(todayStart);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 6, 23, 59, 59, 999);
+    return { startDate: start, endDate: end, totalDays: 7 };
+  }
+  if (preset === "monthly") {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+    return { startDate: start, endDate: end, totalDays };
+  }
+  if (preset === "quarterly") {
+    const start = new Date(todayStart);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 89, 23, 59, 59, 999);
+    return { startDate: start, endDate: end, totalDays: 90 };
+  }
+  if (preset === "half_yearly") {
+    const start = new Date(todayStart);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 181, 23, 59, 59, 999);
+    return { startDate: start, endDate: end, totalDays: 182 };
+  }
+  if (preset === "yearly") {
+    const start = new Date(todayStart);
+    const end = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+    return { startDate: start, endDate: end, totalDays: 365 };
+  }
+
+  // Custom or fallback to start/end or current month
+  const start = customStart ? new Date(customStart) : new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const end = customEnd ? new Date(customEnd) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+  return { startDate: start, endDate: end, totalDays };
+}
+
+export function computeCountdownText(
+  status: BudgetComputedStatus,
+  daysRemaining: number,
+  remainingHours: number,
+  daysPassed: number,
+  totalDays: number,
+  startDate: Date,
+  endDate: Date,
+  now: Date
+): string {
+  if (status === "upcoming") {
+    const daysUntil = Math.max(1, Math.ceil((startDate.getTime() - now.getTime()) / 86400000));
+    return `Starts in ${daysUntil} Day${daysUntil > 1 ? "s" : ""}`;
+  }
+  if (status === "completed" || status === "expired") {
+    const daysAgo = Math.max(1, Math.ceil((now.getTime() - endDate.getTime()) / 86400000));
+    return daysAgo === 1 ? "Expired Yesterday" : `Expired ${daysAgo} Days Ago`;
+  }
+  if (daysRemaining === 0) {
+    return remainingHours > 0 ? `Ends in ${remainingHours} Hours` : "Expires Today";
+  }
+  if (daysRemaining === 1) {
+    return "Expires Tomorrow";
+  }
+  if (daysRemaining >= 60) {
+    const months = (daysRemaining / 30.4).toFixed(1);
+    return `Ends in ${months} Months`;
+  }
+  if (daysRemaining >= 14) {
+    const weeks = Math.floor(daysRemaining / 7);
+    return `Ends in ${weeks} Weeks (${daysRemaining} Days)`;
+  }
+  return `${daysRemaining} Days Left`;
+}
 
 export interface BudgetProgress {
   id: number;
@@ -59,6 +201,35 @@ export interface BudgetProgress {
   notes?: string;
   currency?: string;
   estimatedSavings?: number;
+
+  // Real-Time Enterprise Budget Intelligence fields
+  originalAmount?: number;
+  additionalAmount?: number;
+  increaseCount?: number;
+  increases?: BudgetIncreaseHistoryItem[];
+  durationPreset?: BudgetDurationPreset;
+  totalDurationDays?: number;
+  daysPassed?: number;
+  remainingHours?: number;
+  remainingWeeks?: number;
+  remainingMonths?: number;
+  countdownText?: string;
+  timelinePercentage?: number;
+  computedStatus?: BudgetComputedStatus;
+  dailyAllowance?: number;
+  expectedRemaining?: number;
+  expectedSavings?: number;
+  previousExpectedSavings?: number;
+  savingsImpact?: number;
+  growthPercentage?: number;
+  lastExpense?: {
+    date: string;
+    amount: number;
+    title?: string;
+  } | null;
+  dailySpending?: Array<{ date: string; amount: number; title?: string }>;
+  aiInsights?: string[];
+  updatedAt?: string;
 }
 
 export interface IntelligentBudgetAnalysis {
@@ -175,61 +346,165 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
       // Check in-memory store for fallback (e.g. during mocking/unit tests)
       const memBudgets = budgetsStore.get(userKey) || [];
       if (memBudgets.length > 0) {
+        const now = new Date();
         return memBudgets
           .filter((b) => b.status !== "archived")
-          .map((b, idx) => ({
-            id: idx + 1,
-            publicId: b.id,
-            name: b.name,
-            description: b.description,
-            amount: b.allocatedAmount,
-            spent: b.spentAmount,
-            usedAmount: b.spentAmount,
-            remaining: b.remainingAmount,
-            remainingAmount: b.remainingAmount,
-            percentage: b.percentageUsed,
-            usedPercentage: b.percentageUsed,
-            status: b.percentageUsed >= 100 ? "exceeded" : b.percentageUsed >= 75 ? "warning" : "on_track",
-            healthStatus: b.percentageUsed >= 100 ? "exceeded" : b.percentageUsed >= 75 ? "warning" : "on_track",
-            period: b.period as any,
-            budgetType: b.budgetType,
-            startDate: b.startDate,
-            endDate: b.endDate || new Date().toISOString(),
-            remainingDays: 15,
-            daysRemaining: 15,
-            dailyBudgetRemaining: Math.round(b.remainingAmount / 15),
-            dailyBurnRate: Math.round(b.spentAmount / 15),
-            projectedSpend: b.spentAmount,
-            isOverBudget: b.spentAmount > b.allocatedAmount,
-          }));
+          .map((b, idx) => {
+            const budgetStart = new Date(b.startDate || now).getTime();
+            const budgetEnd = new Date(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
+            const totalDays = Math.max(1, Math.ceil((budgetEnd - budgetStart) / 86400000));
+            const daysPassed = Math.max(0, Math.min(totalDays, Math.ceil((now.getTime() - budgetStart) / 86400000)));
+            const daysRemaining = Math.max(0, Math.ceil((budgetEnd - now.getTime()) / 86400000));
+            const remainingDays = daysRemaining;
+            const remainingHours = Math.max(0, Math.floor((budgetEnd - now.getTime()) / 3600000));
+            const remainingWeeks = Math.floor(daysRemaining / 7);
+            const remainingMonths = Number((daysRemaining / 30.4).toFixed(1));
+            const timelinePercentage = Math.min(100, Math.max(0, Math.round((daysPassed / totalDays) * 100)));
+
+            const originalAmount = b.originalAmount ?? b.allocatedAmount;
+            const additionalAmount = b.additionalAmount ?? 0;
+            const increaseCount = b.increaseCount ?? (b.increases?.length || 0);
+            const increases = b.increases ?? [];
+            const spent = b.spentAmount;
+            const amount = b.allocatedAmount;
+            const remaining = Math.max(0, amount - spent);
+            const percentage = amount > 0 ? Math.round((spent / amount) * 100) : 0;
+
+            const dailyBurnRate = daysPassed > 0 ? Math.round(spent / daysPassed) : Math.round(spent);
+            const dailyBudgetRemaining = daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0;
+            const projectedSpend = Math.round(spent + dailyBurnRate * daysRemaining);
+            const expectedRemaining = Math.max(0, amount - projectedSpend);
+            const growthPercentage = originalAmount > 0 ? Math.round(((amount - originalAmount) / originalAmount) * 100) : 0;
+
+            let computedStatus: BudgetComputedStatus = "active";
+            if (b.status === "paused") computedStatus = "paused";
+            else if (b.status === "archived") computedStatus = "cancelled";
+            else if (now.getTime() < budgetStart) computedStatus = "upcoming";
+            else if (spent > amount) computedStatus = "exceeded";
+            else if (now.getTime() > budgetEnd) computedStatus = "completed";
+            else if (daysRemaining <= 3 || timelinePercentage >= 85) computedStatus = "ending_soon";
+
+            const countdownText = computeCountdownText(
+              computedStatus,
+              daysRemaining,
+              remainingHours,
+              daysPassed,
+              totalDays,
+              new Date(b.startDate || now),
+              new Date(b.endDate || now),
+              now
+            );
+
+            return {
+              id: idx + 1,
+              publicId: b.id,
+              name: b.name,
+              description: b.description,
+              amount,
+              spent,
+              usedAmount: spent,
+              remaining,
+              remainingAmount: remaining,
+              percentage,
+              usedPercentage: percentage,
+              status: percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track",
+              healthStatus: percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track",
+              period: (b.period as any) || "monthly",
+              budgetType: b.budgetType || "personal",
+              startDate: b.startDate || now.toISOString(),
+              endDate: b.endDate || new Date().toISOString(),
+              remainingDays,
+              daysRemaining,
+              dailyBudgetRemaining,
+              dailyBurnRate,
+              projectedSpend,
+              isOverBudget: spent > amount,
+              originalAmount,
+              additionalAmount,
+              increaseCount,
+              increases,
+              durationPreset: b.durationPreset || (b.period as any) || "monthly",
+              totalDurationDays: totalDays,
+              daysPassed,
+              remainingHours,
+              remainingWeeks,
+              remainingMonths,
+              countdownText,
+              timelinePercentage,
+              computedStatus,
+              dailyAllowance: dailyBudgetRemaining,
+              expectedRemaining,
+              growthPercentage,
+              savingsImpact: additionalAmount,
+              dailySpending: b.dailySpending || [],
+              aiInsights: b.aiInsights || [
+                `You have used ${percentage}% of your budget.`,
+                `${countdownText} before budget expiry.`,
+              ],
+            };
+          });
       }
       return [];
     }
 
-    // Fetch user expenses from transactions to compute dynamic spending
-    const userExpenses = await withDbRetry(() =>
+    // Fetch user ledger transactions to compute dynamic spending and verified income
+    const userLedgerTransactions = await withDbRetry(() =>
       db
         .select({
+          id: transactions.id,
           categoryId: transactions.categoryId,
           groupId: transactions.groupId,
           date: transactions.date,
           amount: transactions.amount,
+          type: transactions.type,
+          title: transactions.title,
+          description: transactions.description,
+          status: transactions.status,
         })
         .from(transactions)
         .where(
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            sql`${transactions.type} IN ('paid', 'borrowed')`
+            sql`${transactions.status} NOT IN ('rejected', 'draft')`
           )
         )
+        .orderBy(desc(transactions.date))
     );
+
+    const userExpenses = userLedgerTransactions.filter(
+      (tx) => tx.type === "paid" || tx.type === "borrowed"
+    );
+    const userIncome = userLedgerTransactions.filter((tx) =>
+      ["received", "lent", "repaid"].includes(tx.type)
+    );
+    const totalVerifiedIncome =
+      userIncome.reduce((sum, tx) => sum + Number(tx.amount || 0), 0) / 100;
 
     const now = new Date();
 
     return dbBudgets.map((b) => {
       const budgetStart = new Date(b.startDate).getTime();
       const budgetEnd = new Date(b.endDate).getTime();
+      const nowTime = now.getTime();
+
+      const totalDays = Math.max(1, Math.ceil((budgetEnd - budgetStart) / 86400000));
+      const daysPassed = Math.max(0, Math.min(totalDays, Math.ceil((nowTime - budgetStart) / 86400000)));
+      const daysRemaining = Math.max(0, Math.ceil((budgetEnd - nowTime) / 86400000));
+      const remainingHours = Math.max(0, Math.floor((budgetEnd - nowTime) / 3600000));
+      const remainingWeeks = Math.floor(daysRemaining / 7);
+      const remainingMonths = Number((daysRemaining / 30.4).toFixed(1));
+      const timelinePercentage = Math.min(100, Math.max(0, Math.round((daysPassed / totalDays) * 100)));
+
+      const currentAmount = Number(b.amountPaise) / 100;
+      const meta = parseBudgetMetadata(b.notes, currentAmount);
+      const originalAmount = meta.originalAmount ?? currentAmount;
+      const increases = meta.increases ?? [];
+      const additionalAmount = increases.reduce((sum, inc) => sum + inc.addedAmount, 0);
+      const increaseCount = increases.length;
+      const growthPercentage = originalAmount > 0
+        ? Math.round(((currentAmount - originalAmount) / originalAmount) * 100)
+        : 0;
 
       const matchingTxs = userExpenses.filter((tx) => {
         const txTime = new Date(tx.date).getTime();
@@ -241,37 +516,121 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
 
       const spentPaise = matchingTxs.reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
       const spent = spentPaise / 100;
-      const amount = Number(b.amountPaise) / 100;
-      const remaining = Math.max(0, amount - spent);
-      const percentage = amount > 0 ? Math.round((spent / amount) * 100) : 0;
+      const remaining = Math.max(0, currentAmount - spent);
+      const percentage = currentAmount > 0 ? Math.round((spent / currentAmount) * 100) : 0;
 
-      const totalDays = Math.max(1, Math.ceil((budgetEnd - budgetStart) / 86400000));
-      const daysPassed = Math.max(1, Math.min(totalDays, Math.ceil((now.getTime() - budgetStart) / 86400000)));
-      const remainingDays = Math.max(0, Math.ceil((budgetEnd - now.getTime()) / 86400000));
+      const dailyBurnRate = daysPassed > 0 ? Math.round(spent / daysPassed) : Math.round(spent);
+      const dailyBudgetRemaining = daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0;
+      const projectedSpend = Math.round(spent + dailyBurnRate * daysRemaining);
+      const expectedRemaining = Math.max(0, currentAmount - projectedSpend);
+      const isOverBudget = spent > currentAmount;
 
-      const dailyBurnRate = Math.round(spent / daysPassed);
-      const dailyBudgetRemaining = remainingDays > 0 ? Math.round(remaining / remainingDays) : 0;
-      const projectedSpend = Math.round(spent + dailyBurnRate * remainingDays);
-      const isOverBudget = spent > amount;
+      const expectedSavings = totalVerifiedIncome > 0 ? Math.max(0, totalVerifiedIncome - currentAmount) : 0;
+      const previousExpectedSavings = totalVerifiedIncome > 0 ? Math.max(0, totalVerifiedIncome - originalAmount) : 0;
+      const savingsImpact = previousExpectedSavings - expectedSavings;
 
-      let status: BudgetProgress["status"] = "on_track";
-      if (percentage >= 100) status = "exceeded";
-      else if (percentage >= (b.alertThreshold || 80)) status = "warning";
+      const lastExpenseTx = matchingTxs[0] || null;
+      const lastExpense = lastExpenseTx
+        ? {
+            date: new Date(lastExpenseTx.date).toISOString(),
+            amount: Number(lastExpenseTx.amount) / 100,
+            title: lastExpenseTx.title || lastExpenseTx.description,
+          }
+        : null;
+
+      const dailySpendMap = new Map<string, number>();
+      matchingTxs.forEach((tx) => {
+        const dStr = new Date(tx.date).toISOString().split("T")[0];
+        dailySpendMap.set(dStr, (dailySpendMap.get(dStr) || 0) + Number(tx.amount || 0) / 100);
+      });
+      const dailySpending = Array.from(dailySpendMap.entries()).map(([date, amt]) => ({
+        date,
+        amount: amt,
+      }));
+
+      let computedStatus: BudgetComputedStatus = "active";
+      if (b.status === "paused") {
+        computedStatus = "paused";
+      } else if (b.status === "archived") {
+        computedStatus = "cancelled";
+      } else if (nowTime < budgetStart) {
+        computedStatus = "upcoming";
+      } else if (spent > currentAmount) {
+        computedStatus = "exceeded";
+      } else if (nowTime > budgetEnd) {
+        computedStatus = "completed";
+      } else if (daysRemaining <= 3 || timelinePercentage >= 85) {
+        computedStatus = "ending_soon";
+      } else {
+        computedStatus = "active";
+      }
+
+      const countdownText = computeCountdownText(
+        computedStatus,
+        daysRemaining,
+        remainingHours,
+        daysPassed,
+        totalDays,
+        new Date(b.startDate),
+        new Date(b.endDate),
+        now
+      );
+
+      const aiInsights: string[] = [];
+      if (matchingTxs.length === 0) {
+        aiInsights.push("Not enough verified spending history.");
+      } else {
+        aiInsights.push(`You have used ${percentage}% of your budget.`);
+        aiInsights.push(`${Math.max(0, 100 - percentage)}% of the budget is still available.`);
+        aiInsights.push(`${countdownText} before budget expiry.`);
+        if (dailyBurnRate > 0) {
+          aiInsights.push(`You are spending ₹${dailyBurnRate.toLocaleString("en-IN")}/day.`);
+        }
+        if (projectedSpend <= currentAmount) {
+          aiInsights.push(
+            `At your current spending rate you are expected to finish with ₹${expectedRemaining.toLocaleString(
+              "en-IN"
+            )} remaining.`
+          );
+        } else {
+          const daysUntilExceed =
+            dailyBurnRate > 0 ? Math.max(1, Math.floor(remaining / dailyBurnRate)) : 0;
+          aiInsights.push(`You are likely to exceed your budget in ${daysUntilExceed} days.`);
+        }
+        if (increases.length > 0) {
+          const lastInc = increases[0];
+          const incDate = new Date(lastInc.date);
+          const dayDiff = Math.max(1, Math.ceil((incDate.getTime() - budgetStart) / 86400000));
+          aiInsights.push(
+            `You increased your ${b.name} budget by ₹${lastInc.addedAmount.toLocaleString("en-IN")} on Day ${dayDiff}.`
+          );
+          if (growthPercentage > 0) {
+            aiInsights.push(`Current budget has grown by ${growthPercentage}%.`);
+          }
+          aiInsights.push(
+            `Your remaining daily allowance changed to ₹${dailyBudgetRemaining.toLocaleString("en-IN")}/day.`
+          );
+        }
+      }
+
+      let healthStatus: BudgetProgress["healthStatus"] = "on_track";
+      if (percentage >= 100) healthStatus = "exceeded";
+      else if (percentage >= (b.alertThreshold || 80)) healthStatus = "warning";
 
       return {
         id: b.id,
         publicId: b.publicId,
         name: b.name,
         description: b.description,
-        amount,
+        amount: currentAmount,
         spent,
         usedAmount: spent,
         remaining,
         remainingAmount: remaining,
         percentage,
         usedPercentage: percentage,
-        status,
-        healthStatus: status,
+        status: healthStatus,
+        healthStatus,
         period: (b.period as any) || "monthly",
         startDate: b.startDate,
         endDate: b.endDate,
@@ -279,46 +638,139 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
         categoryName: b.categoryName || (b.categoryId ? "Category" : "General"),
         groupId: b.groupId,
         groupName: b.groupName,
-        daysRemaining: remainingDays,
-        remainingDays,
+        daysRemaining,
+        remainingDays: daysRemaining,
         dailyBurnRate,
         dailyBudgetRemaining,
         projectedSpend,
         isOverBudget,
         alertThreshold: b.alertThreshold,
-        notes: b.notes || undefined,
+        notes: meta.userNotes || b.notes || undefined,
         currency: b.currency || "INR",
+        originalAmount,
+        additionalAmount,
+        increaseCount,
+        increases,
+        durationPreset: meta.durationPreset || (b.period as any) || "monthly",
+        totalDurationDays: totalDays,
+        daysPassed,
+        remainingHours,
+        remainingWeeks,
+        remainingMonths,
+        countdownText,
+        timelinePercentage,
+        computedStatus,
+        dailyAllowance: dailyBudgetRemaining,
+        expectedRemaining,
+        expectedSavings,
+        previousExpectedSavings,
+        savingsImpact,
+        growthPercentage,
+        lastExpense,
+        dailySpending,
+        aiInsights,
+        updatedAt: b.createdAt ? new Date(b.createdAt).toISOString() : new Date().toISOString(),
       };
     });
   } catch (err) {
     console.warn("Database query failed in getBudgetsWithProgress, falling back to memory store:", err);
     const memBudgets = budgetsStore.get(userKey) || [];
+    const now = new Date();
     return memBudgets
       .filter((b) => b.status !== "archived")
-      .map((b, idx) => ({
-        id: idx + 1,
-        publicId: b.id,
-        name: b.name,
-        description: b.description,
-        amount: b.allocatedAmount,
-        spent: b.spentAmount,
-        usedAmount: b.spentAmount,
-        remaining: b.remainingAmount,
-        remainingAmount: b.remainingAmount,
-        percentage: b.percentageUsed,
-        usedPercentage: b.percentageUsed,
-        status: b.percentageUsed >= 100 ? "exceeded" : b.percentageUsed >= 75 ? "warning" : "on_track",
-        healthStatus: b.percentageUsed >= 100 ? "exceeded" : b.percentageUsed >= 75 ? "warning" : "on_track",
-        period: b.period as any,
-        startDate: b.startDate,
-        endDate: b.endDate || new Date().toISOString(),
-        remainingDays: 15,
-        daysRemaining: 15,
-        dailyBudgetRemaining: Math.round(b.remainingAmount / 15),
-        dailyBurnRate: Math.round(b.spentAmount / 15),
-        projectedSpend: b.spentAmount,
-        isOverBudget: b.spentAmount > b.allocatedAmount,
-      }));
+      .map((b, idx) => {
+        const budgetStart = new Date(b.startDate || now).getTime();
+        const budgetEnd = new Date(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
+        const totalDays = Math.max(1, Math.ceil((budgetEnd - budgetStart) / 86400000));
+        const daysPassed = Math.max(0, Math.min(totalDays, Math.ceil((now.getTime() - budgetStart) / 86400000)));
+        const daysRemaining = Math.max(0, Math.ceil((budgetEnd - now.getTime()) / 86400000));
+        const remainingDays = daysRemaining;
+        const remainingHours = Math.max(0, Math.floor((budgetEnd - now.getTime()) / 3600000));
+        const remainingWeeks = Math.floor(daysRemaining / 7);
+        const remainingMonths = Number((daysRemaining / 30.4).toFixed(1));
+        const timelinePercentage = Math.min(100, Math.max(0, Math.round((daysPassed / totalDays) * 100)));
+
+        const originalAmount = b.originalAmount ?? b.allocatedAmount;
+        const additionalAmount = b.additionalAmount ?? 0;
+        const increaseCount = b.increaseCount ?? (b.increases?.length || 0);
+        const increases = b.increases ?? [];
+        const spent = b.spentAmount;
+        const amount = b.allocatedAmount;
+        const remaining = Math.max(0, amount - spent);
+        const percentage = amount > 0 ? Math.round((spent / amount) * 100) : 0;
+
+        const dailyBurnRate = daysPassed > 0 ? Math.round(spent / daysPassed) : Math.round(spent);
+        const dailyBudgetRemaining = daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0;
+        const projectedSpend = Math.round(spent + dailyBurnRate * daysRemaining);
+        const expectedRemaining = Math.max(0, amount - projectedSpend);
+        const growthPercentage = originalAmount > 0 ? Math.round(((amount - originalAmount) / originalAmount) * 100) : 0;
+
+        let computedStatus: BudgetComputedStatus = "active";
+        if (b.status === "paused") computedStatus = "paused";
+        else if (b.status === "archived") computedStatus = "cancelled";
+        else if (now.getTime() < budgetStart) computedStatus = "upcoming";
+        else if (spent > amount) computedStatus = "exceeded";
+        else if (now.getTime() > budgetEnd) computedStatus = "completed";
+        else if (daysRemaining <= 3 || timelinePercentage >= 85) computedStatus = "ending_soon";
+
+        const countdownText = computeCountdownText(
+          computedStatus,
+          daysRemaining,
+          remainingHours,
+          daysPassed,
+          totalDays,
+          new Date(b.startDate || now),
+          new Date(b.endDate || now),
+          now
+        );
+
+        return {
+          id: idx + 1,
+          publicId: b.id,
+          name: b.name,
+          description: b.description,
+          amount,
+          spent,
+          usedAmount: spent,
+          remaining,
+          remainingAmount: remaining,
+          percentage,
+          usedPercentage: percentage,
+          status: percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track",
+          healthStatus: percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track",
+          period: (b.period as any) || "monthly",
+          startDate: b.startDate,
+          endDate: b.endDate || new Date().toISOString(),
+          remainingDays,
+          daysRemaining,
+          dailyBudgetRemaining,
+          dailyBurnRate,
+          projectedSpend,
+          isOverBudget: spent > amount,
+          originalAmount,
+          additionalAmount,
+          increaseCount,
+          increases,
+          durationPreset: b.durationPreset || (b.period as any) || "monthly",
+          totalDurationDays: totalDays,
+          daysPassed,
+          remainingHours,
+          remainingWeeks,
+          remainingMonths,
+          countdownText,
+          timelinePercentage,
+          computedStatus,
+          dailyAllowance: dailyBudgetRemaining,
+          expectedRemaining,
+          growthPercentage,
+          savingsImpact: additionalAmount,
+          dailySpending: b.dailySpending || [],
+          aiInsights: b.aiInsights || [
+            `You have used ${percentage}% of your budget.`,
+            `${countdownText} before budget expiry.`,
+          ],
+        };
+      });
   }
 }
 
@@ -710,6 +1162,16 @@ export async function getBudgetDashboardSummary(): Promise<BudgetDashboardMetric
   const overallUsagePercent = totalBudgetAllocated > 0 ? Math.round((totalSpent / totalBudgetAllocated) * 100) : 0;
   const totalSavedAcrossGoals = savingsGoals.reduce((sum, g) => sum + g.currentSaved, 0);
 
+  // Verified income and verified expenses
+  const verifiedIncome =
+    budgetsList[0]?.expectedSavings !== undefined && budgetsList[0]?.amount !== undefined
+      ? budgetsList[0].expectedSavings + budgetsList[0].amount
+      : 0;
+  const verifiedExpenses = totalSpent;
+  const currentNetSavings = verifiedIncome - verifiedExpenses;
+  const expectedSavings = Math.max(0, verifiedIncome - totalBudgetAllocated);
+  const savingsRate = verifiedIncome > 0 ? Math.round((currentNetSavings / verifiedIncome) * 100) : 0;
+
   const records: BudgetRecord[] = budgetsList.map((b) => ({
     id: b.publicId,
     userId: user.id,
@@ -729,6 +1191,32 @@ export async function getBudgetDashboardSummary(): Promise<BudgetDashboardMetric
     endDate: typeof b.endDate === "string" ? b.endDate : b.endDate.toISOString(),
     alertThresholds: [{ percent: b.alertThreshold || 80, triggered: b.percentage >= (b.alertThreshold || 80) }],
     createdAt: new Date().toISOString(),
+
+    originalAmount: b.originalAmount ?? b.amount,
+    additionalAmount: b.additionalAmount ?? 0,
+    increaseCount: b.increaseCount ?? 0,
+    increases: b.increases ?? [],
+    durationPreset: b.durationPreset ?? "monthly",
+    totalDurationDays: b.totalDurationDays ?? 30,
+    daysPassed: b.daysPassed ?? 0,
+    daysRemaining: b.daysRemaining ?? b.remainingDays,
+    remainingHours: b.remainingHours,
+    remainingWeeks: b.remainingWeeks,
+    remainingMonths: b.remainingMonths,
+    countdownText: b.countdownText,
+    timelinePercentage: b.timelinePercentage ?? 0,
+    computedStatus: b.computedStatus ?? (b.status === "archived" ? "cancelled" : "active"),
+    averageDailySpend: b.dailyBurnRate ?? 0,
+    dailyAllowance: b.dailyBudgetRemaining ?? 0,
+    projectedEndSpend: b.projectedSpend ?? b.spent,
+    expectedRemaining: b.expectedRemaining ?? b.remaining,
+    expectedSavings: b.expectedSavings ?? expectedSavings,
+    previousExpectedSavings: b.previousExpectedSavings,
+    savingsImpact: b.savingsImpact ?? 0,
+    growthPercentage: b.growthPercentage ?? 0,
+    lastExpense: b.lastExpense,
+    dailySpending: b.dailySpending,
+    aiInsights: b.aiInsights,
   }));
 
   return {
@@ -743,6 +1231,11 @@ export async function getBudgetDashboardSummary(): Promise<BudgetDashboardMetric
     savingsGoals,
     spendingLimits,
     forecast,
+    verifiedIncome,
+    verifiedExpenses,
+    currentNetSavings,
+    expectedSavings,
+    savingsRate,
   };
 }
 
@@ -755,6 +1248,7 @@ export async function createBudget(data: {
   categoryId?: number;
   budgetType?: BudgetType;
   period?: BudgetRecord["period"] | string;
+  durationPreset?: BudgetDurationPreset | string;
   allocatedAmount?: number;
   amount?: number;
   groupId?: number;
@@ -780,9 +1274,14 @@ export async function createBudget(data: {
     throw new ValidationError("Allocated budget amount must be greater than ₹0.");
   }
 
-  const now = new Date();
-  const start = data.startDate ? new Date(data.startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = data.endDate ? new Date(data.endDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  const durationPreset = (data.durationPreset as BudgetDurationPreset) || (data.period as any) || "monthly";
+  const { startDate: presetStart, endDate: presetEnd, totalDays } = calculateBudgetDatesFromPreset(
+    durationPreset,
+    data.startDate,
+    data.endDate
+  );
+  const start = data.startDate ? new Date(data.startDate) : presetStart;
+  const end = data.endDate ? new Date(data.endDate) : presetEnd;
 
   if (end.getTime() < start.getTime()) {
     throw new ValidationError("End date cannot be earlier than start date.");
@@ -825,7 +1324,13 @@ export async function createBudget(data: {
 
   const sanitizedName = sanitizeText(data.name.trim());
   const sanitizedDesc = data.description ? sanitizeText(data.description) : (data.notes ? sanitizeText(data.notes) : null);
-  const sanitizedNotes = data.notes ? sanitizeText(data.notes) : null;
+  const rawUserNotes = data.notes ? sanitizeText(data.notes) : (data.description ? sanitizeText(data.description) : "");
+  const serializedNotes = serializeBudgetMetadata(
+    finalAmount,
+    [],
+    rawUserNotes,
+    durationPreset
+  );
   const sanitizedCategory = data.category ? sanitizeText(data.category) : "General";
 
   // Insert directly into PostgreSQL database
@@ -838,14 +1343,14 @@ export async function createBudget(data: {
         description: sanitizedDesc,
         amount: amountPaise,
         currency: data.currency || "INR",
-        period: (data.period as any) || "monthly",
+        period: (data.period as any) || (durationPreset === "quarterly" || durationPreset === "half_yearly" ? "custom" : durationPreset),
         startDate: start,
         endDate: end,
         alertThreshold: data.alertThreshold || 80,
         categoryId: data.categoryId || null,
         groupId: data.groupId || null,
         status: "active",
-        notes: sanitizedNotes,
+        notes: serializedNotes,
       })
     );
   } catch (err: any) {
@@ -872,7 +1377,7 @@ export async function createBudget(data: {
     status: "active",
     priority: data.priority || "medium",
     tags: data.tags ? data.tags.map(t => sanitizeText(t)) : [],
-    notes: sanitizedNotes || undefined,
+    notes: serializedNotes,
     startDate: start.toISOString().split("T")[0],
     endDate: end.toISOString().split("T")[0],
     alertThresholds: [
@@ -883,6 +1388,25 @@ export async function createBudget(data: {
     ],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    originalAmount: finalAmount,
+    additionalAmount: 0,
+    increaseCount: 0,
+    increases: [],
+    durationPreset,
+    totalDurationDays: totalDays,
+    daysPassed: 0,
+    daysRemaining: totalDays,
+    timelinePercentage: 0,
+    computedStatus: "active",
+    dailyAllowance: Math.round(finalAmount / totalDays),
+    averageDailySpend: 0,
+    projectedEndSpend: finalAmount,
+    expectedRemaining: finalAmount,
+    growthPercentage: 0,
+    savingsImpact: 0,
+    lastExpense: null,
+    dailySpending: [],
+    aiInsights: ["Not enough verified spending history."],
   };
 
   const currentStore = budgetsStore.get(userKey) || [];
@@ -892,10 +1416,165 @@ export async function createBudget(data: {
   logAudit(user.id, budgetId, "created", `Created budget '${data.name}' with ₹${finalAmount}`);
 
   safeRevalidate("/dashboard");
+  safeRevalidate("/dashboard/budgets");
   safeRevalidate("/dashboard/ai");
   safeRevalidate("/dashboard/reports");
 
   return newBudget;
+}
+
+/**
+ * Increase an active budget without losing original history
+ */
+export async function increaseBudget(data: {
+  budgetId: string;
+  additionalAmount: number;
+  effectiveDate?: string;
+  reason?: string;
+  notes?: string;
+}): Promise<BudgetRecord> {
+  const user = await requireAuth();
+  await assertRateLimit(`budget:increase:${user.id}`, RATE_LIMITS.actions.write);
+  ensureUserStores(user.id);
+  const userKey = `user_${user.id}`;
+
+  if (!data.additionalAmount || data.additionalAmount <= 0) {
+    throw new ValidationError("Additional budget amount must be greater than ₹0.");
+  }
+
+  // 1. Fetch current budget from DB
+  let dbBudget: any = null;
+  try {
+    const [found] = await withDbRetry(() =>
+      db
+        .select()
+        .from(budgets)
+        .where(and(eq(budgets.publicId, data.budgetId), eq(budgets.userId, user.id)))
+        .limit(1)
+    );
+    dbBudget = found;
+  } catch (err) {
+    console.warn("DB query in increaseBudget fallback to memory:", err);
+  }
+
+  const memBudgets = budgetsStore.get(userKey) || [];
+  const memBudget = memBudgets.find((b) => b.id === data.budgetId);
+
+  if (!dbBudget && !memBudget) {
+    throw new DatabaseError("Budget not found.");
+  }
+
+  const previousAmount = dbBudget ? Number(dbBudget.amount) / 100 : (memBudget?.allocatedAmount || 0);
+  const updatedAmount = previousAmount + data.additionalAmount;
+  const rawNotes = dbBudget ? dbBudget.notes : memBudget?.notes;
+  const meta = parseBudgetMetadata(rawNotes, memBudget?.originalAmount || previousAmount);
+
+  const endDate = dbBudget
+    ? new Date(dbBudget.endDate)
+    : memBudget?.endDate
+    ? new Date(memBudget.endDate)
+    : new Date();
+  const now = new Date();
+  const remainingDays = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / 86400000));
+
+  const newIncrease: BudgetIncreaseHistoryItem = {
+    id: generatePublicId("binc"),
+    date: data.effectiveDate || new Date().toISOString(),
+    previousBudget: previousAmount,
+    addedAmount: data.additionalAmount,
+    updatedBudget: updatedAmount,
+    remainingDays,
+    reason: data.reason ? sanitizeText(data.reason) : undefined,
+    notes: data.notes ? sanitizeText(data.notes) : undefined,
+    performedBy: user.name || user.email || "You",
+    time: new Intl.DateTimeFormat("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date()),
+  };
+
+  meta.increases.unshift(newIncrease);
+  if (!meta.originalAmount || meta.originalAmount === 0) {
+    meta.originalAmount = previousAmount;
+  }
+
+  const serializedNotes = serializeBudgetMetadata(
+    meta.originalAmount,
+    meta.increases,
+    meta.userNotes,
+    meta.durationPreset
+  );
+
+  // 2. Update DB
+  if (dbBudget) {
+    try {
+      await withDbRetry(() =>
+        db
+          .update(budgets)
+          .set({
+            amount: Math.round(updatedAmount * 100),
+            notes: serializedNotes,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(budgets.publicId, data.budgetId), eq(budgets.userId, user.id)))
+      );
+    } catch (dbErr) {
+      console.warn("DB update in increaseBudget failed:", dbErr);
+    }
+  }
+
+  // 3. Update memory store
+  if (memBudget) {
+    memBudget.allocatedAmount = updatedAmount;
+    memBudget.remainingAmount = Math.max(0, updatedAmount - memBudget.spentAmount);
+    memBudget.percentageUsed = updatedAmount > 0 ? Math.round((memBudget.spentAmount / updatedAmount) * 100) : 0;
+    memBudget.originalAmount = meta.originalAmount;
+    memBudget.additionalAmount = (memBudget.additionalAmount || 0) + data.additionalAmount;
+    memBudget.increaseCount = meta.increases.length;
+    memBudget.increases = meta.increases;
+    memBudget.notes = serializedNotes;
+    memBudget.updatedAt = new Date().toISOString();
+  }
+
+  logAudit(
+    user.id,
+    data.budgetId,
+    "updated",
+    `Increased budget from ₹${previousAmount} to ₹${updatedAmount} (+₹${data.additionalAmount})`
+  );
+
+  safeRevalidate("/dashboard");
+  safeRevalidate("/dashboard/budgets");
+  safeRevalidate("/dashboard/ai");
+  safeRevalidate("/dashboard/reports");
+
+  const summary = await getBudgetDashboardSummary();
+  const updatedRecord = summary.budgets.find((b) => b.id === data.budgetId);
+  if (updatedRecord) return updatedRecord;
+
+  return {
+    id: data.budgetId,
+    userId: user.id,
+    name: dbBudget?.name || memBudget?.name || "Budget",
+    category: dbBudget?.categoryName || memBudget?.category || "General",
+    budgetType: (dbBudget?.period || memBudget?.budgetType || "personal") as any,
+    period: (dbBudget?.period || memBudget?.period || "monthly") as any,
+    allocatedAmount: updatedAmount,
+    spentAmount: memBudget?.spentAmount || 0,
+    remainingAmount: Math.max(0, updatedAmount - (memBudget?.spentAmount || 0)),
+    percentageUsed: memBudget?.percentageUsed || 0,
+    currency: "INR",
+    status: "active",
+    originalAmount: meta.originalAmount,
+    additionalAmount: meta.increases.reduce((s, i) => s + i.addedAmount, 0),
+    increaseCount: meta.increases.length,
+    increases: meta.increases,
+    startDate: dbBudget?.startDate?.toISOString() || memBudget?.startDate || new Date().toISOString(),
+    endDate: dbBudget?.endDate?.toISOString() || memBudget?.endDate,
+    alertThresholds: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 /**

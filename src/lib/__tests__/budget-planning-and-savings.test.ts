@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   createBudget,
+  updateBudget,
+  increaseBudget,
   createSavingsGoal,
   contributeToSavingsGoal,
   setSpendingLimit,
@@ -99,6 +101,77 @@ describe("Budget Planning, Savings Goals & Spending Control (Part VI-J)", () => 
       expect(summary.budgets.length).toBeGreaterThan(0);
       expect(summary.savingsGoals.length).toBeGreaterThan(0);
       expect(summary.currency).toBe("INR");
+    });
+  });
+
+  describe("ENTERPRISE ENHANCEMENTS: Budget Duration & Live Increase System", () => {
+    it("should create a budget with duration preset and compute duration metrics automatically", async () => {
+      const budget = await createBudget({
+        name: "Weekly Dining & Groceries",
+        category: "Food & Dining",
+        durationPreset: "weekly",
+        allocatedAmount: 7000,
+      });
+
+      expect(budget.id).toMatch(/^bud_/);
+      expect(budget.originalAmount).toBe(7000);
+      expect(budget.allocatedAmount).toBe(7000);
+      expect(budget.additionalAmount).toBe(0);
+      expect(budget.increaseCount).toBe(0);
+      expect(budget.totalDurationDays).toBe(7);
+      expect(budget.daysRemaining).toBe(7);
+      expect(budget.timelinePercentage).toBe(0);
+      expect(budget.dailyAllowance).toBe(1000);
+    });
+
+    it("should increase an active budget without losing original history and record an audit log", async () => {
+      // 1. Initial budget created
+      const initialBudget = await createBudget({
+        name: "Trip Fuel & Transit",
+        category: "Transport & Fuel",
+        durationPreset: "monthly",
+        allocatedAmount: 10000,
+      });
+
+      expect(initialBudget.originalAmount).toBe(10000);
+      expect(initialBudget.allocatedAmount).toBe(10000);
+
+      // 2. User increases budget during period
+      const increased = await increaseBudget({
+        budgetId: initialBudget.id,
+        additionalAmount: 5000,
+        reason: "Unexpected highway toll & mountain fuel costs",
+        notes: "Approved by finance manager",
+      });
+
+      expect(increased.id).toBe(initialBudget.id);
+      expect(increased.originalAmount).toBe(10000);
+      expect(increased.allocatedAmount).toBe(15000);
+      expect(increased.additionalAmount).toBe(5000);
+      expect(increased.increaseCount).toBe(1);
+      expect(increased.increases).toHaveLength(1);
+      expect(increased.increases![0].addedAmount).toBe(5000);
+      expect(increased.increases![0].previousBudget).toBe(10000);
+      expect(increased.increases![0].updatedBudget).toBe(15000);
+      expect(increased.increases![0].reason).toBe("Unexpected highway toll & mountain fuel costs");
+      expect(increased.growthPercentage).toBe(50);
+
+      // 3. User increases budget a second time
+      const secondIncrease = await increaseBudget({
+        budgetId: initialBudget.id,
+        additionalAmount: 2500,
+        reason: "Vehicle maintenance top-up",
+      });
+
+      expect(secondIncrease.originalAmount).toBe(10000);
+      expect(secondIncrease.allocatedAmount).toBe(17500);
+      expect(secondIncrease.additionalAmount).toBe(7500);
+      expect(secondIncrease.increaseCount).toBe(2);
+      expect(secondIncrease.increases).toHaveLength(2);
+      expect(secondIncrease.increases![0].addedAmount).toBe(2500);
+      expect(secondIncrease.increases![0].previousBudget).toBe(15000);
+      expect(secondIncrease.increases![0].updatedBudget).toBe(17500);
+      expect(secondIncrease.growthPercentage).toBe(75);
     });
   });
 });
