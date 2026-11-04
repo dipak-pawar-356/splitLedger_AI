@@ -43,6 +43,7 @@ import { AIFinancialAssistantCard } from "@/components/ai/ai-financial-assistant
 import { AIBudgetAndRemindersHub, ReminderItem } from "@/components/ai/ai-budget-and-reminders-hub";
 import { AIBudgetEnterpriseDashboard } from "@/components/ai/ai-budget-enterprise-dashboard";
 import { AISubscriptionsCard } from "@/components/ai/ai-subscriptions-card";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { VoiceAssistantPanel } from "@/components/ai/voice-assistant-panel";
 import { AutomationRulesBuilder } from "@/components/ai/automation-rules-builder";
 import { BusinessIntelligenceCard } from "@/components/ai/business-intelligence-card";
@@ -403,7 +404,9 @@ export function FinancialIntelligenceClientView({
               {...tabMotionProps}
               className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
-              <AISubscriptionsCard />
+              <ErrorBoundary fallbackText="Subscriptions service temporarily unavailable">
+                <AISubscriptionsCard />
+              </ErrorBoundary>
             </motion.div>
           )}
 

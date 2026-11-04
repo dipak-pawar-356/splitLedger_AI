@@ -16,25 +16,28 @@ import {
   Search,
   Filter,
   ShieldCheck,
-  ArrowRight,
   TrendingUp,
   TrendingDown,
   Clock,
   CheckCircle2,
   PieChart as PieIcon,
-  ExternalLink,
-  Wallet,
-  AlertCircle,
+  CreditCard,
   Plus,
   MoreVertical,
   Edit3,
   Trash2,
   Receipt,
-  CreditCard,
+  Pause,
+  Play,
+  RotateCcw,
+  History,
+  AlertCircle,
+  AlertTriangle,
+  Info,
   Check,
-  Tag,
-  Bell,
-  X,
+  ArrowRight,
+  ChevronRight,
+  ExternalLink,
 } from "lucide-react";
 import {
   Dialog,
@@ -55,25 +58,52 @@ import {
   getUserSubscriptions,
   saveCustomSubscription,
   deleteCustomSubscription,
+  pauseCustomSubscription,
+  resumeCustomSubscription,
   recordSubscriptionPayment,
+  getSubscriptionTransactions,
+  reverseSubscriptionTransaction,
+  deleteSubscriptionTransaction,
+  updateSubscriptionTransaction,
+  LinkedSubscriptionTransaction,
 } from "@/actions/custom-subscriptions";
 import {
   UserSubscription,
   advanceDateByBillingCycle,
   computeSubscriptionAmounts,
+  computeSubscriptionStatus,
 } from "@/lib/subscriptions/subscription-utils";
 import { formatCurrency } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import Link from "next/link";
 import { toast } from "sonner";
 
 const LOCAL_STORAGE_KEY = "split_ledger_custom_subscriptions_v2";
+
+function sanitizeSubs(subs: any[]): UserSubscription[] {
+  if (!Array.isArray(subs)) return [];
+  return subs.filter(
+    (s) =>
+      s &&
+      typeof s === "object" &&
+      s.name &&
+      typeof s.name === "string" &&
+      s.name.trim().toLowerCase() !== "gggg" &&
+      s.merchant &&
+      s.merchant.trim().toLowerCase() !== "gggg"
+  );
+}
 
 function getLocalSubs(): UserSubscription[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const sanitized = sanitizeSubs(parsed);
+    if (sanitized.length !== parsed.length) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitized));
+    }
+    return sanitized;
   } catch {
     return [];
   }
@@ -82,7 +112,8 @@ function getLocalSubs(): UserSubscription[] {
 function saveLocalSubs(subs: UserSubscription[]) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(subs));
+    const sanitized = sanitizeSubs(subs);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitized));
   } catch {}
 }
 
@@ -105,8 +136,8 @@ function getRelativePaymentInfo(targetDateStr: string): {
       const absDays = Math.abs(diffDays);
       return {
         diffDays,
-        label: `Overdue by ${absDays} day${absDays > 1 ? "s" : ""}`,
-        badgeClass: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30",
+        label: `Overdue by ${absDays}d`,
+        badgeClass: "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 font-semibold",
       };
     }
     if (diffDays === 0) {
@@ -120,7 +151,7 @@ function getRelativePaymentInfo(targetDateStr: string): {
       return {
         diffDays,
         label: "Due tomorrow",
-        badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
+        badgeClass: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold",
       };
     }
     return {
@@ -157,8 +188,8 @@ function getStatusBadgeStyle(status: string): { className: string; borderGlow: s
       };
     case "Paid":
       return {
-        className: "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30",
-        borderGlow: "from-green-500/40 via-emerald-500/25 to-green-700/35",
+        className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+        borderGlow: "from-emerald-500/40 via-teal-500/25 to-emerald-700/35",
       };
     case "Overdue":
       return {
@@ -192,6 +223,7 @@ export function AISubscriptionsCard() {
   // ZERO hardcoded sample rows: starts strictly empty
   const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -199,12 +231,12 @@ export function AISubscriptionsCard() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedFrequency, setSelectedFrequency] = useState<string>("all");
 
-  // Modal states
+  // Modal states: Add / Edit
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Add / Edit Form State
+  // Form State
   const defaultNextDate = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 30);
@@ -226,7 +258,7 @@ export function AISubscriptionsCard() {
     description: "",
   });
 
-  // Action Dialogs: Add Related Transaction & Delete Confirmation
+  // Action Dialog 1: Add Payment Transaction
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [activeSubForTxn, setActiveSubForTxn] = useState<UserSubscription | null>(null);
   const [txnFormData, setTxnFormData] = useState({
@@ -240,6 +272,20 @@ export function AISubscriptionsCard() {
   });
   const [isLoggingTxn, setIsLoggingTxn] = useState(false);
 
+  // Action Dialog 2: View Transaction History & Reversals
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [activeSubForHistory, setActiveSubForHistory] = useState<UserSubscription | null>(null);
+  const [historyTransactions, setHistoryTransactions] = useState<LinkedSubscriptionTransaction[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Transaction Correction / Reversal Confirmation Dialog
+  const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false);
+  const [correctionAction, setCorrectionAction] = useState<"reverse" | "delete" | "edit">("reverse");
+  const [targetTxnForCorrection, setTargetTxnForCorrection] = useState<LinkedSubscriptionTransaction | null>(null);
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [isProcessingCorrection, setIsProcessingCorrection] = useState(false);
+
+  // Action Dialog 3: Delete Subscription Confirmation
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [subToDelete, setSubToDelete] = useState<UserSubscription | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -249,8 +295,9 @@ export function AISubscriptionsCard() {
   // Load subscriptions: combines user preferences and verified algorithmic detections
   const loadSubscriptions = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
-      // 1. Try local cache first for instant responsive feel
+      // 1. Try local cache first for instant responsive feel (strictly filtered)
       const local = getLocalSubs();
       if (local && local.length > 0) {
         setSubscriptions(local);
@@ -258,24 +305,38 @@ export function AISubscriptionsCard() {
 
       // 2. Fetch from database user preferences and verified transaction detections
       const result = await getUserSubscriptions();
+
+      if (!result.success && result.error) {
+        // If server action reported an auth or network error, set non-blocking error state
+        setLoadError(result.error);
+        if (local.length > 0) {
+          setSubscriptions(local);
+        }
+        return;
+      }
+
       const combinedMap = new Map<string, UserSubscription>();
 
       // Algorithmic detections from real transactions
-      for (const sub of result.detectedSubscriptions) {
-        combinedMap.set(sub.id, sub);
+      for (const sub of result.detectedSubscriptions || []) {
+        if (sub && sub.name && sub.name.trim().toLowerCase() !== "gggg") {
+          combinedMap.set(sub.id, sub);
+        }
       }
 
       // Custom subscriptions created by the user (override or add)
-      for (const sub of result.customSubscriptions) {
-        combinedMap.set(sub.id, sub);
+      for (const sub of result.customSubscriptions || []) {
+        if (sub && sub.name && sub.name.trim().toLowerCase() !== "gggg") {
+          combinedMap.set(sub.id, sub);
+        }
       }
 
       const combinedList = Array.from(combinedMap.values());
       setSubscriptions(combinedList);
       saveLocalSubs(combinedList);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load user subscriptions:", e);
-      // Fallback to local storage
+      setLoadError(e?.message || "Could not reach subscription service. Please retry.");
       const fallback = getLocalSubs();
       setSubscriptions(fallback);
     } finally {
@@ -308,7 +369,7 @@ export function AISubscriptionsCard() {
     });
   }, [subscriptions, searchQuery, selectedCategory, selectedStatus, selectedFrequency]);
 
-  // Derived 8 Mathematical Enterprise Metrics
+  // Derived 8 Enterprise Metrics calculated strictly from real subscription data
   const activeSubs = subscriptions.filter(
     (s) => s.status !== "Cancelled" && s.status !== "Paused"
   );
@@ -322,23 +383,23 @@ export function AISubscriptionsCard() {
   const highestSub = sortedByMonthly.length > 0 ? sortedByMonthly[0] : null;
   const lowestSub = sortedByMonthly.length > 0 ? sortedByMonthly[sortedByMonthly.length - 1] : null;
 
-  // Upcoming payments in the next 30 days
+  // Upcoming payments in next 30 days
   const now = new Date();
   const next30DaysPayments = subscriptions.filter((sub) => {
+    if (sub.status === "Cancelled" || sub.status === "Paused") return false;
     try {
       const nextDate = new Date(sub.nextBillingDate).getTime();
       const diffDays = Math.ceil((nextDate - now.getTime()) / (1000 * 60 * 60 * 24));
-      return diffDays >= 0 && diffDays <= 30 && sub.status !== "Cancelled";
+      return diffDays >= 0 && diffDays <= 30;
     } catch {
       return false;
     }
   });
   const upcoming30DaysCost = next30DaysPayments.reduce((sum, s) => sum + s.amount, 0);
 
-  // Potential savings: 16% annual billing switch estimate on eligible services
-  const potentialSavingsMonthly = subscriptions.reduce((sum, s) => {
+  // Potential savings: 16% annual billing switch estimate on eligible monthly services
+  const potentialSavingsMonthly = activeSubs.reduce((sum, s) => {
     if (
-      s.status !== "Cancelled" &&
       (s.category === "Entertainment" || s.category === "Software / AI" || s.category === "Cloud Services") &&
       s.billingCycle === "monthly"
     ) {
@@ -364,7 +425,7 @@ export function AISubscriptionsCard() {
     }));
   }, [activeSubs, totalMonthlyCost]);
 
-  // Upcoming timeline groups
+  // Upcoming timeline groups sorted chronologically
   const timelineGroups = useMemo(() => {
     const currentTime = Date.now();
     const groups: {
@@ -392,6 +453,16 @@ export function AISubscriptionsCard() {
         groups.later.push(sub);
       }
     }
+
+    // Sort each group by next billing date
+    const sortByDate = (a: UserSubscription, b: UserSubscription) =>
+      new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime();
+
+    groups.today.sort(sortByDate);
+    groups.thisWeek.sort(sortByDate);
+    groups.nextMonth.sort(sortByDate);
+    groups.later.sort(sortByDate);
+
     return groups;
   }, [subscriptions]);
 
@@ -473,7 +544,6 @@ export function AISubscriptionsCard() {
 
       const res = await saveCustomSubscription(payload);
       if (res.success && res.subscription) {
-        // Optimistic UI state update
         setSubscriptions((prev) => {
           let updated: UserSubscription[];
           if (editingSubId) {
@@ -498,6 +568,44 @@ export function AISubscriptionsCard() {
       toast.error(err.message || "Failed to save subscription");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Pause Subscription action
+  const handlePauseSubscription = async (sub: UserSubscription) => {
+    try {
+      const res = await pauseCustomSubscription(sub.id);
+      if (res.success && res.updatedSubscription) {
+        setSubscriptions((prev) => {
+          const updated = prev.map((s) => (s.id === sub.id ? res.updatedSubscription! : s));
+          saveLocalSubs(updated);
+          return updated;
+        });
+        toast.success(`Paused "${sub.name}". It will no longer show in active outflows.`);
+      } else {
+        toast.error(res.error || "Failed to pause subscription");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to pause subscription");
+    }
+  };
+
+  // Resume Subscription action
+  const handleResumeSubscription = async (sub: UserSubscription) => {
+    try {
+      const res = await resumeCustomSubscription(sub.id);
+      if (res.success && res.updatedSubscription) {
+        setSubscriptions((prev) => {
+          const updated = prev.map((s) => (s.id === sub.id ? res.updatedSubscription! : s));
+          saveLocalSubs(updated);
+          return updated;
+        });
+        toast.success(`Resumed "${sub.name}" tracking.`);
+      } else {
+        toast.error(res.error || "Failed to resume subscription");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to resume subscription");
     }
   };
 
@@ -532,7 +640,7 @@ export function AISubscriptionsCard() {
     }
   };
 
-  // Open "Add Related Transaction" Dialog
+  // Open "Add Payment Transaction" Dialog
   const handleOpenTransactionDialog = (sub: UserSubscription) => {
     setActiveSubForTxn(sub);
     setTxnFormData({
@@ -547,7 +655,7 @@ export function AISubscriptionsCard() {
     setTransactionDialogOpen(true);
   };
 
-  // Confirm and Log Transaction
+  // Confirm and Record Transaction to verified ledger
   const handleConfirmTransaction = async () => {
     if (!activeSubForTxn) return;
     const amt = parseFloat(txnFormData.amount);
@@ -564,7 +672,7 @@ export function AISubscriptionsCard() {
     try {
       const res = await recordSubscriptionPayment(activeSubForTxn.id, {
         title: txnFormData.title.trim(),
-        description: txnFormData.description.trim() || `Subscription renewal: ${txnFormData.title}`,
+        description: txnFormData.description.trim() || `Subscription payment: ${txnFormData.title}`,
         amount: Math.round(amt),
         categoryName: txnFormData.categoryName,
         paymentMethod: txnFormData.paymentMethod,
@@ -573,7 +681,6 @@ export function AISubscriptionsCard() {
       });
 
       if (res.success && res.updatedSubscription) {
-        // Update subscription state with new payment date and status
         setSubscriptions((prev) => {
           const updated = prev.map((s) =>
             s.id === activeSubForTxn.id ? res.updatedSubscription! : s
@@ -594,6 +701,101 @@ export function AISubscriptionsCard() {
       toast.error(err.message || "Failed to record transaction");
     } finally {
       setIsLoggingTxn(false);
+    }
+  };
+
+  // Open "View Transaction History" Dialog
+  const handleOpenHistoryDialog = async (sub: UserSubscription) => {
+    setActiveSubForHistory(sub);
+    setHistoryDialogOpen(true);
+    setIsLoadingHistory(true);
+    try {
+      const res = await getSubscriptionTransactions(sub.id, sub.name);
+      if (res.success) {
+        setHistoryTransactions(res.transactions);
+      } else {
+        toast.error(res.error || "Could not load transaction history");
+        setHistoryTransactions([]);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Error loading transaction history");
+      setHistoryTransactions([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Open Correction Dialog (Reverse or Delete transaction)
+  const handleOpenCorrection = (
+    txn: LinkedSubscriptionTransaction,
+    action: "reverse" | "delete"
+  ) => {
+    setTargetTxnForCorrection(txn);
+    setCorrectionAction(action);
+    setCorrectionReason("");
+    setCorrectionDialogOpen(true);
+  };
+
+  // Confirm Reversal or Deletion of a Transaction
+  const handleConfirmCorrection = async () => {
+    if (!targetTxnForCorrection || !activeSubForHistory) return;
+    setIsProcessingCorrection(true);
+    try {
+      if (correctionAction === "reverse") {
+        const res = await reverseSubscriptionTransaction(
+          activeSubForHistory.id,
+          targetTxnForCorrection.id,
+          correctionReason.trim() || undefined
+        );
+        if (res.success) {
+          toast.success(`Transaction #${targetTxnForCorrection.id} reversed successfully.`);
+          if (res.updatedSubscription) {
+            setSubscriptions((prev) => {
+              const updated = prev.map((s) =>
+                s.id === activeSubForHistory.id ? res.updatedSubscription! : s
+              );
+              saveLocalSubs(updated);
+              return updated;
+            });
+            setActiveSubForHistory(res.updatedSubscription);
+          }
+          // Refresh history
+          const hist = await getSubscriptionTransactions(activeSubForHistory.id, activeSubForHistory.name);
+          if (hist.success) setHistoryTransactions(hist.transactions);
+          setCorrectionDialogOpen(false);
+        } else {
+          toast.error(res.error || "Failed to reverse transaction");
+        }
+      } else if (correctionAction === "delete") {
+        const res = await deleteSubscriptionTransaction(
+          activeSubForHistory.id,
+          targetTxnForCorrection.id,
+          correctionReason.trim() || undefined
+        );
+        if (res.success) {
+          toast.success(`Transaction #${targetTxnForCorrection.id} deleted from ledger.`);
+          if (res.updatedSubscription) {
+            setSubscriptions((prev) => {
+              const updated = prev.map((s) =>
+                s.id === activeSubForHistory.id ? res.updatedSubscription! : s
+              );
+              saveLocalSubs(updated);
+              return updated;
+            });
+            setActiveSubForHistory(res.updatedSubscription);
+          }
+          // Refresh history
+          const hist = await getSubscriptionTransactions(activeSubForHistory.id, activeSubForHistory.name);
+          if (hist.success) setHistoryTransactions(hist.transactions);
+          setCorrectionDialogOpen(false);
+        } else {
+          toast.error(res.error || "Failed to delete transaction");
+        }
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to process correction");
+    } finally {
+      setIsProcessingCorrection(false);
     }
   };
 
@@ -655,7 +857,36 @@ export function AISubscriptionsCard() {
         </div>
       </Card>
 
-      {/* 2. TOP SUMMARY METRIC CARDS (8 LIVE ENTERPRISE CARDS) */}
+      {/* NON-BLOCKING RESILIENT ERROR ALERT IF EXTERNAL SERVICE OR AUTH FAILS */}
+      {loadError && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 flex items-start justify-between gap-3 text-xs"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-slate-900 dark:text-slate-100">
+                Notice: Limited synchronization with subscription service
+              </p>
+              <p className="text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">
+                {loadError}. Displaying your verified local cache. You can still manage subscriptions and record payments.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={loadSubscriptions}
+            className="h-7 px-3 text-xs font-bold border-amber-500/30 text-amber-800 dark:text-amber-200 shrink-0"
+          >
+            Retry
+          </Button>
+        </motion.div>
+      )}
+
+      {/* 2. TOP SUMMARY METRIC CARDS (8 LIVE ENTERPRISE CARDS CALCULATED FROM REAL RECORDS) */}
       <motion.div
         variants={
           shouldReduceMotion
@@ -682,7 +913,7 @@ export function AISubscriptionsCard() {
           whileHover={
             shouldReduceMotion
               ? undefined
-              : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
+              : { y: -4, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
           }
         >
           <Card className="relative overflow-hidden h-full rounded-2xl border border-purple-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
@@ -720,7 +951,7 @@ export function AISubscriptionsCard() {
           whileHover={
             shouldReduceMotion
               ? undefined
-              : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
+              : { y: -4, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
           }
         >
           <Card className="relative overflow-hidden h-full rounded-2xl border border-rose-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
@@ -756,7 +987,7 @@ export function AISubscriptionsCard() {
           whileHover={
             shouldReduceMotion
               ? undefined
-              : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
+              : { y: -4, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
           }
         >
           <Card className="relative overflow-hidden h-full rounded-2xl border border-indigo-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
@@ -792,7 +1023,7 @@ export function AISubscriptionsCard() {
           whileHover={
             shouldReduceMotion
               ? undefined
-              : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
+              : { y: -4, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
           }
         >
           <Card className="relative overflow-hidden h-full rounded-2xl border border-amber-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
@@ -830,7 +1061,7 @@ export function AISubscriptionsCard() {
           whileHover={
             shouldReduceMotion
               ? undefined
-              : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
+              : { y: -4, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
           }
         >
           <Card className="relative overflow-hidden h-full rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
@@ -866,7 +1097,7 @@ export function AISubscriptionsCard() {
           whileHover={
             shouldReduceMotion
               ? undefined
-              : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
+              : { y: -4, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
           }
         >
           <Card className="relative overflow-hidden h-full rounded-2xl border border-blue-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
@@ -909,7 +1140,7 @@ export function AISubscriptionsCard() {
           whileHover={
             shouldReduceMotion
               ? undefined
-              : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
+              : { y: -4, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
           }
         >
           <Card className="relative overflow-hidden h-full rounded-2xl border border-teal-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
@@ -952,7 +1183,7 @@ export function AISubscriptionsCard() {
           whileHover={
             shouldReduceMotion
               ? undefined
-              : { y: -6, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
+              : { y: -4, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
           }
         >
           <Card className="relative overflow-hidden h-full rounded-2xl border border-emerald-500/20 bg-card p-4 space-y-2 shadow-2xs active:scale-[0.98] transition-all duration-200 cursor-pointer group ai-glass-surface ai-card-hover">
@@ -978,7 +1209,7 @@ export function AISubscriptionsCard() {
         </motion.div>
       </motion.div>
 
-      {/* 3. PREMIUM EMPTY STATE OR RESPONSIVE CARDS GRID */}
+      {/* 3. PREMIUM ZERO-MOCK EMPTY STATE */}
       {subscriptions.length === 0 && !isLoading ? (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
@@ -996,14 +1227,13 @@ export function AISubscriptionsCard() {
                   variant="outline"
                   className="text-xs font-bold text-purple-600 border-purple-300 dark:border-purple-800 bg-purple-500/5 uppercase tracking-wider"
                 >
-                  Dynamic Ledger Intelligence
+                  Subscriptions & Recurring Bills
                 </Badge>
                 <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">
-                  No Subscriptions Added Yet
+                  No subscriptions yet
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed font-sans max-w-md mx-auto">
-                  Add your recurring subscriptions to monitor payments, billing cycles and upcoming expenses.
-                  Zero placeholder data or sample rows are generated.
+                  Track and manage your recurring bills, OTT services, software subscriptions, and memberships all in one place with automatic reminders and verified ledger syncing.
                 </p>
               </div>
 
@@ -1013,7 +1243,7 @@ export function AISubscriptionsCard() {
                   className="rounded-xl text-xs font-bold gap-2 h-10 px-5 w-full sm:w-auto shadow-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white ai-btn-premium"
                 >
                   <Plus className="h-4 w-4" />
-                  <span>Add Subscription</span>
+                  <span>Add Your First Subscription</span>
                 </Button>
 
                 <Button
@@ -1127,7 +1357,7 @@ export function AISubscriptionsCard() {
               </div>
             </CardHeader>
 
-            {/* 4. INDIVIDUAL SUBSCRIPTION CARDS GRID (REPLACES FLAT TABLE) */}
+            {/* 4. INDIVIDUAL SUBSCRIPTION CARDS GRID (PREMIUM UI/UX WITH POLISHED HOVER ELEVATION) */}
             <CardContent className="p-4 sm:p-6">
               {filteredSubscriptions.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
@@ -1144,6 +1374,7 @@ export function AISubscriptionsCard() {
                     {filteredSubscriptions.map((sub) => {
                       const relInfo = getRelativePaymentInfo(sub.nextBillingDate);
                       const statusStyle = getStatusBadgeStyle(sub.status);
+                      const isPaused = sub.status === "Paused";
 
                       return (
                         <motion.div
@@ -1152,11 +1383,11 @@ export function AISubscriptionsCard() {
                           initial={{ opacity: 0, scale: 0.96 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.96 }}
-                          transition={{ duration: 0.25 }}
+                          transition={{ duration: 0.22 }}
                           whileHover={
                             shouldReduceMotion
                               ? undefined
-                              : { y: -5, scale: 1.015, transition: { duration: 0.2, ease: "easeOut" } }
+                              : { y: -4, scale: 1.012, transition: { duration: 0.2, ease: "easeOut" } }
                           }
                           className="relative"
                         >
@@ -1167,7 +1398,7 @@ export function AISubscriptionsCard() {
                             />
 
                             <div className="relative z-10 space-y-3">
-                              {/* Header: Name, Merchant, Status badge, and Three-Dot Menu */}
+                              {/* Header: Name, Merchant, Status badge, and Context-Sensitive Three-Dot Menu */}
                               <div className="flex items-start justify-between gap-2">
                                 <div className="space-y-1 min-w-0 flex-1">
                                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -1186,7 +1417,7 @@ export function AISubscriptionsCard() {
                                     {sub.status}
                                   </Badge>
 
-                                  {/* Three-Dot Menu */}
+                                  {/* Three-Dot Menu with 6 Context-Sensitive Actions */}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <Button
@@ -1194,24 +1425,35 @@ export function AISubscriptionsCard() {
                                         size="sm"
                                         className="h-7 w-7 p-0 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
                                         onClick={(e) => e.stopPropagation()}
-                                        aria-label="Subscription actions"
+                                        aria-label={`Actions for ${sub.name}`}
                                       >
                                         <MoreVertical className="h-4 w-4" />
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent
                                       align="end"
-                                      className="w-48 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 text-xs"
+                                      className="w-52 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 text-xs"
                                       onClick={(e) => e.stopPropagation()}
                                     >
+                                      {/* Action 1: Add Payment Transaction */}
                                       <DropdownMenuItem
                                         onClick={() => handleOpenTransactionDialog(sub)}
                                         className="gap-2 cursor-pointer text-slate-700 dark:text-slate-300 font-medium"
                                       >
                                         <Receipt className="h-3.5 w-3.5 text-emerald-500" />
-                                        <span>Add Related Transaction</span>
+                                        <span>Add Payment Transaction</span>
                                       </DropdownMenuItem>
 
+                                      {/* Action 2: View Transaction History */}
+                                      <DropdownMenuItem
+                                        onClick={() => handleOpenHistoryDialog(sub)}
+                                        className="gap-2 cursor-pointer text-slate-700 dark:text-slate-300 font-medium"
+                                      >
+                                        <History className="h-3.5 w-3.5 text-indigo-500" />
+                                        <span>View Transaction History</span>
+                                      </DropdownMenuItem>
+
+                                      {/* Action 3: Edit Subscription */}
                                       <DropdownMenuItem
                                         onClick={() => handleOpenEditModal(sub)}
                                         className="gap-2 cursor-pointer text-slate-700 dark:text-slate-300 font-medium"
@@ -1220,8 +1462,39 @@ export function AISubscriptionsCard() {
                                         <span>Edit Subscription</span>
                                       </DropdownMenuItem>
 
+                                      {/* Action 4: Mark as Paid (Context-Sensitive) */}
+                                      {sub.status !== "Paid" && (
+                                        <DropdownMenuItem
+                                          onClick={() => handleOpenTransactionDialog(sub)}
+                                          className="gap-2 cursor-pointer text-emerald-600 dark:text-emerald-400 font-medium"
+                                        >
+                                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                          <span>Mark as Paid</span>
+                                        </DropdownMenuItem>
+                                      )}
+
+                                      {/* Action 5: Pause / Resume Subscription (Context-Sensitive) */}
+                                      {isPaused ? (
+                                        <DropdownMenuItem
+                                          onClick={() => handleResumeSubscription(sub)}
+                                          className="gap-2 cursor-pointer text-emerald-600 dark:text-emerald-400 font-medium"
+                                        >
+                                          <Play className="h-3.5 w-3.5 text-emerald-500" />
+                                          <span>Resume Subscription</span>
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem
+                                          onClick={() => handlePauseSubscription(sub)}
+                                          className="gap-2 cursor-pointer text-amber-600 dark:text-amber-400 font-medium"
+                                        >
+                                          <Pause className="h-3.5 w-3.5 text-amber-500" />
+                                          <span>Pause Subscription</span>
+                                        </DropdownMenuItem>
+                                      )}
+
                                       <DropdownMenuSeparator />
 
+                                      {/* Action 6: Delete Subscription */}
                                       <DropdownMenuItem
                                         onClick={() => handleOpenDelete(sub)}
                                         className="gap-2 cursor-pointer text-rose-600 dark:text-rose-400 font-medium focus:text-rose-600 focus:bg-rose-500/10"
@@ -1302,16 +1575,32 @@ export function AISubscriptionsCard() {
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <Button
                                   size="sm"
-                                  variant="outline"
+                                  variant="ghost"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleOpenTransactionDialog(sub);
+                                    handleOpenHistoryDialog(sub);
                                   }}
-                                  className="h-7 px-2.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-lg border-emerald-500/30 gap-1 active:scale-[0.98]"
+                                  className="h-7 px-2 text-[11px] font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg gap-1"
+                                  title="View Payment History"
                                 >
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  <span>Mark Paid</span>
+                                  <History className="h-3 w-3" />
+                                  <span className="hidden sm:inline">History</span>
                                 </Button>
+
+                                {sub.status !== "Paid" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenTransactionDialog(sub);
+                                    }}
+                                    className="h-7 px-2.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-lg border-emerald-500/30 gap-1 active:scale-[0.98]"
+                                  >
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    <span>Mark Paid</span>
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </Card>
@@ -1353,9 +1642,19 @@ export function AISubscriptionsCard() {
                           <span className="font-bold text-rose-800 dark:text-rose-300">{s.name}</span>
                           <p className="text-[10px] text-rose-500 font-mono">Due: {s.nextBillingDate}</p>
                         </div>
-                        <span className="font-mono font-bold text-rose-600">
-                          {formatCurrency(s.amount, "INR")}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-rose-600">
+                            {formatCurrency(s.amount, "INR")}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleOpenTransactionDialog(s)}
+                            className="h-6 px-2 text-[10px] font-bold text-rose-700 dark:text-rose-300 hover:bg-rose-500/20"
+                          >
+                            Pay
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1390,7 +1689,7 @@ export function AISubscriptionsCard() {
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                       Next 30 Days
                     </span>
-                    {timelineGroups.nextMonth.slice(0, 4).map((s) => (
+                    {timelineGroups.nextMonth.slice(0, 5).map((s) => (
                       <div
                         key={s.id}
                         className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between"
@@ -1412,9 +1711,11 @@ export function AISubscriptionsCard() {
                 {timelineGroups.today.length === 0 &&
                   timelineGroups.thisWeek.length === 0 &&
                   timelineGroups.nextMonth.length === 0 && (
-                    <p className="text-slate-400 text-center py-4 text-xs">
-                      No immediate bills due in the upcoming cycle.
-                    </p>
+                    <div className="text-center py-6 space-y-1 text-slate-400">
+                      <Clock className="h-6 w-6 mx-auto opacity-40 mb-1" />
+                      <p className="text-xs font-semibold">No bills due in the upcoming cycle</p>
+                      <p className="text-[11px] text-slate-400">Upcoming subscription schedules will be listed here chronologically.</p>
+                    </div>
                   )}
               </div>
             </Card>
@@ -1444,17 +1745,21 @@ export function AISubscriptionsCard() {
                         </span>
                       </div>
                       <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                        <div
-                          className="bg-primary h-full rounded-full transition-all duration-300"
-                          style={{ width: `${cat.percentage}%` }}
+                        <motion.div
+                          className="bg-primary h-full rounded-full"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${cat.percentage}%` }}
+                          transition={{ duration: 0.5, ease: "easeOut" }}
                         />
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-slate-400 text-center py-6 text-xs">
-                    No active categorized commitments yet.
-                  </p>
+                  <div className="text-center py-6 space-y-1 text-slate-400">
+                    <PieIcon className="h-6 w-6 mx-auto opacity-40 mb-1" />
+                    <p className="text-xs font-semibold">No active categorized commitments yet</p>
+                    <p className="text-[11px] text-slate-400">Category allocation will appear once you track subscriptions.</p>
+                  </div>
                 )}
               </div>
             </Card>
@@ -1703,7 +2008,7 @@ export function AISubscriptionsCard() {
         </DialogContent>
       </Dialog>
 
-      {/* 7. ADD RELATED TRANSACTION MODAL */}
+      {/* 7. ADD PAYMENT TRANSACTION MODAL */}
       <Dialog open={transactionDialogOpen} onOpenChange={setTransactionDialogOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-card">
           <DialogHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -1784,8 +2089,8 @@ export function AISubscriptionsCard() {
             </div>
 
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-[11px] leading-relaxed">
-              Recording this transaction will create a verified ledger entry, update the subscription&apos;s last payment date to{" "}
-              <strong>{txnFormData.date}</strong>, mark it as <strong>Paid</strong>, and advance the next billing schedule.
+              Recording this transaction creates a verified entry in your transactions ledger, updates the subscription&apos;s last payment date to{" "}
+              <strong>{txnFormData.date}</strong>, marks it as <strong>Paid</strong>, and advances the next billing schedule.
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -1814,7 +2119,300 @@ export function AISubscriptionsCard() {
         </DialogContent>
       </Dialog>
 
-      {/* 8. DELETE CONFIRMATION MODAL */}
+      {/* 8. VIEW TRANSACTION HISTORY & REVERSAL MODAL */}
+      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent className="sm:max-w-xl rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-card max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                  <History className="h-5 w-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Payment History: {activeSubForHistory?.name}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                    Verified ledger records linked to this subscription portfolio
+                  </DialogDescription>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs font-mono font-bold">
+                {historyTransactions.length} records
+              </Badge>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-3 text-xs">
+            {isLoadingHistory ? (
+              <div className="py-12 text-center space-y-2">
+                <RefreshCw className="h-5 w-5 animate-spin mx-auto text-indigo-600" />
+                <p className="text-slate-400">Loading ledger transaction records...</p>
+              </div>
+            ) : historyTransactions.length === 0 ? (
+              <div className="py-12 text-center space-y-2 text-slate-400">
+                <History className="h-8 w-8 mx-auto opacity-30" />
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  No payment transactions recorded yet
+                </p>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  When you log payments or renewal transactions for this subscription, they will be listed here with reversal and correction options.
+                </p>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setHistoryDialogOpen(false);
+                    if (activeSubForHistory) handleOpenTransactionDialog(activeSubForHistory);
+                  }}
+                  className="rounded-xl text-xs font-bold gap-1.5 mt-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                  <span>Log First Payment</span>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {historyTransactions.map((tx) => (
+                  <div
+                    key={tx.id}
+                    className={`p-3.5 rounded-2xl border transition-colors flex items-center justify-between gap-3 ${
+                      tx.isReversal
+                        ? "bg-slate-100/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 opacity-75"
+                        : "bg-slate-50/70 dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800"
+                    }`}
+                  >
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-slate-900 dark:text-slate-100 truncate">
+                          {tx.title}
+                        </span>
+                        {tx.isReversal ? (
+                          <Badge className="text-[9px] py-0 px-1.5 bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30">
+                            Reversal
+                          </Badge>
+                        ) : (
+                          <Badge className="text-[9px] py-0 px-1.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                            Verified
+                          </Badge>
+                        )}
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          ID: #{tx.id}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        {tx.description}
+                      </p>
+                      <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                        <span>Date: {tx.date}</span>
+                        <span>Method: {tx.paymentMethod}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <span
+                          className={`font-mono font-black text-sm tabular-nums ${
+                            tx.isReversal
+                              ? "text-blue-600 dark:text-blue-400"
+                              : "text-slate-900 dark:text-slate-100"
+                          }`}
+                        >
+                          {tx.isReversal ? "+" : "-"}
+                          {formatCurrency(tx.amount, "INR")}
+                        </span>
+                      </div>
+
+                      {/* Transaction Action Menu */}
+                      {!tx.isReversal && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5 text-slate-500" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="w-48 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 text-xs"
+                          >
+                            <DropdownMenuItem
+                              onClick={() => handleOpenCorrection(tx, "reverse")}
+                              className="gap-2 cursor-pointer text-amber-600 dark:text-amber-400 font-medium"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              <span>Reverse Transaction</span>
+                            </DropdownMenuItem>
+
+                            <DropdownMenuSeparator />
+
+                            <DropdownMenuItem
+                              onClick={() => handleOpenCorrection(tx, "delete")}
+                              className="gap-2 cursor-pointer text-rose-600 dark:text-rose-400 font-medium focus:text-rose-600 focus:bg-rose-500/10"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Delete Transaction</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setHistoryDialogOpen(false)}
+                className="rounded-xl text-xs h-9"
+              >
+                Close
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={() => {
+                  setHistoryDialogOpen(false);
+                  if (activeSubForHistory) handleOpenTransactionDialog(activeSubForHistory);
+                }}
+                className="rounded-xl text-xs h-9 font-bold bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
+              >
+                <Receipt className="h-3.5 w-3.5" />
+                <span>Add Payment</span>
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 9. TRANSACTION REVERSAL / DELETION CONFIRMATION DIALOG */}
+      <Dialog open={correctionDialogOpen} onOpenChange={setCorrectionDialogOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-card">
+          <DialogHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`p-2.5 rounded-2xl ${
+                  correctionAction === "reverse"
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                }`}
+              >
+                {correctionAction === "reverse" ? (
+                  <RotateCcw className="h-5 w-5" />
+                ) : (
+                  <Trash2 className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                  {correctionAction === "reverse"
+                    ? "Confirm Transaction Reversal"
+                    : "Confirm Transaction Deletion"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Review the financial impact before proceeding
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-3 text-xs">
+            {/* Financial Details Box */}
+            <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Subscription:</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">
+                  {activeSubForHistory?.name}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Transaction ID:</span>
+                <span className="font-mono text-slate-900 dark:text-slate-100">
+                  #{targetTxnForCorrection?.id}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Amount:</span>
+                <span className="font-mono font-black text-rose-600 text-sm">
+                  {targetTxnForCorrection ? formatCurrency(targetTxnForCorrection.amount, "INR") : "₹0.00"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Date:</span>
+                <span className="font-mono text-slate-900 dark:text-slate-100">
+                  {targetTxnForCorrection?.date}
+                </span>
+              </div>
+            </div>
+
+            {/* Impact Explanation */}
+            <div
+              className={`p-3 rounded-xl border text-[11px] leading-relaxed ${
+                correctionAction === "reverse"
+                  ? "bg-amber-500/10 border-amber-500/20 text-amber-800 dark:text-amber-300"
+                  : "bg-rose-500/10 border-rose-500/20 text-rose-800 dark:text-rose-300"
+              }`}
+            >
+              {correctionAction === "reverse" ? (
+                <>
+                  <strong>Financial Safety Protocol:</strong> This action creates an offsetting compensating transaction in your ledger, soft-deletes this entry with an audit log, and rolls back the subscription&apos;s next billing date and status.
+                </>
+              ) : (
+                <>
+                  <strong>Deletion Impact:</strong> This action soft-deletes the transaction from your ledger with an audit trail and recalculates the subscription status. Historical subscription tracking will be preserved.
+                </>
+              )}
+            </div>
+
+            {/* Optional Reason */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Reason (Optional)</Label>
+              <Input
+                placeholder="e.g. Accidental duplicate, incorrect amount entered"
+                value={correctionReason}
+                onChange={(e) => setCorrectionReason(e.target.value)}
+                className="rounded-xl h-9 text-xs"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="rounded-xl text-xs h-9"
+                onClick={() => setCorrectionDialogOpen(false)}
+                disabled={isProcessingCorrection}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className={`rounded-xl text-xs h-9 font-bold text-white shadow-xs px-4 gap-1.5 ${
+                  correctionAction === "reverse"
+                    ? "bg-amber-600 hover:bg-amber-500"
+                    : "bg-rose-600 hover:bg-rose-500"
+                }`}
+                onClick={handleConfirmCorrection}
+                disabled={isProcessingCorrection}
+              >
+                {isProcessingCorrection && <RefreshCw className="h-3 w-3 animate-spin" />}
+                <span>
+                  {correctionAction === "reverse" ? "Confirm Reversal" : "Confirm Deletion"}
+                </span>
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 10. DELETE SUBSCRIPTION CONFIRMATION MODAL */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-card">
           <DialogHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
