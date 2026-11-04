@@ -491,22 +491,35 @@
   /* ================= BUDGET MODULE EXCLUSIVE ENTERPRISE DESIGN SYSTEM ================= */
   .budget-module-scope {
     --budget-royal-blue: 37, 99, 235;
-    --budget-emerald: 5, 150, 105;
-    --budget-sky: 2, 132, 199;
     --budget-indigo: 79, 70, 229;
+    --budget-sky: 2, 132, 199;
+    --budget-crimson: 225, 29, 72;
+    --budget-emerald: 5, 150, 105;
+    --budget-teal: 13, 148, 136;
+    --budget-cyan: 8, 145, 178;
     --budget-green: 22, 163, 74;
     --budget-amber: 217, 119, 6;
     --budget-orange: 234, 88, 12;
     --budget-red: 220, 38, 38;
-    --budget-gray: 100, 116, 139;
-    --budget-cyan: 8, 145, 178;
+    --budget-azure: 14, 165, 233;
     --budget-purple: 147, 51, 234;
+    --budget-violet: 124, 58, 237;
+    --budget-turquoise: 20, 184, 166;
+    --budget-slate: 100, 116, 139;
   }
 
-  /* Budget Card Hover: Lift 8px, Scale 1.02, 180ms ease-out, financial shadow & glow */
+  /* Budget Card: Glass Surface, 1px Gradient Border, Soft Inner Highlight */
   .budget-card-interactive {
     position: relative;
     cursor: pointer;
+    border-radius: 1.25rem;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(var(--budget-glow, 37, 99, 235), 0.2);
+    background: linear-gradient(135deg, rgba(var(--budget-glow, 37, 99, 235), 0.05) 0%, rgba(var(--budget-glow, 37, 99, 235), 0.01) 40%, transparent 100%), hsl(var(--card));
+    box-shadow: 
+      0 1px 3px 0 rgba(0, 0, 0, 0.03),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.12);
     will-change: transform, box-shadow, border-color, filter;
     transition: 
       transform 180ms ease-out,
@@ -515,27 +528,38 @@
       filter 180ms ease-out;
   }
 
-  .budget-card-interactive:hover {
-    transform: translateY(-8px) scale(1.02) !important;
+  .dark .budget-card-interactive {
+    background: linear-gradient(135deg, rgba(var(--budget-glow, 37, 99, 235), 0.08) 0%, rgba(var(--budget-glow, 37, 99, 235), 0.02) 50%, transparent 100%), rgba(15, 23, 42, 0.7);
     box-shadow: 
-      0 20px 32px -8px rgba(0, 0, 0, 0.12),
-      0 8px 16px -4px rgba(0, 0, 0, 0.06),
-      0 0 0 1px rgba(var(--budget-glow, 37, 99, 235), 0.35) !important;
-    border-color: rgba(var(--budget-glow, 37, 99, 235), 0.5) !important;
+      0 2px 6px -1px rgba(0, 0, 0, 0.35),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  /* Desktop Hover: lift 6px, scale 1.02, natural ambient shadow, border glow based on card color */
+  .budget-card-interactive:hover {
+    transform: translateY(-6px) scale(1.02) !important;
+    border-color: rgba(var(--budget-glow, 37, 99, 235), 0.48) !important;
+    box-shadow: 
+      0 16px 28px -6px rgba(0, 0, 0, 0.09),
+      0 6px 14px -3px rgba(var(--budget-glow, 37, 99, 235), 0.18),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.22) !important;
+    filter: brightness(1.025);
+    z-index: 10;
   }
 
   .dark .budget-card-interactive:hover {
+    border-color: rgba(var(--budget-glow, 37, 99, 235), 0.58) !important;
     box-shadow: 
-      0 24px 38px -10px rgba(0, 0, 0, 0.65),
-      0 12px 24px -6px rgba(var(--budget-glow, 37, 99, 235), 0.28),
-      0 0 0 1px rgba(var(--budget-glow, 37, 99, 235), 0.4) !important;
-    border-color: rgba(var(--budget-glow, 37, 99, 235), 0.6) !important;
+      0 20px 32px -8px rgba(0, 0, 0, 0.55),
+      0 8px 18px -4px rgba(var(--budget-glow, 37, 99, 235), 0.25),
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.12) !important;
+    filter: brightness(1.035);
   }
 
   /* Click Press Animation & Spring Release */
   .budget-card-interactive:active,
   .budget-clickable:active {
-    transform: translateY(-2px) scale(0.985) !important;
+    transform: translateY(-1px) scale(0.985) !important;
     transition: transform 90ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
   }
 
@@ -550,7 +574,7 @@
     transform: scale(0.97) !important;
   }
 
-  /* Animated Icon in Budget Cards */
+  /* Animated Icon in Budget Cards: rotates 4°, scales 1.08, subtle drop-shadow glow */
   .budget-card-interactive .budget-icon-interactive,
   .group:hover .budget-icon-interactive,
   .budget-icon-interactive:hover {
@@ -559,30 +583,124 @@
   }
   .budget-card-interactive:hover .budget-icon-interactive,
   .group:hover .budget-icon-interactive {
-    transform: scale(1.12) rotate(4deg) !important;
-    filter: drop-shadow(0 4px 10px rgba(var(--budget-glow, 37, 99, 235), 0.45)) brightness(1.12) !important;
+    transform: scale(1.08) rotate(4deg) !important;
+    filter: drop-shadow(0 4px 8px rgba(var(--budget-glow, 37, 99, 235), 0.35)) brightness(1.1) !important;
   }
 
-  /* Financial Number Highlight */
+  /* Financial Number Highlight: brightens smoothly */
   .budget-number-highlight {
-    transition: filter 180ms ease-out, letter-spacing 180ms ease-out;
+    transition: filter 180ms ease-out;
   }
   .budget-card-interactive:hover .budget-number-highlight {
     filter: brightness(1.12);
   }
 
+  /* Subtitle Opacity Transition on Hover */
+  .budget-card-subtitle {
+    opacity: 0.72;
+    transition: opacity 180ms ease-out;
+  }
+  .budget-card-interactive:hover .budget-card-subtitle {
+    opacity: 0.95;
+  }
+
   /* Financial Palette Theme Hooks */
-  .glow-royal-blue { --budget-glow: 37, 99, 235; }
-  .glow-emerald { --budget-glow: 5, 150, 105; }
-  .glow-sky { --budget-glow: 2, 132, 199; }
-  .glow-indigo { --budget-glow: 79, 70, 229; }
-  .glow-green { --budget-glow: 22, 163, 74; }
-  .glow-amber { --budget-glow: 217, 119, 6; }
-  .glow-orange { --budget-glow: 234, 88, 12; }
-  .glow-red { --budget-glow: 220, 38, 38; }
-  .glow-gray { --budget-glow: 100, 116, 139; }
-  .glow-cyan { --budget-glow: 8, 145, 178; }
-  .glow-purple { --budget-glow: 147, 51, 234; }
+  .glow-royal-blue { --budget-glow: var(--budget-royal-blue); }
+  .glow-indigo { --budget-glow: var(--budget-indigo); }
+  .glow-sky { --budget-glow: var(--budget-sky); }
+  .glow-crimson { --budget-glow: var(--budget-crimson); }
+  .glow-emerald { --budget-glow: var(--budget-emerald); }
+  .glow-teal { --budget-glow: var(--budget-teal); }
+  .glow-cyan { --budget-glow: var(--budget-cyan); }
+  .glow-green { --budget-glow: var(--budget-green); }
+  .glow-amber { --budget-glow: var(--budget-amber); }
+  .glow-orange { --budget-glow: var(--budget-orange); }
+  .glow-red { --budget-glow: var(--budget-red); }
+  .glow-azure { --budget-glow: var(--budget-azure); }
+  .glow-purple { --budget-glow: var(--budget-purple); }
+  .glow-violet { --budget-glow: var(--budget-violet); }
+  .glow-turquoise { --budget-glow: var(--budget-turquoise); }
+  .glow-slate { --budget-glow: var(--budget-slate); }
+  .glow-gray { --budget-glow: var(--budget-slate); }
+
+  /* Milestone Timeline Animations */
+  @keyframes milestonePulseAnimation {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.45);
+      transform: scale(1);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgba(147, 51, 234, 0);
+      transform: scale(1.08);
+    }
+  }
+  .milestone-current-pulse {
+    animation: milestonePulseAnimation 2.4s infinite ease-in-out;
+  }
+  .milestone-completed-glow {
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+  }
+
+  /* Verified AI Insight Card Interactive */
+  .insight-card-interactive {
+    position: relative;
+    border-left: 3px solid #14b8a6;
+    border-radius: 0.875rem;
+    background: rgba(20, 184, 166, 0.04);
+    transition: transform 180ms ease-out, box-shadow 180ms ease-out, background-color 180ms ease-out, border-color 180ms ease-out;
+  }
+  .insight-card-interactive:hover {
+    transform: translateX(3px);
+    background: rgba(20, 184, 166, 0.09);
+    box-shadow: 0 4px 14px -3px rgba(20, 184, 166, 0.22);
+    border-left-color: #0d9488;
+  }
+  .dark .insight-card-interactive {
+    background: rgba(20, 184, 166, 0.07);
+  }
+  .dark .insight-card-interactive:hover {
+    background: rgba(20, 184, 166, 0.12);
+    box-shadow: 0 4px 18px -3px rgba(20, 184, 166, 0.3);
+  }
+
+  /* Dynamic Ledger Cell Interactive */
+  .ledger-cell-interactive {
+    position: relative;
+    border-radius: 0.875rem;
+    transition: transform 180ms ease-out, box-shadow 180ms ease-out, border-color 180ms ease-out, background-color 180ms ease-out;
+  }
+  .ledger-cell-interactive:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 18px -4px rgba(0, 0, 0, 0.08);
+    border-color: rgba(99, 102, 241, 0.38);
+    background-color: rgba(99, 102, 241, 0.04);
+  }
+  .dark .ledger-cell-interactive:hover {
+    box-shadow: 0 10px 22px -6px rgba(0, 0, 0, 0.45);
+    border-color: rgba(99, 102, 241, 0.45);
+    background-color: rgba(99, 102, 241, 0.08);
+  }
+  .ledger-cell-interactive .ledger-icon {
+    transition: transform 180ms ease-out;
+  }
+  .ledger-cell-interactive:hover .ledger-icon {
+    transform: scale(1.1) rotate(4deg);
+  }
+
+  /* Progress Bar Gauge Interactive Wrapper */
+  .budget-gauge-interactive {
+    border-radius: 0.875rem;
+    padding: 0.625rem;
+    transition: background-color 180ms ease-out, box-shadow 180ms ease-out;
+  }
+  .budget-gauge-interactive:hover {
+    background-color: rgba(99, 102, 241, 0.03);
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.12);
+  }
+  .dark .budget-gauge-interactive:hover {
+    background-color: rgba(99, 102, 241, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.2);
+  }
 }
 
 /* Accessibility: Gentle transitions for prefers-reduced-motion without breaking interactive feedback */

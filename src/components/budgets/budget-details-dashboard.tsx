@@ -72,6 +72,94 @@ import {
 } from "recharts";
 import { BudgetProgressRing } from "./budget-progress-ring";
 
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  dynamicStatus: { label: string; colorHex: string };
+  dailyAllowance: number;
+  averageDailySpend: number;
+  currency: string;
+  selectedChartTab: "trend" | "burn_rate" | "comparison";
+}
+
+function CustomEnterpriseChartTooltip({
+  active,
+  payload,
+  label,
+  dynamicStatus,
+  dailyAllowance,
+  averageDailySpend,
+  currency,
+  selectedChartTab,
+}: CustomTooltipProps) {
+  if (!active || !payload || !payload.length) return null;
+
+  const dataPoint = payload[0]?.payload;
+  const isComparison = selectedChartTab === "comparison";
+  const isBurn = selectedChartTab === "burn_rate";
+  const mainVal = payload[0]?.value ?? 0;
+
+  return (
+    <div className="backdrop-blur-md bg-slate-900/95 dark:bg-slate-950/95 border border-slate-700/60 shadow-2xl rounded-2xl p-3.5 text-xs text-slate-100 space-y-2 min-w-[210px] select-none animate-in fade-in-50 zoom-in-95 duration-150">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
+        <span className="font-bold text-slate-200">{dataPoint?.name || dataPoint?.date || label}</span>
+        <span
+          className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+          style={{ backgroundColor: `${dynamicStatus.colorHex}25`, color: dynamicStatus.colorHex }}
+        >
+          {dynamicStatus.label}
+        </span>
+      </div>
+      <div className="space-y-1 font-mono text-[11px]">
+        {isComparison ? (
+          <div className="flex justify-between items-center">
+            <span className="text-slate-400 font-sans text-[10px]">Verified Amount:</span>
+            <strong className="text-indigo-400 font-bold">{formatCurrency(mainVal, currency)}</strong>
+          </div>
+        ) : isBurn ? (
+          <>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-sans text-[10px]">Cumulative Burn:</span>
+              <strong className="text-rose-400 font-bold">{formatCurrency(dataPoint?.cumulativeSpend || 0, currency)}</strong>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-sans text-[10px]">Ideal Spend Line:</span>
+              <span className="text-emerald-400">{formatCurrency(dataPoint?.idealSpend || 0, currency)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-sans text-[10px]">Budget Cap:</span>
+              <span className="text-indigo-400">{formatCurrency(dataPoint?.budgetCap || 0, currency)}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-sans text-[10px]">Daily Spend:</span>
+              <strong className="text-indigo-400 font-bold">{formatCurrency(mainVal, currency)}</strong>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-sans text-[10px]">Remaining Daily Allowance:</span>
+              <span className="text-emerald-400">{formatCurrency(dailyAllowance, currency)}/d</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-400 font-sans text-[10px]">Average Daily Burn:</span>
+              <span className="text-cyan-400">{formatCurrency(averageDailySpend, currency)}/d</span>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="text-[9px] text-slate-400 pt-1 border-t border-slate-800/80 flex items-center justify-between">
+        <span>Verified Ledger Sync</span>
+        <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+          <Check className="h-3 w-3" />
+          Active
+        </span>
+      </div>
+    </div>
+  );
+}
+
 interface BudgetDetailsDashboardProps {
   budget: BudgetRecord;
   allBudgets: BudgetRecord[];
@@ -474,7 +562,17 @@ export function BudgetDetailsDashboard({
       });
     }
 
-    return events;
+    const totalEvents = events.length;
+    return events.map((ev, index) => {
+      const isUpcoming = daysRemaining > 0 && (ev.eventType === "completed" || ev.eventType === "expired");
+      const isLastActive = (index === totalEvents - 1 && !isUpcoming) || (daysRemaining <= 0 && ev.eventType === "completed");
+      return {
+        ...ev,
+        isCompleted: !isUpcoming && !isLastActive,
+        isCurrent: isLastActive,
+        isUpcoming,
+      };
+    });
   }, [budget, originalBudget, currentBudget, additionalBudget, totalSpent, remainingBudget, totalDurationDays, daysRemaining, utilizationPercent, currency]);
 
   return (
@@ -638,133 +736,255 @@ export function BudgetDetailsDashboard({
           </div>
 
           {/* Detailed Progress Bars & Gauges (Cols 5-12) */}
-          <div className="md:col-span-8 space-y-4">
-            {/* Gauge 1: Timeline Progress */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                  <Calendar className="h-3.5 w-3.5 text-purple-500" />
-                  Timeline Progress
-                </span>
-                <span className="text-purple-600 dark:text-purple-400 font-mono">
-                  {daysPassed} of {totalDurationDays} Days ({timelinePercentage}%)
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-500"
-                  style={{ width: `${timelinePercentage}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400">
-                <span>Start: {formatDate(budget.startDate)}</span>
-                <span className="font-semibold text-amber-600 dark:text-amber-400">{budget.countdownText || `${daysRemaining} Days Left`}</span>
-                <span>End: {budget.endDate ? formatDate(budget.endDate) : "Ongoing"}</span>
-              </div>
-            </div>
+          <div className="md:col-span-8 space-y-3">
+            <TooltipProvider delayDuration={100}>
+              {/* Gauge 1: Timeline Progress */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="budget-gauge-interactive space-y-1.5 cursor-pointer">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                        <Calendar className="h-3.5 w-3.5 text-purple-500" />
+                        Timeline Progress
+                      </span>
+                      <span className="text-purple-600 dark:text-purple-400 font-mono">
+                        {daysPassed} of {totalDurationDays} Days ({timelinePercentage}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden relative">
+                      <div
+                        className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${timelinePercentage}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>Start: {formatDate(budget.startDate)}</span>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">{budget.countdownText || `${daysRemaining} Days Left`}</span>
+                      <span>End: {budget.endDate ? formatDate(budget.endDate) : "Ongoing"}</span>
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="p-3 rounded-2xl max-w-xs shadow-2xl bg-slate-900 text-slate-100 border border-slate-800 text-xs space-y-1">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
+                    <strong className="text-purple-400 font-bold">Timeline Milestone Progress</strong>
+                    <Badge variant="outline" className="text-[9px] border-purple-500/30 text-purple-300">
+                      {timelinePercentage}% Elapsed
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 font-mono">
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Elapsed Duration</span>
+                      <span>{daysPassed} Days</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Remaining Duration</span>
+                      <span className="text-amber-400 font-bold">{daysRemaining} Days</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Start Timestamp</span>
+                      <span>{formatDate(budget.startDate)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Conclusion Target</span>
+                      <span>{budget.endDate ? formatDate(budget.endDate) : "Ongoing"}</span>
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
 
-            {/* Gauge 2: Budget Burn Progress */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                  <Flame className="h-3.5 w-3.5 text-rose-500" />
-                  Budget Burn Velocity vs Linear Pacing
-                </span>
-                <span className={`font-mono ${utilizationPercent > timelinePercentage ? "text-rose-600 font-bold" : "text-emerald-600"}`}>
-                  {utilizationPercent > timelinePercentage
-                    ? `Overburn (+${utilizationPercent - timelinePercentage}%)`
-                    : `Underburn (${timelinePercentage - utilizationPercent}% saved)`}
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden relative">
-                {/* Ideal Linear Marker */}
-                <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-slate-400 z-10"
-                  style={{ left: `${timelinePercentage}%` }}
-                  title="Ideal Pacing Marker"
-                />
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    utilizationPercent > 100
-                      ? "bg-rose-500"
-                      : utilizationPercent >= 85
-                      ? "bg-orange-500"
-                      : utilizationPercent >= 70
-                      ? "bg-amber-500"
-                      : "bg-emerald-500"
-                  }`}
-                  style={{ width: `${Math.min(100, utilizationPercent)}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400">
-                <span>Spent: {formatCurrency(totalSpent, currency)}</span>
-                <span>Ideal Target: {formatCurrency(Math.round((currentBudget * timelinePercentage) / 100), currency)}</span>
-                <span>Ceiling: {formatCurrency(currentBudget, currency)}</span>
-              </div>
-            </div>
+              {/* Gauge 2: Budget Burn Progress */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="budget-gauge-interactive space-y-1.5 cursor-pointer">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                        <Flame className="h-3.5 w-3.5 text-rose-500" />
+                        Budget Burn Velocity vs Linear Pacing
+                      </span>
+                      <span className={`font-mono ${utilizationPercent > timelinePercentage ? "text-rose-600 font-bold" : "text-emerald-600"}`}>
+                        {utilizationPercent > timelinePercentage
+                          ? `Overburn (+${utilizationPercent - timelinePercentage}%)`
+                          : `Underburn (${timelinePercentage - utilizationPercent}% saved)`}
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden relative">
+                      {/* Ideal Linear Marker */}
+                      <div
+                        className="absolute top-0 bottom-0 w-0.5 bg-slate-400 dark:bg-slate-500 z-10"
+                        style={{ left: `${timelinePercentage}%` }}
+                        title="Ideal Pacing Marker"
+                      />
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ease-out ${
+                          utilizationPercent > 100
+                            ? "bg-rose-500"
+                            : utilizationPercent >= 85
+                            ? "bg-orange-500"
+                            : utilizationPercent >= 70
+                            ? "bg-amber-500"
+                            : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${Math.min(100, utilizationPercent)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>Spent: {formatCurrency(totalSpent, currency)}</span>
+                      <span>Ideal Target: {formatCurrency(Math.round((currentBudget * timelinePercentage) / 100), currency)}</span>
+                      <span>Ceiling: {formatCurrency(currentBudget, currency)}</span>
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="p-3 rounded-2xl max-w-xs shadow-2xl bg-slate-900 text-slate-100 border border-slate-800 text-xs space-y-1">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
+                    <strong className="text-rose-400 font-bold">Burn Velocity Analysis</strong>
+                    <span className="text-[9px] font-mono font-bold text-slate-300">
+                      Cap: {formatCurrency(currentBudget, currency)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 font-mono">
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Current Actual Spend</span>
+                      <span className="text-rose-400 font-bold">{formatCurrency(totalSpent, currency)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Linear Pace Target</span>
+                      <span className="text-emerald-400">{formatCurrency(Math.round((currentBudget * timelinePercentage) / 100), currency)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Burn Variance</span>
+                      <span className={utilizationPercent > timelinePercentage ? "text-rose-400" : "text-emerald-400"}>
+                        {utilizationPercent > timelinePercentage ? `+${utilizationPercent - timelinePercentage}% Overburn` : `-${timelinePercentage - utilizationPercent}% Underburn`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Remaining Buffer</span>
+                      <span className="text-teal-400">{formatCurrency(remainingBudget, currency)}</span>
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
 
-            {/* Gauge 3: Daily Spend Indicator */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                  <Zap className="h-3.5 w-3.5 text-cyan-500" />
-                  Daily Actual Spending vs Spending Limit Allowance
-                </span>
-                <span className="font-mono text-cyan-600 dark:text-cyan-400">
-                  {formatCurrency(averageDailySpend, currency)}/d vs limit {formatCurrency(dailyAllowance, currency)}/d
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    averageDailySpend > dailyAllowance ? "bg-amber-500" : "bg-cyan-500"
-                  }`}
-                  style={{
-                    width: `${Math.min(100, Math.round((averageDailySpend / Math.max(1, dailyAllowance + averageDailySpend)) * 100))}%`,
-                  }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400">
-                <span>Safe Allowance: {formatCurrency(dailyAllowance, currency)}/day</span>
-                <span className={averageDailySpend > dailyAllowance ? "text-amber-500 font-semibold" : "text-emerald-500 font-semibold"}>
-                  {averageDailySpend > dailyAllowance ? "Pacing above safe allowance" : "Safe spending velocity"}
-                </span>
-              </div>
-            </div>
+              {/* Gauge 3: Daily Spend Indicator */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="budget-gauge-interactive space-y-1.5 cursor-pointer">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                        <Zap className="h-3.5 w-3.5 text-cyan-500" />
+                        Daily Actual Spending vs Spending Limit Allowance
+                      </span>
+                      <span className="font-mono text-cyan-600 dark:text-cyan-400">
+                        {formatCurrency(averageDailySpend, currency)}/d vs limit {formatCurrency(dailyAllowance, currency)}/d
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ease-out ${
+                          averageDailySpend > dailyAllowance ? "bg-amber-500" : "bg-cyan-500"
+                        }`}
+                        style={{
+                          width: `${Math.min(100, Math.round((averageDailySpend / Math.max(1, dailyAllowance + averageDailySpend)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>Safe Allowance: {formatCurrency(dailyAllowance, currency)}/day</span>
+                      <span className={averageDailySpend > dailyAllowance ? "text-amber-500 font-semibold" : "text-emerald-500 font-semibold"}>
+                        {averageDailySpend > dailyAllowance ? "Pacing above safe allowance" : "Safe spending velocity"}
+                      </span>
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="p-3 rounded-2xl max-w-xs shadow-2xl bg-slate-900 text-slate-100 border border-slate-800 text-xs space-y-1">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
+                    <strong className="text-cyan-400 font-bold">Daily Burn Dynamics</strong>
+                    <span className="text-[9px] font-mono text-slate-300">{formatCurrency(dailyAllowance, currency)}/d Limit</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 font-mono">
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Safe Allowance</span>
+                      <span className="text-emerald-400 font-bold">{formatCurrency(dailyAllowance, currency)}/d</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Actual Average Burn</span>
+                      <span className="text-cyan-400 font-bold">{formatCurrency(averageDailySpend, currency)}/d</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Daily Net Pace</span>
+                      <span className={dailySavings > 0 ? "text-emerald-400" : "text-amber-400"}>
+                        {dailySavings > 0 ? `+${formatCurrency(dailySavings, currency)}/d Saved` : "At Maximum Cap"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Remaining Days</span>
+                      <span>{daysRemaining} Days</span>
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
 
-            {/* Gauge 4: Savings Progress */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                  <PiggyBank className="h-3.5 w-3.5 text-emerald-500" />
-                  Savings Retention Progress
-                </span>
-                <span className="font-mono text-emerald-600 dark:text-emerald-400">
-                  {formatCurrency(remainingBudget, currency)} Preserved
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                  style={{ width: `${remainingPercent}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400">
-                <span>Potential Savings: {formatCurrency(remainingBudget, currency)}</span>
-                <span>Expected End Savings: {formatCurrency(expectedRemaining, currency)}</span>
-              </div>
-            </div>
+              {/* Gauge 4: Savings Progress */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="budget-gauge-interactive space-y-1.5 cursor-pointer">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                        <PiggyBank className="h-3.5 w-3.5 text-emerald-500" />
+                        Savings Retention Progress
+                      </span>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(remainingBudget, currency)} Preserved
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${remainingPercent}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>Potential Savings: {formatCurrency(remainingBudget, currency)}</span>
+                      <span>Expected End Savings: {formatCurrency(expectedRemaining, currency)}</span>
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="p-3 rounded-2xl max-w-xs shadow-2xl bg-slate-900 text-slate-100 border border-slate-800 text-xs space-y-1">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
+                    <strong className="text-emerald-400 font-bold">Verified Savings Retention</strong>
+                    <span className="text-[9px] font-bold text-emerald-300">{remainingPercent}% Preserved</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 font-mono">
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Unspent Budget</span>
+                      <span className="text-emerald-400 font-bold">{formatCurrency(remainingBudget, currency)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Net Verified Savings</span>
+                      <span className="text-teal-400 font-bold">{formatCurrency(currentNetSavings, currency)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Projected End Surplus</span>
+                      <span className="text-sky-400 font-bold">{formatCurrency(projectedEndSavings, currency)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] font-sans">Savings Efficiency</span>
+                      <span>{savingsPercent}%</span>
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </Card>
 
       {/* =========================================================================
           3. TWELVE (12) PROFESSIONAL KPI CARDS WITH UNIQUE FINANCIAL IDENTITIES
-          Hover: Lift 8px, Scale 1.02, Financial shadow, 180ms ease-out
+          Hover: Lift 6px, Scale 1.02, 180ms ease-out, unique semantic colors
           ========================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
         {/* Card 1: Initial Budget (Royal Blue) */}
-        <div className="budget-card-interactive glow-royal-blue group rounded-2xl border border-blue-500/25 bg-gradient-to-br from-blue-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+        <div className="budget-card-interactive glow-royal-blue group rounded-2xl border border-blue-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Initial Budget</span>
             <div className="budget-icon-interactive p-1.5 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
@@ -773,14 +993,14 @@ export function BudgetDetailsDashboard({
           </div>
           <div>
             <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-blue-600 dark:text-blue-400">
-              <AnimatedCounter value={formatCurrency(originalBudget, currency)} />
+              <AnimatedCounter value={formatCurrency(originalBudget, currency)} duration={0.5} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Initial baseline created</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Initial baseline created</p>
           </div>
         </div>
 
-        {/* Card 2: Current Total Budget (Indigo) */}
-        <div className="budget-card-interactive glow-indigo group rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-indigo-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+        {/* Card 2: Current Budget (Indigo) */}
+        <div className="budget-card-interactive glow-indigo group rounded-2xl border border-indigo-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Current Budget</span>
             <div className="budget-icon-interactive p-1.5 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
@@ -789,14 +1009,14 @@ export function BudgetDetailsDashboard({
           </div>
           <div>
             <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-indigo-600 dark:text-indigo-400">
-              <AnimatedCounter value={formatCurrency(currentBudget, currency)} />
+              <AnimatedCounter value={formatCurrency(currentBudget, currency)} duration={0.5} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Active authorized ceiling</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Active authorized ceiling</p>
           </div>
         </div>
 
         {/* Card 3: Budget Added (Sky Blue) */}
-        <div className="budget-card-interactive glow-sky group rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+        <div className="budget-card-interactive glow-sky group rounded-2xl border border-sky-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Budget Added</span>
             <div className="budget-icon-interactive p-1.5 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
@@ -805,16 +1025,16 @@ export function BudgetDetailsDashboard({
           </div>
           <div>
             <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-sky-600 dark:text-sky-400">
-              <AnimatedCounter value={`+${formatCurrency(additionalBudget, currency)}`} />
+              <AnimatedCounter value={`+${formatCurrency(additionalBudget, currency)}`} duration={0.5} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">
               {increaseCount > 0 ? `${increaseCount} revision${increaseCount > 1 ? "s" : ""} recorded` : "No revisions added yet"}
             </p>
           </div>
         </div>
 
-        {/* Card 4: Spent Amount (Crimson Red / Overspent Red) */}
-        <div className="budget-card-interactive glow-red group rounded-2xl border border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+        {/* Card 4: Spent Amount (Crimson) */}
+        <div className="budget-card-interactive glow-crimson group rounded-2xl border border-rose-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Spent Amount</span>
             <div className="budget-icon-interactive p-1.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400">
@@ -823,45 +1043,61 @@ export function BudgetDetailsDashboard({
           </div>
           <div>
             <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-rose-600 dark:text-rose-400">
-              <AnimatedCounter value={formatCurrency(totalSpent, currency)} />
+              <AnimatedCounter value={formatCurrency(totalSpent, currency)} duration={0.5} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">{utilizationPercent}% of ceiling consumed</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">{utilizationPercent}% of ceiling consumed</p>
           </div>
         </div>
 
-        {/* Card 5: Remaining Budget (Indigo / Teal) */}
-        <div className="budget-card-interactive glow-indigo group rounded-2xl border border-teal-500/25 bg-gradient-to-br from-teal-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+        {/* Card 5: Remaining Budget (Emerald) */}
+        <div className="budget-card-interactive glow-emerald group rounded-2xl border border-emerald-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Remaining Budget</span>
-            <div className="budget-icon-interactive p-1.5 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400">
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-teal-600 dark:text-teal-400">
-              <AnimatedCounter value={formatCurrency(remainingBudget, currency)} />
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
+              <AnimatedCounter value={formatCurrency(remainingBudget, currency)} duration={0.5} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">{remainingPercent}% available liquidity</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">{remainingPercent}% available liquidity</p>
           </div>
         </div>
 
-        {/* Card 6: Savings (Emerald Green) */}
-        <div className="budget-card-interactive glow-emerald group rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+        {/* Card 6: Savings (Teal) */}
+        <div className="budget-card-interactive glow-teal group rounded-2xl border border-teal-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Savings</span>
-            <div className="budget-icon-interactive p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400">
               <PiggyBank className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
-              <AnimatedCounter value={formatCurrency(currentNetSavings, currency)} />
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-teal-600 dark:text-teal-400">
+              <AnimatedCounter value={formatCurrency(currentNetSavings, currency)} duration={0.5} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Verified surplus retained</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Verified surplus retained</p>
           </div>
         </div>
 
-        {/* Card 7: Budget Health (Status Based: Green / Amber / Orange / Red) */}
+        {/* Card 7: Expected End Balance (Cyan) */}
+        <div className="budget-card-interactive glow-cyan group rounded-2xl border border-cyan-500/25 p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Expected End Balance</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
+              <Scale className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-cyan-600 dark:text-cyan-400">
+              <AnimatedCounter value={formatCurrency(expectedRemaining, currency)} duration={0.5} />
+            </div>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Projected spend: {formatCurrency(projectedEndSpend, currency)}</p>
+          </div>
+        </div>
+
+        {/* Card 8: Budget Health (Green / Amber / Red) */}
         <div className={`budget-card-interactive ${dynamicStatus.glowClass} group rounded-2xl border p-4 flex flex-col justify-between`}
           style={{ borderColor: `${dynamicStatus.colorHex}40`, background: `linear-gradient(135deg, ${dynamicStatus.colorHex}15, transparent)` }}
         >
@@ -875,12 +1111,28 @@ export function BudgetDetailsDashboard({
             <div className="budget-number-highlight text-2xl font-black tracking-tight" style={{ color: dynamicStatus.colorHex }}>
               {dynamicStatus.label}
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Pacing score: {budgetEfficiencyScore}/100</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Pacing score: {budgetEfficiencyScore}/100</p>
           </div>
         </div>
 
-        {/* Card 8: Remaining Days (Purple / Amber) */}
-        <div className="budget-card-interactive glow-purple group rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+        {/* Card 9: Daily Allowance (Azure) */}
+        <div className="budget-card-interactive glow-azure group rounded-2xl border border-sky-400/25 p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Daily Allowance</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-sky-400/15 text-sky-500 dark:text-sky-400">
+              <Gauge className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-sky-500 dark:text-sky-400">
+              <AnimatedCounter value={`${formatCurrency(dailyAllowance, currency)}/d`} duration={0.5} />
+            </div>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Actual burn: {formatCurrency(averageDailySpend, currency)}/d</p>
+          </div>
+        </div>
+
+        {/* Card 10: Remaining Days (Purple) */}
+        <div className="budget-card-interactive glow-purple group rounded-2xl border border-purple-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Remaining Days</span>
             <div className="budget-icon-interactive p-1.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
@@ -889,73 +1141,41 @@ export function BudgetDetailsDashboard({
           </div>
           <div>
             <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-purple-600 dark:text-purple-400">
-              <AnimatedCounter value={daysRemaining} suffix=" Days" />
+              <AnimatedCounter value={daysRemaining} suffix=" Days" duration={0.5} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">{daysPassed} days completed ({totalDurationDays} total)</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">{budget.countdownText || `${daysRemaining} days left`}</p>
           </div>
         </div>
 
-        {/* Card 9: Timeline Completion (Purple) */}
-        <div className="budget-card-interactive glow-purple group rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+        {/* Card 11: Elapsed Days (Slate) */}
+        <div className="budget-card-interactive glow-slate group rounded-2xl border border-slate-400/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Timeline Completion</span>
-            <div className="budget-icon-interactive p-1.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Elapsed Days</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-slate-500/15 text-slate-600 dark:text-slate-300">
               <CalendarDays className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-purple-600 dark:text-purple-400">
-              <AnimatedCounter value={timelinePercentage} suffix="%" />
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-slate-700 dark:text-slate-300">
+              <AnimatedCounter value={daysPassed} suffix=" Days" duration={0.5} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Elapsed time progress</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">{timelinePercentage}% elapsed ({totalDurationDays} total)</p>
           </div>
         </div>
 
-        {/* Card 10: Average Daily Spend (Cyan) */}
-        <div className="budget-card-interactive glow-cyan group rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-transparent p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Average Daily Spend</span>
-            <div className="budget-icon-interactive p-1.5 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
-              <Zap className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-cyan-600 dark:text-cyan-400">
-              <AnimatedCounter value={`${formatCurrency(averageDailySpend, currency)}/d`} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">Safe allowance: {formatCurrency(dailyAllowance, currency)}/d</p>
-          </div>
-        </div>
-
-        {/* Card 11: Projected End Balance (Sky Blue / Emerald) */}
-        <div className="budget-card-interactive glow-sky group rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-background to-transparent p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Projected End Balance</span>
-            <div className="budget-icon-interactive p-1.5 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
-              <Scale className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-sky-600 dark:text-sky-400">
-              <AnimatedCounter value={formatCurrency(expectedRemaining, currency)} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">Projected end spend: {formatCurrency(projectedEndSpend, currency)}</p>
-          </div>
-        </div>
-
-        {/* Card 12: Forecast Accuracy (Cyan) */}
-        <div className="budget-card-interactive glow-cyan group rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+        {/* Card 12: Forecast Accuracy (Violet) */}
+        <div className="budget-card-interactive glow-violet group rounded-2xl border border-violet-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Forecast Accuracy</span>
-            <div className="budget-icon-interactive p-1.5 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400">
               <Sparkles className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-cyan-600 dark:text-cyan-400">
-              <AnimatedCounter value={forecastAccuracy} suffix="%" />
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-violet-600 dark:text-violet-400">
+              <AnimatedCounter value={forecastAccuracy} suffix="%" duration={0.5} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">Historical variance index</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Historical variance index</p>
           </div>
         </div>
       </div>
@@ -980,128 +1200,182 @@ export function BudgetDetailsDashboard({
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Current Budget</span>
-            <strong className="text-sm font-mono text-slate-900 dark:text-slate-100">
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Current Budget</span>
+              <Target className="ledger-icon h-3.5 w-3.5 text-indigo-500" />
+            </div>
+            <strong className="text-sm font-mono text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
               {formatCurrency(currentBudget, currency)}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Initial Budget</span>
-            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Initial Budget</span>
+              <Wallet className="ledger-icon h-3.5 w-3.5 text-blue-500" />
+            </div>
+            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
               {formatCurrency(originalBudget, currency)}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Current Active Budget</span>
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Current Active Budget</span>
+              <Layers className="ledger-icon h-3.5 w-3.5 text-indigo-500" />
+            </div>
             <strong className="text-sm font-mono text-indigo-600 dark:text-indigo-400">
               {formatCurrency(currentBudget, currency)}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Total Added Budget</span>
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Total Added Budget</span>
+              <Coins className="ledger-icon h-3.5 w-3.5 text-sky-500" />
+            </div>
             <strong className="text-sm font-mono text-sky-600 dark:text-sky-400">
               +{formatCurrency(additionalBudget, currency)}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Remaining Budget</span>
-            <strong className="text-sm font-mono text-teal-600 dark:text-teal-400">
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Remaining Budget</span>
+              <TrendingUp className="ledger-icon h-3.5 w-3.5 text-emerald-500" />
+            </div>
+            <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
               {formatCurrency(remainingBudget, currency)}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Remaining Days</span>
-            <strong className="text-sm font-mono text-amber-600 dark:text-amber-400">
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Remaining Days</span>
+              <Hourglass className="ledger-icon h-3.5 w-3.5 text-purple-500" />
+            </div>
+            <strong className="text-sm font-mono text-purple-600 dark:text-purple-400">
               {daysRemaining} Days
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Elapsed Days</span>
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Elapsed Days</span>
+              <CalendarDays className="ledger-icon h-3.5 w-3.5 text-slate-500" />
+            </div>
             <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
               {daysPassed} Days
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Daily Spending Limit</span>
-            <strong className="text-sm font-mono text-cyan-600 dark:text-cyan-400">
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Daily Spending Limit</span>
+              <Gauge className="ledger-icon h-3.5 w-3.5 text-sky-500" />
+            </div>
+            <strong className="text-sm font-mono text-sky-600 dark:text-sky-400">
               {formatCurrency(dailyAllowance, currency)}/d
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Daily Actual Spending</span>
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Daily Actual Spending</span>
+              <Zap className="ledger-icon h-3.5 w-3.5 text-rose-500" />
+            </div>
             <strong className="text-sm font-mono text-slate-900 dark:text-slate-100">
               {formatCurrency(averageDailySpend, currency)}/d
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Average Daily Spend</span>
-            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Average Daily Spend</span>
+              <Activity className="ledger-icon h-3.5 w-3.5 text-cyan-500" />
+            </div>
+            <strong className="text-sm font-mono text-cyan-600 dark:text-cyan-400">
               {formatCurrency(averageDailySpend, currency)}/d
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Remaining Daily Allowance</span>
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Remaining Daily Allowance</span>
+              <Gauge className="ledger-icon h-3.5 w-3.5 text-emerald-500" />
+            </div>
             <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
               {formatCurrency(dailyAllowance, currency)}/d
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Total Savings</span>
-            <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Total Savings</span>
+              <PiggyBank className="ledger-icon h-3.5 w-3.5 text-teal-500" />
+            </div>
+            <strong className="text-sm font-mono text-teal-600 dark:text-teal-400">
               {formatCurrency(currentNetSavings, currency)}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Budget Utilization</span>
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Budget Utilization</span>
+              <Percent className="ledger-icon h-3.5 w-3.5 text-amber-500" />
+            </div>
             <strong className={`text-sm font-mono ${utilizationPercent > 100 ? "text-rose-600" : "text-slate-900 dark:text-slate-100"}`}>
               {utilizationPercent}%
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Budget Health</span>
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Budget Health</span>
+              <ShieldAlert className="ledger-icon h-3.5 w-3.5" style={{ color: dynamicStatus.colorHex }} />
+            </div>
             <strong className="text-sm font-mono" style={{ color: dynamicStatus.colorHex }}>
               {dynamicStatus.label}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Projected Completion</span>
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Projected Completion</span>
+              <Clock className="ledger-icon h-3.5 w-3.5 text-purple-500" />
+            </div>
             <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
               {projectedExhaustionDate ? formatDate(projectedExhaustionDate) : "On Track"}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Expected Remaining Balance</span>
-            <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Expected Remaining Balance</span>
+              <Scale className="ledger-icon h-3.5 w-3.5 text-cyan-500" />
+            </div>
+            <strong className="text-sm font-mono text-cyan-600 dark:text-cyan-400">
               {formatCurrency(expectedRemaining, currency)}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Expected Overspend</span>
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Expected Overspend</span>
+              <AlertTriangle className="ledger-icon h-3.5 w-3.5 text-amber-500" />
+            </div>
             <strong className={`text-sm font-mono ${expectedOverspend > 0 ? "text-rose-600" : "text-emerald-600"}`}>
               {expectedOverspend > 0 ? formatCurrency(expectedOverspend, currency) : "₹0 (Safe)"}
             </strong>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
-            <span className="text-slate-400 text-[10px] block">Forecast Accuracy</span>
-            <strong className="text-sm font-mono text-cyan-600 dark:text-cyan-400">
+          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-400 text-[10px] block">Forecast Accuracy</span>
+              <Sparkles className="ledger-icon h-3.5 w-3.5 text-violet-500" />
+            </div>
+            <strong className="text-sm font-mono text-violet-600 dark:text-violet-400">
               {forecastAccuracy}%
             </strong>
           </div>
@@ -1137,113 +1411,135 @@ export function BudgetDetailsDashboard({
             
             {/* Active Progress Fill */}
             <div
-              className="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-500 -translate-y-1/2 z-0 transition-all duration-500"
+              className="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-500 -translate-y-1/2 z-0 transition-all duration-500 ease-out"
               style={{ width: `${timelinePercentage}%` }}
             />
 
             {/* Interactive Milestone Nodes */}
-            <TooltipProvider delayDuration={150}>
-              {timelineMilestones.map((milestone, idx) => (
-                <Tooltip key={milestone.id}>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onMouseEnter={() => setHoveredEventId(milestone.id)}
-                      onMouseLeave={() => setHoveredEventId(null)}
-                      className="relative z-10 flex flex-col items-center group focus:outline-none"
-                    >
-                      <div
-                        className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold ring-4 ring-background transition-all duration-200 ${
-                          milestone.colorClass
-                        } group-hover:scale-125 group-hover:shadow-lg`}
+            <TooltipProvider delayDuration={100}>
+              {timelineMilestones.map((milestone, idx) => {
+                const nodePulseClass = milestone.isCurrent
+                  ? "milestone-current-pulse ring-4 ring-purple-500/40 shadow-lg scale-110"
+                  : milestone.isCompleted
+                  ? "milestone-completed-glow ring-2 ring-emerald-500/30"
+                  : "opacity-60 ring-2 ring-slate-400/20 border border-dashed border-slate-400";
+
+                return (
+                  <Tooltip key={milestone.id}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onMouseEnter={() => setHoveredEventId(milestone.id)}
+                        onMouseLeave={() => setHoveredEventId(null)}
+                        className="relative z-10 flex flex-col items-center group focus:outline-none cursor-pointer"
                       >
-                        {idx + 1}
+                        <div
+                          className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-black ring-4 ring-background transition-all duration-200 ${
+                            milestone.colorClass
+                          } ${nodePulseClass} group-hover:scale-125 group-hover:shadow-xl`}
+                        >
+                          {idx + 1}
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-1 max-w-[85px] truncate text-center group-hover:text-primary transition-colors">
+                          {milestone.title}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono">
+                          {formatDate(milestone.date)}
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="p-3.5 rounded-2xl max-w-xs shadow-2xl bg-slate-900 text-slate-100 border border-slate-800 text-xs space-y-2 select-none animate-in fade-in-50 zoom-in-95 duration-150">
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5">
+                        <strong className="text-purple-300 font-bold">{milestone.title}</strong>
+                        <Badge variant="outline" className="text-[9px] font-mono border-purple-500/30 text-purple-300">
+                          {milestone.ledgerReference}
+                        </Badge>
                       </div>
-                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-1 max-w-[80px] truncate text-center">
-                        {milestone.title}
-                      </span>
-                      <span className="text-[9px] text-slate-400 font-mono">
-                        {formatDate(milestone.date)}
-                      </span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="p-3 rounded-2xl max-w-xs shadow-2xl bg-slate-900 text-slate-100 border border-slate-800 text-xs space-y-1.5">
-                    <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
-                      <strong className="text-emerald-400 font-bold">{milestone.title}</strong>
-                      <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-300">
-                        {milestone.ledgerReference}
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                      <div>
-                        <span className="text-slate-400 block text-[9px]">Date & Time</span>
-                        <span>{formatDate(milestone.date)} • {milestone.time}</span>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] pt-0.5 font-mono">
+                        <div>
+                          <span className="text-slate-400 block text-[9px] font-sans">Date & Time</span>
+                          <span>{formatDate(milestone.date)} • {milestone.time}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[9px] font-sans">Event Amount</span>
+                          <strong className="text-emerald-400">{formatCurrency(milestone.amount, currency)}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[9px] font-sans">Remaining Budget</span>
+                          <span>{formatCurrency(milestone.remainingBudget, currency)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[9px] font-sans">Remaining Days</span>
+                          <span className="text-amber-400 font-bold">{milestone.remainingDays} Days</span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-slate-400 block text-[9px]">Event Amount</span>
-                        <strong className="text-emerald-400 font-mono">{formatCurrency(milestone.amount, currency)}</strong>
+                      <div className="text-[10px] pt-1 border-t border-slate-800/80 flex items-center justify-between">
+                        <span className="text-slate-400 font-sans">Timeline Status:</span>
+                        <Badge variant="secondary" className="text-[9px] font-bold bg-slate-800 text-slate-200">
+                          {milestone.isCurrent ? "Current Milestone" : milestone.isCompleted ? "Verified Completed" : "Upcoming Target"}
+                        </Badge>
                       </div>
-                      <div>
-                        <span className="text-slate-400 block text-[9px]">Remaining Budget</span>
-                        <span className="font-mono">{formatCurrency(milestone.remainingBudget, currency)}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block text-[9px]">Remaining Days</span>
-                        <span className="font-mono">{milestone.remainingDays} Days</span>
-                      </div>
-                    </div>
-                    {milestone.notes && (
-                      <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-800/80">
-                        {milestone.notes}
-                      </p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              ))}
+                      {milestone.notes && (
+                        <p className="text-[10px] text-slate-400 italic pt-0.5">
+                          {milestone.notes}
+                        </p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
             </TooltipProvider>
           </div>
         </div>
 
         {/* Milestone Detail Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
-          {timelineMilestones.map((milestone) => (
-            <div
-              key={milestone.id}
-              className={`p-3 rounded-2xl border transition-all duration-200 ${
-                hoveredEventId === milestone.id
-                  ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
-                  : "border-slate-200/60 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30"
-              }`}
-            >
-              <div className="flex items-center justify-between pb-1">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                  {milestone.title}
-                </span>
-                <Badge variant="outline" className="text-[9px] font-mono border-slate-300 dark:border-slate-700">
-                  {milestone.ledgerReference}
-                </Badge>
+          {timelineMilestones.map((milestone) => {
+            const isHovered = hoveredEventId === milestone.id;
+
+            return (
+              <div
+                key={milestone.id}
+                onMouseEnter={() => setHoveredEventId(milestone.id)}
+                onMouseLeave={() => setHoveredEventId(null)}
+                className={`budget-card-interactive glow-purple p-3.5 rounded-2xl border transition-all duration-180 cursor-pointer ${
+                  isHovered
+                    ? "border-purple-500 bg-purple-500/10 shadow-lg -translate-y-1.5 scale-[1.02]"
+                    : "border-slate-200/60 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30"
+                }`}
+              >
+                <div className="flex items-center justify-between pb-1.5">
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                    <span className={`h-2 w-2 rounded-full ${milestone.isCurrent ? "bg-purple-500 animate-ping" : milestone.isCompleted ? "bg-emerald-500" : "bg-slate-400"}`} />
+                    {milestone.title}
+                  </span>
+                  <Badge variant="outline" className="text-[9px] font-mono border-slate-300 dark:border-slate-700">
+                    {milestone.ledgerReference}
+                  </Badge>
+                </div>
+                <div className="text-[11px] space-y-0.5 text-slate-600 dark:text-slate-300">
+                  <p>
+                    <span className="text-slate-400">Date:</span> {formatDate(milestone.date)} ({milestone.time})
+                  </p>
+                  <p>
+                    <span className="text-slate-400">Amount:</span> <strong className="font-mono text-emerald-600 dark:text-emerald-400">{formatCurrency(milestone.amount, currency)}</strong>
+                  </p>
+                  <p>
+                    <span className="text-slate-400">Remaining Cap:</span> <span className="font-mono">{formatCurrency(milestone.remainingBudget, currency)}</span>
+                  </p>
+                  <p className="text-[10px] text-slate-400 pt-0.5 italic truncate">
+                    {milestone.notes || "Verified record"}
+                  </p>
+                </div>
               </div>
-              <div className="text-[11px] space-y-0.5 text-slate-600 dark:text-slate-300">
-                <p>
-                  <span className="text-slate-400">Date:</span> {formatDate(milestone.date)} ({milestone.time})
-                </p>
-                <p>
-                  <span className="text-slate-400">Amount:</span> <strong className="font-mono text-emerald-600 dark:text-emerald-400">{formatCurrency(milestone.amount, currency)}</strong>
-                </p>
-                <p>
-                  <span className="text-slate-400">Remaining Cap:</span> <span className="font-mono">{formatCurrency(milestone.remainingBudget, currency)}</span>
-                </p>
-                <p className="text-[10px] text-slate-400 pt-0.5 italic truncate">
-                  {milestone.notes || "Verified record"}
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 
       {/* =========================================================================
           6. SMART SAVINGS ENGINE
+          Hover: soft cyan glow, number emphasis, icon pulse, gradient border transition
           ========================================================================= */}
       <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1263,73 +1559,93 @@ export function BudgetDetailsDashboard({
 
         {/* Savings Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          <div className="p-3.5 rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-transparent space-y-1">
-            <span className="text-slate-500 text-[11px] font-semibold">Saved Amount</span>
-            <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
-              <AnimatedCounter value={formatCurrency(currentNetSavings, currency)} />
+          <div className="budget-card-interactive glow-emerald p-4 rounded-2xl border border-emerald-500/25 space-y-1.5 group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-500 text-[11px] font-semibold">Saved Amount</span>
+              <div className="budget-icon-interactive p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <PiggyBank className="h-4 w-4" />
+              </div>
             </div>
-            <p className="text-[10px] text-slate-400">Verified cash surplus retained</p>
+            <div className="budget-number-highlight text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+              <AnimatedCounter value={formatCurrency(currentNetSavings, currency)} duration={0.5} />
+            </div>
+            <p className="budget-card-subtitle text-[10px] text-slate-400">Verified cash surplus retained</p>
           </div>
 
-          <div className="p-3.5 rounded-2xl border border-teal-500/25 bg-gradient-to-br from-teal-500/10 to-transparent space-y-1">
-            <span className="text-slate-500 text-[11px] font-semibold">Potential Savings</span>
-            <div className="text-2xl font-black font-mono text-teal-600 dark:text-teal-400">
-              <AnimatedCounter value={formatCurrency(potentialSavings, currency)} />
+          <div className="budget-card-interactive glow-teal p-4 rounded-2xl border border-teal-500/25 space-y-1.5 group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-500 text-[11px] font-semibold">Potential Savings</span>
+              <div className="budget-icon-interactive p-1.5 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400">
+                <TrendingUp className="h-4 w-4" />
+              </div>
             </div>
-            <p className="text-[10px] text-slate-400">Current unspent budget buffer</p>
+            <div className="budget-number-highlight text-2xl font-black font-mono text-teal-600 dark:text-teal-400">
+              <AnimatedCounter value={formatCurrency(potentialSavings, currency)} duration={0.5} />
+            </div>
+            <p className="budget-card-subtitle text-[10px] text-slate-400">Current unspent budget buffer</p>
           </div>
 
-          <div className="p-3.5 rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-indigo-500/10 to-transparent space-y-1">
-            <span className="text-slate-500 text-[11px] font-semibold">Expected End Savings</span>
-            <div className="text-2xl font-black font-mono text-indigo-600 dark:text-indigo-400">
-              <AnimatedCounter value={formatCurrency(updatedExpectedSavings, currency)} />
+          <div className="budget-card-interactive glow-indigo p-4 rounded-2xl border border-indigo-500/25 space-y-1.5 group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-500 text-[11px] font-semibold">Expected End Savings</span>
+              <div className="budget-icon-interactive p-1.5 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
+                <Target className="h-4 w-4" />
+              </div>
             </div>
-            <p className="text-[10px] text-slate-400">Preserved after complete budget run</p>
+            <div className="budget-number-highlight text-2xl font-black font-mono text-indigo-600 dark:text-indigo-400">
+              <AnimatedCounter value={formatCurrency(updatedExpectedSavings, currency)} duration={0.5} />
+            </div>
+            <p className="budget-card-subtitle text-[10px] text-slate-400">Preserved after complete budget run</p>
           </div>
 
-          <div className="p-3.5 rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 to-transparent space-y-1">
-            <span className="text-slate-500 text-[11px] font-semibold">Projected End Savings</span>
-            <div className="text-2xl font-black font-mono text-sky-600 dark:text-sky-400">
-              <AnimatedCounter value={formatCurrency(projectedEndSavings, currency)} />
+          <div className="budget-card-interactive glow-cyan p-4 rounded-2xl border border-cyan-500/25 space-y-1.5 group">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-slate-500 text-[11px] font-semibold">Projected End Savings</span>
+              <div className="budget-icon-interactive p-1.5 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
+                <Scale className="h-4 w-4" />
+              </div>
             </div>
-            <p className="text-[10px] text-slate-400">Surplus at current burn velocity</p>
+            <div className="budget-number-highlight text-2xl font-black font-mono text-cyan-600 dark:text-cyan-400">
+              <AnimatedCounter value={formatCurrency(projectedEndSavings, currency)} duration={0.5} />
+            </div>
+            <p className="budget-card-subtitle text-[10px] text-slate-400">Surplus at current burn velocity</p>
           </div>
         </div>
 
         {/* Savings Trends Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-          <div className="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+          <div className="budget-card-interactive glow-emerald p-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between group">
             <div>
               <span className="text-slate-400 text-[10px] block">Daily Savings Rate</span>
               <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
                 +{formatCurrency(dailySavings, currency)}/day
               </strong>
             </div>
-            <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">
+            <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30 font-semibold">
               Daily Pace
             </Badge>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+          <div className="budget-card-interactive glow-teal p-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between group">
             <div>
               <span className="text-slate-400 text-[10px] block">Weekly Savings Trend</span>
               <strong className="text-sm font-mono text-teal-600 dark:text-teal-400">
                 +{formatCurrency(weeklySavings, currency)}/wk
               </strong>
             </div>
-            <Badge variant="outline" className="text-[10px] text-teal-600 border-teal-500/30">
+            <Badge variant="outline" className="text-[10px] text-teal-600 border-teal-500/30 font-semibold">
               7 Days
             </Badge>
           </div>
 
-          <div className="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+          <div className="budget-card-interactive glow-indigo p-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 flex items-center justify-between group">
             <div>
               <span className="text-slate-400 text-[10px] block">Monthly Savings Run-Rate</span>
               <strong className="text-sm font-mono text-indigo-600 dark:text-indigo-400">
                 +{formatCurrency(monthlySavings, currency)}/mo
               </strong>
             </div>
-            <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-500/30">
+            <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-500/30 font-semibold">
               30 Days
             </Badge>
           </div>
@@ -1392,21 +1708,29 @@ export function BudgetDetailsDashboard({
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0} />
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.45} />
+                          <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.12} />
                       <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
                       <RechartsTooltip
-                        formatter={(val: any) => [`₹${Number(val || 0).toLocaleString("en-IN")}`, "Spending"]}
-                        contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
+                        content={
+                          <CustomEnterpriseChartTooltip
+                            dynamicStatus={dynamicStatus}
+                            dailyAllowance={dailyAllowance}
+                            averageDailySpend={averageDailySpend}
+                            currency={currency}
+                            selectedChartTab={selectedChartTab}
+                          />
+                        }
+                        cursor={{ stroke: "rgba(99, 102, 241, 0.4)", strokeWidth: 1.5, strokeDasharray: "4 4" }}
                       />
                       <Area
                         type="monotone"
                         dataKey="spend"
-                        stroke="#4f46e5"
+                        stroke="#2563eb"
                         strokeWidth={2.5}
                         fillOpacity={1}
                         fill="url(#spendGrad)"
@@ -1416,24 +1740,29 @@ export function BudgetDetailsDashboard({
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="cumulGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#dc2626" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#dc2626" stopOpacity={0.0} />
+                          <stop offset="5%" stopColor="#e11d48" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="#e11d48" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.12} />
                       <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
                       <RechartsTooltip
-                        formatter={(val: any, name: any) => [
-                          `₹${Number(val || 0).toLocaleString("en-IN")}`,
-                          name === "cumulativeSpend" ? "Cumulative Spend" : "Ideal Spend Line",
-                        ]}
-                        contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
+                        content={
+                          <CustomEnterpriseChartTooltip
+                            dynamicStatus={dynamicStatus}
+                            dailyAllowance={dailyAllowance}
+                            averageDailySpend={averageDailySpend}
+                            currency={currency}
+                            selectedChartTab={selectedChartTab}
+                          />
+                        }
+                        cursor={{ stroke: "rgba(225, 29, 72, 0.4)", strokeWidth: 1.5, strokeDasharray: "4 4" }}
                       />
                       <Area
                         type="monotone"
                         dataKey="cumulativeSpend"
-                        stroke="#dc2626"
+                        stroke="#e11d48"
                         strokeWidth={2.5}
                         fill="url(#cumulGrad)"
                       />
@@ -1449,12 +1778,20 @@ export function BudgetDetailsDashboard({
                     </AreaChart>
                   ) : (
                     <BarChart data={comparisonData}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.12} />
                       <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
                       <RechartsTooltip
-                        formatter={(val: any) => [`₹${Number(val || 0).toLocaleString("en-IN")}`, "Amount"]}
-                        contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
+                        content={
+                          <CustomEnterpriseChartTooltip
+                            dynamicStatus={dynamicStatus}
+                            dailyAllowance={dailyAllowance}
+                            averageDailySpend={averageDailySpend}
+                            currency={currency}
+                            selectedChartTab={selectedChartTab}
+                          />
+                        }
+                        cursor={{ fill: "rgba(99, 102, 241, 0.08)" }}
                       />
                       <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
                         {comparisonData.map((entry, index) => (
@@ -1475,8 +1812,8 @@ export function BudgetDetailsDashboard({
 
         {/* AI Spend Insights & Last Expense (1 Col) */}
         <div className="space-y-4">
-          <Card className="rounded-3xl border border-primary/20 bg-gradient-to-b from-primary/5 via-transparent to-transparent p-5 shadow-sm space-y-3">
-            <div className="flex items-center gap-2 text-primary font-bold text-xs">
+          <Card className="rounded-3xl border border-teal-500/25 bg-gradient-to-b from-teal-500/5 via-transparent to-transparent p-5 shadow-sm space-y-3">
+            <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 font-bold text-xs">
               <Sparkles className="h-4 w-4" />
               <span>Verified Ledger AI Insights</span>
             </div>
@@ -1484,9 +1821,9 @@ export function BudgetDetailsDashboard({
             <div className="space-y-2 pt-1 text-xs">
               {budget.aiInsights && budget.aiInsights.length > 0 ? (
                 budget.aiInsights.map((insight, idx) => (
-                  <div key={idx} className="flex items-start gap-2 p-2.5 rounded-xl bg-card border border-slate-200/60 dark:border-slate-800 text-slate-700 dark:text-slate-300">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                    <span>{insight}</span>
+                  <div key={idx} className="insight-card-interactive p-2.5 flex items-start gap-2.5 text-slate-700 dark:text-slate-300">
+                    <CheckCircle2 className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{insight}</span>
                   </div>
                 ))
               ) : (
@@ -1498,7 +1835,7 @@ export function BudgetDetailsDashboard({
           </Card>
 
           {/* Last Expense Quick Card */}
-          <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-4 space-y-2">
+          <Card className="budget-card-interactive glow-crimson rounded-3xl border border-rose-500/20 bg-card p-4 space-y-2">
             <span className="text-[11px] font-semibold text-slate-400 block">Last Verified Expense</span>
             {budget.lastExpense ? (
               <div className="flex items-center justify-between">
