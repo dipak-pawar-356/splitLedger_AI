@@ -15,11 +15,16 @@ export const metadata: Metadata = createPageMetadata({
 
 export const dynamic = "force-dynamic";
 
-export default async function BudgetsPage() {
+export default async function BudgetsPage(props: {
+  searchParams?: Promise<{ month?: string }>;
+}) {
+  const searchParams = props.searchParams ? await props.searchParams : {};
+  const month = searchParams.month;
+
   try {
     await requireAuth();
-    const summary = await getBudgetDashboardSummary();
-    return <BudgetsDashboardView initialMetrics={summary} />;
+    const summary = await getBudgetDashboardSummary(month);
+    return <BudgetsDashboardView initialMetrics={summary} initialMonth={month} />;
   } catch (error) {
     console.error("Error loading budgets page:", error);
     const fallbackMetrics: BudgetDashboardMetrics = {
@@ -46,7 +51,6 @@ export default async function BudgetsPage() {
       expectedSavings: 0,
       savingsRate: 0,
     };
-    return <BudgetsDashboardView initialMetrics={fallbackMetrics} />;
+    return <BudgetsDashboardView initialMetrics={fallbackMetrics} initialMonth={month} />;
   }
 }
-

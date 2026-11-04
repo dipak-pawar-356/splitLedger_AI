@@ -11,8 +11,9 @@ import {
   settlements,
   contacts,
 } from "@/lib/db/schema/schema";
-import { eq, and, desc, sql, gte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { parseMonthParam } from "@/lib/month-sync";
 import {
   BudgetRecord,
   BudgetType,
@@ -174,13 +175,16 @@ function logAudit(userId: number, budgetId: string, action: BudgetAuditLog["acti
 /**
  * Get all active user budgets combined with real-time transaction spending from PostgreSQL
  */
-export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
+export async function getBudgetsWithProgress(targetMonth?: string): Promise<BudgetProgress[]> {
   const user = await requireAuth();
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
+  const monthInfo = parseMonthParam(targetMonth);
+  const monthStart = monthInfo.startDate;
+  const monthEnd = monthInfo.endDate;
 
   try {
-    const dbBudgets = await withDbRetry(() =>
+    const rawDbBudgets = await withDbRetry(() =>
       db
         .select({
           id: budgets.id,
@@ -213,112 +217,135 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
         .orderBy(desc(budgets.createdAt))
     );
 
-    if (dbBudgets.length === 0) {
+    // Filter budgets that overlap with the selected month
+    const dbBudgets = rawDbBudgets.filter((b) => {
+      const bStart = parseSafeDate(b.startDate).getTime();
+      const bEnd = parseSafeDate(b.endDate).getTime();
+      return bStart <= monthEnd.getTime() && bEnd >= monthStart.getTime();
+    });
+
+    if (dbBudgets.length === 0 && rawDbBudgets.length === 0) {
       // Check in-memory store for fallback (e.g. during mocking/unit tests)
       const memBudgets = budgetsStore.get(userKey) || [];
       if (memBudgets.length > 0) {
         const now = new Date();
-        return memBudgets
+        const memFiltered = memBudgets
           .filter((b) => b.status !== "archived")
-          .map((b, idx) => {
-            const budgetStart = parseSafeDate(b.startDate || now).getTime();
-            const budgetEnd = parseSafeDate(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
-            const totalDays = Math.max(1, Math.ceil((budgetEnd - budgetStart) / 86400000));
-            const daysPassed = Math.max(0, Math.min(totalDays, Math.ceil((now.getTime() - budgetStart) / 86400000)));
-            const daysRemaining = Math.max(0, Math.ceil((budgetEnd - now.getTime()) / 86400000));
-            const remainingDays = daysRemaining;
-            const remainingHours = Math.max(0, Math.floor((budgetEnd - now.getTime()) / 3600000));
-            const remainingWeeks = Math.floor(daysRemaining / 7);
-            const remainingMonths = Number((daysRemaining / 30.4).toFixed(1));
-            const timelinePercentage = Math.min(100, Math.max(0, Math.round((daysPassed / totalDays) * 100)));
-
-            const originalAmount = b.originalAmount ?? b.allocatedAmount;
-            const additionalAmount = b.additionalAmount ?? 0;
-            const increaseCount = b.increaseCount ?? (b.increases?.length || 0);
-            const increases = b.increases ?? [];
-            const spent = b.spentAmount;
-            const amount = b.allocatedAmount;
-            const remaining = Math.max(0, amount - spent);
-            const percentage = amount > 0 ? Math.round((spent / amount) * 100) : 0;
-
-            const dailyBurnRate = daysPassed > 0 ? Math.round(spent / daysPassed) : Math.round(spent);
-            const dailyBudgetRemaining = daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0;
-            const projectedSpend = Math.round(spent + dailyBurnRate * daysRemaining);
-            const expectedRemaining = Math.max(0, amount - projectedSpend);
-            const growthPercentage = originalAmount > 0 ? Math.round(((amount - originalAmount) / originalAmount) * 100) : 0;
-
-            let computedStatus: BudgetComputedStatus = "active";
-            if (b.status === "paused") computedStatus = "paused";
-            else if (b.status === "archived") computedStatus = "cancelled";
-            else if (now.getTime() < budgetStart) computedStatus = "upcoming";
-            else if (spent > amount) computedStatus = "exceeded";
-            else if (now.getTime() > budgetEnd) computedStatus = "completed";
-            else if (daysRemaining <= 3 || timelinePercentage >= 85) computedStatus = "ending_soon";
-
-            const countdownText = computeCountdownText(
-              computedStatus,
-              daysRemaining,
-              remainingHours,
-              daysPassed,
-              totalDays,
-              new Date(b.startDate || now),
-              new Date(b.endDate || now),
-              now
-            );
-
-            return {
-              id: idx + 1,
-              publicId: b.id,
-              name: b.name,
-              description: b.description,
-              amount,
-              spent,
-              usedAmount: spent,
-              remaining,
-              remainingAmount: remaining,
-              percentage,
-              usedPercentage: percentage,
-              status: percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track",
-              healthStatus: percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track",
-              period: (b.period as any) || "monthly",
-              budgetType: b.budgetType || "personal",
-              startDate: b.startDate || now.toISOString(),
-              endDate: b.endDate || new Date().toISOString(),
-              remainingDays,
-              daysRemaining,
-              dailyBudgetRemaining,
-              dailyBurnRate,
-              projectedSpend,
-              isOverBudget: spent > amount,
-              originalAmount,
-              additionalAmount,
-              increaseCount,
-              increases,
-              durationPreset: b.durationPreset || (b.period as any) || "monthly",
-              totalDurationDays: totalDays,
-              daysPassed,
-              remainingHours,
-              remainingWeeks,
-              remainingMonths,
-              countdownText,
-              timelinePercentage,
-              computedStatus,
-              dailyAllowance: dailyBudgetRemaining,
-              expectedRemaining,
-              growthPercentage,
-              savingsImpact: additionalAmount,
-              dailySpending: b.dailySpending || [],
-              aiInsights: b.aiInsights || [
-                `You have used ${percentage}% of your budget.`,
-                `${countdownText} before budget expiry.`,
-              ],
-            };
+          .filter((b) => {
+            const bStart = parseSafeDate(b.startDate || now).getTime();
+            const bEnd = parseSafeDate(b.endDate || monthEnd).getTime();
+            return bStart <= monthEnd.getTime() && bEnd >= monthStart.getTime();
           });
+
+        const list: BudgetProgress[] = memFiltered.map((b, idx): BudgetProgress => {
+          const budgetStart = parseSafeDate(b.startDate || monthStart).getTime();
+          const budgetEnd = parseSafeDate(b.endDate || monthEnd).getTime();
+          const totalDays = monthInfo.totalDays;
+          const daysPassed = monthInfo.elapsedDays;
+          const daysRemaining = monthInfo.remainingDays;
+          const remainingDays = daysRemaining;
+          const remainingHours = monthInfo.isCurrentMonth
+            ? Math.max(0, Math.floor((monthEnd.getTime() - Date.now()) / 3600000))
+            : 0;
+          const remainingWeeks = Math.floor(daysRemaining / 7);
+          const remainingMonths = Number((daysRemaining / 30.4).toFixed(1));
+          const timelinePercentage = totalDays > 0 ? Math.min(100, Math.max(0, Math.round((daysPassed / totalDays) * 100))) : 0;
+
+          const originalAmount = b.originalAmount ?? b.allocatedAmount;
+          const additionalAmount = b.additionalAmount ?? 0;
+          const increaseCount = b.increaseCount ?? (b.increases?.length || 0);
+          const increases = b.increases ?? [];
+          const spent = b.spentAmount;
+          const amount = b.allocatedAmount;
+          const remaining = Math.max(0, amount - spent);
+          const percentage = amount > 0 ? Math.round((spent / amount) * 100) : 0;
+
+          const dailyBurnRate = daysPassed > 0 ? Math.round(spent / daysPassed) : 0;
+          const dailyBudgetRemaining = daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0;
+          const projectedSpend = monthInfo.isPastMonth
+            ? spent
+            : monthInfo.isFutureMonth
+              ? 0
+              : Math.round(spent + dailyBurnRate * daysRemaining);
+          const expectedRemaining = Math.max(0, amount - projectedSpend);
+          const growthPercentage = originalAmount > 0 ? Math.round(((amount - originalAmount) / originalAmount) * 100) : 0;
+
+          let computedStatus: BudgetComputedStatus = "active";
+          if (b.status === "paused") computedStatus = "paused";
+          else if (b.status === "archived") computedStatus = "cancelled";
+          else if (monthInfo.isFutureMonth) computedStatus = "upcoming";
+          else if (spent > amount) computedStatus = "exceeded";
+          else if (monthInfo.isPastMonth) computedStatus = "completed";
+          else if (daysRemaining <= 3 || timelinePercentage >= 85) computedStatus = "ending_soon";
+
+          const countdownText = computeCountdownText(
+            computedStatus,
+            daysRemaining,
+            remainingHours,
+            daysPassed,
+            totalDays,
+            new Date(b.startDate || monthStart),
+            new Date(b.endDate || monthEnd),
+            now
+          );
+
+          return {
+            id: idx + 1,
+            publicId: b.id,
+            name: b.name,
+            description: b.description,
+            amount,
+            spent,
+            usedAmount: spent,
+            remaining,
+            remainingAmount: remaining,
+            percentage,
+            usedPercentage: percentage,
+            status: (percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track") as BudgetProgress["status"],
+            healthStatus: (percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track") as BudgetProgress["healthStatus"],
+            period: (b.period as any) || "monthly",
+            budgetType: b.budgetType || "personal",
+            startDate: b.startDate || monthStart.toISOString(),
+            endDate: b.endDate || monthEnd.toISOString(),
+            remainingDays,
+            daysRemaining,
+            dailyBudgetRemaining,
+            dailyBurnRate,
+            projectedSpend,
+            isOverBudget: spent > amount,
+            originalAmount,
+            additionalAmount,
+            increaseCount,
+            increases,
+            durationPreset: b.durationPreset || (b.period as any) || "monthly",
+            totalDurationDays: totalDays,
+            daysPassed,
+            remainingHours,
+            remainingWeeks,
+            remainingMonths,
+            countdownText,
+            timelinePercentage,
+            computedStatus,
+            dailyAllowance: dailyBudgetRemaining,
+            expectedRemaining,
+            growthPercentage,
+            savingsImpact: additionalAmount,
+            dailySpending: b.dailySpending || [],
+            aiInsights: b.aiInsights || [
+              `You have used ${percentage}% of your budget.`,
+              `${countdownText} before budget expiry.`,
+            ],
+          };
+        });
+        (list as any)._verifiedIncome = 0;
+        return list;
       }
-      return [];
+      const emptyList: BudgetProgress[] = [];
+      (emptyList as any)._verifiedIncome = 0;
+      return emptyList;
     }
 
-    // Fetch user ledger transactions to compute dynamic spending and verified income
+    // Fetch user ledger transactions strictly for the selected month to compute dynamic spending & verified income
     const userLedgerTransactions = await withDbRetry(() =>
       db
         .select({
@@ -337,7 +364,9 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
           and(
             eq(transactions.userId, user.id),
             eq(transactions.isDeleted, false),
-            sql`${transactions.status} NOT IN ('rejected', 'draft')`
+            sql`${transactions.status} NOT IN ('rejected', 'draft', 'pending', 'unverified', 'cancelled')`,
+            gte(transactions.date, monthStart),
+            lte(transactions.date, monthEnd)
           )
         )
         .orderBy(desc(transactions.date))
@@ -354,18 +383,19 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
 
     const now = new Date();
 
-    return dbBudgets.map((b) => {
-      const budgetStart = parseSafeDate(b.startDate || now).getTime();
-      const budgetEnd = parseSafeDate(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
-      const nowTime = now.getTime();
+    const result = dbBudgets.map((b) => {
+      const budgetStart = parseSafeDate(b.startDate || monthStart).getTime();
+      const budgetEnd = parseSafeDate(b.endDate || monthEnd).getTime();
 
-      const totalDays = Math.max(1, Math.ceil((budgetEnd - budgetStart) / 86400000));
-      const daysPassed = Math.max(0, Math.min(totalDays, Math.ceil((nowTime - budgetStart) / 86400000)));
-      const daysRemaining = Math.max(0, Math.ceil((budgetEnd - nowTime) / 86400000));
-      const remainingHours = Math.max(0, Math.floor((budgetEnd - nowTime) / 3600000));
+      const totalDays = monthInfo.totalDays;
+      const daysPassed = monthInfo.elapsedDays;
+      const daysRemaining = monthInfo.remainingDays;
+      const remainingHours = monthInfo.isCurrentMonth
+        ? Math.max(0, Math.floor((monthEnd.getTime() - Date.now()) / 3600000))
+        : 0;
       const remainingWeeks = Math.floor(daysRemaining / 7);
       const remainingMonths = Number((daysRemaining / 30.4).toFixed(1));
-      const timelinePercentage = Math.min(100, Math.max(0, Math.round((daysPassed / totalDays) * 100)));
+      const timelinePercentage = totalDays > 0 ? Math.min(100, Math.max(0, Math.round((daysPassed / totalDays) * 100))) : 0;
 
       const currentAmount = Number(b.amountPaise) / 100;
       const meta = parseBudgetMetadata(b.notes, currentAmount);
@@ -380,6 +410,7 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
       const matchingTxs = userExpenses.filter((tx) => {
         const txTime = parseSafeDate(tx.date).getTime();
         if (txTime < budgetStart || txTime > budgetEnd) return false;
+        if (txTime < monthStart.getTime() || txTime > monthEnd.getTime()) return false;
         if (b.categoryId && tx.categoryId !== b.categoryId) return false;
         if (b.groupId && tx.groupId !== b.groupId) return false;
         return true;
@@ -390,9 +421,13 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
       const remaining = Math.max(0, currentAmount - spent);
       const percentage = currentAmount > 0 ? Math.round((spent / currentAmount) * 100) : 0;
 
-      const dailyBurnRate = daysPassed > 0 ? Math.round(spent / daysPassed) : Math.round(spent);
+      const dailyBurnRate = daysPassed > 0 ? Math.round(spent / daysPassed) : 0;
       const dailyBudgetRemaining = daysRemaining > 0 ? Math.round(remaining / daysRemaining) : 0;
-      const projectedSpend = Math.round(spent + dailyBurnRate * daysRemaining);
+      const projectedSpend = monthInfo.isPastMonth
+        ? spent
+        : monthInfo.isFutureMonth
+          ? 0
+          : Math.round(spent + dailyBurnRate * daysRemaining);
       const expectedRemaining = Math.max(0, currentAmount - projectedSpend);
       const isOverBudget = spent > currentAmount;
 
@@ -403,10 +438,10 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
       const lastExpenseTx = matchingTxs[0] || null;
       const lastExpense = lastExpenseTx
         ? {
-            date: getSafeFullIsoDateStr(lastExpenseTx.date),
-            amount: Number(lastExpenseTx.amount) / 100,
-            title: lastExpenseTx.title || lastExpenseTx.description,
-          }
+          date: getSafeFullIsoDateStr(lastExpenseTx.date),
+          amount: Number(lastExpenseTx.amount) / 100,
+          title: lastExpenseTx.title || lastExpenseTx.description,
+        }
         : null;
 
       const dailySpendMap = new Map<string, number>();
@@ -424,11 +459,11 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
         computedStatus = "paused";
       } else if (b.status === "archived") {
         computedStatus = "cancelled";
-      } else if (nowTime < budgetStart) {
+      } else if (monthInfo.isFutureMonth) {
         computedStatus = "upcoming";
       } else if (spent > currentAmount) {
         computedStatus = "exceeded";
-      } else if (nowTime > budgetEnd) {
+      } else if (monthInfo.isPastMonth) {
         computedStatus = "completed";
       } else if (daysRemaining <= 3 || timelinePercentage >= 85) {
         computedStatus = "ending_soon";
@@ -543,6 +578,9 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
         updatedAt: getSafeFullIsoDateStr(b.createdAt),
       };
     });
+
+    (result as any)._verifiedIncome = totalVerifiedIncome;
+    return result;
   } catch (err) {
     console.warn("Database query failed in getBudgetsWithProgress, falling back to memory store:", err);
     const memBudgets = budgetsStore.get(userKey) || [];
@@ -816,8 +854,8 @@ export async function getIntelligentBudgetAnalysis(): Promise<IntelligentBudgetA
     const baselineMonthly = last3MonthsAvg > 0
       ? last3MonthsAvg
       : currentMonthExpenses > 0
-      ? Math.round((currentMonthExpenses / Math.max(1, now.getDate())) * daysInCurrentMonth)
-      : 0;
+        ? Math.round((currentMonthExpenses / Math.max(1, now.getDate())) * daysInCurrentMonth)
+        : 0;
 
     let suggestedBudget = 15000;
     let rationale = "Standard starter spending target for monthly personal expenses.";
@@ -977,28 +1015,31 @@ export async function getBudgetHistory(): Promise<BudgetHistoryItem[]> {
 }
 
 /**
- * Get Budget Forecasting
+ * Get Budget Forecasting for specified month
  */
-export async function getBudgetForecasting(): Promise<BudgetForecast> {
+export async function getBudgetForecasting(targetMonth?: string): Promise<BudgetForecast> {
   const user = await requireAuth();
-  const budgetsList = await getBudgetsWithProgress();
+  const budgetsList = await getBudgetsWithProgress(targetMonth);
   const activeBudgets = budgetsList.filter((b) => b.status !== "archived");
 
   const totalAllocated = activeBudgets.reduce((sum, b) => sum + b.amount, 0);
   const totalSpent = activeBudgets.reduce((sum, b) => sum + b.spent, 0);
   const totalRemaining = Math.max(0, totalAllocated - totalSpent);
 
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const remainingDaysInMonth = Math.max(1, daysInMonth - dayOfMonth + 1);
+  const monthInfo = parseMonthParam(targetMonth);
+  const elapsedDays = monthInfo.elapsedDays;
+  const remainingDays = monthInfo.remainingDays;
 
-  const averageDailyBurn = dayOfMonth > 0 ? Math.round(totalSpent / dayOfMonth) : 0;
-  const projectedMonthlySpend = Math.round(totalSpent + averageDailyBurn * (daysInMonth - dayOfMonth));
-  const remainingDailyBudget = Math.round(totalRemaining / remainingDaysInMonth);
+  const averageDailyBurn = elapsedDays > 0 ? Math.round(totalSpent / elapsedDays) : 0;
+  const projectedMonthlySpend = monthInfo.isPastMonth
+    ? totalSpent
+    : monthInfo.isFutureMonth
+      ? 0
+      : Math.round(totalSpent + averageDailyBurn * remainingDays);
+  const remainingDailyBudget = remainingDays > 0 ? Math.round(totalRemaining / remainingDays) : 0;
 
   let exhaustionDate: string | null = null;
-  if (averageDailyBurn > 0 && totalRemaining > 0) {
+  if (!monthInfo.isPastMonth && averageDailyBurn > 0 && totalRemaining > 0) {
     const daysUntilExhaustion = Math.min(3650, Math.floor(totalRemaining / averageDailyBurn));
     const exDate = new Date();
     exDate.setDate(exDate.getDate() + daysUntilExhaustion);
@@ -1015,18 +1056,18 @@ export async function getBudgetForecasting(): Promise<BudgetForecast> {
 }
 
 /**
- * Get Comprehensive Budget Dashboard Metrics
+ * Get Comprehensive Budget Dashboard Metrics for specified month
  */
-export async function getBudgetDashboardSummary(): Promise<BudgetDashboardMetrics> {
+export async function getBudgetDashboardSummary(targetMonth?: string): Promise<BudgetDashboardMetrics> {
   const user = await requireAuth();
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
 
   try {
-    const budgetsList = await getBudgetsWithProgress();
+    const budgetsList = await getBudgetsWithProgress(targetMonth);
     const savingsGoals = goalsStore.get(userKey) || [];
     const spendingLimits = limitsStore.get(userKey) || [];
-    const forecast = await getBudgetForecasting();
+    const forecast = await getBudgetForecasting(targetMonth);
 
     const totalBudgetAllocated = budgetsList.reduce((sum, b) => sum + b.amount, 0);
     const totalSpent = budgetsList.reduce((sum, b) => sum + b.spent, 0);
@@ -1034,14 +1075,11 @@ export async function getBudgetDashboardSummary(): Promise<BudgetDashboardMetric
     const overallUsagePercent = totalBudgetAllocated > 0 ? Math.round((totalSpent / totalBudgetAllocated) * 100) : 0;
     const totalSavedAcrossGoals = savingsGoals.reduce((sum, g) => sum + g.currentSaved, 0);
 
-    // Verified income and verified expenses
-    const verifiedIncome =
-      budgetsList[0]?.expectedSavings !== undefined && budgetsList[0]?.amount !== undefined
-        ? budgetsList[0].expectedSavings + budgetsList[0].amount
-        : 0;
+    // Verified income and verified expenses strictly from ledger records
+    const verifiedIncome = (budgetsList as any)._verifiedIncome ?? 0;
     const verifiedExpenses = totalSpent;
-    const currentNetSavings = verifiedIncome - verifiedExpenses;
-    const expectedSavings = Math.max(0, verifiedIncome - totalBudgetAllocated);
+    const currentNetSavings = verifiedIncome > 0 ? Math.max(0, verifiedIncome - verifiedExpenses) : 0;
+    const expectedSavings = verifiedIncome > 0 ? Math.max(0, verifiedIncome - totalBudgetAllocated) : 0;
     const savingsRate = verifiedIncome > 0 ? Math.round((currentNetSavings / verifiedIncome) * 100) : 0;
 
     const records: BudgetRecord[] = budgetsList.map((b) => ({
@@ -1371,8 +1409,8 @@ export async function increaseBudget(data: {
   const endDate = dbBudget
     ? new Date(dbBudget.endDate)
     : memBudget?.endDate
-    ? new Date(memBudget.endDate)
-    : new Date();
+      ? new Date(memBudget.endDate)
+      : new Date();
   const now = new Date();
   const remainingDays = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / 86400000));
 

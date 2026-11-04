@@ -18,11 +18,15 @@ export const metadata: Metadata = createPageMetadata({
 
 export const dynamic = "force-dynamic";
 
-export default async function AIAssistantPage() {
+export default async function AIAssistantPage(props: {
+  searchParams?: Promise<{ month?: string }>;
+}) {
+  const searchParams = props.searchParams ? await props.searchParams : {};
+  const month = searchParams.month;
   const user = await requireAuth();
 
   const [intelligenceData, allCategories, userGroups, userReminders] = await Promise.all([
-    getFinancialIntelligence(),
+    getFinancialIntelligence(month || "current_month", undefined, undefined, month),
     db
       .select({ id: categories.id, name: categories.name })
       .from(categories)
@@ -47,6 +51,7 @@ export default async function AIAssistantPage() {
       categories={allCategories}
       groups={userGroups}
       initialReminders={userReminders as any}
+      initialMonth={month}
     />
   );
 }

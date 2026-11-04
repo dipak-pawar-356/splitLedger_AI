@@ -172,6 +172,7 @@ interface BudgetDetailsDashboardProps {
   onTransferUnused: (b: BudgetRecord) => void;
   verifiedIncome?: number;
   verifiedExpenses?: number;
+  targetMonth?: string;
 }
 
 export function BudgetDetailsDashboard({
@@ -186,6 +187,7 @@ export function BudgetDetailsDashboard({
   onTransferUnused,
   verifiedIncome = 0,
   verifiedExpenses = 0,
+  targetMonth,
 }: BudgetDetailsDashboardProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [selectedChartTab, setSelectedChartTab] = useState<"trend" | "burn_rate" | "comparison">("trend");
@@ -315,13 +317,14 @@ export function BudgetDetailsDashboard({
   }, [budget.status, daysRemaining, totalSpent, currentBudget, utilizationPercent, increaseCount, timelinePercentage]);
 
   // 6. Savings Engine Dynamics (Verified Income & Expense Integration)
-  const actualIncome = verifiedIncome > 0 ? verifiedIncome : currentBudget * 1.5;
-  const currentNetSavings = Math.max(0, actualIncome - totalSpent);
+  const hasVerifiedIncome = verifiedIncome > 0;
+  const actualIncome = verifiedIncome;
+  const currentNetSavings = hasVerifiedIncome ? Math.max(0, actualIncome - totalSpent) : 0;
   const potentialSavings = remainingBudget;
-  const previousExpectedSavings = budget.previousExpectedSavings ?? Math.max(0, actualIncome - originalBudget);
-  const updatedExpectedSavings = budget.expectedSavings ?? Math.max(0, actualIncome - currentBudget);
+  const previousExpectedSavings = budget.previousExpectedSavings ?? (hasVerifiedIncome ? Math.max(0, actualIncome - originalBudget) : 0);
+  const updatedExpectedSavings = budget.expectedSavings ?? (hasVerifiedIncome ? Math.max(0, actualIncome - currentBudget) : 0);
   const projectedEndSavings = Math.max(0, currentBudget - projectedEndSpend);
-  const savingsPercent = actualIncome > 0 ? Math.round((currentNetSavings / actualIncome) * 100) : 0;
+  const savingsPercent = hasVerifiedIncome ? Math.round((currentNetSavings / actualIncome) * 100) : 0;
   
   // Budget Efficiency Score: 0 - 100 based on pacing and surplus retention
   const budgetEfficiencyScore = useMemo(() => {
@@ -544,21 +547,36 @@ export function BudgetDetailsDashboard({
       }
     }
 
-    // Milestone: Savings Achieved
-    if (remainingBudget > 0) {
+    // Milestone: Verified Savings or Preserved Allowance
+    if (hasVerifiedIncome && currentNetSavings > 0) {
       events.push({
         id: "event-savings",
-        title: "Savings Achieved",
+        title: "Actual Savings Realized",
+        eventType: "savings_achieved",
+        date: getSafeIsoDateStr(new Date()),
+        time: "Real-Time",
+        amount: currentNetSavings,
+        remainingBudget: remainingBudget,
+        remainingDays: daysRemaining,
+        ledgerReference: `LEDG-SAV-${budgetIdSafe || "VERIFIED"}`,
+        notes: "Verified cash surplus from ledger income over actual expenses",
+        colorClass: "bg-emerald-600 text-white",
+        badgeText: formatCurrency(currentNetSavings, currency),
+      });
+    } else if (remainingBudget > 0) {
+      events.push({
+        id: "event-headroom",
+        title: "Unspent Budget Headroom",
         eventType: "savings_achieved",
         date: getSafeIsoDateStr(new Date()),
         time: "Real-Time",
         amount: remainingBudget,
         remainingBudget: remainingBudget,
         remainingDays: daysRemaining,
-        ledgerReference: `LEDG-SAV-${budgetIdSafe || "VERIFIED"}`,
-        notes: "Surplus protected under active spending limit",
+        ledgerReference: `LEDG-CAP-${budgetIdSafe || "RESERVE"}`,
+        notes: "Unspent budget allowance preserved under active spending limit",
         colorClass: "bg-emerald-600 text-white",
-        badgeText: formatCurrency(remainingBudget, currency),
+        badgeText: `${formatCurrency(remainingBudget, currency)} Preserved`,
       });
     }
 
@@ -1015,10 +1033,10 @@ export function BudgetDetailsDashboard({
           </div>
         </div>
 
-        {/* Card 3: Budget Added (Sky Blue) */}
+        {/* Card 3: Additional Budget (Sky Blue) */}
         <div className="budget-card-interactive glow-sky group rounded-2xl border border-sky-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Budget Added</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Additional Budget</span>
             <div className="budget-icon-interactive p-1.5 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
               <Coins className="h-4 w-4" />
             </div>
@@ -1033,10 +1051,10 @@ export function BudgetDetailsDashboard({
           </div>
         </div>
 
-        {/* Card 4: Spent Amount (Crimson) */}
+        {/* Card 4: Actual Spending (Crimson) */}
         <div className="budget-card-interactive glow-crimson group rounded-2xl border border-rose-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Spent Amount</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Actual Spending</span>
             <div className="budget-icon-interactive p-1.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400">
               <ArrowUpRight className="h-4 w-4" />
             </div>
@@ -1065,10 +1083,10 @@ export function BudgetDetailsDashboard({
           </div>
         </div>
 
-        {/* Card 6: Savings (Teal) */}
+        {/* Card 6: Actual Savings (Teal) */}
         <div className="budget-card-interactive glow-teal group rounded-2xl border border-teal-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Savings</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Actual Savings</span>
             <div className="budget-icon-interactive p-1.5 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400">
               <PiggyBank className="h-4 w-4" />
             </div>
@@ -1077,27 +1095,49 @@ export function BudgetDetailsDashboard({
             <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-teal-600 dark:text-teal-400">
               <AnimatedCounter value={formatCurrency(currentNetSavings, currency)} duration={0.5} />
             </div>
-            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Verified surplus retained</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">
+              {hasVerifiedIncome ? "Verified cash surplus retained" : "Requires verified ledger income"}
+            </p>
           </div>
         </div>
 
-        {/* Card 7: Expected End Balance (Cyan) */}
+        {/* Card 7: Projected Spending (Cyan) */}
         <div className="budget-card-interactive glow-cyan group rounded-2xl border border-cyan-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Expected End Balance</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Projected Spending</span>
             <div className="budget-icon-interactive p-1.5 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
-              <Scale className="h-4 w-4" />
+              <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div>
             <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-cyan-600 dark:text-cyan-400">
-              <AnimatedCounter value={formatCurrency(expectedRemaining, currency)} duration={0.5} />
+              <AnimatedCounter value={formatCurrency(projectedEndSpend, currency)} duration={0.5} />
             </div>
-            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Projected spend: {formatCurrency(projectedEndSpend, currency)}</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">
+              At current burn of {formatCurrency(averageDailySpend, currency)}/d
+            </p>
           </div>
         </div>
 
-        {/* Card 8: Budget Health (Green / Amber / Red) */}
+        {/* Card 8: Projected Remaining Balance (Emerald / Rose) */}
+        <div className={`budget-card-interactive ${expectedRemaining < 0 ? "glow-crimson border-rose-500/25" : "glow-emerald border-emerald-500/25"} group rounded-2xl border p-4 flex flex-col justify-between`}>
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Projected Remaining Balance</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <Scale className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className={`budget-number-highlight text-2xl font-black font-mono tracking-tight ${expectedRemaining < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+              <AnimatedCounter value={formatCurrency(expectedRemaining, currency)} duration={0.5} />
+            </div>
+            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">
+              {expectedRemaining < 0 ? `Risk of ${formatCurrency(Math.abs(expectedRemaining), currency)} overspend` : "Expected surplus at month-end"}
+            </p>
+          </div>
+        </div>
+
+        {/* Card 9: Budget Health (Green / Amber / Red) */}
         <div className={`budget-card-interactive ${dynamicStatus.glowClass} group rounded-2xl border p-4 flex flex-col justify-between`}
           style={{ borderColor: `${dynamicStatus.colorHex}40`, background: `linear-gradient(135deg, ${dynamicStatus.colorHex}15, transparent)` }}
         >
@@ -1115,7 +1155,7 @@ export function BudgetDetailsDashboard({
           </div>
         </div>
 
-        {/* Card 9: Daily Allowance (Azure) */}
+        {/* Card 10: Daily Allowance (Azure) */}
         <div className="budget-card-interactive glow-azure group rounded-2xl border border-sky-400/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Daily Allowance</span>
@@ -1131,7 +1171,7 @@ export function BudgetDetailsDashboard({
           </div>
         </div>
 
-        {/* Card 10: Remaining Days (Purple) */}
+        {/* Card 11: Remaining Days (Purple) */}
         <div className="budget-card-interactive glow-purple group rounded-2xl border border-purple-500/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Remaining Days</span>
@@ -1147,7 +1187,7 @@ export function BudgetDetailsDashboard({
           </div>
         </div>
 
-        {/* Card 11: Elapsed Days (Slate) */}
+        {/* Card 12: Elapsed Days (Slate) */}
         <div className="budget-card-interactive glow-slate group rounded-2xl border border-slate-400/25 p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Elapsed Days</span>
@@ -1162,26 +1202,12 @@ export function BudgetDetailsDashboard({
             <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">{timelinePercentage}% elapsed ({totalDurationDays} total)</p>
           </div>
         </div>
-
-        {/* Card 12: Forecast Accuracy (Violet) */}
-        <div className="budget-card-interactive glow-violet group rounded-2xl border border-violet-500/25 p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Forecast Accuracy</span>
-            <div className="budget-icon-interactive p-1.5 rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400">
-              <Sparkles className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-violet-600 dark:text-violet-400">
-              <AnimatedCounter value={forecastAccuracy} suffix="%" duration={0.5} />
-            </div>
-            <p className="budget-card-subtitle text-[10px] text-slate-400 mt-1">Historical variance index</p>
-          </div>
-        </div>
       </div>
 
       {/* =========================================================================
-          4. DYNAMIC BUDGET OVERVIEW (ALL 17 ENTERPRISE OVERVIEW METRICS)
+          4. DYNAMIC BUDGET OVERVIEW & ENTERPRISE VERIFICATION LEDGER
+          Provides structured governance, compliance parameters, and audit controls
+          without duplicating the 12 numeric cards above.
           ========================================================================= */}
       <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1191,7 +1217,7 @@ export function BudgetDetailsDashboard({
               Dynamic Budget Overview & Verification Ledger
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Comprehensive ledger synchronization of all active constraints and projections.
+              Comprehensive ledger synchronization of active policy constraints, cycle parameters, and audit controls.
             </p>
           </div>
           <Badge className="bg-primary/10 text-primary text-[10px] font-bold border-0">
@@ -1199,185 +1225,135 @@ export function BudgetDetailsDashboard({
           </Badge>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Current Budget</span>
-              <Target className="ledger-icon h-3.5 w-3.5 text-indigo-500" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          {/* Panel 1: Budget Policy & Scope */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-2">
+              <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <Target className="h-3.5 w-3.5 text-indigo-500" />
+                Policy & Scope
+              </span>
+              <Badge variant="outline" className="text-[9px] font-semibold uppercase">
+                {budget.budgetType || "Personal"}
+              </Badge>
             </div>
-            <strong className="text-sm font-mono text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-              {formatCurrency(currentBudget, currency)}
-            </strong>
+            <div className="space-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Category Scope:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{budget.category || "General"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Enforcement Mode:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Strict Approved</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Settlement Policy:</span>
+                <span className="text-slate-600 dark:text-slate-300">Transfers Excluded</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-200/40 dark:border-slate-800">
+              Only approved debits within cycle boundaries affect headroom.
+            </p>
           </div>
 
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Initial Budget</span>
-              <Wallet className="ledger-icon h-3.5 w-3.5 text-blue-500" />
+          {/* Panel 2: Authorized Ceilings & Thresholds */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-2">
+              <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <ShieldAlert className="h-3.5 w-3.5 text-sky-500" />
+                Ceiling & Thresholds
+              </span>
+              <Badge variant="outline" className="text-[9px] font-semibold text-sky-600 border-sky-500/30">
+                {budget.alertThresholds?.[0]?.percent || 80}% Threshold
+              </Badge>
             </div>
-            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-              {formatCurrency(originalBudget, currency)}
-            </strong>
+            <div className="space-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Baseline Limit:</span>
+                <span className="font-mono text-slate-700 dark:text-slate-300">{formatCurrency(originalBudget, currency)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Authorized Ceiling:</span>
+                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{formatCurrency(currentBudget, currency)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Alert Trigger At:</span>
+                <span className="font-mono text-amber-600 dark:text-amber-400">
+                  {formatCurrency(currentBudget * ((budget.alertThresholds?.[0]?.percent || 80) / 100), currency)}
+                </span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-200/40 dark:border-slate-800">
+              {increaseCount > 0 ? `${increaseCount} approved revisions recorded (+${formatCurrency(additionalBudget, currency)})` : "Baseline ceiling is unamended."}
+            </p>
           </div>
 
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Current Active Budget</span>
-              <Layers className="ledger-icon h-3.5 w-3.5 text-indigo-500" />
+          {/* Panel 3: Cycle Timeline & Term Boundaries */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-2">
+              <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <CalendarDays className="h-3.5 w-3.5 text-purple-500" />
+                Cycle Boundaries
+              </span>
+              <Badge variant="outline" className="text-[9px] font-semibold text-purple-600 border-purple-500/30">
+                {totalDurationDays} Days Total
+              </Badge>
             </div>
-            <strong className="text-sm font-mono text-indigo-600 dark:text-indigo-400">
-              {formatCurrency(currentBudget, currency)}
-            </strong>
+            <div className="space-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Start Boundary:</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">{formatDate(budget.startDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">End Boundary:</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">{formatDate(budget.endDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Cycle Pacing:</span>
+                <span className="font-semibold text-purple-600 dark:text-purple-400">
+                  {daysRemaining}d left ({timelinePercentage}% elapsed)
+                </span>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-200/40 dark:border-slate-800">
+              {targetMonth ? `Synchronized with ${targetMonth}` : "Real-time calendar duration"}
+            </p>
           </div>
 
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Total Added Budget</span>
-              <Coins className="ledger-icon h-3.5 w-3.5 text-sky-500" />
+          {/* Panel 4: Mathematical Forecasting & Runout */}
+          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-2">
+              <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <Activity className="h-3.5 w-3.5 text-cyan-500" />
+                Forecasting & Runout
+              </span>
+              <Badge variant="outline" className="text-[9px] font-semibold text-cyan-600 border-cyan-500/30">
+                {forecastAccuracy}% Accuracy
+              </Badge>
             </div>
-            <strong className="text-sm font-mono text-sky-600 dark:text-sky-400">
-              +{formatCurrency(additionalBudget, currency)}
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Remaining Budget</span>
-              <TrendingUp className="ledger-icon h-3.5 w-3.5 text-emerald-500" />
+            <div className="space-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Burn vs Allowance:</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">
+                  {formatCurrency(averageDailySpend, currency)} / {formatCurrency(dailyAllowance, currency)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Runout Date:</span>
+                <span className={`font-mono font-semibold ${projectedExhaustionDate ? "text-amber-500" : "text-emerald-500"}`}>
+                  {projectedExhaustionDate ? formatDate(projectedExhaustionDate) : "Sustainable"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Expected End Surplus:</span>
+                <span className={`font-mono font-semibold ${expectedRemaining >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {formatCurrency(expectedRemaining, currency)}
+                </span>
+              </div>
             </div>
-            <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
-              {formatCurrency(remainingBudget, currency)}
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Remaining Days</span>
-              <Hourglass className="ledger-icon h-3.5 w-3.5 text-purple-500" />
-            </div>
-            <strong className="text-sm font-mono text-purple-600 dark:text-purple-400">
-              {daysRemaining} Days
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Elapsed Days</span>
-              <CalendarDays className="ledger-icon h-3.5 w-3.5 text-slate-500" />
-            </div>
-            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
-              {daysPassed} Days
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Daily Spending Limit</span>
-              <Gauge className="ledger-icon h-3.5 w-3.5 text-sky-500" />
-            </div>
-            <strong className="text-sm font-mono text-sky-600 dark:text-sky-400">
-              {formatCurrency(dailyAllowance, currency)}/d
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Daily Actual Spending</span>
-              <Zap className="ledger-icon h-3.5 w-3.5 text-rose-500" />
-            </div>
-            <strong className="text-sm font-mono text-slate-900 dark:text-slate-100">
-              {formatCurrency(averageDailySpend, currency)}/d
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Average Daily Spend</span>
-              <Activity className="ledger-icon h-3.5 w-3.5 text-cyan-500" />
-            </div>
-            <strong className="text-sm font-mono text-cyan-600 dark:text-cyan-400">
-              {formatCurrency(averageDailySpend, currency)}/d
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Remaining Daily Allowance</span>
-              <Gauge className="ledger-icon h-3.5 w-3.5 text-emerald-500" />
-            </div>
-            <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
-              {formatCurrency(dailyAllowance, currency)}/d
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Total Savings</span>
-              <PiggyBank className="ledger-icon h-3.5 w-3.5 text-teal-500" />
-            </div>
-            <strong className="text-sm font-mono text-teal-600 dark:text-teal-400">
-              {formatCurrency(currentNetSavings, currency)}
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Budget Utilization</span>
-              <Percent className="ledger-icon h-3.5 w-3.5 text-amber-500" />
-            </div>
-            <strong className={`text-sm font-mono ${utilizationPercent > 100 ? "text-rose-600" : "text-slate-900 dark:text-slate-100"}`}>
-              {utilizationPercent}%
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Budget Health</span>
-              <ShieldAlert className="ledger-icon h-3.5 w-3.5" style={{ color: dynamicStatus.colorHex }} />
-            </div>
-            <strong className="text-sm font-mono" style={{ color: dynamicStatus.colorHex }}>
-              {dynamicStatus.label}
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Projected Completion</span>
-              <Clock className="ledger-icon h-3.5 w-3.5 text-purple-500" />
-            </div>
-            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
-              {projectedExhaustionDate ? formatDate(projectedExhaustionDate) : "On Track"}
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Expected Remaining Balance</span>
-              <Scale className="ledger-icon h-3.5 w-3.5 text-cyan-500" />
-            </div>
-            <strong className="text-sm font-mono text-cyan-600 dark:text-cyan-400">
-              {formatCurrency(expectedRemaining, currency)}
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Expected Overspend</span>
-              <AlertTriangle className="ledger-icon h-3.5 w-3.5 text-amber-500" />
-            </div>
-            <strong className={`text-sm font-mono ${expectedOverspend > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-              {expectedOverspend > 0 ? formatCurrency(expectedOverspend, currency) : "₹0 (Safe)"}
-            </strong>
-          </div>
-
-          <div className="ledger-cell-interactive p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between group">
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-slate-400 text-[10px] block">Forecast Accuracy</span>
-              <Sparkles className="ledger-icon h-3.5 w-3.5 text-violet-500" />
-            </div>
-            <strong className="text-sm font-mono text-violet-600 dark:text-violet-400">
-              {forecastAccuracy}%
-            </strong>
+            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-200/40 dark:border-slate-800">
+              {expectedOverspend > 0 ? `Alert: Overspend risk of ${formatCurrency(expectedOverspend, currency)}` : "Tracking safely within approved limits."}
+            </p>
           </div>
         </div>
       </Card>
@@ -1553,7 +1529,7 @@ export function BudgetDetailsDashboard({
             </p>
           </div>
           <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border-0">
-            Savings Rate: {savingsPercent}%
+            Savings Rate: {hasVerifiedIncome ? `${savingsPercent}%` : "0% (Income unverified)"}
           </Badge>
         </div>
 
@@ -1569,7 +1545,9 @@ export function BudgetDetailsDashboard({
             <div className="budget-number-highlight text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
               <AnimatedCounter value={formatCurrency(currentNetSavings, currency)} duration={0.5} />
             </div>
-            <p className="budget-card-subtitle text-[10px] text-slate-400">Verified cash surplus retained</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400">
+              {hasVerifiedIncome ? "Verified cash surplus retained" : "Requires verified ledger income"}
+            </p>
           </div>
 
           <div className="budget-card-interactive glow-teal p-4 rounded-2xl border border-teal-500/25 space-y-1.5 group">
@@ -1582,7 +1560,7 @@ export function BudgetDetailsDashboard({
             <div className="budget-number-highlight text-2xl font-black font-mono text-teal-600 dark:text-teal-400">
               <AnimatedCounter value={formatCurrency(potentialSavings, currency)} duration={0.5} />
             </div>
-            <p className="budget-card-subtitle text-[10px] text-slate-400">Current unspent budget buffer</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400">Unspent budget allowance (Preserved)</p>
           </div>
 
           <div className="budget-card-interactive glow-indigo p-4 rounded-2xl border border-indigo-500/25 space-y-1.5 group">
@@ -1595,7 +1573,9 @@ export function BudgetDetailsDashboard({
             <div className="budget-number-highlight text-2xl font-black font-mono text-indigo-600 dark:text-indigo-400">
               <AnimatedCounter value={formatCurrency(updatedExpectedSavings, currency)} duration={0.5} />
             </div>
-            <p className="budget-card-subtitle text-[10px] text-slate-400">Preserved after complete budget run</p>
+            <p className="budget-card-subtitle text-[10px] text-slate-400">
+              {hasVerifiedIncome ? "Preserved after complete budget run" : "Expected unspent ceiling"}
+            </p>
           </div>
 
           <div className="budget-card-interactive glow-cyan p-4 rounded-2xl border border-cyan-500/25 space-y-1.5 group">

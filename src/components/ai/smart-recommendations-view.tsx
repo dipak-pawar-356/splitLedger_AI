@@ -35,14 +35,10 @@ import { ReminderDialog } from "@/components/dialogs/reminder-dialog";
 
 interface SmartRecommendationsViewProps {
   recommendations: SmartRecommendation[];
-  onOpenBudgetDialog?: (suggestedAmount?: number) => void;
-  onEditBudget?: (budget: BudgetProgress) => void;
 }
 
 export function SmartRecommendationsView({
   recommendations,
-  onOpenBudgetDialog,
-  onEditBudget,
 }: SmartRecommendationsViewProps) {
   const shouldReduceMotion = useReducedMotion();
 
@@ -145,27 +141,16 @@ export function SmartRecommendationsView({
       );
     }
 
-    if (rec.actionType === "create_budget" && onOpenBudgetDialog) {
-      const suggestedAmount = rec.actionPayload?.suggestedAmount;
+    if (rec.actionType === "create_budget") {
       return (
         <div className="flex items-center gap-2 flex-wrap shrink-0">
-          <Button
-            size="sm"
-            aria-label="Set up a monthly budget"
-            className="rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1.5 focus-visible:ring-2 focus-visible:ring-primary h-8 px-3 transition-transform active:scale-95"
-            onClick={() => onOpenBudgetDialog(suggestedAmount)}
-          >
-            <Target className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Set Budget</span>
-          </Button>
-          <Link href="/dashboard/budgets" aria-label="View existing budget targets">
+          <Link href="/dashboard/budgets" aria-label="Open Budget Center to set up a monthly budget">
             <Button
               size="sm"
-              variant="outline"
-              className="rounded-xl text-xs font-semibold h-8 px-3 gap-1 text-slate-700 dark:text-slate-300 hover:border-primary/40 transition-colors"
+              className="rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs gap-1.5 focus-visible:ring-2 focus-visible:ring-primary h-8 px-3 transition-transform active:scale-95"
             >
-              <span>View Targets</span>
-              <ArrowRight className="h-3 w-3" />
+              <Target className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Configure in Budget Center →</span>
             </Button>
           </Link>
         </div>
@@ -289,19 +274,16 @@ export function SmartRecommendationsView({
 
           {/* Adjust Budget Action */}
           <div className="shrink-0 self-start sm:self-auto">
-            <Button
-              size="sm"
-              variant="outline"
-              aria-label="Adjust monthly budget settings"
-              className="rounded-xl text-xs font-semibold h-8 px-3 gap-1.5 border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 text-slate-700 dark:text-slate-300 transition-colors"
-              onClick={() => {
-                if (onEditBudget) onEditBudget(budget);
-                else if (onOpenBudgetDialog) onOpenBudgetDialog(budget.amount);
-              }}
-            >
-              <Settings2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-              <span>Adjust Budget</span>
-            </Button>
+            <Link href="/dashboard/budgets" aria-label="Manage budget targets in Budget Center">
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl text-xs font-semibold h-8 px-3 gap-1.5 border-slate-200 dark:border-slate-800 hover:border-primary/50 hover:bg-primary/5 text-slate-700 dark:text-slate-300 transition-colors"
+              >
+                <Settings2 className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                <span>Manage in Budget Center →</span>
+              </Button>
+            </Link>
           </div>
         </div>
 

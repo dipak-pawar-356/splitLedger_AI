@@ -19,6 +19,7 @@ import { DatabaseError } from "@/lib/errors";
 import { getBudgetsWithProgress, BudgetProgress } from "@/actions/budgets";
 import { generateExecutiveReportNarrative } from "@/lib/ai/executive-summary";
 import { getPeriodDateRange, PeriodFilter, PeriodDateRangeResult } from "@/lib/financial-period";
+import { parseMonthParam } from "@/lib/month-sync";
 
 export type { PeriodFilter, PeriodDateRangeResult };
 
@@ -241,30 +242,54 @@ export interface FinancialIntelligenceData {
 export async function getFinancialIntelligence(
   period: string = "current_month",
   customStart?: string,
-  customEnd?: string
+  customEnd?: string,
+  targetMonth?: string
 ): Promise<FinancialIntelligenceData> {
   try {
     const user = await requireAuth();
     const now = new Date();
-    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
-    const {
-      startDate,
-      endDate,
-      prevStartDate,
-      prevEndDate,
-      periodLabel,
-      comparisonLabel,
-      elapsedDays,
-    } = getPeriodDateRange(period, now, customStart, customEnd);
+    const isExplicitMonth = targetMonth || /^\d{4}-\d{2}$/.test(period);
+    const effectiveMonth = targetMonth || (isExplicitMonth ? period : undefined);
 
-    // Dynamic Period Conditions for strictly approved ledger records
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+    let prevStartDate: Date | null = null;
+    let prevEndDate: Date | null = null;
+    let periodLabel = "Current Month";
+    let comparisonLabel = "vs Previous Month";
+    let elapsedDays = Math.max(1, now.getDate());
+
+    if (effectiveMonth) {
+      const monthInfo = parseMonthParam(effectiveMonth);
+      startDate = monthInfo.startDate;
+      endDate = monthInfo.endDate;
+      const prevInfo = parseMonthParam(monthInfo.prevMonthStr);
+      prevStartDate = prevInfo.startDate;
+      prevEndDate = prevInfo.endDate;
+      periodLabel = monthInfo.label;
+      comparisonLabel = `vs Previous Month (${prevInfo.shortLabel})`;
+      elapsedDays = monthInfo.elapsedDays;
+    } else {
+      const range = getPeriodDateRange(period, now, customStart, customEnd);
+      startDate = range.startDate;
+      endDate = range.endDate;
+      prevStartDate = range.prevStartDate;
+      prevEndDate = range.prevEndDate;
+      periodLabel = range.periodLabel;
+      comparisonLabel = range.comparisonLabel;
+      elapsedDays = range.elapsedDays;
+    }
+
+    const startOfCurrentMonth = startDate || new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = prevStartDate || new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLastMonth = prevEndDate || new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    // Dynamic Period Conditions for strictly approved ledger records (excluding pending, rejected, draft, unverified)
     const periodWhereConditions = [
       eq(transactions.isDeleted, false),
       eq(transactions.userId, user.id),
-      sql`${transactions.status} NOT IN ('rejected', 'draft')`,
+      sql`${transactions.status} NOT IN ('rejected', 'draft', 'pending', 'unverified', 'cancelled')`,
       or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
     ];
     if (startDate) {
@@ -277,7 +302,7 @@ export async function getFinancialIntelligence(
     const prevPeriodWhereConditions = [
       eq(transactions.isDeleted, false),
       eq(transactions.userId, user.id),
-      sql`${transactions.status} NOT IN ('rejected', 'draft')`,
+      sql`${transactions.status} NOT IN ('rejected', 'draft', 'pending', 'unverified', 'cancelled')`,
       or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
     ];
     if (prevStartDate) {
@@ -301,7 +326,7 @@ export async function getFinancialIntelligence(
       owingContactsRaw,
       recentTransactionsRaw,
     ] = await Promise.all([
-      getBudgetsWithProgress(),
+      getBudgetsWithProgress(effectiveMonth),
 
       // Selected period transactions
       db
@@ -354,7 +379,7 @@ export async function getFinancialIntelligence(
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
-            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
+            sql`${transactions.status} NOT IN ('rejected', 'draft', 'pending', 'unverified', 'cancelled')`,
             or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, startOfCurrentMonth)
           )
@@ -377,7 +402,7 @@ export async function getFinancialIntelligence(
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
-            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
+            sql`${transactions.status} NOT IN ('rejected', 'draft', 'pending', 'unverified', 'cancelled')`,
             or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, startOfLastMonth),
             lte(transactions.date, endOfLastMonth)
@@ -398,7 +423,7 @@ export async function getFinancialIntelligence(
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
-            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
+            sql`${transactions.status} NOT IN ('rejected', 'draft', 'pending', 'unverified', 'cancelled')`,
             or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true)),
             gte(transactions.date, new Date(now.getFullYear(), now.getMonth() - 5, 1))
           )
@@ -504,7 +529,7 @@ export async function getFinancialIntelligence(
           and(
             eq(transactions.isDeleted, false),
             eq(transactions.userId, user.id),
-            sql`${transactions.status} NOT IN ('rejected', 'draft')`,
+            sql`${transactions.status} NOT IN ('rejected', 'draft', 'pending', 'unverified', 'cancelled')`,
             or(isNull(transactions.contactId), eq(transactions.isSyncedToDashboard, true))
           )
         )

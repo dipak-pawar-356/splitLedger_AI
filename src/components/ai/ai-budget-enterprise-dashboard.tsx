@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { formatCurrency } from "@/lib/utils";
 import { BudgetCard } from "@/components/budget/budget-card";
 import { SmartRecommendationsView } from "@/components/ai/smart-recommendations-view";
+import { MonthInfo, parseMonthParam } from "@/lib/month-sync";
 import {
   Target,
   TrendingDown,
@@ -32,28 +33,28 @@ import {
   Scale,
   CreditCard,
   Tag,
+  ArrowRight,
 } from "lucide-react";
 
 interface AIBudgetEnterpriseDashboardProps {
   budgets: BudgetProgress[];
   intelligence: FinancialIntelligenceData;
-  onOpenBudgetDialog: () => void;
-  onEditBudget?: (b: BudgetProgress) => void;
+  monthInfo?: MonthInfo;
 }
 
 export function AIBudgetEnterpriseDashboard({
   budgets,
   intelligence,
-  onOpenBudgetDialog,
-  onEditBudget,
+  monthInfo: customMonthInfo,
 }: AIBudgetEnterpriseDashboardProps) {
   const router = useRouter();
   const [filterType, setFilterType] = useState<"all" | "personal" | "category" | "group">("all");
+  const monthInfo = useMemo(() => customMonthInfo || parseMonthParam(), [customMonthInfo]);
 
-  const now = new Date();
-  const currentDay = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const daysRemaining = Math.max(1, daysInMonth - currentDay);
+  const elapsedDays = monthInfo.elapsedDays;
+  const remainingDays = monthInfo.remainingDays;
+  const currentDay = elapsedDays;
+  const daysRemaining = remainingDays;
 
   // Active non-archived budgets
   const activeBudgets = useMemo(() => {
@@ -165,34 +166,25 @@ export function AIBudgetEnterpriseDashboard({
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Target className="h-5 w-5 text-emerald-500" />
-              <span>Real-Time Personal Budget Planner</span>
+              <span>AI Budget Intelligence & Category Analytics</span>
             </h2>
             <Badge variant="outline" className="text-[11px] font-bold bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-              Live Ledger Synced
+              {monthInfo.label}
             </Badge>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Spending dynamically decrements budget allocations with zero latency as verified ledger debits occur.
+            Spending dynamically decrements budget allocations for {monthInfo.label}. Manage limits and revisions in the Budget Center.
           </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
           <Button
             size="sm"
-            variant="outline"
-            onClick={() => router.push("/dashboard/budgets")}
-            className="rounded-xl text-xs font-bold gap-1.5 border-primary/30 text-primary hover:bg-primary/10 shadow-xs min-h-[36px]"
+            onClick={() => router.push(`/dashboard/budgets?month=${monthInfo.monthStr}`)}
+            className="rounded-xl text-xs font-bold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs min-h-[36px]"
           >
-            <Layers className="h-4 w-4" />
             <span>Open Budget Center</span>
-          </Button>
-          <Button
-            size="sm"
-            onClick={onOpenBudgetDialog}
-            className="rounded-xl text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm min-h-[36px]"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Target</span>
+            <ArrowRight className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
@@ -389,8 +381,6 @@ export function AIBudgetEnterpriseDashboard({
       {intelligence.recommendations && intelligence.recommendations.length > 0 && (
         <SmartRecommendationsView
           recommendations={intelligence.recommendations}
-          onOpenBudgetDialog={onOpenBudgetDialog}
-          onEditBudget={onEditBudget}
         />
       )}
 
@@ -425,7 +415,11 @@ export function AIBudgetEnterpriseDashboard({
         {filteredBudgets.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredBudgets.map((b) => (
-              <BudgetCard key={b.id} budget={b} onEdit={onEditBudget} />
+              <BudgetCard
+                key={b.id}
+                budget={b}
+                onEdit={() => router.push(`/dashboard/budgets?month=${monthInfo.monthStr}`)}
+              />
             ))}
           </div>
         ) : (
@@ -435,19 +429,19 @@ export function AIBudgetEnterpriseDashboard({
             </div>
             <div className="space-y-0.5">
               <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                No Budgets in this Category
+                No Budgets for {monthInfo.label}
               </h4>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Set category spending limits for Groceries, Fuel, Shopping, and Bills to automate discipline.
+                No active budget allocations found for this category in {monthInfo.label}. Manage your limits in Budget Center.
               </p>
             </div>
             <Button
               size="sm"
-              onClick={onOpenBudgetDialog}
-              className="rounded-xl text-xs font-bold bg-primary text-primary-foreground min-h-[34px]"
+              onClick={() => router.push(`/dashboard/budgets?month=${monthInfo.monthStr}`)}
+              className="rounded-xl text-xs font-bold bg-primary text-primary-foreground min-h-[34px] gap-1.5"
             >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Add Target
+              <Layers className="h-3.5 w-3.5" />
+              <span>Configure Limits in Budget Center</span>
             </Button>
           </Card>
         )}

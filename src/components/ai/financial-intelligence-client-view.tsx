@@ -7,39 +7,25 @@ import {
   FinancialIntelligenceData,
   getFinancialIntelligence,
 } from "@/actions/financial-intelligence";
-import { BudgetProgress } from "@/actions/budgets";
 import { subscribeFinancialEvents } from "@/lib/events/financial-events";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Sparkles,
   Target,
   TrendingUp,
   ShieldCheck,
-  Zap,
-  Plus,
   Brain,
   Camera,
-  Scale,
-  FileText,
-  Upload,
   RefreshCw,
-  Search,
-  Bot,
   Repeat,
   Mic,
+  ArrowRight,
+  Sparkles,
+  Calendar,
 } from "lucide-react";
 import { SplitLedgerAiIcon } from "@/components/ai/split-ledger-ai-icon";
 import { FinancialIntelligenceControlCenter, PeriodFilter } from "@/components/ai/financial-intelligence-control-center";
 import { FinancialForecastingEnterpriseView } from "@/components/ai/financial-forecasting-enterprise-view";
-import { FinancialHealthScoreCard } from "@/components/ai/financial-health-score-card";
-import { AIInsightsFeed } from "@/components/ai/ai-insights-feed";
-import { SmartRecommendationsView } from "@/components/ai/smart-recommendations-view";
-import { FinancialForecastingCard } from "@/components/ai/financial-forecasting-card";
-import { BudgetCard } from "@/components/budget/budget-card";
-import { BudgetDialog } from "@/components/budget/budget-dialog";
 import { AIFinancialAssistantCard } from "@/components/ai/ai-financial-assistant-card";
 import { AIBudgetAndRemindersHub, ReminderItem } from "@/components/ai/ai-budget-and-reminders-hub";
 import { AIBudgetEnterpriseDashboard } from "@/components/ai/ai-budget-enterprise-dashboard";
@@ -47,9 +33,9 @@ import { AISubscriptionsCard } from "@/components/ai/ai-subscriptions-card";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { VoiceAssistantPanel } from "@/components/ai/voice-assistant-panel";
 import { AutomationRulesBuilder } from "@/components/ai/automation-rules-builder";
-import { BusinessIntelligenceCard } from "@/components/ai/business-intelligence-card";
-import { AIFinancialCharts } from "@/components/ai/ai-financial-charts";
 import { AIReceiptScannerModal } from "@/components/receipts/ai-receipt-scanner-modal";
+import { SharedMonthSelector } from "@/components/common/shared-month-selector";
+import { useMonthSync } from "@/hooks/use-month-sync";
 import { toast } from "sonner";
 
 interface FinancialIntelligenceClientViewProps {
@@ -57,6 +43,7 @@ interface FinancialIntelligenceClientViewProps {
   categories: Array<{ id: number; name: string }>;
   groups: Array<{ id: number; name: string }>;
   initialReminders?: ReminderItem[];
+  initialMonth?: string;
 }
 
 export function FinancialIntelligenceClientView({
@@ -64,6 +51,7 @@ export function FinancialIntelligenceClientView({
   categories,
   groups,
   initialReminders = [],
+  initialMonth,
 }: FinancialIntelligenceClientViewProps) {
   const router = useRouter();
   const [data, setData] = useState<FinancialIntelligenceData>(initialData);
@@ -75,13 +63,38 @@ export function FinancialIntelligenceClientView({
   const [activeTab, setActiveTab] = useState<string>("assistant");
   const [isMounted, setIsMounted] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isBudgetDialogOpen, setIsBudgetDialogOpen] = useState(false);
-  const [budgetToEdit, setBudgetToEdit] = useState<BudgetProgress | null>(null);
-  const [initialBudgetAmount, setInitialBudgetAmount] = useState<number | undefined>(undefined);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
 
   const shouldReduceMotion = useReducedMotion();
   const tabRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+
+  // Shared synchronized month state
+  const {
+    selectedMonth,
+    monthInfo,
+    setMonth,
+    goToPrevMonth,
+    goToNextMonth,
+    goToCurrentMonth,
+  } = useMonthSync({
+    initialMonth,
+    onMonthChange: (newMonth) => {
+      fetchDataForMonth(newMonth);
+    },
+  });
+
+  const fetchDataForMonth = useCallback(async (monthStr: string) => {
+    setIsPeriodLoading(true);
+    try {
+      const freshData = await getFinancialIntelligence(monthStr, undefined, undefined, monthStr);
+      setPeriodCache((prev) => ({ ...prev, [monthStr]: freshData }));
+      setData(freshData);
+    } catch {
+      toast.error(`Failed to load intelligence metrics for ${monthStr}`);
+    } finally {
+      setIsPeriodLoading(false);
+    }
+  }, []);
 
   const subSubjects = [
     { id: "assistant", label: "AI Financial Assistant", icon: SplitLedgerAiIcon, color: "text-primary" },
@@ -90,7 +103,7 @@ export function FinancialIntelligenceClientView({
     { id: "subscriptions", label: "Subscriptions", icon: Repeat, color: "text-purple-500" },
     {
       id: "budgets",
-      label: `Budget Tracker`,
+      label: "Budget Intelligence",
       badge: data.budgets.length,
       icon: Target,
       color: "text-emerald-500",
@@ -128,18 +141,18 @@ export function FinancialIntelligenceClientView({
     }
   };
 
-  // Instant period switching engine with client memoization
+  // Period switching within selected month
   const handlePeriodChange = useCallback(
     async (period: PeriodFilter, customStart?: string, customEnd?: string) => {
       setSelectedPeriod(period);
-      const cacheKey = period === "custom" ? `custom_${customStart}_${customEnd}` : period;
+      const cacheKey = period === "custom" ? `custom_${customStart}_${customEnd}_${selectedMonth}` : `${period}_${selectedMonth}`;
       if (periodCache[cacheKey]) {
         setData(periodCache[cacheKey]);
         return;
       }
       setIsPeriodLoading(true);
       try {
-        const freshData = await getFinancialIntelligence(period, customStart, customEnd);
+        const freshData = await getFinancialIntelligence(period, customStart, customEnd, selectedMonth);
         setPeriodCache((prev) => ({ ...prev, [cacheKey]: freshData }));
         setData(freshData);
       } catch {
@@ -148,28 +161,28 @@ export function FinancialIntelligenceClientView({
         setIsPeriodLoading(false);
       }
     },
-    [periodCache]
+    [periodCache, selectedMonth]
   );
 
-  // Reload fresh data from database
+  // Reload fresh data from database for current selected month
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const freshData = await getFinancialIntelligence(selectedPeriod);
-      setPeriodCache((prev) => ({ ...prev, [selectedPeriod]: freshData }));
+      const freshData = await getFinancialIntelligence(selectedMonth, undefined, undefined, selectedMonth);
+      setPeriodCache((prev) => ({ ...prev, [selectedMonth]: freshData }));
       setData(freshData);
-      toast.success("Intelligence dashboard synchronized with database");
+      toast.success(`Intelligence synchronized for ${monthInfo.label}`);
     } catch {
       toast.error("Failed to refresh financial intelligence data");
     } finally {
       setIsRefreshing(false);
     }
-  }, [selectedPeriod]);
+  }, [selectedMonth, monthInfo.label]);
 
   // Subscribe to universal real-time events across windows & tabs
   useEffect(() => {
     const unsubscribe = subscribeFinancialEvents((payload) => {
-      console.log("Real-time financial update received:", payload.type);
+      console.log("Real-time financial update received in AI dashboard:", payload.type);
       handleRefresh();
     });
 
@@ -177,18 +190,6 @@ export function FinancialIntelligenceClientView({
       unsubscribe();
     };
   }, [handleRefresh]);
-
-  const handleCreateBudget = (suggestedAmount?: number | React.MouseEvent) => {
-    setBudgetToEdit(null);
-    setInitialBudgetAmount(typeof suggestedAmount === "number" ? suggestedAmount : undefined);
-    setIsBudgetDialogOpen(true);
-  };
-
-  const handleEditBudget = (b: BudgetProgress) => {
-    setBudgetToEdit(b);
-    setInitialBudgetAmount(undefined);
-    setIsBudgetDialogOpen(true);
-  };
 
   if (!isMounted) {
     return (
@@ -219,10 +220,10 @@ export function FinancialIntelligenceClientView({
     <div className="space-y-6 pb-12 ai-module-scope" suppressHydrationWarning>
       {/* Screen Reader Live Announcement */}
       <div className="sr-only" aria-live="polite" aria-atomic="true">
-        {isRefreshing ? "Synchronizing database records..." : "Financial intelligence dashboard updated"}
+        {isRefreshing ? "Synchronizing database records..." : `Financial intelligence dashboard updated for ${monthInfo.label}`}
       </div>
 
-      {/* Top Header */}
+      {/* 1. AI Financial Intelligence Header with Synchronized Month Selector */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
@@ -235,11 +236,20 @@ export function FinancialIntelligenceClientView({
             </Badge>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Realtime database-driven financial health, multilingual voice commands, automated rules, forecasting & OCR
+            Realtime database-driven financial health, spending patterns, forecasting & intelligent recommendations
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+          {/* Shared Month Selector */}
+          <SharedMonthSelector
+            monthInfo={monthInfo}
+            onSelectMonth={(m) => setMonth(m)}
+            onPrevMonth={goToPrevMonth}
+            onNextMonth={goToNextMonth}
+            onCurrentMonth={goToCurrentMonth}
+          />
+
           <Button
             size="sm"
             variant="outline"
@@ -251,24 +261,41 @@ export function FinancialIntelligenceClientView({
             <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`} />
             <span>{isRefreshing ? "Syncing..." : "Refresh"}</span>
           </Button>
-
-          <Button
-            size="sm"
-            className="ai-btn-premium rounded-xl text-xs font-semibold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground h-9 min-h-[36px] sm:min-h-[38px] px-3.5 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/40"
-            onClick={handleCreateBudget}
-            aria-label="Create a new budget target"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>Create Budget</span>
-          </Button>
         </div>
       </header>
+
+      {/* 2. Selected Month Status Indicator */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 sm:px-4 rounded-2xl bg-slate-900/60 border border-slate-800/90 backdrop-blur-md text-xs shadow-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Sparkles className="h-4 w-4 text-primary shrink-0" />
+          <span className="font-bold text-slate-200">
+            Analysing: <span className="font-mono text-primary font-bold">{monthInfo.label}</span>
+          </span>
+          <span className="text-slate-400 hidden xs:inline">•</span>
+          <span className="text-slate-400">
+            {monthInfo.isCurrentMonth
+              ? `${monthInfo.elapsedDays} of ${monthInfo.totalDays} days elapsed (${monthInfo.remainingDays} days left)`
+              : monthInfo.isPastMonth
+              ? `Completed period (${monthInfo.totalDays} days recorded)`
+              : `Upcoming planned cycle (${monthInfo.totalDays} days)`}
+          </span>
+        </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/dashboard/budgets?month=${selectedMonth}`)}
+          className="h-7 px-2.5 rounded-xl text-primary font-bold text-xs hover:bg-primary/10 gap-1 self-start sm:self-auto group"
+        >
+          <span>Open Budget Center</span>
+          <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+        </Button>
+      </div>
 
       {/* Main Feature Tabs */}
       <div className="space-y-6">
         {/* Responsive Horizontal Scrollable Sub-Subjects Bar with Linear Edge Masks */}
         <div className="relative">
-          {/* Visual gradient edge masks on mobile touch scroller */}
           <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-3 bg-gradient-to-r from-background to-transparent z-10 sm:hidden" />
           <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-background to-transparent z-10 sm:hidden" />
 
@@ -344,12 +371,11 @@ export function FinancialIntelligenceClientView({
               {...tabMotionProps}
               className="space-y-6 outline-none focus-visible:ring-2 focus-visible:ring-primary/20 rounded-2xl"
             >
-              {/* Executive Live Budget & Reminders Hub with Accurate Positions */}
+              {/* Executive Budget Intelligence Snapshot & Velocity Guardrails */}
               <AIBudgetAndRemindersHub
                 budgets={data.budgets}
                 reminders={initialReminders}
-                onOpenBudgetDialog={() => handleCreateBudget()}
-                onNavigateToBudgetsTab={() => router.push("/dashboard/budgets")}
+                monthInfo={monthInfo}
               />
 
               <AIFinancialAssistantCard categories={categories} />
@@ -388,7 +414,6 @@ export function FinancialIntelligenceClientView({
                 selectedPeriod={selectedPeriod}
                 onSelectPeriod={handlePeriodChange}
                 isPeriodLoading={isPeriodLoading}
-                onOpenBudgetDialog={handleCreateBudget}
                 onRefresh={handleRefresh}
                 isRefreshing={isRefreshing}
               />
@@ -412,7 +437,7 @@ export function FinancialIntelligenceClientView({
             </motion.div>
           )}
 
-          {/* TAB 5: Live Budget Tracker */}
+          {/* TAB 5: AI Budget Intelligence & Category Analytics */}
           {activeTab === "budgets" && (
             <motion.div
               key="budgets"
@@ -426,8 +451,7 @@ export function FinancialIntelligenceClientView({
               <AIBudgetEnterpriseDashboard
                 budgets={data.budgets}
                 intelligence={data}
-                onOpenBudgetDialog={() => handleCreateBudget()}
-                onEditBudget={handleEditBudget}
+                monthInfo={monthInfo}
               />
             </motion.div>
           )}
@@ -445,7 +469,6 @@ export function FinancialIntelligenceClientView({
             >
               <FinancialForecastingEnterpriseView
                 data={data}
-                onOpenBudgetDialog={handleCreateBudget}
               />
             </motion.div>
           )}
@@ -471,16 +494,6 @@ export function FinancialIntelligenceClientView({
           )}
         </AnimatePresence>
       </div>
-
-      {/* Budget Modal */}
-      <BudgetDialog
-        open={isBudgetDialogOpen}
-        onOpenChange={setIsBudgetDialogOpen}
-        categories={categories}
-        groups={groups}
-        budgetToEdit={budgetToEdit}
-        initialAmount={initialBudgetAmount}
-      />
 
       {/* OCR Scanner Modal */}
       <AIReceiptScannerModal

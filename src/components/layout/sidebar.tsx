@@ -32,7 +32,7 @@ const navigation = [
   { name: "Transactions", href: "/dashboard/transactions", icon: ReceiptIndianRupee },
   { name: "Groups", href: "/dashboard/groups", icon: Users },
   { name: "Trips & Events", href: "/dashboard/trips", icon: Compass },
-  // { name: "Budgets", href: "/dashboard/budgets", icon: PiggyBank },
+  { name: "Budgets", href: "/dashboard/budgets", icon: PiggyBank },
   // { name: "Loans & Debt", href: "/dashboard/loans", icon: HandCoins },
   { name: "Reports", href: "/dashboard/reports", icon: BarChart3 },
   { name: "Notes & Journal", href: "/dashboard/notes", icon: StickyNote },

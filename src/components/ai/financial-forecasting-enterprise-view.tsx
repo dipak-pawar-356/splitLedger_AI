@@ -62,7 +62,6 @@ import { toast } from "sonner";
 
 interface FinancialForecastingEnterpriseViewProps {
   data: FinancialIntelligenceData;
-  onOpenBudgetDialog?: () => void;
 }
 
 type ForecastPeriod = "1m" | "1q" | "6m" | "1y";
@@ -105,7 +104,6 @@ function CustomChartTooltip({ active, payload, label }: any) {
 
 export function FinancialForecastingEnterpriseView({
   data,
-  onOpenBudgetDialog,
 }: FinancialForecastingEnterpriseViewProps) {
   const [selectedPeriod, setSelectedPeriod] = useState<ForecastPeriod>("1m");
   const [activeChartTab, setActiveChartTab] = useState<"cashflow" | "running_balance" | "categories" | "daily">("cashflow");
@@ -321,16 +319,12 @@ export function FinancialForecastingEnterpriseView({
               </Link>
             </Button>
 
-            {onOpenBudgetDialog && (
-              <Button
-                variant="outline"
-                onClick={() => onOpenBudgetDialog()}
-                className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto"
-              >
+            <Button asChild variant="outline" className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto">
+              <Link href="/dashboard/budgets">
                 <Target className="h-4 w-4" />
-                <span>Create Budget</span>
-              </Button>
-            )}
+                <span>Open Budget Center</span>
+              </Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   BudgetDashboardMetrics,
   BudgetRecord,
@@ -10,6 +11,7 @@ import {
   BudgetPeriod,
 } from "@/lib/types/budgets";
 import { 
+  getBudgetDashboardSummary,
   deleteBudget, 
   archiveBudget, 
   duplicateBudget,
@@ -19,6 +21,8 @@ import {
   setSpendingLimit,
   deleteSpendingLimit
 } from "@/actions/budgets";
+import { useMonthSync } from "@/hooks/use-month-sync";
+import { SharedMonthSelector } from "@/components/common/shared-month-selector";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -75,9 +79,10 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 interface BudgetsDashboardViewProps {
   initialMetrics: BudgetDashboardMetrics;
+  initialMonth?: string;
 }
 
-export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewProps) {
+export function BudgetsDashboardView({ initialMetrics, initialMonth }: BudgetsDashboardViewProps) {
   const router = useRouter();
 
   const safeInitialMetrics: BudgetDashboardMetrics = useMemo(() => {
@@ -110,13 +115,58 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
   const [metrics, setMetrics] = useState<BudgetDashboardMetrics>(safeInitialMetrics);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const handleRefresh = () => {
+  // Month and Date Synchronization with AI Intelligence page
+  const {
+    selectedMonth,
+    monthInfo,
+    setMonth,
+    goToPrevMonth,
+    goToNextMonth,
+    goToCurrentMonth,
+    isNavigating,
+  } = useMonthSync({
+    initialMonth,
+    onMonthChange: async (newMonth) => {
+      setIsRefreshing(true);
+      try {
+        const updated = await getBudgetDashboardSummary(newMonth);
+        if (updated) {
+          setMetrics(updated);
+          if (updated.budgets && updated.budgets.length > 0) {
+            setSelectedBudgetId((prevId) => {
+              const exists = updated.budgets.some((b) => b && b.id === prevId);
+              return exists ? prevId : updated.budgets[0].id;
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load budgets for month:", err);
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (initialMetrics) {
+      setMetrics(safeInitialMetrics);
+    }
+  }, [safeInitialMetrics]);
+
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    router.refresh();
-    setTimeout(() => {
+    try {
+      const updated = await getBudgetDashboardSummary(selectedMonth);
+      if (updated) {
+        setMetrics(updated);
+      }
+      router.refresh();
+      toast.success(`Synchronized with ${monthInfo.label} ledger`);
+    } catch (err) {
+      toast.error("Failed to sync with ledger");
+    } finally {
       setIsRefreshing(false);
-      toast.success("Synchronized with verified ledger records");
-    }, 450);
+    }
   };
 
   // Default active tab to overview so arriving users immediately see full budget details
@@ -504,6 +554,27 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Shared Month Selector synchronized across Budgets & AI pages */}
+          <SharedMonthSelector
+            monthInfo={monthInfo}
+            onSelectMonth={(m) => setMonth(m)}
+            onPrevMonth={goToPrevMonth}
+            onNextMonth={goToNextMonth}
+            onCurrentMonth={goToCurrentMonth}
+          />
+
+          <Link href={`/dashboard/ai?month=${selectedMonth}`}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl text-xs font-bold gap-1.5 h-9 bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 border-purple-500/30 budget-btn-press"
+              title="Open AI Financial Intelligence for this month"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-purple-500" />
+              <span>AI Insights →</span>
+            </Button>
+          </Link>
+
           <Button
             size="sm"
             variant="outline"
@@ -534,6 +605,33 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
             <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
             <span>Set Limit</span>
           </Button>
+        </div>
+      </div>
+
+      {/* Month context indicator bar */}
+      <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-slate-100/80 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-xs">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-primary" />
+          <span className="text-slate-600 dark:text-slate-300">
+            Viewing records for <strong className="text-slate-900 dark:text-slate-100 font-semibold">{monthInfo.label}</strong>
+          </span>
+          <Badge
+            variant="outline"
+            className={`text-[10px] font-semibold border ${
+              monthInfo.status === "current"
+                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                : monthInfo.status === "past"
+                ? "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                : "bg-blue-500/10 text-blue-400 border-blue-500/30"
+            }`}
+          >
+            {monthInfo.status === "current" ? "Active Cycle" : monthInfo.status === "past" ? "Historical Cycle" : "Upcoming Cycle"}
+          </Badge>
+        </div>
+        <div className="hidden sm:flex items-center gap-3 text-slate-500 dark:text-slate-400 text-[11px]">
+          <span>Cycle: {monthInfo.totalDays} Days ({monthInfo.elapsedDays} Elapsed, {monthInfo.remainingDays} Remaining)</span>
+          <span className="text-slate-300 dark:text-slate-700">•</span>
+          <span className="text-emerald-600 dark:text-emerald-400 font-medium">Verified Ledger Sync</span>
         </div>
       </div>
 
@@ -587,6 +685,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
                 onTransferUnused={(b) => setTransferBudget(b)}
                 verifiedIncome={metrics.verifiedIncome}
                 verifiedExpenses={metrics.verifiedExpenses}
+                targetMonth={selectedMonth}
               />
             </ErrorBoundary>
           ) : (

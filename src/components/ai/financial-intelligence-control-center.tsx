@@ -38,7 +38,6 @@ export type { PeriodFilter };
 
 interface FinancialIntelligenceControlCenterProps {
   data: FinancialIntelligenceData;
-  onOpenBudgetDialog?: (suggestedAmount?: number) => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
   selectedPeriod?: PeriodFilter;
@@ -65,7 +64,6 @@ const EXTENDED_PERIODS = [
 
 export function FinancialIntelligenceControlCenter({
   data,
-  onOpenBudgetDialog,
   onRefresh,
   isRefreshing = false,
   selectedPeriod = "current_month",
@@ -322,16 +320,12 @@ export function FinancialIntelligenceControlCenter({
                 </Link>
               </Button>
 
-              {onOpenBudgetDialog && (
-                <Button
-                  variant="secondary"
-                  onClick={() => onOpenBudgetDialog()}
-                  className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto active:scale-[0.98] transition-all"
-                >
+              <Button asChild variant="secondary" className="rounded-xl text-xs font-bold gap-2 h-10 px-4 w-full sm:w-auto active:scale-[0.98] transition-all">
+                <Link href="/dashboard/budgets">
                   <Target className="h-4 w-4" />
-                  <span>Create Budget</span>
-                </Button>
-              )}
+                  <span>Open Budget Center</span>
+                </Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
