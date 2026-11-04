@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { BudgetRecord, BudgetType, BudgetPeriod, BudgetDurationPreset } from "@/lib/types/budgets";
-import { createBudget, updateBudget, calculateBudgetDatesFromPreset } from "@/actions/budgets";
+import { createBudget, updateBudget } from "@/actions/budgets";
+import { calculateBudgetDatesFromPreset } from "@/lib/budget-utils";
 import {
   Dialog,
   DialogContent,
