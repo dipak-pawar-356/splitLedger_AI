@@ -71,6 +71,7 @@ import { BudgetDetailsDashboard } from "./budget-details-dashboard";
 import { BudgetIncreaseModal } from "./budget-increase-modal";
 import { BudgetCreateEditModal } from "./budget-create-edit-modal";
 import { BudgetSmartFilters, BudgetFilterState } from "./budget-smart-filters";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 interface BudgetsDashboardViewProps {
   initialMetrics: BudgetDashboardMetrics;
@@ -573,19 +574,21 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
         {/* TAB 1: Complete Budget Details Dashboard */}
         <TabsContent value="overview" className="space-y-6">
           {activeSelectedBudget ? (
-            <BudgetDetailsDashboard
-              budget={activeSelectedBudget}
-              allBudgets={metrics.budgets}
-              onSelectBudget={(b) => setSelectedBudgetId(b.id)}
-              onOpenIncreaseModal={openIncreaseModal}
-              onOpenEditModal={openEditModal}
-              onDuplicate={handleDuplicate}
-              onArchive={handleArchive}
-              onDelete={handleDelete}
-              onTransferUnused={(b) => setTransferBudget(b)}
-              verifiedIncome={metrics.verifiedIncome}
-              verifiedExpenses={metrics.verifiedExpenses}
-            />
+            <ErrorBoundary fallbackText="Unable to display budget details for this selection">
+              <BudgetDetailsDashboard
+                budget={activeSelectedBudget}
+                allBudgets={metrics.budgets}
+                onSelectBudget={(b) => setSelectedBudgetId(b.id)}
+                onOpenIncreaseModal={openIncreaseModal}
+                onOpenEditModal={openEditModal}
+                onDuplicate={handleDuplicate}
+                onArchive={handleArchive}
+                onDelete={handleDelete}
+                onTransferUnused={(b) => setTransferBudget(b)}
+                verifiedIncome={metrics.verifiedIncome}
+                verifiedExpenses={metrics.verifiedExpenses}
+              />
+            </ErrorBoundary>
           ) : (
             <div className="py-20 text-center border-2 border-dashed rounded-3xl p-8 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
               <PieChart className="h-12 w-12 text-slate-400 mx-auto" />
@@ -644,14 +647,14 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
                         <Badge
                           variant="secondary"
                           className={`text-[10px] font-bold ${
-                            b.percentageUsed > 90
+                            (b.percentageUsed || 0) > 90
                               ? "bg-rose-500/10 text-rose-600"
-                              : b.percentageUsed > 75
+                              : (b.percentageUsed || 0) > 75
                               ? "bg-amber-500/10 text-amber-600"
                               : "bg-emerald-500/10 text-emerald-600"
                           }`}
                         >
-                          {b.percentageUsed}% USED
+                          {b.percentageUsed ?? 0}% USED
                         </Badge>
 
                         <Button
@@ -759,7 +762,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
                         {b.name}
                       </h2>
                       <p className="text-[11px] text-slate-500">
-                        {b.groupId ? `Group #${b.groupId}` : `Trip #${b.linkedTripId}`} • {b.budgetType.toUpperCase()}
+                        {b.groupId ? `Group #${b.groupId}` : `Trip #${b.linkedTripId}`} • {(b.budgetType || "personal").toUpperCase()}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -820,7 +823,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="font-bold text-sm text-slate-900 dark:text-slate-100">{g.name}</h2>
-                    <p className="text-[11px] text-slate-500">Target: {formatDate(g.targetDate)} • Priority: {g.priority.toUpperCase()}</p>
+                    <p className="text-[11px] text-slate-500">Target: {formatDate(g.targetDate)} • Priority: {(g.priority || "medium").toUpperCase()}</p>
                   </div>
                   <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 text-[10px] font-bold">
                     {g.progressPercent}% SAVED

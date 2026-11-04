@@ -470,7 +470,7 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
         }
         if (increases.length > 0) {
           const lastInc = increases[0];
-          const incDate = new Date(lastInc.date);
+          const incDate = parseSafeDate(lastInc.date);
           const dayDiff = Math.max(1, Math.ceil((incDate.getTime() - budgetStart) / 86400000));
           aiInsights.push(
             `You increased your ${b.name} budget by ₹${lastInc.addedAmount.toLocaleString("en-IN")} on Day ${dayDiff}.`
@@ -1052,7 +1052,7 @@ export async function getBudgetDashboardSummary(): Promise<BudgetDashboardMetric
       description: b.description || undefined,
       category: b.categoryName || "General",
       budgetType: b.budgetType || "personal",
-      period: b.period as any,
+      period: (b.period as any) || "monthly",
       allocatedAmount: b.amount,
       spentAmount: b.spent,
       remainingAmount: b.remaining,

@@ -25,12 +25,13 @@ export function BudgetProgressRing({
 }: BudgetProgressRingProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const clampedPercent = Math.min(100, Math.max(0, percentage));
+  const safePercent = Number(percentage) || 0;
+  const clampedPercent = Math.min(100, Math.max(0, safePercent));
   const strokeDashoffset = circumference - (clampedPercent / 100) * circumference;
 
   // Color selection based on financial state
   const ringColors = useMemo(() => {
-    if (status === "overspent" || percentage > 100) {
+    if (status === "overspent" || safePercent > 100) {
       return {
         start: "#ef4444",
         end: "#dc2626",
@@ -78,9 +79,9 @@ export function BudgetProgressRing({
       badge: "Healthy Velocity",
       badgeClass: "bg-indigo-500/10 text-indigo-600 border-indigo-500/30",
     };
-  }, [percentage, status]);
+  }, [safePercent, status]);
 
-  const gradientId = `budget-ring-grad-${percentage}-${size}`;
+  const gradientId = `budget-ring-grad-${safePercent}-${size}`;
 
   return (
     <div className="flex flex-col items-center justify-center relative select-none">

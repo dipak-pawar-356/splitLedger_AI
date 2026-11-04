@@ -12,6 +12,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  TooltipProvider,
 } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -107,32 +108,32 @@ export function BudgetDetailsDashboard({
   }, []);
 
   // 1. Core Financial Baseline Values (Always from verified ledger records)
-  const currency = budget.currency || "INR";
-  const originalBudget = budget.originalAmount ?? budget.allocatedAmount;
-  const currentBudget = budget.allocatedAmount;
-  const additionalBudget = budget.additionalAmount ?? Math.max(0, currentBudget - originalBudget);
-  const totalSpent = budget.spentAmount;
+  const currency = budget?.currency || "INR";
+  const originalBudget = Number(budget?.originalAmount ?? budget?.allocatedAmount ?? 0);
+  const currentBudget = Number(budget?.allocatedAmount ?? 0);
+  const additionalBudget = Number(budget?.additionalAmount ?? Math.max(0, currentBudget - originalBudget));
+  const totalSpent = Number(budget?.spentAmount ?? 0);
   const remainingBudget = Math.max(0, currentBudget - totalSpent);
   const utilizationPercent = currentBudget > 0 ? Math.round((totalSpent / currentBudget) * 100) : 0;
   const remainingPercent = Math.max(0, 100 - utilizationPercent);
 
   // 2. Timeline & Duration Dynamics
-  const totalDurationDays = budget.totalDurationDays ?? 30;
-  const daysPassed = budget.daysPassed ?? 0;
-  const daysRemaining = budget.daysRemaining ?? 0;
-  const remainingHours = budget.remainingHours ?? 0;
-  const remainingWeeks = budget.remainingWeeks ?? Math.floor(daysRemaining / 7);
-  const remainingMonths = budget.remainingMonths ?? Number((daysRemaining / 30.4).toFixed(1));
-  const timelinePercentage = budget.timelinePercentage ?? Math.min(100, Math.round((daysPassed / Math.max(1, totalDurationDays)) * 100));
+  const totalDurationDays = Number(budget?.totalDurationDays ?? 30) || 30;
+  const daysPassed = Number(budget?.daysPassed ?? 0) || 0;
+  const daysRemaining = Number(budget?.daysRemaining ?? 0) || 0;
+  const remainingHours = Number(budget?.remainingHours ?? 0) || 0;
+  const remainingWeeks = Number(budget?.remainingWeeks ?? Math.floor(daysRemaining / 7)) || 0;
+  const remainingMonths = Number(budget?.remainingMonths ?? Number((daysRemaining / 30.4).toFixed(1))) || 0;
+  const timelinePercentage = Number(budget?.timelinePercentage ?? Math.min(100, Math.round((daysPassed / Math.max(1, totalDurationDays)) * 100))) || 0;
 
   // 3. Daily Allowance & Burning Rates
-  const averageDailySpend = budget.averageDailySpend ?? (daysPassed > 0 ? Math.round(totalSpent / daysPassed) : Math.round(totalSpent));
-  const dailyAllowance = budget.dailyAllowance ?? (daysRemaining > 0 ? Math.round(remainingBudget / daysRemaining) : 0);
-  const projectedEndSpend = budget.projectedEndSpend ?? Math.round(totalSpent + averageDailySpend * daysRemaining);
-  const expectedRemaining = budget.expectedRemaining ?? Math.max(0, currentBudget - projectedEndSpend);
+  const averageDailySpend = Number(budget?.averageDailySpend ?? (daysPassed > 0 ? Math.round(totalSpent / daysPassed) : Math.round(totalSpent))) || 0;
+  const dailyAllowance = Number(budget?.dailyAllowance ?? (daysRemaining > 0 ? Math.round(remainingBudget / daysRemaining) : 0)) || 0;
+  const projectedEndSpend = Number(budget?.projectedEndSpend ?? Math.round(totalSpent + averageDailySpend * daysRemaining)) || 0;
+  const expectedRemaining = Number(budget?.expectedRemaining ?? Math.max(0, currentBudget - projectedEndSpend)) || 0;
   const expectedOverspend = Math.max(0, projectedEndSpend - currentBudget);
-  const growthPercentage = budget.growthPercentage ?? (originalBudget > 0 ? Math.round(((currentBudget - originalBudget) / originalBudget) * 100) : 0);
-  const increaseCount = budget.increaseCount ?? (budget.increases?.length || 0);
+  const growthPercentage = Number(budget?.growthPercentage ?? (originalBudget > 0 ? Math.round(((currentBudget - originalBudget) / originalBudget) * 100) : 0)) || 0;
+  const increaseCount = Number(budget?.increaseCount ?? (budget?.increases?.length || 0)) || 0;
 
   // 4. Forecast Accuracy Calculation (Score 70% to 99% based on variance between projected spend & cap)
   const forecastAccuracy = useMemo(() => {
@@ -504,7 +505,7 @@ export function BudgetDetailsDashboard({
                 {budget.budgetType || "Personal"}
               </Badge>
               <Badge variant="secondary" className="text-xs font-mono bg-slate-100 dark:bg-slate-800">
-                {budget.period.toUpperCase()}
+                {(budget.period || "monthly").toUpperCase()}
               </Badge>
               {increaseCount > 0 && (
                 <Badge className="bg-sky-500/10 text-sky-600 text-xs font-bold border-0">
@@ -1141,63 +1142,65 @@ export function BudgetDetailsDashboard({
             />
 
             {/* Interactive Milestone Nodes */}
-            {timelineMilestones.map((milestone, idx) => (
-              <Tooltip key={milestone.id}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onMouseEnter={() => setHoveredEventId(milestone.id)}
-                    onMouseLeave={() => setHoveredEventId(null)}
-                    className="relative z-10 flex flex-col items-center group focus:outline-none"
-                  >
-                    <div
-                      className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold ring-4 ring-background transition-all duration-200 ${
-                        milestone.colorClass
-                      } group-hover:scale-125 group-hover:shadow-lg`}
+            <TooltipProvider delayDuration={150}>
+              {timelineMilestones.map((milestone, idx) => (
+                <Tooltip key={milestone.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onMouseEnter={() => setHoveredEventId(milestone.id)}
+                      onMouseLeave={() => setHoveredEventId(null)}
+                      className="relative z-10 flex flex-col items-center group focus:outline-none"
                     >
-                      {idx + 1}
+                      <div
+                        className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold ring-4 ring-background transition-all duration-200 ${
+                          milestone.colorClass
+                        } group-hover:scale-125 group-hover:shadow-lg`}
+                      >
+                        {idx + 1}
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-1 max-w-[80px] truncate text-center">
+                        {milestone.title}
+                      </span>
+                      <span className="text-[9px] text-slate-400 font-mono">
+                        {formatDate(milestone.date)}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="p-3 rounded-2xl max-w-xs shadow-2xl bg-slate-900 text-slate-100 border border-slate-800 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
+                      <strong className="text-emerald-400 font-bold">{milestone.title}</strong>
+                      <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-300">
+                        {milestone.ledgerReference}
+                      </Badge>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-1 max-w-[80px] truncate text-center">
-                      {milestone.title}
-                    </span>
-                    <span className="text-[9px] text-slate-400 font-mono">
-                      {formatDate(milestone.date)}
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="p-3 rounded-2xl max-w-xs shadow-2xl bg-slate-900 text-slate-100 border border-slate-800 text-xs space-y-1.5">
-                  <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
-                    <strong className="text-emerald-400 font-bold">{milestone.title}</strong>
-                    <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-300">
-                      {milestone.ledgerReference}
-                    </Badge>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                    <div>
-                      <span className="text-slate-400 block text-[9px]">Date & Time</span>
-                      <span>{formatDate(milestone.date)} • {milestone.time}</span>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                      <div>
+                        <span className="text-slate-400 block text-[9px]">Date & Time</span>
+                        <span>{formatDate(milestone.date)} • {milestone.time}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px]">Event Amount</span>
+                        <strong className="text-emerald-400 font-mono">{formatCurrency(milestone.amount, currency)}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px]">Remaining Budget</span>
+                        <span className="font-mono">{formatCurrency(milestone.remainingBudget, currency)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px]">Remaining Days</span>
+                        <span className="font-mono">{milestone.remainingDays} Days</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-400 block text-[9px]">Event Amount</span>
-                      <strong className="text-emerald-400 font-mono">{formatCurrency(milestone.amount, currency)}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[9px]">Remaining Budget</span>
-                      <span className="font-mono">{formatCurrency(milestone.remainingBudget, currency)}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[9px]">Remaining Days</span>
-                      <span className="font-mono">{milestone.remainingDays} Days</span>
-                    </div>
-                  </div>
-                  {milestone.notes && (
-                    <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-800/80">
-                      {milestone.notes}
-                    </p>
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            ))}
+                    {milestone.notes && (
+                      <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-800/80">
+                        {milestone.notes}
+                      </p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+            </TooltipProvider>
           </div>
         </div>
 
@@ -1397,7 +1400,7 @@ export function BudgetDetailsDashboard({
                       <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
                       <RechartsTooltip
-                        formatter={(val: number) => [`₹${val.toLocaleString("en-IN")}`, "Spending"]}
+                        formatter={(val: any) => [`₹${Number(val || 0).toLocaleString("en-IN")}`, "Spending"]}
                         contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
                       />
                       <Area
@@ -1421,8 +1424,8 @@ export function BudgetDetailsDashboard({
                       <XAxis dataKey="date" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
                       <RechartsTooltip
-                        formatter={(val: number, name: string) => [
-                          `₹${val.toLocaleString("en-IN")}`,
+                        formatter={(val: any, name: any) => [
+                          `₹${Number(val || 0).toLocaleString("en-IN")}`,
                           name === "cumulativeSpend" ? "Cumulative Spend" : "Ideal Spend Line",
                         ]}
                         contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
@@ -1450,7 +1453,7 @@ export function BudgetDetailsDashboard({
                       <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `₹${v}`} />
                       <RechartsTooltip
-                        formatter={(val: number) => [`₹${val.toLocaleString("en-IN")}`, "Amount"]}
+                        formatter={(val: any) => [`₹${Number(val || 0).toLocaleString("en-IN")}`, "Amount"]}
                         contentStyle={{ borderRadius: "12px", fontSize: "11px" }}
                       />
                       <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
