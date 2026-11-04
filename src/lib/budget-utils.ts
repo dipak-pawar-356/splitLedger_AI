@@ -144,16 +144,55 @@ export function parseSafeDate(val: any): Date {
   if (val instanceof Date) {
     return isNaN(val.getTime()) ? new Date() : val;
   }
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? new Date() : d;
+  if (typeof val === "number") {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    if (!trimmed) return new Date();
+
+    // Check for DD-MM-YYYY or DD/MM/YYYY
+    const dmyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(.*)$/);
+    if (dmyMatch) {
+      const day = parseInt(dmyMatch[1], 10);
+      const month = parseInt(dmyMatch[2], 10) - 1;
+      const year = parseInt(dmyMatch[3], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // Standard new Date parse (handles YYYY-MM-DD, ISO, etc.)
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return new Date();
 }
 
 export function getSafeIsoDateStr(val: any): string {
   try {
-    return parseSafeDate(val).toISOString().split("T")[0];
+    const d = parseSafeDate(val);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   } catch {
-    return new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
 }
+
+export function getSafeFullIsoDateStr(val: any): string {
+  try {
+    const d = parseSafeDate(val);
+    return d.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
 
 

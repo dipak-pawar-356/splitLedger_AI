@@ -253,7 +253,7 @@ export function BudgetDetailsDashboard({
   // 7. Projected Exhaustion Date
   const projectedExhaustionDate = useMemo(() => {
     if (averageDailySpend <= 0 || remainingBudget <= 0) return null;
-    const daysLeft = Math.floor(remainingBudget / averageDailySpend);
+    const daysLeft = Math.min(3650, Math.floor(remainingBudget / averageDailySpend));
     const d = new Date();
     d.setDate(d.getDate() + daysLeft);
     return getSafeIsoDateStr(d);
@@ -284,7 +284,7 @@ export function BudgetDetailsDashboard({
     const step = Math.max(1, Math.floor(totalDays / pointsCount));
 
     for (let day = 0; day <= totalDays; day += step) {
-      const pointDate = new Date(start.getTime() + day * 86400000);
+      const pointDate = parseSafeDate(start.getTime() + day * 86400000);
       const dateStr = getSafeIsoDateStr(pointDate);
       const daySpend = dailyMap.get(dateStr) || (day <= daysPassed ? Math.round(totalSpent / Math.max(1, daysPassed)) : 0);
 

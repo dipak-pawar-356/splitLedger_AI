@@ -37,6 +37,7 @@ import {
   computeCountdownText,
   parseSafeDate,
   getSafeIsoDateStr,
+  getSafeFullIsoDateStr,
 } from "@/lib/budget-utils";
 
 export interface BudgetProgress {
@@ -377,7 +378,7 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
         : 0;
 
       const matchingTxs = userExpenses.filter((tx) => {
-        const txTime = new Date(tx.date).getTime();
+        const txTime = parseSafeDate(tx.date).getTime();
         if (txTime < budgetStart || txTime > budgetEnd) return false;
         if (b.categoryId && tx.categoryId !== b.categoryId) return false;
         if (b.groupId && tx.groupId !== b.groupId) return false;
@@ -402,7 +403,7 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
       const lastExpenseTx = matchingTxs[0] || null;
       const lastExpense = lastExpenseTx
         ? {
-            date: new Date(lastExpenseTx.date).toISOString(),
+            date: getSafeFullIsoDateStr(lastExpenseTx.date),
             amount: Number(lastExpenseTx.amount) / 100,
             title: lastExpenseTx.title || lastExpenseTx.description,
           }
@@ -410,7 +411,7 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
 
       const dailySpendMap = new Map<string, number>();
       matchingTxs.forEach((tx) => {
-        const dStr = new Date(tx.date).toISOString().split("T")[0];
+        const dStr = getSafeIsoDateStr(tx.date);
         dailySpendMap.set(dStr, (dailySpendMap.get(dStr) || 0) + Number(tx.amount || 0) / 100);
       });
       const dailySpending = Array.from(dailySpendMap.entries()).map(([date, amt]) => ({
@@ -441,8 +442,8 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
         remainingHours,
         daysPassed,
         totalDays,
-        new Date(b.startDate),
-        new Date(b.endDate),
+        parseSafeDate(b.startDate),
+        parseSafeDate(b.endDate),
         now
       );
 
@@ -539,7 +540,7 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
         lastExpense,
         dailySpending,
         aiInsights,
-        updatedAt: b.createdAt ? new Date(b.createdAt).toISOString() : new Date().toISOString(),
+        updatedAt: getSafeFullIsoDateStr(b.createdAt),
       };
     });
   } catch (err) {
@@ -549,8 +550,8 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
     return memBudgets
       .filter((b) => b.status !== "archived")
       .map((b, idx) => {
-        const budgetStart = new Date(b.startDate || now).getTime();
-        const budgetEnd = new Date(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
+        const budgetStart = parseSafeDate(b.startDate || now).getTime();
+        const budgetEnd = parseSafeDate(b.endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0)).getTime();
         const totalDays = Math.max(1, Math.ceil((budgetEnd - budgetStart) / 86400000));
         const daysPassed = Math.max(0, Math.min(totalDays, Math.ceil((now.getTime() - budgetStart) / 86400000)));
         const daysRemaining = Math.max(0, Math.ceil((budgetEnd - now.getTime()) / 86400000));
@@ -589,8 +590,8 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
           remainingHours,
           daysPassed,
           totalDays,
-          new Date(b.startDate || now),
-          new Date(b.endDate || now),
+          parseSafeDate(b.startDate || now),
+          parseSafeDate(b.endDate || now),
           now
         );
 
@@ -609,8 +610,8 @@ export async function getBudgetsWithProgress(): Promise<BudgetProgress[]> {
           status: percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track",
           healthStatus: percentage >= 100 ? "exceeded" : percentage >= 75 ? "warning" : "on_track",
           period: (b.period as any) || "monthly",
-          startDate: b.startDate,
-          endDate: b.endDate || new Date().toISOString(),
+          startDate: getSafeIsoDateStr(b.startDate),
+          endDate: getSafeIsoDateStr(b.endDate),
           remainingDays,
           daysRemaining,
           dailyBudgetRemaining,
@@ -962,11 +963,11 @@ export async function getBudgetHistory(): Promise<BudgetHistoryItem[]> {
         spent,
         remaining,
         period: b.period,
-        startDate: new Date(b.startDate).toISOString().split("T")[0],
-        endDate: new Date(b.endDate).toISOString().split("T")[0],
+        startDate: getSafeIsoDateStr(b.startDate),
+        endDate: getSafeIsoDateStr(b.endDate),
         status,
         successRate,
-        createdAt: new Date(b.createdAt).toISOString().split("T")[0],
+        createdAt: getSafeIsoDateStr(b.createdAt),
       };
     });
   } catch (err) {
@@ -998,10 +999,10 @@ export async function getBudgetForecasting(): Promise<BudgetForecast> {
 
   let exhaustionDate: string | null = null;
   if (averageDailyBurn > 0 && totalRemaining > 0) {
-    const daysUntilExhaustion = Math.floor(totalRemaining / averageDailyBurn);
+    const daysUntilExhaustion = Math.min(3650, Math.floor(totalRemaining / averageDailyBurn));
     const exDate = new Date();
     exDate.setDate(exDate.getDate() + daysUntilExhaustion);
-    exhaustionDate = exDate.toISOString().split("T")[0];
+    exhaustionDate = getSafeIsoDateStr(exDate);
   }
 
   return {
@@ -1021,92 +1022,120 @@ export async function getBudgetDashboardSummary(): Promise<BudgetDashboardMetric
   ensureUserStores(user.id);
   const userKey = `user_${user.id}`;
 
-  const budgetsList = await getBudgetsWithProgress();
-  const savingsGoals = goalsStore.get(userKey) || [];
-  const spendingLimits = limitsStore.get(userKey) || [];
-  const forecast = await getBudgetForecasting();
+  try {
+    const budgetsList = await getBudgetsWithProgress();
+    const savingsGoals = goalsStore.get(userKey) || [];
+    const spendingLimits = limitsStore.get(userKey) || [];
+    const forecast = await getBudgetForecasting();
 
-  const totalBudgetAllocated = budgetsList.reduce((sum, b) => sum + b.amount, 0);
-  const totalSpent = budgetsList.reduce((sum, b) => sum + b.spent, 0);
-  const totalRemaining = Math.max(0, totalBudgetAllocated - totalSpent);
-  const overallUsagePercent = totalBudgetAllocated > 0 ? Math.round((totalSpent / totalBudgetAllocated) * 100) : 0;
-  const totalSavedAcrossGoals = savingsGoals.reduce((sum, g) => sum + g.currentSaved, 0);
+    const totalBudgetAllocated = budgetsList.reduce((sum, b) => sum + b.amount, 0);
+    const totalSpent = budgetsList.reduce((sum, b) => sum + b.spent, 0);
+    const totalRemaining = Math.max(0, totalBudgetAllocated - totalSpent);
+    const overallUsagePercent = totalBudgetAllocated > 0 ? Math.round((totalSpent / totalBudgetAllocated) * 100) : 0;
+    const totalSavedAcrossGoals = savingsGoals.reduce((sum, g) => sum + g.currentSaved, 0);
 
-  // Verified income and verified expenses
-  const verifiedIncome =
-    budgetsList[0]?.expectedSavings !== undefined && budgetsList[0]?.amount !== undefined
-      ? budgetsList[0].expectedSavings + budgetsList[0].amount
-      : 0;
-  const verifiedExpenses = totalSpent;
-  const currentNetSavings = verifiedIncome - verifiedExpenses;
-  const expectedSavings = Math.max(0, verifiedIncome - totalBudgetAllocated);
-  const savingsRate = verifiedIncome > 0 ? Math.round((currentNetSavings / verifiedIncome) * 100) : 0;
+    // Verified income and verified expenses
+    const verifiedIncome =
+      budgetsList[0]?.expectedSavings !== undefined && budgetsList[0]?.amount !== undefined
+        ? budgetsList[0].expectedSavings + budgetsList[0].amount
+        : 0;
+    const verifiedExpenses = totalSpent;
+    const currentNetSavings = verifiedIncome - verifiedExpenses;
+    const expectedSavings = Math.max(0, verifiedIncome - totalBudgetAllocated);
+    const savingsRate = verifiedIncome > 0 ? Math.round((currentNetSavings / verifiedIncome) * 100) : 0;
 
-  const records: BudgetRecord[] = budgetsList.map((b) => ({
-    id: b.publicId,
-    userId: user.id,
-    groupId: b.groupId || undefined,
-    name: b.name,
-    description: b.description || undefined,
-    category: b.categoryName || "General",
-    budgetType: b.budgetType || "personal",
-    period: b.period as any,
-    allocatedAmount: b.amount,
-    spentAmount: b.spent,
-    remainingAmount: b.remaining,
-    percentageUsed: b.percentage,
-    currency: b.currency || "INR",
-    status: b.status === "archived" ? "archived" : "active",
-    startDate: getSafeIsoDateStr(b.startDate),
-    endDate: getSafeIsoDateStr(b.endDate),
-    alertThresholds: [{ percent: b.alertThreshold || 80, triggered: b.percentage >= (b.alertThreshold || 80) }],
-    createdAt: new Date().toISOString(),
+    const records: BudgetRecord[] = budgetsList.map((b) => ({
+      id: String(b.publicId || b.id),
+      userId: user.id,
+      groupId: b.groupId || undefined,
+      name: b.name,
+      description: b.description || undefined,
+      category: b.categoryName || "General",
+      budgetType: b.budgetType || "personal",
+      period: b.period as any,
+      allocatedAmount: b.amount,
+      spentAmount: b.spent,
+      remainingAmount: b.remaining,
+      percentageUsed: b.percentage,
+      currency: b.currency || "INR",
+      status: b.status === "archived" ? "archived" : "active",
+      startDate: getSafeIsoDateStr(b.startDate),
+      endDate: getSafeIsoDateStr(b.endDate),
+      alertThresholds: [{ percent: b.alertThreshold || 80, triggered: b.percentage >= (b.alertThreshold || 80) }],
+      createdAt: getSafeFullIsoDateStr((b as any).createdAt || b.updatedAt || new Date()),
 
-    originalAmount: b.originalAmount ?? b.amount,
-    additionalAmount: b.additionalAmount ?? 0,
-    increaseCount: b.increaseCount ?? 0,
-    increases: b.increases ?? [],
-    durationPreset: b.durationPreset ?? "monthly",
-    totalDurationDays: b.totalDurationDays ?? 30,
-    daysPassed: b.daysPassed ?? 0,
-    daysRemaining: b.daysRemaining ?? b.remainingDays,
-    remainingHours: b.remainingHours,
-    remainingWeeks: b.remainingWeeks,
-    remainingMonths: b.remainingMonths,
-    countdownText: b.countdownText,
-    timelinePercentage: b.timelinePercentage ?? 0,
-    computedStatus: b.computedStatus ?? (b.status === "archived" ? "cancelled" : "active"),
-    averageDailySpend: b.dailyBurnRate ?? 0,
-    dailyAllowance: b.dailyBudgetRemaining ?? 0,
-    projectedEndSpend: b.projectedSpend ?? b.spent,
-    expectedRemaining: b.expectedRemaining ?? b.remaining,
-    expectedSavings: b.expectedSavings ?? expectedSavings,
-    previousExpectedSavings: b.previousExpectedSavings,
-    savingsImpact: b.savingsImpact ?? 0,
-    growthPercentage: b.growthPercentage ?? 0,
-    lastExpense: b.lastExpense,
-    dailySpending: b.dailySpending,
-    aiInsights: b.aiInsights,
-  }));
+      originalAmount: b.originalAmount ?? b.amount,
+      additionalAmount: b.additionalAmount ?? 0,
+      increaseCount: b.increaseCount ?? 0,
+      increases: b.increases ?? [],
+      durationPreset: b.durationPreset ?? "monthly",
+      totalDurationDays: b.totalDurationDays ?? 30,
+      daysPassed: b.daysPassed ?? 0,
+      daysRemaining: b.daysRemaining ?? b.remainingDays,
+      remainingHours: b.remainingHours,
+      remainingWeeks: b.remainingWeeks,
+      remainingMonths: b.remainingMonths,
+      countdownText: b.countdownText,
+      timelinePercentage: b.timelinePercentage ?? 0,
+      computedStatus: b.computedStatus ?? (b.status === "archived" ? "cancelled" : "active"),
+      averageDailySpend: b.dailyBurnRate ?? 0,
+      dailyAllowance: b.dailyBudgetRemaining ?? 0,
+      projectedEndSpend: b.projectedSpend ?? b.spent,
+      expectedRemaining: b.expectedRemaining ?? b.remaining,
+      expectedSavings: b.expectedSavings ?? expectedSavings,
+      previousExpectedSavings: b.previousExpectedSavings,
+      savingsImpact: b.savingsImpact ?? 0,
+      growthPercentage: b.growthPercentage ?? 0,
+      lastExpense: b.lastExpense,
+      dailySpending: b.dailySpending,
+      aiInsights: b.aiInsights,
+    }));
 
-  return {
-    totalBudgetAllocated,
-    totalSpent,
-    totalRemaining,
-    overallUsagePercent,
-    activeSavingsGoalsCount: savingsGoals.filter((g) => g.status === "in_progress").length,
-    totalSavedAcrossGoals,
-    currency: "INR",
-    budgets: records,
-    savingsGoals,
-    spendingLimits,
-    forecast,
-    verifiedIncome,
-    verifiedExpenses,
-    currentNetSavings,
-    expectedSavings,
-    savingsRate,
-  };
+    return {
+      totalBudgetAllocated,
+      totalSpent,
+      totalRemaining,
+      overallUsagePercent,
+      activeSavingsGoalsCount: savingsGoals.filter((g) => g.status === "in_progress").length,
+      totalSavedAcrossGoals,
+      currency: "INR",
+      budgets: records,
+      savingsGoals,
+      spendingLimits,
+      forecast,
+      verifiedIncome,
+      verifiedExpenses,
+      currentNetSavings,
+      expectedSavings,
+      savingsRate,
+    };
+  } catch (err) {
+    console.warn("Failed to get budget dashboard summary:", err);
+    return {
+      totalBudgetAllocated: 0,
+      totalSpent: 0,
+      totalRemaining: 0,
+      overallUsagePercent: 0,
+      activeSavingsGoalsCount: 0,
+      totalSavedAcrossGoals: 0,
+      currency: "INR",
+      budgets: [],
+      savingsGoals: [],
+      spendingLimits: [],
+      forecast: {
+        projectedMonthlySpend: 0,
+        exhaustionDate: null,
+        remainingDailyBudget: 0,
+        averageDailyBurn: 0,
+        isOverBudgetRisk: false,
+      },
+      verifiedIncome: 0,
+      verifiedExpenses: 0,
+      currentNetSavings: 0,
+      expectedSavings: 0,
+      savingsRate: 0,
+    };
+  }
 }
 
 /**
@@ -1150,8 +1179,8 @@ export async function createBudget(data: {
     data.startDate,
     data.endDate
   );
-  const start = data.startDate ? new Date(data.startDate) : presetStart;
-  const end = data.endDate ? new Date(data.endDate) : presetEnd;
+  const start = data.startDate ? parseSafeDate(data.startDate) : presetStart;
+  const end = data.endDate ? parseSafeDate(data.endDate) : presetEnd;
 
   if (end.getTime() < start.getTime()) {
     throw new ValidationError("End date cannot be earlier than start date.");
@@ -1248,16 +1277,16 @@ export async function createBudget(data: {
     priority: data.priority || "medium",
     tags: data.tags ? data.tags.map(t => sanitizeText(t)) : [],
     notes: serializedNotes,
-    startDate: start.toISOString().split("T")[0],
-    endDate: end.toISOString().split("T")[0],
+    startDate: getSafeIsoDateStr(start),
+    endDate: getSafeIsoDateStr(end),
     alertThresholds: [
       { percent: 50, triggered: false },
       { percent: 75, triggered: false },
       { percent: 90, triggered: false },
       { percent: 100, triggered: false },
     ],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: getSafeFullIsoDateStr(new Date()),
+    updatedAt: getSafeFullIsoDateStr(new Date()),
     originalAmount: finalAmount,
     additionalAmount: 0,
     increaseCount: 0,
@@ -1520,8 +1549,8 @@ export async function updateBudget(
           categoryId: data.categoryId !== undefined ? (data.categoryId || null) : undefined,
           groupId: data.groupId !== undefined ? (data.groupId || null) : undefined,
           alertThreshold: data.alertThreshold !== undefined ? data.alertThreshold : undefined,
-          startDate: data.startDate ? new Date(data.startDate) : undefined,
-          endDate: data.endDate ? new Date(data.endDate) : undefined,
+          startDate: data.startDate ? parseSafeDate(data.startDate) : undefined,
+          endDate: data.endDate ? parseSafeDate(data.endDate) : undefined,
           notes: sanitizedNotes,
           status: data.status,
           updatedAt: new Date(),
@@ -1555,10 +1584,10 @@ export async function updateBudget(
       percentageUsed: 0,
       currency: "INR",
       status: "active",
-      startDate: data.startDate || new Date().toISOString(),
-      endDate: data.endDate,
+      startDate: getSafeIsoDateStr(data.startDate || new Date()),
+      endDate: data.endDate ? getSafeIsoDateStr(data.endDate) : undefined,
       alertThresholds: [],
-      createdAt: new Date().toISOString(),
+      createdAt: getSafeFullIsoDateStr(new Date()),
     };
     currentStore.push(budget);
   } else {
@@ -1570,9 +1599,13 @@ export async function updateBudget(
     if (sanitizedName) budget.name = sanitizedName;
     if (sanitizedDesc !== undefined) budget.description = sanitizedDesc;
     if (sanitizedCategory) budget.category = sanitizedCategory;
-    if (data.period) budget.period = data.period;
+    if (data.budgetType) budget.budgetType = data.budgetType;
+    if (data.period) budget.period = data.period as any;
+    if (data.notes !== undefined) budget.notes = sanitizedNotes;
     if (data.status) budget.status = data.status;
-    budget.updatedAt = new Date().toISOString();
+    if (data.startDate) budget.startDate = getSafeIsoDateStr(data.startDate);
+    if (data.endDate) budget.endDate = getSafeIsoDateStr(data.endDate);
+    budget.updatedAt = getSafeFullIsoDateStr(new Date());
   }
   budgetsStore.set(userKey, currentStore);
 
