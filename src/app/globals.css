@@ -423,6 +423,70 @@
   .ai-border-charts {
     background: linear-gradient(135deg, rgba(30, 58, 138, 0.6), rgba(37, 99, 235, 0.4), rgba(6, 182, 212, 0.5));
   }
+
+  /* Profile Interactive System: 3-4px lift, refined FinTech border illumination, 200ms ease-out */
+  .profile-card-interactive {
+    position: relative;
+    will-change: transform, box-shadow, border-color;
+    transition: 
+      transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 200ms cubic-bezier(0.16, 1, 0.3, 1),
+      background-color 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .profile-card-interactive:hover {
+    transform: translateY(-3.5px);
+    border-color: rgba(99, 102, 241, 0.32);
+    box-shadow: 
+      0 12px 28px -6px rgba(0, 0, 0, 0.12),
+      0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  }
+  .dark .profile-card-interactive:hover {
+    border-color: rgba(99, 102, 241, 0.38);
+    box-shadow: 
+      0 16px 32px -8px rgba(0, 0, 0, 0.6),
+      0 6px 14px -3px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Profile Pill Chip Hover: 1.5px lift, subtle tint brightening */
+  .profile-pill-interactive {
+    will-change: transform, border-color, background-color;
+    transition: 
+      transform 180ms ease-out,
+      border-color 180ms ease-out,
+      background-color 180ms ease-out,
+      box-shadow 180ms ease-out;
+  }
+  .profile-pill-interactive:hover {
+    transform: translateY(-1.5px);
+    box-shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Profile Input Elements: Stable typing, smooth FinTech border glow */
+  .profile-input-interactive {
+    transition: 
+      border-color 180ms ease-out,
+      background-color 180ms ease-out,
+      box-shadow 180ms ease-out;
+  }
+  .profile-input-interactive:hover:not(:disabled) {
+    border-color: rgba(99, 102, 241, 0.4);
+  }
+  .profile-input-interactive:focus,
+  .profile-input-interactive:focus-visible {
+    border-color: rgb(99, 102, 241);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+
+  /* Profile Icon Micro-interaction */
+  .profile-icon-interactive {
+    will-change: transform;
+    transition: transform 200ms ease-out;
+  }
+  .group:hover .profile-icon-interactive,
+  .profile-card-interactive:hover .profile-icon-interactive {
+    transform: scale(1.08) rotate(3deg);
+  }
 }
 
 /* Accessibility: Gentle transitions for prefers-reduced-motion without breaking interactive feedback */
@@ -446,7 +510,13 @@
   .ai-card-hover:hover .ai-icon-container,
   .ai-btn-premium,
   .ai-btn-premium:hover,
-  .ai-btn-premium:active {
+  .ai-btn-premium:active,
+  .profile-card-interactive,
+  .profile-card-interactive:hover,
+  .profile-pill-interactive,
+  .profile-pill-interactive:hover,
+  .profile-icon-interactive,
+  .profile-icon-interactive:hover {
     transform: none !important;
     transition: none !important;
   }

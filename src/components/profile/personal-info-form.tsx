@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updatePersonalInfo } from "@/actions/profile";
-import { Check, User, Globe, Briefcase, MapPin, QrCode, Smartphone, AlertCircle } from "lucide-react";
+import { Check, User, Globe, Briefcase, MapPin, QrCode, Smartphone, AlertCircle, Sparkles } from "lucide-react";
 import { validateUpiId } from "@/lib/payments/upi";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
@@ -144,10 +144,12 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
   };
 
   return (
-    <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden bg-card">
+    <Card className="profile-card-interactive rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden bg-card hover:border-slate-300 dark:hover:border-slate-700/80 transition-all duration-200">
       <CardHeader className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
-        <CardTitle className="text-base font-bold flex items-center gap-2">
-          <User className="h-4 w-4 text-primary" />
+        <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+          <div className="p-1.5 rounded-xl bg-primary/10 text-primary profile-icon-interactive">
+            <User className="h-4 w-4" />
+          </div>
           <span>Personal Information</span>
         </CardTitle>
         <CardDescription className="text-xs">
@@ -157,20 +159,27 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
 
       <CardContent className="p-4 sm:p-6">
         <form onSubmit={handleSubmit} className="space-y-6" suppressHydrationWarning>
-          {/* Identity Section */}
-          <div className="space-y-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Identity & Biography
-            </h4>
+          {/* Identity Section Card */}
+          <div className="profile-card-interactive p-4 sm:p-5 rounded-2xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/80 hover:border-primary/30 hover:bg-slate-50/80 dark:hover:bg-slate-900/50 transition-all duration-200 space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 profile-icon-interactive">
+                <User className="h-3.5 w-3.5" />
+              </div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Identity &amp; Biography
+              </h4>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Full Name *</Label>
+                <Label className="text-xs font-semibold">
+                  Full Name <span className="text-rose-500">*</span>
+                </Label>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Dipak Pawar"
-                  className="rounded-xl text-base sm:text-xs bg-background"
+                  className="profile-input-interactive rounded-xl text-base sm:text-xs bg-background"
                   required
                 />
               </div>
@@ -183,7 +192,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                     value={formData.username}
                     onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     placeholder="dipakpawar"
-                    className="pl-7 rounded-xl text-base sm:text-xs bg-background font-mono"
+                    className="profile-input-interactive pl-7 rounded-xl text-base sm:text-xs bg-background font-mono"
                   />
                 </div>
               </div>
@@ -193,7 +202,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                 <select
                   value={formData.gender}
                   onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                  className="w-full h-10 sm:h-9 px-3 rounded-xl border border-input bg-background text-base sm:text-xs"
+                  className="profile-input-interactive w-full h-10 sm:h-9 px-3 rounded-xl border border-input bg-background text-base sm:text-xs cursor-pointer"
                 >
                   <option value="unspecified">Prefer not to say</option>
                   <option value="male">Male</option>
@@ -208,7 +217,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                   type="date"
                   value={formData.dateOfBirth}
                   onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                  className="rounded-xl text-xs bg-background"
+                  className="profile-input-interactive rounded-xl text-xs bg-background cursor-pointer"
                 />
               </div>
             </div>
@@ -219,7 +228,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                 value={formData.bio}
                 onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                 placeholder="Tell us a little bit about yourself..."
-                className="rounded-2xl text-xs bg-background resize-none min-h-[80px]"
+                className="profile-input-interactive rounded-2xl text-xs bg-background resize-none min-h-[80px]"
                 maxLength={500}
               />
               <span className="text-[10px] text-slate-400 float-right">
@@ -228,12 +237,16 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
             </div>
           </div>
 
-          {/* Professional Details */}
-          <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Briefcase className="h-3.5 w-3.5" />
-              <span>Professional Details</span>
-            </h4>
+          {/* Professional Details Card */}
+          <div className="profile-card-interactive p-4 sm:p-5 rounded-2xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/80 hover:border-primary/30 hover:bg-slate-50/80 dark:hover:bg-slate-900/50 transition-all duration-200 space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 profile-icon-interactive">
+                <Briefcase className="h-3.5 w-3.5" />
+              </div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Professional Details
+              </h4>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -242,7 +255,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                   value={formData.occupation}
                   onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
                   placeholder="e.g. Senior Software Engineer"
-                  className="rounded-xl text-xs bg-background"
+                  className="profile-input-interactive rounded-xl text-xs bg-background"
                 />
               </div>
 
@@ -252,18 +265,22 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="e.g. SplitLedger Inc."
-                  className="rounded-xl text-xs bg-background"
+                  className="profile-input-interactive rounded-xl text-xs bg-background"
                 />
               </div>
             </div>
           </div>
 
-          {/* Location & Address */}
-          <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5" />
-              <span>Location & Regional</span>
-            </h4>
+          {/* Location & Regional Card */}
+          <div className="profile-card-interactive p-4 sm:p-5 rounded-2xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/80 hover:border-primary/30 hover:bg-slate-50/80 dark:hover:bg-slate-900/50 transition-all duration-200 space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 profile-icon-interactive">
+                <MapPin className="h-3.5 w-3.5" />
+              </div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                Location &amp; Regional
+              </h4>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
@@ -272,7 +289,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                   value={formData.country}
                   onChange={(e) => setFormData({ ...formData, country: e.target.value })}
                   placeholder="India"
-                  className="rounded-xl text-xs bg-background"
+                  className="profile-input-interactive rounded-xl text-xs bg-background"
                 />
               </div>
 
@@ -282,7 +299,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                   value={formData.state}
                   onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                   placeholder="Maharashtra"
-                  className="rounded-xl text-xs bg-background"
+                  className="profile-input-interactive rounded-xl text-xs bg-background"
                 />
               </div>
 
@@ -292,7 +309,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   placeholder="Mumbai"
-                  className="rounded-xl text-xs bg-background"
+                  className="profile-input-interactive rounded-xl text-xs bg-background"
                 />
               </div>
             </div>
@@ -304,7 +321,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                   value={formData.pinCode}
                   onChange={(e) => setFormData({ ...formData, pinCode: e.target.value })}
                   placeholder="400001"
-                  className="rounded-xl text-xs bg-background font-mono"
+                  className="profile-input-interactive rounded-xl text-xs bg-background font-mono"
                 />
               </div>
 
@@ -313,7 +330,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                 <select
                   value={formData.defaultCurrency}
                   onChange={(e) => setFormData({ ...formData, defaultCurrency: e.target.value })}
-                  className="w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-bold text-emerald-600"
+                  className="profile-input-interactive w-full h-9 px-3 rounded-xl border border-input bg-background text-xs font-bold text-emerald-600 cursor-pointer"
                 >
                   <option value="INR">INR (₹) - Indian Rupee</option>
                 </select>
@@ -324,7 +341,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                 <select
                   value={formData.timezone}
                   onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                  className="w-full h-9 px-3 rounded-xl border border-input bg-background text-xs"
+                  className="profile-input-interactive w-full h-9 px-3 rounded-xl border border-input bg-background text-xs cursor-pointer"
                 >
                   <option value="Asia/Kolkata">Asia/Kolkata (IST +5:30)</option>
                   <option value="UTC">UTC (+0:00)</option>
@@ -337,22 +354,26 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
             </div>
           </div>
 
-          {/* UPI Payment Configuration Section */}
-          <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <QrCode className="h-3.5 w-3.5 text-emerald-500" />
-                <span>Primary UPI Payment ID</span>
-              </h4>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+          {/* Primary UPI Payment Configuration Card */}
+          <div className="profile-card-interactive p-4 sm:p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition-all duration-200 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 profile-icon-interactive">
+                  <QrCode className="h-3.5 w-3.5" />
+                </div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Primary UPI Payment ID
+                </h4>
+              </div>
+              <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
                 Required for Settlement QR
               </span>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 space-y-3">
+            <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                  <Smartphone className="h-3.5 w-3.5 text-emerald-600" />
+                  <Smartphone className="h-3.5 w-3.5 text-emerald-600 profile-icon-interactive" />
                   <span>Primary UPI ID / VPA Handle</span>
                 </Label>
                 <Input
@@ -362,7 +383,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                     if (upiError) setUpiError(null);
                   }}
                   placeholder="e.g. yourname@okhdfcbank or 9876543210@paytm"
-                  className="rounded-xl text-xs bg-background font-mono"
+                  className="profile-input-interactive rounded-xl text-xs bg-background font-mono"
                 />
                 {upiError && (
                   <p className="text-[11px] text-rose-500 font-medium flex items-center gap-1 mt-1">
@@ -387,7 +408,7 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
                       setFormData({ ...formData, upiId: `${prefix}${handle}` });
                       if (upiError) setUpiError(null);
                     }}
-                    className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-mono transition-colors"
+                    className="profile-pill-interactive text-[10px] px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 font-mono transition-all duration-150 border border-slate-200/60 dark:border-slate-700/60"
                   >
                     {handle}
                   </button>
@@ -400,10 +421,10 @@ export function PersonalInfoForm({ initialData, onSuccess }: PersonalInfoFormPro
             <Button
               type="submit"
               size="sm"
-              className="w-full sm:w-auto rounded-xl text-xs gap-1.5 bg-primary px-5 h-10 sm:h-9 min-h-[38px] touch-press"
+              className="w-full sm:w-auto rounded-xl text-xs gap-1.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:scale-95 px-5 h-10 sm:h-9 min-h-[38px] touch-press transition-all duration-200 shadow-sm group/btn"
               disabled={isPending}
             >
-              <Check className="h-3.5 w-3.5" />
+              <Check className="h-3.5 w-3.5 group-hover/btn:scale-110 transition-transform duration-200" />
               <span>{isPending ? "Updating Database..." : "Update Profile Information"}</span>
             </Button>
           </div>

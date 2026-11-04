@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Phone,
   ShieldCheck,
@@ -19,8 +18,6 @@ import {
   Lock,
   ArrowRight,
   RotateCw,
-  MessageSquare,
-  Sparkles,
   Edit2,
   AlertTriangle,
 } from "lucide-react";
@@ -64,21 +61,15 @@ export function PhoneVerificationModal({
     return num;
   };
 
-  // Reset state on modal open
   useEffect(() => {
     if (isOpen) {
-      const initialNum = currentPhone || "";
-      setPhoneNumber(initialNum);
+      setPhoneNumber(currentPhone || "");
+      setStep(currentPhone ? "otp" : "phone");
       setDigits(["", "", "", "", "", ""]);
       setHasError(false);
       setErrorMessage(null);
-
-      // If phone already provided, automatically initiate first OTP dispatch cleanly
-      if (initialNum.trim().length >= 10) {
-        setStep("otp");
-        sendOtpCode(initialNum);
-      } else {
-        setStep("phone");
+      if (currentPhone) {
+        sendOtpCode(currentPhone);
       }
     }
   }, [isOpen, currentPhone]);
@@ -91,22 +82,10 @@ export function PhoneVerificationModal({
     }
   }, [countdown]);
 
-  // Auto-focus first empty box on entering OTP step
-  useEffect(() => {
-    if (step === "otp" && isOpen) {
-      const timer = setTimeout(() => {
-        const firstEmpty = digits.findIndex((d) => d === "");
-        const idxToFocus = firstEmpty === -1 ? 0 : firstEmpty;
-        inputRefs.current[idxToFocus]?.focus();
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [step, isOpen]);
-
   // Send OTP
-  const sendOtpCode = async (phoneToSend: string) => {
-    const cleaned = phoneToSend.trim().replace(/[\s\-()]/g, "");
-    if (!cleaned || cleaned.length < 10) {
+  const sendOtpCode = async (phone: string) => {
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length < 10) {
       toast.error("Please enter a valid 10-digit mobile number");
       return;
     }
@@ -116,27 +95,17 @@ export function PhoneVerificationModal({
     setErrorMessage(null);
 
     try {
-      const res = await sendPhoneVerificationOtp(cleaned);
+      const res = await sendPhoneVerificationOtp(phone);
       if (res.success) {
-        setCountdown(60);
+        toast.success("Security verification code dispatched via SMS!");
         setStep("otp");
-
-        // High-grade SMS simulation notification
-        toast("💬 SMS • SplitLedger Security", {
-          description: `Your verification code is ${res.code}. Valid for 5 minutes. Never share this code.`,
-          duration: 9000,
-          action: {
-            label: "Copy Code",
-            onClick: () => {
-              navigator.clipboard.writeText(res.code);
-              toast.success("Code copied to clipboard!");
-            },
-          },
-        });
+        setCountdown(60);
+        setTimeout(() => {
+          inputRefs.current[0]?.focus();
+        }, 150);
       }
     } catch (e: any) {
-      toast.error(e.message || "Failed to dispatch verification code");
-      setStep("phone");
+      toast.error(e.message || "Failed to send verification SMS");
     } finally {
       setIsSending(false);
     }
@@ -144,7 +113,6 @@ export function PhoneVerificationModal({
 
   // Handle single digit input
   const handleDigitChange = (index: number, value: string) => {
-    // Only accept numeric digit
     const digit = value.replace(/\D/g, "").slice(-1);
     const newDigits = [...digits];
     newDigits[index] = digit;
@@ -240,8 +208,8 @@ export function PhoneVerificationModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md rounded-3xl p-6 sm:p-7 bg-card border border-slate-200/80 dark:border-slate-800 shadow-2xl">
         <DialogHeader className="space-y-2 text-center items-center pb-2">
-          <div className="relative flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-tr from-emerald-500/20 via-teal-500/15 to-primary/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-inner">
-            <ShieldCheck className="h-7 w-7" />
+          <div className="relative flex items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-tr from-emerald-500/20 via-teal-500/15 to-primary/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-inner group/shield">
+            <ShieldCheck className="h-7 w-7 profile-icon-interactive" />
             <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] text-white font-bold">
               <Lock className="h-2.5 w-2.5" />
             </span>
@@ -288,7 +256,7 @@ export function PhoneVerificationModal({
               type="button"
               onClick={() => sendOtpCode(phoneNumber)}
               disabled={isSending || phoneNumber.replace(/\D/g, "").length < 10}
-              className="w-full h-11 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/95 text-white gap-2 shadow-xs"
+              className="w-full h-11 rounded-xl text-xs font-semibold bg-primary hover:bg-primary/95 hover:-translate-y-0.5 active:scale-95 text-white gap-2 shadow-xs transition-all duration-200"
             >
               {isSending ? (
                 <>
@@ -307,9 +275,9 @@ export function PhoneVerificationModal({
           /* STEP 2: 6-Box Segmented OTP Input */
           <div className="space-y-5 py-2">
             {/* Phone badge with Edit */}
-            <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800">
+            <div className="profile-pill-interactive flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800">
               <div className="flex items-center gap-2 text-xs">
-                <Phone className="h-3.5 w-3.5 text-slate-400" />
+                <Phone className="h-3.5 w-3.5 text-slate-400 profile-icon-interactive" />
                 <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
                   {formatPhoneDisplay(phoneNumber)}
                 </span>
@@ -317,7 +285,7 @@ export function PhoneVerificationModal({
               <button
                 type="button"
                 onClick={() => setStep("phone")}
-                className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1"
+                className="text-[11px] font-semibold text-primary hover:underline hover:scale-105 active:scale-95 transition-all flex items-center gap-1"
               >
                 <Edit2 className="h-3 w-3" />
                 <span>Edit</span>
@@ -342,11 +310,11 @@ export function PhoneVerificationModal({
                     value={digit}
                     onChange={(e) => handleDigitChange(idx, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(idx, e)}
-                    className={`w-11 h-13 sm:w-12 sm:h-14 text-center font-mono text-xl sm:text-2xl font-black rounded-xl sm:rounded-2xl border transition-all duration-150 outline-none select-none ${
+                    className={`w-11 h-13 sm:w-12 sm:h-14 text-center font-mono text-xl sm:text-2xl font-black rounded-xl sm:rounded-2xl border transition-all duration-150 outline-none select-none hover:border-slate-400 dark:hover:border-slate-600 ${
                       hasError
                         ? "border-rose-500 bg-rose-500/10 text-rose-600 dark:text-rose-400 ring-2 ring-rose-500/20"
                         : digit
-                        ? "border-emerald-500/50 bg-emerald-500/5 text-slate-900 dark:text-slate-100 shadow-xs"
+                        ? "border-emerald-500/50 bg-emerald-500/5 text-slate-900 dark:text-slate-100 shadow-xs ring-1 ring-emerald-500/20"
                         : "border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 text-slate-900 dark:text-slate-100 focus:border-primary focus:bg-background focus:ring-4 focus:ring-primary/15 focus:scale-[1.03]"
                     }`}
                   />
@@ -356,7 +324,7 @@ export function PhoneVerificationModal({
               {/* Error feedback */}
               {errorMessage && (
                 <div className="flex items-center justify-center gap-1.5 text-xs text-rose-500 font-medium pt-1">
-                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <AlertTriangle className="h-3.5 w-3.5 animate-pulse" />
                   <span>{errorMessage}</span>
                 </div>
               )}
@@ -374,7 +342,7 @@ export function PhoneVerificationModal({
                   type="button"
                   onClick={() => sendOtpCode(phoneNumber)}
                   disabled={isSending}
-                  className="font-semibold text-primary hover:underline"
+                  className="font-semibold text-primary hover:underline hover:scale-105 active:scale-95 transition-all"
                 >
                   Resend SMS Code
                 </button>
@@ -387,7 +355,7 @@ export function PhoneVerificationModal({
                 type="button"
                 onClick={() => submitVerification(digits.join(""))}
                 disabled={isVerifying || digits.some((d) => d === "")}
-                className="w-full h-11 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-xs transition-all"
+                className="w-full h-11 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 hover:-translate-y-0.5 active:scale-95 text-white gap-2 shadow-xs transition-all duration-200"
               >
                 {isVerifying ? (
                   <>

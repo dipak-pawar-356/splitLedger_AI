@@ -11,7 +11,6 @@ import {
   DialogFooter 
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   Camera, 
   Upload, 
@@ -121,17 +120,26 @@ export function ProfilePictureModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md rounded-3xl p-6">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-bold">Profile Photo Management</DialogTitle>
-          <DialogDescription className="text-xs">
-            Upload, crop, zoom, and rotate your display picture (Max 5MB JPG, PNG, WebP)
-          </DialogDescription>
+      <DialogContent className="sm:max-w-md rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-2xl bg-card">
+        <DialogHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-2xl bg-primary/10 text-primary profile-icon-interactive">
+              <Camera className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                Profile Photo Management
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                Upload, crop, zoom, and rotate your display picture (Max 5MB JPG, PNG, WebP)
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="flex flex-col items-center justify-center py-4 space-y-4">
-          {/* Avatar Canvas / Preview */}
-          <div className="relative w-48 h-48 rounded-full overflow-hidden border-4 border-slate-100 dark:border-slate-800 shadow-lg bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
+          {/* Avatar Canvas / Preview with Smooth Ring Illumination */}
+          <div className="group/canvas relative w-48 h-48 rounded-full overflow-hidden border-4 border-slate-100 dark:border-slate-800 shadow-lg bg-slate-100 dark:bg-slate-900 flex items-center justify-center ring-4 ring-primary/20 hover:ring-primary/40 transition-all duration-200">
             {preview ? (
               <NextImage
                 unoptimized
@@ -139,7 +147,7 @@ export function ProfilePictureModal({
                 alt="Profile preview"
                 width={192}
                 height={192}
-                className="w-full h-full object-cover transition-transform duration-200"
+                className="w-full h-full object-cover transition-transform duration-200 group-hover/canvas:scale-[1.02]"
                 style={{
                   transform: `scale(${zoom}) rotate(${rotation}deg)`,
                 }}
@@ -152,29 +160,31 @@ export function ProfilePictureModal({
             )}
           </div>
 
-          {/* Picture Controls (Zoom & Rotate) */}
+          {/* Picture Controls (Zoom & Rotate) with Micro-Interactions */}
           {preview && (
             <div className="flex items-center gap-2 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-xl"
+                className="h-8 w-8 rounded-xl profile-pill-interactive hover:scale-110 active:scale-95 shadow-xs"
                 onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))}
                 title="Zoom Out"
+                aria-label="Zoom Out"
               >
                 <ZoomOut className="h-4 w-4" />
               </Button>
-              <span className="text-xs font-mono font-bold w-12 text-center">
+              <span className="text-xs font-mono font-bold w-12 text-center text-slate-700 dark:text-slate-300">
                 {Math.round(zoom * 100)}%
               </span>
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-xl"
+                className="h-8 w-8 rounded-xl profile-pill-interactive hover:scale-110 active:scale-95 shadow-xs"
                 onClick={() => setZoom((z) => Math.min(2.5, z + 0.1))}
                 title="Zoom In"
+                aria-label="Zoom In"
               >
                 <ZoomIn className="h-4 w-4" />
               </Button>
@@ -183,9 +193,10 @@ export function ProfilePictureModal({
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 rounded-xl"
+                className="h-8 w-8 rounded-xl profile-pill-interactive hover:scale-110 active:scale-95 shadow-xs"
                 onClick={() => setRotation((r) => (r + 90) % 360)}
                 title="Rotate 90°"
+                aria-label="Rotate 90°"
               >
                 <RotateCw className="h-4 w-4" />
               </Button>
@@ -201,12 +212,12 @@ export function ProfilePictureModal({
             className="hidden"
           />
 
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex items-center gap-2 pt-2 flex-wrap justify-center">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="rounded-xl text-xs gap-1.5"
+              className="rounded-xl text-xs gap-1.5 profile-pill-interactive hover:-translate-y-0.5 active:scale-95 hover:border-primary/40 shadow-xs"
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="h-3.5 w-3.5" />
@@ -218,7 +229,7 @@ export function ProfilePictureModal({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="rounded-xl text-xs gap-1.5 text-rose-600 hover:bg-rose-50 border-rose-200"
+                className="rounded-xl text-xs gap-1.5 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border-rose-500/30 hover:border-rose-500/50 profile-pill-interactive hover:-translate-y-0.5 active:scale-95 shadow-xs"
                 onClick={handleDelete}
                 disabled={isUploading}
               >
@@ -229,7 +240,7 @@ export function ProfilePictureModal({
           </div>
         </div>
 
-        <DialogFooter className="flex items-center justify-between sm:justify-between pt-2 border-t">
+        <DialogFooter className="flex items-center justify-between sm:justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
           <Button
             type="button"
             variant="ghost"
@@ -243,7 +254,7 @@ export function ProfilePictureModal({
           <Button
             type="button"
             size="sm"
-            className="rounded-xl text-xs gap-1.5 bg-primary"
+            className="rounded-xl text-xs gap-1.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:scale-95 transition-all shadow-xs px-4"
             onClick={handleSave}
             disabled={!preview || isUploading}
           >

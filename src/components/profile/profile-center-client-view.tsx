@@ -15,6 +15,7 @@ import {
   QrCode, 
   AlertCircle
 } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { useRouter } from "next/navigation";
 
 interface ProfileCenterClientViewProps {
@@ -25,6 +26,7 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
   const [data, setData] = useState<ProfileDetails>(initialData);
   const [activeTab, setActiveTab] = useState<"personal" | "financial" | "contact">("personal");
   const router = useRouter();
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     setData(initialData);
@@ -106,9 +108,9 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
 
       {/* Mandatory UPI Missing Alert Banner */}
       {!hasUpi && (
-        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+        <div className="profile-card-interactive group/banner p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 hover:border-amber-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs transition-all duration-200">
           <div className="flex items-start sm:items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+            <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0 group-hover/banner:scale-110 group-hover/banner:rotate-3 transition-transform duration-200">
               <AlertCircle className="h-5 w-5" />
             </div>
             <div>
@@ -126,9 +128,9 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
           <Button
             size="sm"
             onClick={() => setActiveTab("financial")}
-            className="rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white shrink-0 self-start sm:self-auto gap-1.5"
+            className="rounded-xl text-xs font-semibold bg-amber-500 hover:bg-amber-600 hover:-translate-y-0.5 active:scale-95 text-white shrink-0 self-start sm:self-auto gap-1.5 transition-all duration-200 shadow-xs group/btn"
           >
-            <Smartphone className="h-3.5 w-3.5" />
+            <Smartphone className="h-3.5 w-3.5 group-hover/btn:scale-110 transition-transform duration-200" />
             <span>Configure UPI ID Now</span>
           </Button>
         </div>
@@ -136,71 +138,98 @@ export function ProfileCenterClientView({ initialData }: ProfileCenterClientView
 
       {/* Required Professional Profile Tabs */}
       <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="space-y-6">
-        <TabsList className="bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl flex-wrap h-auto gap-1">
-          <TabsTrigger value="personal" className="rounded-xl text-xs font-semibold gap-1.5 py-2 px-3.5">
-            <User className="h-3.5 w-3.5" />
+        <TabsList className="bg-slate-100/90 dark:bg-slate-800/80 p-1.5 rounded-2xl flex-wrap h-auto gap-1.5 border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+          <TabsTrigger
+            value="personal"
+            className="data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-slate-200/80 dark:data-[state=active]:border-slate-750 rounded-xl text-xs font-semibold gap-1.5 py-2.5 px-4 transition-all duration-200 hover:-translate-y-0.5 hover:text-slate-900 dark:hover:text-slate-100 active:scale-95 group/tab"
+          >
+            <User className="h-3.5 w-3.5 group-hover/tab:scale-110 transition-transform duration-200" />
             <span>Personal &amp; Professional Profile</span>
           </TabsTrigger>
 
-          <TabsTrigger value="financial" className="rounded-xl text-xs font-semibold gap-1.5 py-2 px-3.5">
-            <QrCode className="h-3.5 w-3.5" />
+          <TabsTrigger
+            value="financial"
+            className="data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-slate-200/80 dark:data-[state=active]:border-slate-750 rounded-xl text-xs font-semibold gap-1.5 py-2.5 px-4 transition-all duration-200 hover:-translate-y-0.5 hover:text-slate-900 dark:hover:text-slate-100 active:scale-95 group/tab"
+          >
+            <QrCode className="h-3.5 w-3.5 group-hover/tab:scale-110 transition-transform duration-200" />
             <span>Financial &amp; Settlement UPI</span>
           </TabsTrigger>
 
-          <TabsTrigger value="contact" className="rounded-xl text-xs font-semibold gap-1.5 py-2 px-3.5">
-            <Phone className="h-3.5 w-3.5" />
+          <TabsTrigger
+            value="contact"
+            className="data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-slate-200/80 dark:data-[state=active]:border-slate-750 rounded-xl text-xs font-semibold gap-1.5 py-2.5 px-4 transition-all duration-200 hover:-translate-y-0.5 hover:text-slate-900 dark:hover:text-slate-100 active:scale-95 group/tab"
+          >
+            <Phone className="h-3.5 w-3.5 group-hover/tab:scale-110 transition-transform duration-200" />
             <span>Contact &amp; Verification</span>
           </TabsTrigger>
         </TabsList>
 
         {/* TAB 1: Personal & Professional Profile */}
         <TabsContent value="personal" className="focus:outline-none">
-          <PersonalInfoForm
-            initialData={{
-              name: data.user.name,
-              username: data.profile.username,
-              bio: data.profile.bio,
-              occupation: data.profile.occupation,
-              company: data.profile.company,
-              gender: data.profile.gender,
-              dateOfBirth: data.profile.dateOfBirth,
-              country: data.profile.country,
-              state: data.profile.state,
-              city: data.profile.city,
-              pinCode: data.profile.pinCode,
-              timezone: data.profile.timezone,
-              language: data.profile.language,
-              defaultCurrency: data.user.defaultCurrency,
-              upiId: data.user.upiId,
-            }}
-            onSuccess={refreshProfileFromDb}
-          />
+          <motion.div
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            <PersonalInfoForm
+              initialData={{
+                name: data.user.name,
+                username: data.profile.username,
+                bio: data.profile.bio,
+                occupation: data.profile.occupation,
+                company: data.profile.company,
+                gender: data.profile.gender,
+                dateOfBirth: data.profile.dateOfBirth,
+                country: data.profile.country,
+                state: data.profile.state,
+                city: data.profile.city,
+                pinCode: data.profile.pinCode,
+                timezone: data.profile.timezone,
+                language: data.profile.language,
+                defaultCurrency: data.user.defaultCurrency,
+                upiId: data.user.upiId,
+              }}
+              onSuccess={refreshProfileFromDb}
+            />
+          </motion.div>
         </TabsContent>
 
         {/* TAB 2: Financial & UPI Settlement Credentials */}
         <TabsContent value="financial" className="focus:outline-none">
-          <UpiProfileManagerCard
-            currentUpiId={data.user.upiId || data.profile.upiId}
-            userName={data.user.name || "SplitLedger Member"}
-            onUpiUpdated={handleUpiUpdated}
-          />
+          <motion.div
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            <UpiProfileManagerCard
+              currentUpiId={data.user.upiId || data.profile.upiId}
+              userName={data.user.name || "SplitLedger Member"}
+              onUpiUpdated={handleUpiUpdated}
+            />
+          </motion.div>
         </TabsContent>
 
         {/* TAB 3: Contact Details & Identity Verification */}
         <TabsContent value="contact" className="focus:outline-none">
-          <ContactInfoCard
-            primaryEmail={data.user.email}
-            isEmailVerified={Boolean(data.user.emailVerified)}
-            profile={{
-              phone: data.profile.phone,
-              secondaryEmail: data.profile.secondaryEmail,
-              secondaryPhone: data.profile.secondaryPhone,
-              whatsappNumber: data.profile.whatsappNumber,
-              emergencyContact: data.profile.emergencyContact,
-              mobileVerified: data.profile.mobileVerified,
-            }}
-            onSuccess={refreshProfileFromDb}
-          />
+          <motion.div
+            initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            <ContactInfoCard
+              primaryEmail={data.user.email}
+              isEmailVerified={Boolean(data.user.emailVerified)}
+              profile={{
+                phone: data.profile.phone,
+                secondaryEmail: data.profile.secondaryEmail,
+                secondaryPhone: data.profile.secondaryPhone,
+                whatsappNumber: data.profile.whatsappNumber,
+                emergencyContact: data.profile.emergencyContact,
+                mobileVerified: data.profile.mobileVerified,
+              }}
+              onSuccess={refreshProfileFromDb}
+            />
+          </motion.div>
         </TabsContent>
       </Tabs>
     </div>
