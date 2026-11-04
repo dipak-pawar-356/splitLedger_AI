@@ -72,7 +72,7 @@ import {
 import { BudgetProgressRing } from "./budget-progress-ring";
 
 interface BudgetDetailsDashboardProps {
-  budget: BudgetRecord | null | undefined;
+  budget: BudgetRecord;
   allBudgets: BudgetRecord[];
   onSelectBudget: (b: BudgetRecord) => void;
   onOpenIncreaseModal: (b: BudgetRecord) => void;
@@ -105,20 +105,6 @@ export function BudgetDetailsDashboard({
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  if (!budget) {
-    return (
-      <div className="py-20 text-center border-2 border-dashed rounded-3xl p-8 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
-        <PieChart className="h-12 w-12 text-slate-400 mx-auto" />
-        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">
-          No Budget Selected
-        </h3>
-        <p className="text-xs text-slate-500 max-w-md mx-auto">
-          Please select or create a budget to view duration intelligence and dynamic metrics.
-        </p>
-      </div>
-    );
-  }
 
   // 1. Core Financial Baseline Values (Always from verified ledger records)
   const currency = budget.currency || "INR";
