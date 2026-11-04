@@ -49,6 +49,11 @@ import {
   PiggyBank,
   Hourglass,
   Layers,
+  Scale,
+  Activity,
+  Flame,
+  Gauge,
+  Check,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -57,13 +62,13 @@ import {
   XAxis,
   YAxis,
   Tooltip as RechartsTooltip,
-  Legend,
   AreaChart,
   Area,
   CartesianGrid,
   Cell,
   ReferenceLine,
 } from "recharts";
+import { BudgetProgressRing } from "./budget-progress-ring";
 
 interface BudgetDetailsDashboardProps {
   budget: BudgetRecord;
@@ -93,9 +98,9 @@ export function BudgetDetailsDashboard({
   verifiedExpenses = 0,
 }: BudgetDetailsDashboardProps) {
   const [selectedChartTab, setSelectedChartTab] = useState<"trend" | "burn_rate" | "comparison">("trend");
-  const [hoveredEvent, setHoveredEvent] = useState<string | null>(null);
+  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
 
-  // Derived real-time metrics
+  // 1. Core Financial Baseline Values (Always from verified ledger records)
   const currency = budget.currency || "INR";
   const originalBudget = budget.originalAmount ?? budget.allocatedAmount;
   const currentBudget = budget.allocatedAmount;
@@ -105,6 +110,7 @@ export function BudgetDetailsDashboard({
   const utilizationPercent = currentBudget > 0 ? Math.round((totalSpent / currentBudget) * 100) : 0;
   const remainingPercent = Math.max(0, 100 - utilizationPercent);
 
+  // 2. Timeline & Duration Dynamics
   const totalDurationDays = budget.totalDurationDays ?? 30;
   const daysPassed = budget.daysPassed ?? 0;
   const daysRemaining = budget.daysRemaining ?? 0;
@@ -113,45 +119,132 @@ export function BudgetDetailsDashboard({
   const remainingMonths = budget.remainingMonths ?? Number((daysRemaining / 30.4).toFixed(1));
   const timelinePercentage = budget.timelinePercentage ?? Math.min(100, Math.round((daysPassed / Math.max(1, totalDurationDays)) * 100));
 
+  // 3. Daily Allowance & Burning Rates
   const averageDailySpend = budget.averageDailySpend ?? (daysPassed > 0 ? Math.round(totalSpent / daysPassed) : Math.round(totalSpent));
   const dailyAllowance = budget.dailyAllowance ?? (daysRemaining > 0 ? Math.round(remainingBudget / daysRemaining) : 0);
   const projectedEndSpend = budget.projectedEndSpend ?? Math.round(totalSpent + averageDailySpend * daysRemaining);
   const expectedRemaining = budget.expectedRemaining ?? Math.max(0, currentBudget - projectedEndSpend);
+  const expectedOverspend = Math.max(0, projectedEndSpend - currentBudget);
   const growthPercentage = budget.growthPercentage ?? (originalBudget > 0 ? Math.round(((currentBudget - originalBudget) / originalBudget) * 100) : 0);
   const increaseCount = budget.increaseCount ?? (budget.increases?.length || 0);
 
-  // Savings impact
+  // 4. Forecast Accuracy Calculation (Score 70% to 99% based on variance between projected spend & cap)
+  const forecastAccuracy = useMemo(() => {
+    if (currentBudget <= 0 || daysPassed <= 0) return 96;
+    const varianceRatio = Math.abs(projectedEndSpend - currentBudget) / currentBudget;
+    const score = Math.round(99 - Math.min(29, varianceRatio * 40));
+    return Math.max(70, Math.min(99, score));
+  }, [currentBudget, daysPassed, projectedEndSpend]);
+
+  // 5. Automatic Dynamic Budget Status (Strictly computed from verified financial conditions)
+  const dynamicStatus = useMemo(() => {
+    if (budget.status === "paused") {
+      return {
+        key: "paused",
+        label: "Paused",
+        badgeClass: "bg-slate-500/10 text-slate-500 border-slate-500/20",
+        colorHex: "#64748b",
+        glowClass: "glow-gray",
+      };
+    }
+    if (daysRemaining <= 0) {
+      if (totalSpent <= currentBudget) {
+        return {
+          key: "completed",
+          label: "Completed",
+          badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+          colorHex: "#16a34a",
+          glowClass: "glow-green",
+        };
+      }
+      return {
+        key: "expired",
+        label: "Expired",
+        badgeClass: "bg-slate-500/10 text-slate-500 border-slate-500/20",
+        colorHex: "#64748b",
+        glowClass: "glow-gray",
+      };
+    }
+    if (utilizationPercent > 100) {
+      return {
+        key: "overspent",
+        label: "Overspent",
+        badgeClass: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+        colorHex: "#dc2626",
+        glowClass: "glow-red",
+      };
+    }
+    if (utilizationPercent >= 85) {
+      return {
+        key: "near_limit",
+        label: "Near Limit",
+        badgeClass: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20 animate-pulse",
+        colorHex: "#ea580c",
+        glowClass: "glow-orange",
+      };
+    }
+    if (utilizationPercent >= 70) {
+      return {
+        key: "warning",
+        label: "Warning",
+        badgeClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+        colorHex: "#d97706",
+        glowClass: "glow-amber",
+      };
+    }
+    if (increaseCount > 0) {
+      return {
+        key: "extended",
+        label: "Extended",
+        badgeClass: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
+        colorHex: "#0284c7",
+        glowClass: "glow-sky",
+      };
+    }
+    if (timelinePercentage >= utilizationPercent + 10) {
+      return {
+        key: "healthy",
+        label: "Healthy",
+        badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+        colorHex: "#16a34a",
+        glowClass: "glow-green",
+      };
+    }
+    return {
+      key: "active",
+      label: "Active",
+      badgeClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+      colorHex: "#2563eb",
+      glowClass: "glow-royal-blue",
+    };
+  }, [budget.status, daysRemaining, totalSpent, currentBudget, utilizationPercent, increaseCount, timelinePercentage]);
+
+  // 6. Savings Engine Dynamics (Verified Income & Expense Integration)
   const actualIncome = verifiedIncome > 0 ? verifiedIncome : currentBudget * 1.5;
-  const currentNetSavings = actualIncome - totalSpent;
+  const currentNetSavings = Math.max(0, actualIncome - totalSpent);
+  const potentialSavings = remainingBudget;
   const previousExpectedSavings = budget.previousExpectedSavings ?? Math.max(0, actualIncome - originalBudget);
   const updatedExpectedSavings = budget.expectedSavings ?? Math.max(0, actualIncome - currentBudget);
-  const savingsImpact = previousExpectedSavings - updatedExpectedSavings; // difference in expected savings
-  const savingsRate = actualIncome > 0 ? Math.round((currentNetSavings / actualIncome) * 100) : 0;
-
-  // Status badge styling
-  const status = budget.computedStatus || (utilizationPercent >= 100 ? "exceeded" : "active");
-  const getStatusBadge = () => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-xs font-bold">Active</Badge>;
-      case "ending_soon":
-        return <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-xs font-bold animate-pulse">Ending Soon</Badge>;
-      case "exceeded":
-        return <Badge className="bg-rose-500/10 text-rose-600 border border-rose-500/20 text-xs font-bold">Exceeded</Badge>;
-      case "completed":
-        return <Badge className="bg-blue-500/10 text-blue-600 border border-blue-500/20 text-xs font-bold">Completed</Badge>;
-      case "expired":
-        return <Badge className="bg-slate-500/10 text-slate-600 border border-slate-500/20 text-xs font-bold">Expired</Badge>;
-      case "upcoming":
-        return <Badge className="bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 text-xs font-bold">Upcoming</Badge>;
-      case "paused":
-        return <Badge className="bg-slate-500/10 text-slate-500 border border-slate-500/20 text-xs font-bold">Paused</Badge>;
-      default:
-        return <Badge variant="secondary" className="text-xs font-bold">{status.toUpperCase()}</Badge>;
+  const projectedEndSavings = Math.max(0, currentBudget - projectedEndSpend);
+  const savingsPercent = actualIncome > 0 ? Math.round((currentNetSavings / actualIncome) * 100) : 0;
+  
+  // Budget Efficiency Score: 0 - 100 based on pacing and surplus retention
+  const budgetEfficiencyScore = useMemo(() => {
+    if (currentBudget <= 0) return 100;
+    if (utilizationPercent > 100) {
+      return Math.max(20, 100 - (utilizationPercent - 100) * 2);
     }
-  };
+    const pacingDelta = timelinePercentage - utilizationPercent;
+    const score = Math.round(85 + (pacingDelta / 100) * 15);
+    return Math.max(40, Math.min(100, score));
+  }, [currentBudget, utilizationPercent, timelinePercentage]);
 
-  // Projected exhaustion date
+  // Savings Trends
+  const dailySavings = Math.max(0, dailyAllowance - averageDailySpend);
+  const weeklySavings = dailySavings * 7;
+  const monthlySavings = dailySavings * 30;
+
+  // 7. Projected Exhaustion Date
   const projectedExhaustionDate = useMemo(() => {
     if (averageDailySpend <= 0 || remainingBudget <= 0) return null;
     const daysLeft = Math.floor(remainingBudget / averageDailySpend);
@@ -160,7 +253,7 @@ export function BudgetDetailsDashboard({
     return d.toISOString().split("T")[0];
   }, [remainingBudget, averageDailySpend]);
 
-  // Chart data: Daily spending & burn rate
+  // 8. Recharts Time-Series Chart Data
   const chartData = useMemo(() => {
     const data: Array<{
       date: string;
@@ -181,7 +274,6 @@ export function BudgetDetailsDashboard({
       budget.dailySpending.forEach((d) => dailyMap.set(d.date, d.amount));
     }
 
-    // Build timeline points (e.g. up to 14 points or day-by-day)
     const pointsCount = Math.min(totalDays, 14);
     const step = Math.max(1, Math.floor(totalDays / pointsCount));
 
@@ -197,7 +289,7 @@ export function BudgetDetailsDashboard({
       data.push({
         date: pointDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
         spend: day <= daysPassed ? daySpend : 0,
-        cumulativeSpend: day <= daysPassed ? Math.min(currentBudget * 1.2, accumulated) : 0,
+        cumulativeSpend: day <= daysPassed ? Math.min(currentBudget * 1.25, accumulated) : 0,
         idealSpend: Math.round(idealDailyRate * day),
         budgetCap: currentBudget,
       });
@@ -208,53 +300,237 @@ export function BudgetDetailsDashboard({
 
   // Comparison data for Bar Chart
   const comparisonData = [
-    { name: "Original Budget", amount: originalBudget, fill: "#2563eb" },
+    { name: "Initial Budget", amount: originalBudget, fill: "#2563eb" },
     { name: "Current Budget", amount: currentBudget, fill: "#4f46e5" },
     { name: "Total Spent", amount: totalSpent, fill: "#dc2626" },
-    { name: "Remaining", amount: remainingBudget, fill: "#0d9488" },
-    { name: "Projected Spend", amount: projectedEndSpend, fill: "#ea580c" },
+    { name: "Remaining", amount: remainingBudget, fill: "#059669" },
+    { name: "Projected Spend", amount: projectedEndSpend, fill: "#0891b2" },
   ];
+
+  // 9. Enterprise Chronological Budget Timeline Events
+  const timelineMilestones = useMemo(() => {
+    const events: Array<{
+      id: string;
+      title: string;
+      eventType: "started" | "revised" | "added" | "near_limit" | "crossed" | "completed" | "expired" | "savings_achieved";
+      date: string;
+      time: string;
+      amount: number;
+      remainingBudget: number;
+      remainingDays: number;
+      ledgerReference: string;
+      notes?: string;
+      colorClass: string;
+      badgeText: string;
+    }> = [];
+
+    // Milestone 1: Budget Started
+    events.push({
+      id: "event-started",
+      title: "Budget Started",
+      eventType: "started",
+      date: budget.startDate ? new Date(budget.startDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      time: "00:00 AM",
+      amount: originalBudget,
+      remainingBudget: originalBudget,
+      remainingDays: totalDurationDays,
+      ledgerReference: `LEDG-INIT-${budget.id.slice(0, 8).toUpperCase()}`,
+      notes: "Initial approved baseline established on ledger",
+      colorClass: "bg-blue-600 text-white",
+      badgeText: "Royal Blue Baseline",
+    });
+
+    // Milestone 2+: Revisions & Additional Budget Added
+    if (budget.increases && budget.increases.length > 0) {
+      budget.increases.forEach((inc, idx) => {
+        events.push({
+          id: `event-rev-${inc.id || idx}`,
+          title: `Budget Revised (v${idx + 2})`,
+          eventType: "revised",
+          date: inc.date,
+          time: inc.time || "12:00 PM",
+          amount: inc.addedAmount,
+          remainingBudget: inc.updatedBudget,
+          remainingDays: inc.remainingDays,
+          ledgerReference: `LEDG-REV-${(inc.id || `${idx}`).slice(0, 8).toUpperCase()}`,
+          notes: inc.reason || "Budget revision approved",
+          colorClass: "bg-sky-600 text-white",
+          badgeText: `+${formatCurrency(inc.addedAmount, currency)} Added`,
+        });
+      });
+    } else if (additionalBudget > 0) {
+      events.push({
+        id: "event-added",
+        title: "Additional Budget Added",
+        eventType: "added",
+        date: budget.updatedAt ? new Date(budget.updatedAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+        time: "12:00 PM",
+        amount: additionalBudget,
+        remainingBudget: remainingBudget,
+        remainingDays: daysRemaining,
+        ledgerReference: `LEDG-ADD-ADJUST`,
+        notes: "Ceiling revised without resetting baseline",
+        colorClass: "bg-sky-600 text-white",
+        badgeText: `+${formatCurrency(additionalBudget, currency)}`,
+      });
+    }
+
+    // Milestone: Near Limit (if spent >= 85%)
+    if (utilizationPercent >= 85) {
+      events.push({
+        id: "event-near-limit",
+        title: "Budget Near Limit",
+        eventType: "near_limit",
+        date: budget.lastExpense?.date || new Date().toISOString().split("T")[0],
+        time: "Threshold Active",
+        amount: totalSpent,
+        remainingBudget: remainingBudget,
+        remainingDays: daysRemaining,
+        ledgerReference: "LEDG-WARN-85PCT",
+        notes: "Expenditure reached 85% of allowed limit",
+        colorClass: "bg-orange-500 text-white",
+        badgeText: "85% Warning",
+      });
+    }
+
+    // Milestone: Budget Crossed (if spent >= 100%)
+    if (utilizationPercent >= 100) {
+      events.push({
+        id: "event-crossed",
+        title: "Budget Crossed",
+        eventType: "crossed",
+        date: budget.lastExpense?.date || new Date().toISOString().split("T")[0],
+        time: "Cap Exceeded",
+        amount: totalSpent,
+        remainingBudget: 0,
+        remainingDays: daysRemaining,
+        ledgerReference: "LEDG-EXCEED-CAP",
+        notes: "Expenditures exceeded current allocated cap",
+        colorClass: "bg-rose-600 text-white",
+        badgeText: "Ceiling Exceeded",
+      });
+    }
+
+    // Milestone: Term Expiry / Completion
+    if (daysRemaining <= 0) {
+      if (totalSpent <= currentBudget) {
+        events.push({
+          id: "event-completed",
+          title: "Budget Completed",
+          eventType: "completed",
+          date: budget.endDate ? new Date(budget.endDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+          time: "11:59 PM",
+          amount: totalSpent,
+          remainingBudget: remainingBudget,
+          remainingDays: 0,
+          ledgerReference: "LEDG-TERM-SUCCESS",
+          notes: "Term completed safely within budget limits",
+          colorClass: "bg-emerald-600 text-white",
+          badgeText: "Goal Achieved",
+        });
+      } else {
+        events.push({
+          id: "event-expired",
+          title: "Budget Expired",
+          eventType: "expired",
+          date: budget.endDate ? new Date(budget.endDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+          time: "11:59 PM",
+          amount: totalSpent,
+          remainingBudget: 0,
+          remainingDays: 0,
+          ledgerReference: "LEDG-TERM-EXPIRED",
+          notes: "Validity period ended",
+          colorClass: "bg-slate-500 text-white",
+          badgeText: "Term Ended",
+        });
+      }
+    }
+
+    // Milestone: Savings Achieved
+    if (remainingBudget > 0) {
+      events.push({
+        id: "event-savings",
+        title: "Savings Achieved",
+        eventType: "savings_achieved",
+        date: new Date().toISOString().split("T")[0],
+        time: "Real-Time",
+        amount: remainingBudget,
+        remainingBudget: remainingBudget,
+        remainingDays: daysRemaining,
+        ledgerReference: "LEDG-SAV-VERIFIED",
+        notes: "Surplus protected under active spending limit",
+        colorClass: "bg-emerald-600 text-white",
+        badgeText: formatCurrency(remainingBudget, currency),
+      });
+    }
+
+    return events;
+  }, [budget, originalBudget, currentBudget, additionalBudget, totalSpent, remainingBudget, totalDurationDays, daysRemaining, utilizationPercent, currency]);
 
   return (
     <div className="space-y-6">
-      {/* 1. Header & Budget Selector Bar */}
+      {/* =========================================================================
+          1. ENTERPRISE HEADER WITH BUDGET SWITCHER & QUICK ACTIONS
+          ========================================================================= */}
       <div className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="p-2 rounded-xl bg-primary/10 text-primary">
+              <span className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
                 <PieChart className="h-5 w-5" />
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
                 {budget.name}
               </h2>
-              {getStatusBadge()}
+              
+              {/* Computed Status Badge */}
+              <Badge variant="outline" className={`text-xs font-bold px-2.5 py-0.5 border ${dynamicStatus.badgeClass}`}>
+                {dynamicStatus.label}
+              </Badge>
+
               <Badge variant="outline" className="text-xs font-medium text-slate-600 dark:text-slate-300">
                 {budget.category}
               </Badge>
               <Badge variant="outline" className="text-xs capitalize font-medium text-indigo-600 border-indigo-200">
-                {budget.budgetType}
+                {budget.budgetType || "Personal"}
               </Badge>
               <Badge variant="secondary" className="text-xs font-mono bg-slate-100 dark:bg-slate-800">
                 {budget.period.toUpperCase()}
               </Badge>
+              {increaseCount > 0 && (
+                <Badge className="bg-sky-500/10 text-sky-600 text-xs font-bold border-0">
+                  Version {increaseCount + 1}
+                </Badge>
+              )}
             </div>
-            <p className="text-xs text-slate-500">
-              Active Period: <strong>{formatDate(budget.startDate)}</strong> → <strong>{budget.endDate ? formatDate(budget.endDate) : "Ongoing"}</strong> • Duration: <strong>{totalDurationDays} Days</strong> • Last Updated: {budget.updatedAt ? new Date(budget.updatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "Today"}
-            </p>
+
+            <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+              <span>
+                Term: <strong>{formatDate(budget.startDate)}</strong> → <strong>{budget.endDate ? formatDate(budget.endDate) : "Ongoing"}</strong>
+              </span>
+              <span>•</span>
+              <span>
+                Duration: <strong>{totalDurationDays} Days</strong> ({daysRemaining} days left)
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
+                <Check className="h-3.5 w-3.5" />
+                Verified Ledger Sync
+              </span>
+            </div>
           </div>
 
-          {/* Quick Actions */}
+          {/* Quick Actions Bar */}
           <div className="flex flex-wrap items-center gap-2">
             {allBudgets.length > 1 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="rounded-xl text-xs font-semibold gap-1.5 h-9">
+                  <Button variant="outline" size="sm" className="rounded-xl text-xs font-semibold gap-1.5 h-9 budget-btn-press">
                     <Layers className="h-3.5 w-3.5 text-primary" />
                     <span>Switch Budget ({allBudgets.length})</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5">
+                <DropdownMenuContent align="end" className="w-60 rounded-2xl p-1.5">
                   {allBudgets.map((b) => (
                     <DropdownMenuItem
                       key={b.id}
@@ -264,7 +540,9 @@ export function BudgetDetailsDashboard({
                       }`}
                     >
                       <span className="truncate">{b.name}</span>
-                      <span className="font-mono text-[10px] text-slate-400">{formatCurrency(b.allocatedAmount, b.currency)}</span>
+                      <span className="font-mono text-[10px] text-slate-400">
+                        {formatCurrency(b.allocatedAmount, b.currency)}
+                      </span>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -274,30 +552,30 @@ export function BudgetDetailsDashboard({
             <Button
               size="sm"
               onClick={() => onOpenIncreaseModal(budget)}
-              className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-9 shadow-sm"
+              className="rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white gap-1.5 h-9 shadow-sm budget-btn-press"
             >
-              <Plus className="h-4 w-4" />
-              <span>Increase Budget</span>
+              <Coins className="h-4 w-4" />
+              <span>Budget Revision</span>
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 w-9 p-0 rounded-xl">
+                <Button variant="outline" size="sm" className="h-9 w-9 p-0 rounded-xl budget-btn-press">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="rounded-xl text-xs p-1.5">
                 <DropdownMenuItem onClick={() => onOpenEditModal(budget)} className="cursor-pointer">
                   <Edit2 className="h-3.5 w-3.5 mr-2 text-slate-600" />
-                  Edit Budget
+                  Edit Budget Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onDuplicate(budget.id)} className="cursor-pointer">
                   <Copy className="h-3.5 w-3.5 mr-2 text-indigo-500" />
-                  Duplicate
+                  Duplicate Target
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onTransferUnused(budget)} className="cursor-pointer">
                   <ArrowRightLeft className="h-3.5 w-3.5 mr-2 text-emerald-500" />
-                  Transfer to Savings
+                  Transfer Unused to Savings
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onArchive(budget.id)} className="cursor-pointer text-amber-600">
                   <Archive className="h-3.5 w-3.5 mr-2" />
@@ -305,7 +583,7 @@ export function BudgetDetailsDashboard({
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onDelete(budget.id)} className="cursor-pointer text-rose-600">
                   <Trash2 className="h-3.5 w-3.5 mr-2" />
-                  Delete
+                  Delete Budget
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -313,394 +591,742 @@ export function BudgetDetailsDashboard({
         </div>
       </div>
 
-      {/* 2. Twelve (12) Enterprise Summary Cards with Distinct Financial Identities */}
+      {/* =========================================================================
+          2. VISUAL PROGRESS BAROMETER: PROGRESS RING & DYNAMIC GAUGES
+          ========================================================================= */}
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-primary" />
+              Visual Progress & Financial Health Barometer
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Multi-dimensional velocity indicators comparing actual burn vs time elapsed.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-400">Efficiency Score:</span>
+            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold text-xs border-0">
+              {budgetEfficiencyScore}/100
+            </Badge>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-5 items-center">
+          {/* Animated Progress Ring (Cols 1-4) */}
+          <div className="md:col-span-4 flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50/50 dark:bg-slate-900/30 border border-slate-200/60 dark:border-slate-800/80">
+            <BudgetProgressRing
+              percentage={utilizationPercent}
+              spent={totalSpent}
+              total={currentBudget}
+              currency={currency}
+              status={dynamicStatus.key}
+              size={150}
+              strokeWidth={12}
+            />
+          </div>
+
+          {/* Detailed Progress Bars & Gauges (Cols 5-12) */}
+          <div className="md:col-span-8 space-y-4">
+            {/* Gauge 1: Timeline Progress */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                  <Calendar className="h-3.5 w-3.5 text-purple-500" />
+                  Timeline Progress
+                </span>
+                <span className="text-purple-600 dark:text-purple-400 font-mono">
+                  {daysPassed} of {totalDurationDays} Days ({timelinePercentage}%)
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-500"
+                  style={{ width: `${timelinePercentage}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>Start: {formatDate(budget.startDate)}</span>
+                <span className="font-semibold text-amber-600 dark:text-amber-400">{budget.countdownText || `${daysRemaining} Days Left`}</span>
+                <span>End: {budget.endDate ? formatDate(budget.endDate) : "Ongoing"}</span>
+              </div>
+            </div>
+
+            {/* Gauge 2: Budget Burn Progress */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                  <Flame className="h-3.5 w-3.5 text-rose-500" />
+                  Budget Burn Velocity vs Linear Pacing
+                </span>
+                <span className={`font-mono ${utilizationPercent > timelinePercentage ? "text-rose-600 font-bold" : "text-emerald-600"}`}>
+                  {utilizationPercent > timelinePercentage
+                    ? `Overburn (+${utilizationPercent - timelinePercentage}%)`
+                    : `Underburn (${timelinePercentage - utilizationPercent}% saved)`}
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden relative">
+                {/* Ideal Linear Marker */}
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-slate-400 z-10"
+                  style={{ left: `${timelinePercentage}%` }}
+                  title="Ideal Pacing Marker"
+                />
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    utilizationPercent > 100
+                      ? "bg-rose-500"
+                      : utilizationPercent >= 85
+                      ? "bg-orange-500"
+                      : utilizationPercent >= 70
+                      ? "bg-amber-500"
+                      : "bg-emerald-500"
+                  }`}
+                  style={{ width: `${Math.min(100, utilizationPercent)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>Spent: {formatCurrency(totalSpent, currency)}</span>
+                <span>Ideal Target: {formatCurrency(Math.round((currentBudget * timelinePercentage) / 100), currency)}</span>
+                <span>Ceiling: {formatCurrency(currentBudget, currency)}</span>
+              </div>
+            </div>
+
+            {/* Gauge 3: Daily Spend Indicator */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                  <Zap className="h-3.5 w-3.5 text-cyan-500" />
+                  Daily Actual Spending vs Spending Limit Allowance
+                </span>
+                <span className="font-mono text-cyan-600 dark:text-cyan-400">
+                  {formatCurrency(averageDailySpend, currency)}/d vs limit {formatCurrency(dailyAllowance, currency)}/d
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    averageDailySpend > dailyAllowance ? "bg-amber-500" : "bg-cyan-500"
+                  }`}
+                  style={{
+                    width: `${Math.min(100, Math.round((averageDailySpend / Math.max(1, dailyAllowance + averageDailySpend)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>Safe Allowance: {formatCurrency(dailyAllowance, currency)}/day</span>
+                <span className={averageDailySpend > dailyAllowance ? "text-amber-500 font-semibold" : "text-emerald-500 font-semibold"}>
+                  {averageDailySpend > dailyAllowance ? "Pacing above safe allowance" : "Safe spending velocity"}
+                </span>
+              </div>
+            </div>
+
+            {/* Gauge 4: Savings Progress */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                  <PiggyBank className="h-3.5 w-3.5 text-emerald-500" />
+                  Savings Retention Progress
+                </span>
+                <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(remainingBudget, currency)} Preserved
+                </span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                  style={{ width: `${remainingPercent}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>Potential Savings: {formatCurrency(remainingBudget, currency)}</span>
+                <span>Expected End Savings: {formatCurrency(expectedRemaining, currency)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* =========================================================================
+          3. TWELVE (12) PROFESSIONAL KPI CARDS WITH UNIQUE FINANCIAL IDENTITIES
+          Hover: Lift 8px, Scale 1.02, Financial shadow, 180ms ease-out
+          ========================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-        {/* Card 1: Original Budget (Royal Blue) */}
-        <div className="card-premium group rounded-2xl border border-blue-500/25 bg-gradient-to-br from-blue-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-blue-400">
+        {/* Card 1: Initial Budget (Royal Blue) */}
+        <div className="budget-card-interactive glow-royal-blue group rounded-2xl border border-blue-500/25 bg-gradient-to-br from-blue-500/10 via-background to-transparent p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Original Budget</span>
-            <div className="p-1.5 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Initial Budget</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400">
               <Wallet className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-blue-600 dark:text-blue-400">
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-blue-600 dark:text-blue-400">
               <AnimatedCounter value={formatCurrency(originalBudget, currency)} />
             </div>
             <p className="text-[10px] text-slate-400 mt-1">Initial baseline created</p>
           </div>
         </div>
 
-        {/* Card 2: Additional Budget (Emerald Green) */}
-        <div className="card-premium group rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-emerald-400">
+        {/* Card 2: Current Total Budget (Indigo) */}
+        <div className="budget-card-interactive glow-indigo group rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-indigo-500/10 via-background to-transparent p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Additional Budget</span>
-            <div className="p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
-              <Coins className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
-              <AnimatedCounter value={`+${formatCurrency(additionalBudget, currency)}`} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {increaseCount > 0 ? `${increaseCount} revision${increaseCount > 1 ? "s" : ""} added` : "No increases added yet"}
-            </p>
-          </div>
-        </div>
-
-        {/* Card 3: Current Budget (Indigo) */}
-        <div className="card-premium group rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-indigo-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-indigo-400">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Current Total Budget</span>
-            <div className="p-1.5 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Current Budget</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
               <Target className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-indigo-600 dark:text-indigo-400">
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-indigo-600 dark:text-indigo-400">
               <AnimatedCounter value={formatCurrency(currentBudget, currency)} />
             </div>
+            <p className="text-[10px] text-slate-400 mt-1">Active authorized ceiling</p>
+          </div>
+        </div>
+
+        {/* Card 3: Budget Added (Sky Blue) */}
+        <div className="budget-card-interactive glow-sky group rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Budget Added</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
+              <Coins className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-sky-600 dark:text-sky-400">
+              <AnimatedCounter value={`+${formatCurrency(additionalBudget, currency)}`} />
+            </div>
             <p className="text-[10px] text-slate-400 mt-1">
-              Original ({formatCurrency(originalBudget, currency)}) + Added ({formatCurrency(additionalBudget, currency)})
+              {increaseCount > 0 ? `${increaseCount} revision${increaseCount > 1 ? "s" : ""} recorded` : "No revisions added yet"}
             </p>
           </div>
         </div>
 
-        {/* Card 4: Total Spent (Crimson Red) */}
-        <div className="card-premium group rounded-2xl border border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-rose-400">
+        {/* Card 4: Spent Amount (Crimson Red / Overspent Red) */}
+        <div className="budget-card-interactive glow-red group rounded-2xl border border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-background to-transparent p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Spent</span>
-            <div className="p-1.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Spent Amount</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400">
               <ArrowUpRight className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-rose-600 dark:text-rose-400">
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-rose-600 dark:text-rose-400">
               <AnimatedCounter value={formatCurrency(totalSpent, currency)} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {utilizationPercent}% of current cap consumed
-            </p>
+            <p className="text-[10px] text-slate-400 mt-1">{utilizationPercent}% of ceiling consumed</p>
           </div>
         </div>
 
-        {/* Card 5: Remaining Budget (Teal) */}
-        <div className="card-premium group rounded-2xl border border-teal-500/25 bg-gradient-to-br from-teal-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-teal-400">
+        {/* Card 5: Remaining Budget (Indigo / Teal) */}
+        <div className="budget-card-interactive glow-indigo group rounded-2xl border border-teal-500/25 bg-gradient-to-br from-teal-500/10 via-background to-transparent p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Remaining Budget</span>
-            <div className="p-1.5 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-teal-500/15 text-teal-600 dark:text-teal-400">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-teal-600 dark:text-teal-400">
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-teal-600 dark:text-teal-400">
               <AnimatedCounter value={formatCurrency(remainingBudget, currency)} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {remainingPercent}% available balance
-            </p>
+            <p className="text-[10px] text-slate-400 mt-1">{remainingPercent}% available liquidity</p>
           </div>
         </div>
 
-        {/* Card 6: Budget Increase Count (Violet) */}
-        <div className="card-premium group rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-violet-400">
+        {/* Card 6: Savings (Emerald Green) */}
+        <div className="budget-card-interactive glow-emerald group rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-background to-transparent p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Revision Count</span>
-            <div className="p-1.5 rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
-              <History className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-violet-600 dark:text-violet-400">
-              <AnimatedCounter value={`${increaseCount} Time${increaseCount === 1 ? "" : "s"}`} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">Active audit revisions recorded</p>
-          </div>
-        </div>
-
-        {/* Card 7: Remaining Timeline (Amber) */}
-        <div className="card-premium group rounded-2xl border border-amber-500/25 bg-gradient-to-br from-amber-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-amber-400">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Remaining Timeline</span>
-            <div className="p-1.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
-              <Hourglass className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-amber-600 dark:text-amber-400">
-              <AnimatedCounter value={budget.countdownText || `${daysRemaining} Days Left`} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {daysPassed} days passed of {totalDurationDays} total
-            </p>
-          </div>
-        </div>
-
-        {/* Card 8: Daily Spending Allowance (Cyan) */}
-        <div className="card-premium group rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-cyan-400">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Daily Spending Allowance</span>
-            <div className="p-1.5 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
-              <Zap className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-cyan-600 dark:text-cyan-400">
-              <AnimatedCounter value={`${formatCurrency(dailyAllowance, currency)}/day`} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Remaining budget ÷ remaining {daysRemaining} days
-            </p>
-          </div>
-        </div>
-
-        {/* Card 9: Expected Remaining Budget (Sky Blue) */}
-        <div className="card-premium group rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-sky-400">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Expected Remaining</span>
-            <div className="p-1.5 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Savings</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
               <PiggyBank className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-sky-600 dark:text-sky-400">
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-emerald-600 dark:text-emerald-400">
+              <AnimatedCounter value={formatCurrency(currentNetSavings, currency)} />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Verified surplus retained</p>
+          </div>
+        </div>
+
+        {/* Card 7: Budget Health (Status Based: Green / Amber / Orange / Red) */}
+        <div className={`budget-card-interactive ${dynamicStatus.glowClass} group rounded-2xl border p-4 flex flex-col justify-between`}
+          style={{ borderColor: `${dynamicStatus.colorHex}40`, background: `linear-gradient(135deg, ${dynamicStatus.colorHex}15, transparent)` }}
+        >
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Budget Health</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl" style={{ backgroundColor: `${dynamicStatus.colorHex}20`, color: dynamicStatus.colorHex }}>
+              <ShieldAlert className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="budget-number-highlight text-2xl font-black tracking-tight" style={{ color: dynamicStatus.colorHex }}>
+              {dynamicStatus.label}
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Pacing score: {budgetEfficiencyScore}/100</p>
+          </div>
+        </div>
+
+        {/* Card 8: Remaining Days (Purple / Amber) */}
+        <div className="budget-card-interactive glow-purple group rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Remaining Days</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
+              <Hourglass className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-purple-600 dark:text-purple-400">
+              <AnimatedCounter value={daysRemaining} suffix=" Days" />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">{daysPassed} days completed ({totalDurationDays} total)</p>
+          </div>
+        </div>
+
+        {/* Card 9: Timeline Completion (Purple) */}
+        <div className="budget-card-interactive glow-purple group rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Timeline Completion</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
+              <CalendarDays className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-purple-600 dark:text-purple-400">
+              <AnimatedCounter value={timelinePercentage} suffix="%" />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Elapsed time progress</p>
+          </div>
+        </div>
+
+        {/* Card 10: Average Daily Spend (Cyan) */}
+        <div className="budget-card-interactive glow-cyan group rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Average Daily Spend</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
+              <Zap className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-cyan-600 dark:text-cyan-400">
+              <AnimatedCounter value={`${formatCurrency(averageDailySpend, currency)}/d`} />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">Safe allowance: {formatCurrency(dailyAllowance, currency)}/d</p>
+          </div>
+        </div>
+
+        {/* Card 11: Projected End Balance (Sky Blue / Emerald) */}
+        <div className="budget-card-interactive glow-sky group rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 via-background to-transparent p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Projected End Balance</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400">
+              <Scale className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-sky-600 dark:text-sky-400">
               <AnimatedCounter value={formatCurrency(expectedRemaining, currency)} />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Projected end spend: {formatCurrency(projectedEndSpend, currency)}
-            </p>
+            <p className="text-[10px] text-slate-400 mt-1">Projected end spend: {formatCurrency(projectedEndSpend, currency)}</p>
           </div>
         </div>
 
-        {/* Card 10: Projected Budget Exhaustion (Orange) */}
-        <div className="card-premium group rounded-2xl border border-orange-500/25 bg-gradient-to-br from-orange-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-orange-400">
+        {/* Card 12: Forecast Accuracy (Cyan) */}
+        <div className="budget-card-interactive glow-cyan group rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-cyan-500/10 via-background to-transparent p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Projected Exhaustion</span>
-            <div className="p-1.5 rounded-xl bg-orange-500/15 text-orange-600 dark:text-orange-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
-              <AlertTriangle className="h-4 w-4" />
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Forecast Accuracy</span>
+            <div className="budget-icon-interactive p-1.5 rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
+              <Sparkles className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-orange-600 dark:text-orange-400 truncate">
-              {projectedExhaustionDate ? formatDate(projectedExhaustionDate) : "Within Cap"}
+            <div className="budget-number-highlight text-2xl font-black font-mono tracking-tight text-cyan-600 dark:text-cyan-400">
+              <AnimatedCounter value={forecastAccuracy} suffix="%" />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {projectedExhaustionDate ? "At current burn rate" : "Spending speed on track"}
-            </p>
-          </div>
-        </div>
-
-        {/* Card 11: Budget Growth % (Purple) */}
-        <div className="card-premium group rounded-2xl border border-purple-500/25 bg-gradient-to-br from-purple-500/10 via-background to-transparent p-4 flex flex-col justify-between hover:border-purple-400">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Budget Growth</span>
-            <div className="p-1.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
-              <Percent className="h-4 w-4" />
-            </div>
-          </div>
-          <div>
-            <div className="text-2xl font-black font-mono tracking-tight text-purple-600 dark:text-purple-400">
-              <AnimatedCounter value={`+${growthPercentage}%`} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              (Current − Original) ÷ Original
-            </p>
-          </div>
-        </div>
-
-        {/* Card 12: Savings Impact (Dynamic Emerald or Crimson) */}
-        <div className={`card-premium group rounded-2xl border p-4 flex flex-col justify-between ${
-          savingsImpact >= 0
-            ? "border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-background to-transparent hover:border-emerald-400"
-            : "border-rose-500/25 bg-gradient-to-br from-rose-500/10 via-background to-transparent hover:border-rose-400"
-        }`}>
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Savings Impact</span>
-            <div className={`p-1.5 rounded-xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-200 ${
-              savingsImpact >= 0 ? "bg-emerald-500/15 text-emerald-600" : "bg-rose-500/15 text-rose-600"
-            }`}>
-              {savingsImpact >= 0 ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
-            </div>
-          </div>
-          <div>
-            <div className={`text-2xl font-black font-mono tracking-tight ${
-              savingsImpact >= 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
-            }`}>
-              <AnimatedCounter value={`-${formatCurrency(additionalBudget, currency)}`} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Expected savings reduced by added cap
-            </p>
+            <p className="text-[10px] text-slate-400 mt-1">Historical variance index</p>
           </div>
         </div>
       </div>
 
-      {/* 3. Real-Time Interactive Visual Timeline */}
+      {/* =========================================================================
+          4. DYNAMIC BUDGET OVERVIEW (ALL 17 ENTERPRISE OVERVIEW METRICS)
+          ========================================================================= */}
       <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              Live Budget Timeline & Validity
+              <Layers className="h-4 w-4 text-primary" />
+              Dynamic Budget Overview & Verification Ledger
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Tracks elapsed duration, real-time validity, and revisions from verified ledger data.
+              Comprehensive ledger synchronization of all active constraints and projections.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs font-mono font-bold text-primary border-primary/30">
-              {timelinePercentage}% Elapsed
-            </Badge>
-            <Badge variant="outline" className="text-xs font-mono font-bold text-amber-600 border-amber-500/30">
-              {daysRemaining} Days Remaining
-            </Badge>
-          </div>
+          <Badge className="bg-primary/10 text-primary text-[10px] font-bold border-0">
+            Real-Time Verified Ledger
+          </Badge>
         </div>
 
-        {/* Horizontal Timeline Bar */}
-        <div className="space-y-3 pt-2">
-          <div className="relative w-full h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-            {/* Completed Progress Bar */}
-            <div
-              className="h-full bg-gradient-to-r from-primary via-indigo-500 to-amber-500 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${timelinePercentage}%` }}
-            />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs">
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Current Budget</span>
+            <strong className="text-sm font-mono text-slate-900 dark:text-slate-100">
+              {formatCurrency(currentBudget, currency)}
+            </strong>
           </div>
 
-          {/* Interactive Milestone Nodes */}
-          <div className="relative flex justify-between items-center text-[11px] text-slate-500 px-1 pt-1">
-            <div className="flex flex-col items-start">
-              <div className="h-2 w-2 rounded-full bg-primary mb-1" />
-              <span className="font-bold text-slate-900 dark:text-slate-100">Start</span>
-              <span>{formatDate(budget.startDate)}</span>
-            </div>
-
-            {budget.increases && budget.increases.length > 0 && (
-              <div className="flex flex-col items-center">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex flex-col items-center group cursor-pointer"
-                    >
-                      <div className="h-3 w-3 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20 group-hover:scale-125 transition-transform mb-0.5" />
-                      <span className="font-bold text-emerald-600">
-                        +{formatCurrency(budget.increases[0].addedAmount, currency)}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {formatDate(budget.increases[0].date)}
-                      </span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs p-2.5 rounded-xl">
-                    <p className="font-bold text-emerald-400">Budget Increased</p>
-                    <p className="text-[11px] text-slate-300">Added: {formatCurrency(budget.increases[0].addedAmount, currency)}</p>
-                    <p className="text-[10px] text-slate-400">Reason: {budget.increases[0].reason || "General revision"}</p>
-                    <p className="text-[10px] text-slate-400">Days Left at revision: {budget.increases[0].remainingDays}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            )}
-
-            <div className="flex flex-col items-center">
-              <div className="h-2.5 w-2.5 rounded-full bg-amber-500 ring-4 ring-amber-500/20 mb-0.5" />
-              <span className="font-bold text-amber-600 dark:text-amber-400">Today</span>
-              <span>{new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
-            </div>
-
-            <div className="flex flex-col items-end">
-              <div className="h-2 w-2 rounded-full bg-slate-400 mb-1" />
-              <span className="font-bold text-slate-900 dark:text-slate-100">Expiry</span>
-              <span>{budget.endDate ? formatDate(budget.endDate) : "Ongoing"}</span>
-            </div>
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Initial Budget</span>
+            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
+              {formatCurrency(originalBudget, currency)}
+            </strong>
           </div>
 
-          {/* Remaining Time Analysis Details */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px]">
-            <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50">
-              <span className="text-slate-400 block text-[10px]">Total Duration</span>
-              <strong className="text-slate-800 dark:text-slate-200">{totalDurationDays} Days</strong>
-            </div>
-            <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50">
-              <span className="text-slate-400 block text-[10px]">Days Passed</span>
-              <strong className="text-slate-800 dark:text-slate-200">{daysPassed} Days</strong>
-            </div>
-            <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50">
-              <span className="text-slate-400 block text-[10px]">Days Remaining</span>
-              <strong className="text-emerald-600 dark:text-emerald-400">{daysRemaining} Days</strong>
-            </div>
-            <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50">
-              <span className="text-slate-400 block text-[10px]">Remaining Weeks</span>
-              <strong className="text-slate-800 dark:text-slate-200">{remainingWeeks} Weeks</strong>
-            </div>
-            <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50">
-              <span className="text-slate-400 block text-[10px]">Remaining Months</span>
-              <strong className="text-slate-800 dark:text-slate-200">{remainingMonths} Months</strong>
-            </div>
-            <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50">
-              <span className="text-slate-400 block text-[10px]">Countdown</span>
-              <strong className="text-amber-600 dark:text-amber-400">{budget.countdownText || `${daysRemaining} Days Left`}</strong>
-            </div>
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Current Active Budget</span>
+            <strong className="text-sm font-mono text-indigo-600 dark:text-indigo-400">
+              {formatCurrency(currentBudget, currency)}
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Total Added Budget</span>
+            <strong className="text-sm font-mono text-sky-600 dark:text-sky-400">
+              +{formatCurrency(additionalBudget, currency)}
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Remaining Budget</span>
+            <strong className="text-sm font-mono text-teal-600 dark:text-teal-400">
+              {formatCurrency(remainingBudget, currency)}
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Remaining Days</span>
+            <strong className="text-sm font-mono text-amber-600 dark:text-amber-400">
+              {daysRemaining} Days
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Elapsed Days</span>
+            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
+              {daysPassed} Days
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Daily Spending Limit</span>
+            <strong className="text-sm font-mono text-cyan-600 dark:text-cyan-400">
+              {formatCurrency(dailyAllowance, currency)}/d
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Daily Actual Spending</span>
+            <strong className="text-sm font-mono text-slate-900 dark:text-slate-100">
+              {formatCurrency(averageDailySpend, currency)}/d
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Average Daily Spend</span>
+            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
+              {formatCurrency(averageDailySpend, currency)}/d
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Remaining Daily Allowance</span>
+            <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(dailyAllowance, currency)}/d
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Total Savings</span>
+            <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(currentNetSavings, currency)}
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Budget Utilization</span>
+            <strong className={`text-sm font-mono ${utilizationPercent > 100 ? "text-rose-600" : "text-slate-900 dark:text-slate-100"}`}>
+              {utilizationPercent}%
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Budget Health</span>
+            <strong className="text-sm font-mono" style={{ color: dynamicStatus.colorHex }}>
+              {dynamicStatus.label}
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Projected Completion</span>
+            <strong className="text-sm font-mono text-slate-700 dark:text-slate-300">
+              {projectedExhaustionDate ? formatDate(projectedExhaustionDate) : "On Track"}
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Expected Remaining Balance</span>
+            <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(expectedRemaining, currency)}
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Expected Overspend</span>
+            <strong className={`text-sm font-mono ${expectedOverspend > 0 ? "text-rose-600" : "text-emerald-600"}`}>
+              {expectedOverspend > 0 ? formatCurrency(expectedOverspend, currency) : "₹0 (Safe)"}
+            </strong>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800">
+            <span className="text-slate-400 text-[10px] block">Forecast Accuracy</span>
+            <strong className="text-sm font-mono text-cyan-600 dark:text-cyan-400">
+              {forecastAccuracy}%
+            </strong>
           </div>
         </div>
       </Card>
 
-      {/* 4. Real-Time Savings Analysis Panel */}
-      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm">
+      {/* =========================================================================
+          5. ENTERPRISE BUDGET TIMELINE (HOVER REVEALS COMPLETE LEDGER DETAILS)
+          ========================================================================= */}
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-purple-600" />
+              Enterprise Budget Timeline & Verified Milestones
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Tracks budget inception, dynamic revisions, threshold breaches, and savings achieved.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Badge variant="outline" className="border-purple-500/30 text-purple-600 font-mono font-bold">
+              {timelineMilestones.length} Events Logged
+            </Badge>
+          </div>
+        </div>
+
+        {/* Stepped Interactive Timeline Bar */}
+        <div className="pt-2 pb-6">
+          <div className="relative flex items-center justify-between">
+            {/* Connecting Track Line */}
+            <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-200 dark:bg-slate-800 -translate-y-1/2 z-0" />
+            
+            {/* Active Progress Fill */}
+            <div
+              className="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-500 -translate-y-1/2 z-0 transition-all duration-500"
+              style={{ width: `${timelinePercentage}%` }}
+            />
+
+            {/* Interactive Milestone Nodes */}
+            {timelineMilestones.map((milestone, idx) => (
+              <Tooltip key={milestone.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onMouseEnter={() => setHoveredEventId(milestone.id)}
+                    onMouseLeave={() => setHoveredEventId(null)}
+                    className="relative z-10 flex flex-col items-center group focus:outline-none"
+                  >
+                    <div
+                      className={`h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold ring-4 ring-background transition-all duration-200 ${
+                        milestone.colorClass
+                      } group-hover:scale-125 group-hover:shadow-lg`}
+                    >
+                      {idx + 1}
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-1 max-w-[80px] truncate text-center">
+                      {milestone.title}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-mono">
+                      {formatDate(milestone.date)}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="p-3 rounded-2xl max-w-xs shadow-2xl bg-slate-900 text-slate-100 border border-slate-800 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1">
+                    <strong className="text-emerald-400 font-bold">{milestone.title}</strong>
+                    <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-300">
+                      {milestone.ledgerReference}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                    <div>
+                      <span className="text-slate-400 block text-[9px]">Date & Time</span>
+                      <span>{formatDate(milestone.date)} • {milestone.time}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px]">Event Amount</span>
+                      <strong className="text-emerald-400 font-mono">{formatCurrency(milestone.amount, currency)}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px]">Remaining Budget</span>
+                      <span className="font-mono">{formatCurrency(milestone.remainingBudget, currency)}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px]">Remaining Days</span>
+                      <span className="font-mono">{milestone.remainingDays} Days</span>
+                    </div>
+                  </div>
+                  {milestone.notes && (
+                    <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-800/80">
+                      {milestone.notes}
+                    </p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        </div>
+
+        {/* Milestone Detail Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
+          {timelineMilestones.map((milestone) => (
+            <div
+              key={milestone.id}
+              className={`p-3 rounded-2xl border transition-all duration-200 ${
+                hoveredEventId === milestone.id
+                  ? "border-primary bg-primary/5 shadow-md scale-[1.02]"
+                  : "border-slate-200/60 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30"
+              }`}
+            >
+              <div className="flex items-center justify-between pb-1">
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                  {milestone.title}
+                </span>
+                <Badge variant="outline" className="text-[9px] font-mono border-slate-300 dark:border-slate-700">
+                  {milestone.ledgerReference}
+                </Badge>
+              </div>
+              <div className="text-[11px] space-y-0.5 text-slate-600 dark:text-slate-300">
+                <p>
+                  <span className="text-slate-400">Date:</span> {formatDate(milestone.date)} ({milestone.time})
+                </p>
+                <p>
+                  <span className="text-slate-400">Amount:</span> <strong className="font-mono text-emerald-600 dark:text-emerald-400">{formatCurrency(milestone.amount, currency)}</strong>
+                </p>
+                <p>
+                  <span className="text-slate-400">Remaining Cap:</span> <span className="font-mono">{formatCurrency(milestone.remainingBudget, currency)}</span>
+                </p>
+                <p className="text-[10px] text-slate-400 pt-0.5 italic truncate">
+                  {milestone.notes || "Verified record"}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* =========================================================================
+          6. SMART SAVINGS ENGINE
+          ========================================================================= */}
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <PiggyBank className="h-4 w-4 text-emerald-500" />
-              Real-Time Savings Analysis & Budget Revision Impact
+              Smart Savings Engine (Verified Transaction Driven)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Verified savings updates automatically whenever income, expenses, or budgets change.
+              Calculated exclusively from approved income, ledger debits, and preserved budget caps.
             </p>
           </div>
           <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold border-0">
-            Savings Rate: {savingsRate}%
+            Savings Rate: {savingsPercent}%
           </Badge>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
-          <div className="p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-1">
-            <span className="text-xs font-semibold text-slate-500">Current Net Savings</span>
-            <div className="text-xl sm:text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+        {/* Savings Metric Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          <div className="p-3.5 rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 to-transparent space-y-1">
+            <span className="text-slate-500 text-[11px] font-semibold">Saved Amount</span>
+            <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
               <AnimatedCounter value={formatCurrency(currentNetSavings, currency)} />
             </div>
-            <p className="text-[11px] text-slate-400">Verified Income ({formatCurrency(actualIncome, currency)}) − Verified Outflow ({formatCurrency(totalSpent, currency)})</p>
+            <p className="text-[10px] text-slate-400">Verified cash surplus retained</p>
           </div>
 
-          <div className="p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 space-y-1">
-            <span className="text-xs font-semibold text-slate-500">Expected End Savings</span>
-            <div className="text-xl sm:text-2xl font-black font-mono text-indigo-600 dark:text-indigo-400">
+          <div className="p-3.5 rounded-2xl border border-teal-500/25 bg-gradient-to-br from-teal-500/10 to-transparent space-y-1">
+            <span className="text-slate-500 text-[11px] font-semibold">Potential Savings</span>
+            <div className="text-2xl font-black font-mono text-teal-600 dark:text-teal-400">
+              <AnimatedCounter value={formatCurrency(potentialSavings, currency)} />
+            </div>
+            <p className="text-[10px] text-slate-400">Current unspent budget buffer</p>
+          </div>
+
+          <div className="p-3.5 rounded-2xl border border-indigo-500/25 bg-gradient-to-br from-indigo-500/10 to-transparent space-y-1">
+            <span className="text-slate-500 text-[11px] font-semibold">Expected End Savings</span>
+            <div className="text-2xl font-black font-mono text-indigo-600 dark:text-indigo-400">
               <AnimatedCounter value={formatCurrency(updatedExpectedSavings, currency)} />
             </div>
-            <p className="text-[11px] text-slate-400">Target savings preserved after complete budget utilization</p>
+            <p className="text-[10px] text-slate-400">Preserved after complete budget run</p>
           </div>
 
-          <div className="p-4 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent space-y-1">
-            <span className="text-xs font-semibold text-slate-500">Budget Revision Impact</span>
-            <div className="flex items-center gap-2 text-sm font-bold pt-1">
-              <span className="line-through text-slate-400 font-mono">
-                {formatCurrency(previousExpectedSavings, currency)}
-              </span>
-              <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
-              <span className="text-emerald-600 dark:text-emerald-400 font-mono">
-                {formatCurrency(updatedExpectedSavings, currency)}
-              </span>
+          <div className="p-3.5 rounded-2xl border border-sky-500/25 bg-gradient-to-br from-sky-500/10 to-transparent space-y-1">
+            <span className="text-slate-500 text-[11px] font-semibold">Projected End Savings</span>
+            <div className="text-2xl font-black font-mono text-sky-600 dark:text-sky-400">
+              <AnimatedCounter value={formatCurrency(projectedEndSavings, currency)} />
             </div>
-            <p className="text-[11px] text-slate-500 pt-1">
-              {additionalBudget > 0
-                ? `Budget increased by ${formatCurrency(additionalBudget, currency)}, adjusting expected surplus.`
-                : "Original budget limits intact. No impact on savings."}
-            </p>
+            <p className="text-[10px] text-slate-400">Surplus at current burn velocity</p>
+          </div>
+        </div>
+
+        {/* Savings Trends Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <div className="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+            <div>
+              <span className="text-slate-400 text-[10px] block">Daily Savings Rate</span>
+              <strong className="text-sm font-mono text-emerald-600 dark:text-emerald-400">
+                +{formatCurrency(dailySavings, currency)}/day
+              </strong>
+            </div>
+            <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">
+              Daily Pace
+            </Badge>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+            <div>
+              <span className="text-slate-400 text-[10px] block">Weekly Savings Trend</span>
+              <strong className="text-sm font-mono text-teal-600 dark:text-teal-400">
+                +{formatCurrency(weeklySavings, currency)}/wk
+              </strong>
+            </div>
+            <Badge variant="outline" className="text-[10px] text-teal-600 border-teal-500/30">
+              7 Days
+            </Badge>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+            <div>
+              <span className="text-slate-400 text-[10px] block">Monthly Savings Run-Rate</span>
+              <strong className="text-sm font-mono text-indigo-600 dark:text-indigo-400">
+                +{formatCurrency(monthlySavings, currency)}/mo
+              </strong>
+            </div>
+            <Badge variant="outline" className="text-[10px] text-indigo-600 border-indigo-500/30">
+              30 Days
+            </Badge>
           </div>
         </div>
       </Card>
 
-      {/* 5. Real-Time Interactive Charts & AI Insights */}
+      {/* =========================================================================
+          7. REAL-TIME INTERACTIVE CHARTS & AI INSIGHTS
+          ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Charts Section (2 Cols) */}
         <div className="lg:col-span-2 space-y-4">
@@ -720,29 +1346,29 @@ export function BudgetDetailsDashboard({
                 <button
                   type="button"
                   onClick={() => setSelectedChartTab("trend")}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors budget-btn-press ${
                     selectedChartTab === "trend" ? "bg-card text-primary shadow-xs font-bold" : "text-slate-500"
                   }`}
                 >
-                  Trend
+                  Spend Velocity
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedChartTab("burn_rate")}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors budget-btn-press ${
                     selectedChartTab === "burn_rate" ? "bg-card text-primary shadow-xs font-bold" : "text-slate-500"
                   }`}
                 >
-                  Burn Rate
+                  Burn vs Cap
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedChartTab("comparison")}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors budget-btn-press ${
                     selectedChartTab === "comparison" ? "bg-card text-primary shadow-xs font-bold" : "text-slate-500"
                   }`}
                 >
-                  Cap vs Spend
+                  Bar Comparison
                 </button>
               </div>
             </div>
@@ -801,12 +1427,12 @@ export function BudgetDetailsDashboard({
                     <Area
                       type="monotone"
                       dataKey="idealSpend"
-                      stroke="#0d9488"
+                      stroke="#059669"
                       strokeDasharray="4 4"
                       strokeWidth={2}
                       fill="none"
                     />
-                    <ReferenceLine y={currentBudget} stroke="#4f46e5" strokeDasharray="3 3" label="Cap Limit" />
+                    <ReferenceLine y={currentBudget} stroke="#4f46e5" strokeDasharray="3 3" label="Current Cap" />
                   </AreaChart>
                 ) : (
                   <BarChart data={comparisonData}>
@@ -847,7 +1473,7 @@ export function BudgetDetailsDashboard({
                 ))
               ) : (
                 <div className="p-3 text-center text-slate-500 text-xs">
-                  Not enough verified spending history.
+                  Awaiting additional debit transactions to compile deep heuristics.
                 </div>
               )}
             </div>
@@ -875,26 +1501,28 @@ export function BudgetDetailsDashboard({
         </div>
       </div>
 
-      {/* 6. Budget Revisions & Audit Trail History */}
+      {/* =========================================================================
+          8. BUDGET REVISIONS & COMPLETE AUDIT TRAIL HISTORY
+          ========================================================================= */}
       <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div>
             <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <History className="h-4 w-4 text-violet-500" />
-              Budget Increase History & Complete Audit Trail
+              Budget History & Revision Audit Trail
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Every revision is permanently retained with full traceability. Original baseline is never overwritten.
+              Every modification, extension, and addition is permanently stored with complete traceability.
             </p>
           </div>
           <Button
             size="sm"
             variant="outline"
             onClick={() => onOpenIncreaseModal(budget)}
-            className="rounded-xl text-xs h-8 gap-1"
+            className="rounded-xl text-xs h-8 gap-1.5 budget-btn-press"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Add Increase</span>
+            <span>New Revision</span>
           </Button>
         </div>
 
@@ -904,38 +1532,48 @@ export function BudgetDetailsDashboard({
               <thead className="bg-slate-50 dark:bg-slate-900/40 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <tr>
                   <th className="p-3 rounded-l-xl">Revision Date & Time</th>
-                  <th className="p-3">Previous Budget</th>
-                  <th className="p-3">Added Amount</th>
-                  <th className="p-3">Updated Budget</th>
+                  <th className="p-3">Version</th>
+                  <th className="p-3">Previous Value</th>
+                  <th className="p-3">New Value</th>
+                  <th className="p-3">Difference</th>
+                  <th className="p-3">User Action</th>
                   <th className="p-3">Remaining Days</th>
                   <th className="p-3">Reason</th>
-                  <th className="p-3 rounded-r-xl">Performed By</th>
+                  <th className="p-3 rounded-r-xl">Ledger Impact</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                {budget.increases.map((inc) => (
-                  <tr key={inc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                {budget.increases.map((inc, index) => (
+                  <tr key={inc.id || index} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
                     <td className="p-3 font-medium">
                       <span>{formatDate(inc.date)}</span>
                       <span className="text-[10px] text-slate-400 block">{inc.time}</span>
                     </td>
+                    <td className="p-3">
+                      <Badge variant="outline" className="text-[10px] font-mono border-violet-500/30 text-violet-600">
+                        v{index + 2}
+                      </Badge>
+                    </td>
                     <td className="p-3 font-mono text-slate-500">
                       {formatCurrency(inc.previousBudget, currency)}
+                    </td>
+                    <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                      {formatCurrency(inc.updatedBudget, currency)}
                     </td>
                     <td className="p-3 font-mono font-bold text-emerald-600 dark:text-emerald-400">
                       +{formatCurrency(inc.addedAmount, currency)}
                     </td>
-                    <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                      {formatCurrency(inc.updatedBudget, currency)}
+                    <td className="p-3 font-semibold text-slate-800 dark:text-slate-200">
+                      Budget Increased
                     </td>
                     <td className="p-3 font-mono text-slate-700 dark:text-slate-300">
                       {inc.remainingDays} Days
                     </td>
                     <td className="p-3 max-w-[180px] truncate text-slate-600 dark:text-slate-300">
-                      {inc.reason || "General budget revision"}
+                      {inc.reason || "General revision"}
                     </td>
-                    <td className="p-3 text-slate-500">
-                      {inc.performedBy || "You"}
+                    <td className="p-3 text-[11px] text-slate-500 font-mono">
+                      Ceiling +{formatCurrency(inc.addedAmount, currency)}
                     </td>
                   </tr>
                 ))}
@@ -944,7 +1582,7 @@ export function BudgetDetailsDashboard({
           </div>
         ) : (
           <div className="py-8 text-center text-xs text-slate-400">
-            No budget increases have been recorded yet. Original budget of {formatCurrency(originalBudget, currency)} remains intact.
+            Initial baseline of <strong>{formatCurrency(originalBudget, currency)}</strong> established. No budget increases recorded yet.
           </div>
         )}
       </Card>

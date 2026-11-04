@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BudgetProgress } from "@/actions/budgets";
 import { FinancialIntelligenceData } from "@/actions/financial-intelligence";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -46,6 +47,7 @@ export function AIBudgetEnterpriseDashboard({
   onOpenBudgetDialog,
   onEditBudget,
 }: AIBudgetEnterpriseDashboardProps) {
+  const router = useRouter();
   const [filterType, setFilterType] = useState<"all" | "personal" | "category" | "group">("all");
 
   const now = new Date();
@@ -174,7 +176,16 @@ export function AIBudgetEnterpriseDashboard({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => router.push("/dashboard/budgets")}
+            className="rounded-xl text-xs font-bold gap-1.5 border-primary/30 text-primary hover:bg-primary/10 shadow-xs min-h-[36px]"
+          >
+            <Layers className="h-4 w-4" />
+            <span>Open Budget Center</span>
+          </Button>
           <Button
             size="sm"
             onClick={onOpenBudgetDialog}

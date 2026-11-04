@@ -52,17 +52,17 @@ export function BudgetCard({ budget, onEdit }: BudgetCardProps) {
 
   return (
     <motion.div
-      whileHover={shouldReduceMotion ? undefined : { y: -3, scale: 1.008 }}
-      whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
+      whileHover={shouldReduceMotion ? undefined : { y: -8, scale: 1.02 }}
+      whileTap={shouldReduceMotion ? undefined : { scale: 0.985 }}
+      transition={{ duration: 0.18, ease: "easeOut" }}
       className="h-full group"
     >
-      <Card className={`rounded-3xl border shadow-sm transition-all duration-300 overflow-hidden flex flex-col justify-between h-full hover:shadow-lg cursor-pointer ${
+      <Card className={`budget-card-interactive rounded-3xl border shadow-sm transition-all duration-200 overflow-hidden flex flex-col justify-between h-full hover:shadow-xl cursor-pointer ${
         isExceeded
-          ? "border-rose-300 dark:border-rose-900 bg-rose-50/15 dark:bg-rose-950/10 shadow-rose-500/5 hover:border-rose-500/60"
+          ? "glow-red border-rose-300 dark:border-rose-900 bg-rose-50/15 dark:bg-rose-950/10 shadow-rose-500/5 hover:border-rose-500/60"
           : isWarning
-          ? "border-amber-300 dark:border-amber-900 bg-amber-50/15 dark:bg-amber-950/10 shadow-amber-500/5 hover:border-amber-500/60"
-          : "border-slate-200/80 dark:border-slate-800 bg-card hover:border-primary/50 dark:hover:border-primary/50"
+          ? "glow-amber border-amber-300 dark:border-amber-900 bg-amber-50/15 dark:bg-amber-950/10 shadow-amber-500/5 hover:border-amber-500/60"
+          : "glow-royal-blue border-slate-200/80 dark:border-slate-800 bg-card hover:border-blue-500/50 dark:hover:border-blue-500/50"
       }`}>
       <div>
         {/* Header */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   BudgetDashboardMetrics,
   BudgetRecord,
@@ -61,6 +62,7 @@ import {
   History,
   Hourglass,
   Layers,
+  RefreshCw,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
@@ -74,7 +76,18 @@ interface BudgetsDashboardViewProps {
 }
 
 export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewProps) {
+  const router = useRouter();
   const [metrics, setMetrics] = useState<BudgetDashboardMetrics>(initialMetrics);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    router.refresh();
+    setTimeout(() => {
+      setIsRefreshing(false);
+      toast.success("Synchronized with verified ledger records");
+    }, 450);
+  };
 
   // Default active tab to overview so arriving users immediately see full budget details
   const [activeTab, setActiveTab] = useState("overview");
@@ -445,7 +458,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
   const activeBudgets = metrics.budgets.filter((b) => b.status !== "archived");
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="budget-module-scope space-y-6 pb-12">
       {/* 1. Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
         <div>
@@ -460,21 +473,33 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="rounded-xl text-xs font-semibold gap-1.5 h-9 budget-btn-press"
+            title="Synchronize live from ledger"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 text-primary ${isRefreshing ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Sync Ledger</span>
+          </Button>
+
           {activeSelectedBudget && (
             <Button
               size="sm"
               onClick={() => openIncreaseModal(activeSelectedBudget)}
-              className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-sm h-9"
+              className="rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white gap-1.5 shadow-sm h-9 budget-btn-press"
             >
               <Coins className="h-4 w-4" />
-              <span>Increase Budget</span>
+              <span>Budget Revision</span>
             </Button>
           )}
-          <Button size="sm" onClick={openCreateModal} className="rounded-xl text-xs font-bold gap-1.5 shadow-sm h-9">
+          <Button size="sm" onClick={openCreateModal} className="rounded-xl text-xs font-bold gap-1.5 shadow-sm h-9 bg-primary text-primary-foreground budget-btn-press">
             <Plus className="h-4 w-4" />
             <span>Create Budget</span>
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setIsLimitModalOpen(true)} className="rounded-xl text-xs font-semibold gap-1.5 h-9">
+          <Button size="sm" variant="outline" onClick={() => setIsLimitModalOpen(true)} className="rounded-xl text-xs font-semibold gap-1.5 h-9 budget-btn-press">
             <ShieldAlert className="h-3.5 w-3.5 text-amber-500" />
             <span>Set Limit</span>
           </Button>
@@ -567,7 +592,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
                       setSelectedBudgetId(b.id);
                       setActiveTab("overview");
                     }}
-                    className="card-premium rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-3 cursor-pointer group"
+                    className="budget-card-interactive glow-royal-blue rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-3 cursor-pointer group"
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -696,7 +721,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
                     setSelectedBudgetId(b.id);
                     setActiveTab("overview");
                   }}
-                  className="card-premium rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-3 cursor-pointer group"
+                  className="budget-card-interactive glow-indigo rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-3 cursor-pointer group"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -761,7 +786,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
         <TabsContent value="savings-goals" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {metrics.savingsGoals.map((g) => (
-              <Card key={g.id} className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-3">
+              <Card key={g.id} className="budget-card-interactive glow-emerald rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="font-bold text-sm text-slate-900 dark:text-slate-100">{g.name}</h2>
@@ -818,7 +843,7 @@ export function BudgetsDashboardView({ initialMetrics }: BudgetsDashboardViewPro
         <TabsContent value="spending-limits" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {metrics.spendingLimits.map((l) => (
-              <Card key={l.id} className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-2">
+              <Card key={l.id} className="budget-card-interactive glow-amber rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-2">
                 <div className="flex items-center justify-between">
                   <h2 className="font-bold text-sm capitalize">{l.period} Spending Cap</h2>
                   <div className="flex items-center gap-2">

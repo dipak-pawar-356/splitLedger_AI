@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,13 @@ export function AIBudgetAndRemindersHub({
   onOpenBudgetDialog,
   onNavigateToBudgetsTab,
 }: AIBudgetAndRemindersHubProps) {
+  const router = useRouter();
+
+  // Master entry point handler to navigate to Budget Planning & Intelligence Center
+  const handleOpenBudgetsCenter = () => {
+    router.push("/dashboard/budgets");
+  };
+
   // Live aggregates across active budgets
   const activeBudgets = useMemo(() => {
     return budgets.filter((b) => b.status !== "archived");
@@ -86,18 +94,33 @@ export function AIBudgetAndRemindersHub({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* 1. ACCURATE LIVE BUDGET TRACKER CARD */}
-      <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-br from-card via-card to-emerald-500/[0.03] shadow-xs hover:border-emerald-500/40 hover:-translate-y-1 hover:shadow-md transition-all duration-300">
+      {/* 1. MASTER ENTRY POINT: ACCURATE LIVE BUDGET TRACKER CARD */}
+      <Card 
+        onClick={handleOpenBudgetsCenter}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleOpenBudgetsCenter();
+          }
+        }}
+        aria-label="Open Budget Planning & Intelligence Center"
+        className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-br from-card via-card to-emerald-500/[0.03] shadow-xs hover:border-emerald-500/50 hover:-translate-y-1.5 hover:shadow-lg active:scale-[0.99] transition-all duration-200 cursor-pointer group relative overflow-hidden"
+      >
+        {/* Subtle accent glow line at top */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-primary to-indigo-500 opacity-80 group-hover:opacity-100 transition-opacity" />
+
         <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 shrink-0">
+              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 shrink-0 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-200">
                 <Target className="h-4 w-4" />
               </div>
               <div>
                 <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                  Live Monthly Budget
+                  Live Budget Tracker
                   <Badge variant="outline" className={`text-[10px] font-bold py-0 px-1.5 ${budgetBadgeColor}`}>
                     {budgetStatusText}
                   </Badge>
@@ -108,29 +131,33 @@ export function AIBudgetAndRemindersHub({
               </div>
             </div>
 
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
               {onOpenBudgetDialog && (
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={onOpenBudgetDialog}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenBudgetDialog();
+                  }}
                   className="rounded-xl h-7 px-2.5 text-[11px] font-semibold gap-1 text-slate-700 dark:text-slate-300 hover:border-emerald-500/50"
                 >
                   <Plus className="h-3 w-3" />
                   <span>Set Limit</span>
                 </Button>
               )}
-              {onNavigateToBudgetsTab && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onNavigateToBudgetsTab}
-                  className="rounded-xl h-7 px-2 text-[11px] font-semibold text-primary hover:bg-primary/10 gap-1"
-                >
-                  <span>Details</span>
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenBudgetsCenter();
+                }}
+                className="rounded-xl h-7 px-2 text-[11px] font-semibold text-primary hover:bg-primary/10 gap-1 group-hover:translate-x-0.5 transition-transform"
+              >
+                <span>Center</span>
+                <ArrowRight className="h-3 w-3" />
+              </Button>
             </div>
           </div>
 
@@ -213,6 +240,18 @@ export function AIBudgetAndRemindersHub({
               )}
             </div>
           )}
+
+          {/* Master Entry Hint */}
+          <div className="pt-2 flex items-center justify-between text-[10px] text-slate-400 group-hover:text-primary transition-colors border-t border-slate-100 dark:border-slate-800/80">
+            <span className="flex items-center gap-1 font-semibold">
+              <Sparkles className="h-3 w-3 text-emerald-500" />
+              Budget Planning & Intelligence Center
+            </span>
+            <span className="flex items-center gap-0.5 font-bold group-hover:translate-x-1 transition-transform">
+              Open Center
+              <ArrowRight className="h-3 w-3 ml-0.5" />
+            </span>
+          </div>
         </CardContent>
       </Card>
 

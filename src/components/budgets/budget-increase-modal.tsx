@@ -58,6 +58,8 @@ export function BudgetIncreaseModal({
   const newRemainingBudget = Math.max(0, updatedTotalBudget - currentSpent);
   const newDailyAllowance = Math.round(newRemainingBudget / remainingDays);
   const currentDailyAllowance = Math.round(budget.remainingAmount / remainingDays);
+  const currentVersionNumber = (budget.increases?.length || 0) + 1;
+  const newVersionNumber = currentVersionNumber + 1;
 
   const REASON_SUGGESTIONS = [
     "Unforeseen expenditure",
@@ -188,54 +190,98 @@ export function BudgetIncreaseModal({
             />
           </div>
 
-          {/* Live Preview Section */}
+          {/* Live Preview Section with Complete Financial Comparison */}
           <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-teal-500/5 to-transparent p-4 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                 <Sparkles className="h-4 w-4 text-emerald-500" />
-                Live Revision Preview
+                Budget Revision Intelligence (v{currentVersionNumber} → v{newVersionNumber})
               </span>
-              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border-0">
-                Audit Trail Recorded
-              </Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border-0">
+                  Version {newVersionNumber}
+                </Badge>
+                <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600">
+                  Original Preserved
+                </Badge>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-[11px]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11px]">
               <div className="p-2.5 rounded-xl bg-background border border-slate-200/60 dark:border-slate-800">
-                <p className="text-slate-500 text-[10px] font-medium">Original Budget</p>
+                <p className="text-slate-400 text-[10px] font-medium">Initial Budget</p>
                 <p className="font-bold font-mono text-slate-900 dark:text-slate-100">
                   {formatCurrency(originalBudgetAmt, budget.currency)}
                 </p>
               </div>
 
               <div className="p-2.5 rounded-xl bg-background border border-emerald-500/30">
-                <p className="text-emerald-600 text-[10px] font-medium">+ Additional Added</p>
+                <p className="text-emerald-600 text-[10px] font-medium">+ Revision Amount</p>
                 <p className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
                   +{formatCurrency(addAmt, budget.currency)}
                 </p>
               </div>
 
+              <div className="p-2.5 rounded-xl bg-background border border-sky-500/30">
+                <p className="text-sky-600 text-[10px] font-medium">Total Added Budget</p>
+                <p className="font-bold font-mono text-sky-600 dark:text-sky-400">
+                  +{formatCurrency(newTotalAdded, budget.currency)}
+                </p>
+              </div>
+
               <div className="p-2.5 rounded-xl bg-background border border-indigo-500/30">
-                <p className="text-indigo-600 text-[10px] font-medium">Updated Total</p>
+                <p className="text-indigo-600 text-[10px] font-medium">Updated Total Budget</p>
                 <p className="font-bold font-mono text-indigo-600 dark:text-indigo-400">
                   {formatCurrency(updatedTotalBudget, budget.currency)}
                 </p>
               </div>
+            </div>
 
-              <div className="p-2.5 rounded-xl bg-background border border-cyan-500/30">
-                <p className="text-cyan-600 text-[10px] font-medium">New Daily Cap</p>
-                <p className="font-bold font-mono text-cyan-600 dark:text-cyan-400">
-                  {formatCurrency(newDailyAllowance, budget.currency)}/d
-                </p>
+            {/* Daily Limit and Remaining Comparison */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+              <div className="p-2.5 rounded-xl bg-background border border-cyan-500/30 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Daily Spending Limit</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-slate-400 font-mono line-through">
+                      {formatCurrency(currentDailyAllowance, budget.currency)}/d
+                    </span>
+                    <ArrowRight className="h-3 w-3 text-cyan-500" />
+                    <span className="text-cyan-600 dark:text-cyan-400 font-bold font-mono">
+                      {formatCurrency(newDailyAllowance, budget.currency)}/d
+                    </span>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[10px] text-cyan-600 border-cyan-500/30">
+                  +{formatCurrency(Math.max(0, newDailyAllowance - currentDailyAllowance), budget.currency)}/d
+                </Badge>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-background border border-teal-500/30 flex items-center justify-between">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Remaining Budget</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-slate-400 font-mono line-through">
+                      {formatCurrency(budget.remainingAmount, budget.currency)}
+                    </span>
+                    <ArrowRight className="h-3 w-3 text-teal-500" />
+                    <span className="text-teal-600 dark:text-teal-400 font-bold font-mono">
+                      {formatCurrency(newRemainingBudget, budget.currency)}
+                    </span>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[10px] text-teal-600 border-teal-500/30">
+                  +{formatCurrency(addAmt, budget.currency)}
+                </Badge>
               </div>
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/80 text-[11px]">
               <span className="text-slate-500">
-                Remaining Days: <strong className="text-slate-900 dark:text-slate-100">{remainingDays} Days</strong> • Current Spend: <strong className="text-rose-500">{formatCurrency(currentSpent, budget.currency)}</strong>
+                Revision Date: <strong className="text-slate-900 dark:text-slate-100">{effectiveDate}</strong> • Remaining Days: <strong className="text-slate-900 dark:text-slate-100">{remainingDays} Days</strong>
               </span>
               <span className="text-slate-500">
-                New Remaining: <strong className="text-emerald-600 font-bold">{formatCurrency(newRemainingBudget, budget.currency)}</strong>
+                Reason: <strong className="text-slate-700 dark:text-slate-300">{reason || "Revision"}</strong>
               </span>
             </div>
           </div>
@@ -248,7 +294,7 @@ export function BudgetIncreaseModal({
               variant="outline"
               onClick={onClose}
               disabled={isSubmitting}
-              className="rounded-xl text-xs h-9 px-4"
+              className="rounded-xl text-xs h-9 px-4 budget-btn-press"
             >
               Cancel
             </Button>
@@ -257,14 +303,14 @@ export function BudgetIncreaseModal({
               size="sm"
               onClick={handleSubmit}
               disabled={isSubmitting || addAmt <= 0}
-              className="rounded-xl text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 shadow-sm gap-1.5"
+              className="rounded-xl text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 shadow-sm gap-1.5 budget-btn-press"
             >
               {isSubmitting ? (
-                "Updating..."
+                "Creating Revision..."
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4" />
-                  <span>Confirm Budget Increase</span>
+                  <span>Confirm Budget Revision (v{newVersionNumber})</span>
                 </>
               )}
             </Button>

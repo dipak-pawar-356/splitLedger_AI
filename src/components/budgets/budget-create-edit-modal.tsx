@@ -100,6 +100,24 @@ export function BudgetCreateEditModal({
     const dailyCap = totalDurationDays > 0 && parsedAmt > 0 ? Math.round(parsedAmt / totalDurationDays) : 0;
     const remainingHours = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 3600000));
 
+    // Live status deduction
+    const isPast = now.getTime() > end.getTime();
+    const isFuture = now.getTime() < start.getTime();
+    const isEndingSoon = daysRemaining <= 3 && daysRemaining > 0;
+    let statusText = "Active";
+    let statusBadgeClass = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+    
+    if (isFuture) {
+      statusText = "Upcoming";
+      statusBadgeClass = "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20";
+    } else if (isPast) {
+      statusText = "Expired";
+      statusBadgeClass = "bg-slate-500/10 text-slate-500 border-slate-500/20";
+    } else if (isEndingSoon) {
+      statusText = "Ending Soon";
+      statusBadgeClass = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+    }
+
     return {
       totalDurationDays,
       daysCompleted,
@@ -108,6 +126,8 @@ export function BudgetCreateEditModal({
       percentageCompleted,
       expiryDate: endDate,
       dailyCap,
+      statusText,
+      statusBadgeClass,
     };
   }, [startDate, endDate, budgetAmount]);
 
@@ -313,20 +333,41 @@ export function BudgetCreateEditModal({
 
           {/* Real-Time Calculated Duration Analytics Preview */}
           {durationMetrics && (
-            <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-indigo-500/5 to-transparent p-4 space-y-2.5">
+            <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-indigo-500/5 to-transparent p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                   <Clock className="h-4 w-4 text-primary" />
                   Calculated Duration & Timeline Metrics
                 </span>
-                <Badge className="bg-primary/10 text-primary border-0 text-[10px] font-bold">
-                  Updates Automatically Daily
-                </Badge>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className={`text-[10px] font-bold py-0.5 px-2 ${durationMetrics.statusBadgeClass}`}>
+                    {durationMetrics.statusText}
+                  </Badge>
+                  <Badge className="bg-primary/10 text-primary border-0 text-[10px] font-bold hidden sm:inline-flex">
+                    Live Sync
+                  </Badge>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] pt-1">
+              {/* Mini Timeline Progress Indicator */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500">
+                  <span>Timeline Completion</span>
+                  <span className="text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                    {durationMetrics.percentageCompleted}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary to-indigo-500 rounded-full transition-all duration-300"
+                    style={{ width: `${durationMetrics.percentageCompleted}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] pt-1">
                 <div className="p-2 rounded-xl bg-background border border-slate-200/60 dark:border-slate-800">
-                  <span className="text-slate-400 block text-[10px]">Total Budget Duration</span>
+                  <span className="text-slate-400 block text-[10px]">Total Duration</span>
                   <strong className="text-slate-900 dark:text-slate-100 font-mono">
                     {durationMetrics.totalDurationDays} Days
                   </strong>
@@ -340,35 +381,45 @@ export function BudgetCreateEditModal({
                 </div>
 
                 <div className="p-2 rounded-xl bg-background border border-emerald-500/30">
-                  <span className="text-emerald-600 block text-[10px]">Days Remaining</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 block text-[10px]">Days Remaining</span>
                   <strong className="text-emerald-600 dark:text-emerald-400 font-mono">
                     {durationMetrics.daysRemaining} Days {durationPreset === "daily" && `(${durationMetrics.remainingHours}h)`}
                   </strong>
                 </div>
 
-                <div className="p-2 rounded-xl bg-background border border-indigo-500/30">
-                  <span className="text-indigo-600 block text-[10px]">Timeline Completed</span>
-                  <strong className="text-indigo-600 dark:text-indigo-400 font-mono">
-                    {durationMetrics.percentageCompleted}%
-                  </strong>
-                </div>
-
                 <div className="p-2 rounded-xl bg-background border border-amber-500/30">
-                  <span className="text-amber-600 block text-[10px]">Budget Expiry Date</span>
+                  <span className="text-amber-600 dark:text-amber-400 block text-[10px]">Budget End Date</span>
                   <strong className="text-amber-600 dark:text-amber-400 font-mono text-[10px]">
                     {formatDate(durationMetrics.expiryDate)}
                   </strong>
                 </div>
 
                 <div className="p-2 rounded-xl bg-background border border-cyan-500/30">
-                  <span className="text-cyan-600 block text-[10px]">Daily Target Cap</span>
+                  <span className="text-cyan-600 dark:text-cyan-400 block text-[10px]">Daily Spending Allowance</span>
                   <strong className="text-cyan-600 dark:text-cyan-400 font-mono">
                     ₹{durationMetrics.dailyCap.toLocaleString("en-IN")}/d
                   </strong>
                 </div>
+
+                <div className="p-2 rounded-xl bg-background border border-indigo-500/30">
+                  <span className="text-indigo-600 dark:text-indigo-400 block text-[10px]">Timeline Completed %</span>
+                  <strong className="text-indigo-600 dark:text-indigo-400 font-mono">
+                    {durationMetrics.percentageCompleted}%
+                  </strong>
+                </div>
+
+                <div className="p-2 rounded-xl bg-background border border-slate-200/60 dark:border-slate-800 sm:col-span-2">
+                  <span className="text-slate-400 block text-[10px]">Current Budget Status</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <strong className="text-slate-900 dark:text-slate-100 font-mono text-xs">
+                      {durationMetrics.statusText} • Live Verified
+                    </strong>
+                  </div>
+                </div>
               </div>
 
-              <p className="text-[10px] text-slate-400 pt-1">
+              <p className="text-[10px] text-slate-400 pt-0.5">
                 Budget expires on <strong>{formatDate(durationMetrics.expiryDate)}</strong>. Timeline progress advances every midnight based on ledger date.
               </p>
             </div>
@@ -395,7 +446,7 @@ export function BudgetCreateEditModal({
               variant="outline"
               onClick={onClose}
               disabled={isSaving}
-              className="rounded-xl text-xs h-9 px-4"
+              className="rounded-xl text-xs h-9 px-4 budget-btn-press"
             >
               Cancel
             </Button>
@@ -404,7 +455,7 @@ export function BudgetCreateEditModal({
               size="sm"
               onClick={handleSave}
               disabled={isSaving}
-              className="rounded-xl text-xs h-9 bg-primary text-primary-foreground font-bold px-5 shadow-sm"
+              className="rounded-xl text-xs h-9 bg-primary text-primary-foreground font-bold px-5 shadow-sm budget-btn-press"
             >
               {isSaving ? "Saving..." : editingBudget ? "Update Budget" : "Create Budget"}
             </Button>

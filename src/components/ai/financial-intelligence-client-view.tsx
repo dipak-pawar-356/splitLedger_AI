@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   FinancialIntelligenceData,
@@ -64,6 +65,7 @@ export function FinancialIntelligenceClientView({
   groups,
   initialReminders = [],
 }: FinancialIntelligenceClientViewProps) {
+  const router = useRouter();
   const [data, setData] = useState<FinancialIntelligenceData>(initialData);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>("current_month");
   const [periodCache, setPeriodCache] = useState<Record<string, FinancialIntelligenceData>>({
@@ -347,7 +349,7 @@ export function FinancialIntelligenceClientView({
                 budgets={data.budgets}
                 reminders={initialReminders}
                 onOpenBudgetDialog={() => handleCreateBudget()}
-                onNavigateToBudgetsTab={() => setActiveTab("budgets")}
+                onNavigateToBudgetsTab={() => router.push("/dashboard/budgets")}
               />
 
               <AIFinancialAssistantCard categories={categories} />
