@@ -23,6 +23,8 @@ import {
   PieChart as PieIcon,
   CreditCard,
   Plus,
+  PlusCircle,
+  MinusCircle,
   MoreVertical,
   Edit3,
   Trash2,
@@ -38,6 +40,7 @@ import {
   ArrowRight,
   ChevronRight,
   ExternalLink,
+  Unlink,
 } from "lucide-react";
 import {
   Dialog,
@@ -64,6 +67,7 @@ import {
   getSubscriptionTransactions,
   reverseSubscriptionTransaction,
   deleteSubscriptionTransaction,
+  unlinkSubscriptionTransaction,
   updateSubscriptionTransaction,
   LinkedSubscriptionTransaction,
 } from "@/actions/custom-subscriptions";
@@ -285,12 +289,47 @@ export function AISubscriptionsCard() {
   const [correctionReason, setCorrectionReason] = useState("");
   const [isProcessingCorrection, setIsProcessingCorrection] = useState(false);
 
+  // Real-time verified linked transactions map (derived from ledger)
+  const [linkedTxMap, setLinkedTxMap] = useState<Record<string, LinkedSubscriptionTransaction[]>>({});
+
+  // Action Dialog 4: View Full Subscription Details Modal
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedSubForDetails, setSelectedSubForDetails] = useState<UserSubscription | null>(null);
+
+  // Action Dialog 5: Remove from Transactions Confirmation Dialog
+  const [isRemoveTxDialogOpen, setIsRemoveTxDialogOpen] = useState(false);
+  const [subForRemoveTx, setSubForRemoveTx] = useState<UserSubscription | null>(null);
+  const [removeMode, setRemoveMode] = useState<"delete" | "unlink">("delete");
+  const [isRemovingTx, setIsRemovingTx] = useState(false);
+
   // Action Dialog 3: Delete Subscription Confirmation
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [subToDelete, setSubToDelete] = useState<UserSubscription | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const shouldReduceMotion = useReducedMotion();
+
+  // Helper to check if a subscription has a verified linked transaction in the ledger
+  const getSubLinkedTransactions = useCallback(
+    (sub: UserSubscription): LinkedSubscriptionTransaction[] => {
+      if (linkedTxMap[sub.id] && linkedTxMap[sub.id].length > 0) {
+        return linkedTxMap[sub.id];
+      }
+      if (sub.latestLinkedTransaction) {
+        return [sub.latestLinkedTransaction];
+      }
+      return [];
+    },
+    [linkedTxMap]
+  );
+
+  const hasLinkedTransaction = useCallback(
+    (sub: UserSubscription): boolean => {
+      const txs = getSubLinkedTransactions(sub);
+      return txs.length > 0;
+    },
+    [getSubLinkedTransactions]
+  );
 
   // Load subscriptions: combines user preferences and verified algorithmic detections
   const loadSubscriptions = useCallback(async () => {
@@ -313,6 +352,10 @@ export function AISubscriptionsCard() {
           setSubscriptions(local);
         }
         return;
+      }
+
+      if (result.linkedTransactionsMap) {
+        setLinkedTxMap(result.linkedTransactionsMap);
       }
 
       const combinedMap = new Map<string, UserSubscription>();
@@ -681,16 +724,34 @@ export function AISubscriptionsCard() {
       });
 
       if (res.success && res.updatedSubscription) {
+        const updatedSub = res.updatedSubscription;
         setSubscriptions((prev) => {
           const updated = prev.map((s) =>
-            s.id === activeSubForTxn.id ? res.updatedSubscription! : s
+            s.id === activeSubForTxn.id ? updatedSub : s
           );
           saveLocalSubs(updated);
           return updated;
         });
 
+        // Immediately link in local map for zero-lag reactivity
+        if (res.transaction) {
+          setLinkedTxMap((prev) => ({
+            ...prev,
+            [activeSubForTxn.id]: [res.transaction!, ...(prev[activeSubForTxn.id] || [])],
+          }));
+        } else {
+          getSubscriptionTransactions(activeSubForTxn.id, activeSubForTxn.name).then((hist) => {
+            if (hist.success) {
+              setLinkedTxMap((prev) => ({
+                ...prev,
+                [activeSubForTxn.id]: hist.transactions,
+              }));
+            }
+          });
+        }
+
         toast.success(
-          `Logged ₹${amt.toLocaleString("en-IN")} renewal for ${activeSubForTxn.name} to ledger!`
+          `Logged ₹${amt.toLocaleString("en-IN")} renewal for "${activeSubForTxn.name}"! Added to transactions.`
         );
         setTransactionDialogOpen(false);
         setActiveSubForTxn(null);
@@ -704,6 +765,87 @@ export function AISubscriptionsCard() {
     }
   };
 
+  // Open "View Details" Modal
+  const handleOpenDetailsModal = (sub: UserSubscription) => {
+    setSelectedSubForDetails(sub);
+    setIsDetailsModalOpen(true);
+  };
+
+  // Open "Remove from Transactions" Confirmation Dialog
+  const handleOpenRemoveFromTransactions = (sub: UserSubscription) => {
+    setSubForRemoveTx(sub);
+    setRemoveMode("delete");
+    setIsRemoveTxDialogOpen(true);
+  };
+
+  // Confirm Removal / Unlinking of transaction from subscription
+  const handleConfirmRemoveTx = async () => {
+    if (!subForRemoveTx) return;
+    const linkedTxs = getSubLinkedTransactions(subForRemoveTx);
+    const targetTx = linkedTxs[0];
+
+    if (!targetTx) {
+      toast.error("No linked transaction found to remove");
+      setIsRemoveTxDialogOpen(false);
+      return;
+    }
+
+    if (targetTx.status === "settled" || targetTx.status === "approved") {
+      toast.error(
+        "This transaction is settled or locked in group balances. Under financial accounting standards, it cannot be deleted directly. Please use the Reversal option instead."
+      );
+      return;
+    }
+
+    setIsRemovingTx(true);
+    try {
+      let res;
+      if (removeMode === "unlink") {
+        res = await unlinkSubscriptionTransaction(subForRemoveTx.id, targetTx.id);
+      } else {
+        res = await deleteSubscriptionTransaction(
+          subForRemoveTx.id,
+          targetTx.id,
+          `Removed from subscription "${subForRemoveTx.name}" by user`
+        );
+      }
+
+      if (res.success && res.updatedSubscription) {
+        const updatedSub = res.updatedSubscription;
+        setSubscriptions((prev) => {
+          const updated = prev.map((s) => (s.id === subForRemoveTx.id ? updatedSub : s));
+          saveLocalSubs(updated);
+          return updated;
+        });
+
+        // Update linkedTxMap immediately
+        setLinkedTxMap((prev) => {
+          const remaining = (prev[subForRemoveTx.id] || []).filter(
+            (t) => t.id !== targetTx.id
+          );
+          return {
+            ...prev,
+            [subForRemoveTx.id]: remaining,
+          };
+        });
+
+        toast.success(
+          removeMode === "unlink"
+            ? `Unlinked transaction #${targetTx.id} from "${subForRemoveTx.name}". Status reverted.`
+            : `Removed transaction #${targetTx.id} from ledger. Subscription status reverted.`
+        );
+        setIsRemoveTxDialogOpen(false);
+        setSubForRemoveTx(null);
+      } else {
+        toast.error(res?.error || "Failed to remove transaction");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove transaction");
+    } finally {
+      setIsRemovingTx(false);
+    }
+  };
+
   // Open "View Transaction History" Dialog
   const handleOpenHistoryDialog = async (sub: UserSubscription) => {
     setActiveSubForHistory(sub);
@@ -713,6 +855,10 @@ export function AISubscriptionsCard() {
       const res = await getSubscriptionTransactions(sub.id, sub.name);
       if (res.success) {
         setHistoryTransactions(res.transactions);
+        setLinkedTxMap((prev) => ({
+          ...prev,
+          [sub.id]: res.transactions,
+        }));
       } else {
         toast.error(res.error || "Could not load transaction history");
         setHistoryTransactions([]);
@@ -759,9 +905,15 @@ export function AISubscriptionsCard() {
             });
             setActiveSubForHistory(res.updatedSubscription);
           }
-          // Refresh history
+          // Refresh history and linkedTxMap
           const hist = await getSubscriptionTransactions(activeSubForHistory.id, activeSubForHistory.name);
-          if (hist.success) setHistoryTransactions(hist.transactions);
+          if (hist.success) {
+            setHistoryTransactions(hist.transactions);
+            setLinkedTxMap((prev) => ({
+              ...prev,
+              [activeSubForHistory.id]: hist.transactions,
+            }));
+          }
           setCorrectionDialogOpen(false);
         } else {
           toast.error(res.error || "Failed to reverse transaction");
@@ -784,9 +936,15 @@ export function AISubscriptionsCard() {
             });
             setActiveSubForHistory(res.updatedSubscription);
           }
-          // Refresh history
+          // Refresh history and linkedTxMap
           const hist = await getSubscriptionTransactions(activeSubForHistory.id, activeSubForHistory.name);
-          if (hist.success) setHistoryTransactions(hist.transactions);
+          if (hist.success) {
+            setHistoryTransactions(hist.transactions);
+            setLinkedTxMap((prev) => ({
+              ...prev,
+              [activeSubForHistory.id]: hist.transactions,
+            }));
+          }
           setCorrectionDialogOpen(false);
         } else {
           toast.error(res.error || "Failed to delete transaction");
@@ -1375,6 +1533,8 @@ export function AISubscriptionsCard() {
                       const relInfo = getRelativePaymentInfo(sub.nextBillingDate);
                       const statusStyle = getStatusBadgeStyle(sub.status);
                       const isPaused = sub.status === "Paused";
+                      const linkedTxs = getSubLinkedTransactions(sub);
+                      const hasLinkedTx = linkedTxs.length > 0;
 
                       return (
                         <motion.div
@@ -1417,13 +1577,13 @@ export function AISubscriptionsCard() {
                                     {sub.status}
                                   </Badge>
 
-                                  {/* Three-Dot Menu with 6 Context-Sensitive Actions */}
+                                  {/* Three-Dot Menu with 7 Context-Sensitive Actions */}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-7 w-7 p-0 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+                                        className="h-7 w-7 p-0 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
                                         onClick={(e) => e.stopPropagation()}
                                         aria-label={`Actions for ${sub.name}`}
                                       >
@@ -1432,52 +1592,80 @@ export function AISubscriptionsCard() {
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent
                                       align="end"
-                                      className="w-52 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 text-xs"
+                                      className="w-56 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 text-xs py-1.5"
                                       onClick={(e) => e.stopPropagation()}
                                     >
-                                      {/* Action 1: Add Payment Transaction */}
+                                      {/* 1. View Details */}
                                       <DropdownMenuItem
-                                        onClick={() => handleOpenTransactionDialog(sub)}
-                                        className="gap-2 cursor-pointer text-slate-700 dark:text-slate-300 font-medium"
+                                        onClick={() => handleOpenDetailsModal(sub)}
+                                        className="gap-2.5 cursor-pointer text-slate-700 dark:text-slate-300 font-medium py-2 px-3 focus:bg-slate-100 dark:focus:bg-slate-800"
                                       >
-                                        <Receipt className="h-3.5 w-3.5 text-emerald-500" />
-                                        <span>Add Payment Transaction</span>
+                                        <Info className="h-3.5 w-3.5 text-cyan-500" />
+                                        <span>View Details</span>
                                       </DropdownMenuItem>
 
-                                      {/* Action 2: View Transaction History */}
-                                      <DropdownMenuItem
-                                        onClick={() => handleOpenHistoryDialog(sub)}
-                                        className="gap-2 cursor-pointer text-slate-700 dark:text-slate-300 font-medium"
-                                      >
-                                        <History className="h-3.5 w-3.5 text-indigo-500" />
-                                        <span>View Transaction History</span>
-                                      </DropdownMenuItem>
-
-                                      {/* Action 3: Edit Subscription */}
+                                      {/* 2. Edit Subscription */}
                                       <DropdownMenuItem
                                         onClick={() => handleOpenEditModal(sub)}
-                                        className="gap-2 cursor-pointer text-slate-700 dark:text-slate-300 font-medium"
+                                        className="gap-2.5 cursor-pointer text-slate-700 dark:text-slate-300 font-medium py-2 px-3 focus:bg-slate-100 dark:focus:bg-slate-800"
                                       >
                                         <Edit3 className="h-3.5 w-3.5 text-blue-500" />
                                         <span>Edit Subscription</span>
                                       </DropdownMenuItem>
 
-                                      {/* Action 4: Mark as Paid (Context-Sensitive) */}
-                                      {sub.status !== "Paid" && (
+                                      <DropdownMenuSeparator className="my-1 border-slate-100 dark:border-slate-800" />
+
+                                      {/* 3. Strict IF / ELSE Condition: Add to Transactions OR Remove from Transactions (Never Both) */}
+                                      {hasLinkedTx ? (
+                                        <DropdownMenuItem
+                                          onClick={() => handleOpenRemoveFromTransactions(sub)}
+                                          className="gap-2.5 cursor-pointer text-amber-600 dark:text-amber-400 font-medium py-2 px-3 focus:bg-amber-500/10 focus:text-amber-600 dark:focus:text-amber-400 transition-colors duration-200"
+                                        >
+                                          <MinusCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                                          <span>Remove from Transactions</span>
+                                        </DropdownMenuItem>
+                                      ) : (
                                         <DropdownMenuItem
                                           onClick={() => handleOpenTransactionDialog(sub)}
-                                          className="gap-2 cursor-pointer text-emerald-600 dark:text-emerald-400 font-medium"
+                                          className="gap-2.5 cursor-pointer text-emerald-600 dark:text-emerald-400 font-medium py-2 px-3 focus:bg-emerald-500/10 focus:text-emerald-600 dark:focus:text-emerald-400 transition-colors duration-200"
+                                        >
+                                          <PlusCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                          <span>Add to Transactions</span>
+                                        </DropdownMenuItem>
+                                      )}
+
+                                      {/* 4. View Transaction History */}
+                                      <DropdownMenuItem
+                                        onClick={() => handleOpenHistoryDialog(sub)}
+                                        className="gap-2.5 cursor-pointer text-slate-700 dark:text-slate-300 font-medium py-2 px-3 focus:bg-slate-100 dark:focus:bg-slate-800"
+                                      >
+                                        <History className="h-3.5 w-3.5 text-indigo-500" />
+                                        <span>View Transaction History</span>
+                                        {linkedTxs.length > 0 && (
+                                          <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+                                            {linkedTxs.length}
+                                          </Badge>
+                                        )}
+                                      </DropdownMenuItem>
+
+                                      {/* 5. Mark as Paid (Only applicable when subscription is not paid AND has no linked transaction) */}
+                                      {sub.status !== "Paid" && !hasLinkedTx && (
+                                        <DropdownMenuItem
+                                          onClick={() => handleOpenTransactionDialog(sub)}
+                                          className="gap-2.5 cursor-pointer text-emerald-600 dark:text-emerald-400 font-medium py-2 px-3 focus:bg-emerald-500/10"
                                         >
                                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                                           <span>Mark as Paid</span>
                                         </DropdownMenuItem>
                                       )}
 
-                                      {/* Action 5: Pause / Resume Subscription (Context-Sensitive) */}
+                                      <DropdownMenuSeparator className="my-1 border-slate-100 dark:border-slate-800" />
+
+                                      {/* 6. Pause / Resume Subscription (Context-Sensitive) */}
                                       {isPaused ? (
                                         <DropdownMenuItem
                                           onClick={() => handleResumeSubscription(sub)}
-                                          className="gap-2 cursor-pointer text-emerald-600 dark:text-emerald-400 font-medium"
+                                          className="gap-2.5 cursor-pointer text-emerald-600 dark:text-emerald-400 font-medium py-2 px-3 focus:bg-emerald-500/10"
                                         >
                                           <Play className="h-3.5 w-3.5 text-emerald-500" />
                                           <span>Resume Subscription</span>
@@ -1485,19 +1673,17 @@ export function AISubscriptionsCard() {
                                       ) : (
                                         <DropdownMenuItem
                                           onClick={() => handlePauseSubscription(sub)}
-                                          className="gap-2 cursor-pointer text-amber-600 dark:text-amber-400 font-medium"
+                                          className="gap-2.5 cursor-pointer text-amber-600 dark:text-amber-400 font-medium py-2 px-3 focus:bg-amber-500/10 focus:text-amber-600"
                                         >
                                           <Pause className="h-3.5 w-3.5 text-amber-500" />
                                           <span>Pause Subscription</span>
                                         </DropdownMenuItem>
                                       )}
 
-                                      <DropdownMenuSeparator />
-
-                                      {/* Action 6: Delete Subscription */}
+                                      {/* 7. Delete Subscription */}
                                       <DropdownMenuItem
                                         onClick={() => handleOpenDelete(sub)}
-                                        className="gap-2 cursor-pointer text-rose-600 dark:text-rose-400 font-medium focus:text-rose-600 focus:bg-rose-500/10"
+                                        className="gap-2.5 cursor-pointer text-rose-600 dark:text-rose-400 font-medium py-2 px-3 focus:bg-rose-500/10 focus:text-rose-600"
                                       >
                                         <Trash2 className="h-3.5 w-3.5" />
                                         <span>Delete Subscription</span>
@@ -1587,7 +1773,21 @@ export function AISubscriptionsCard() {
                                   <span className="hidden sm:inline">History</span>
                                 </Button>
 
-                                {sub.status !== "Paid" && (
+                                {hasLinkedTx ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenRemoveFromTransactions(sub);
+                                    }}
+                                    className="h-7 px-2.5 text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-lg border-amber-500/30 gap-1 active:scale-[0.98] transition-all duration-200"
+                                    title="Remove from Transactions"
+                                  >
+                                    <MinusCircle className="h-3 w-3" />
+                                    <span>Remove Tx</span>
+                                  </Button>
+                                ) : (
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -1595,10 +1795,11 @@ export function AISubscriptionsCard() {
                                       e.stopPropagation();
                                       handleOpenTransactionDialog(sub);
                                     }}
-                                    className="h-7 px-2.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-lg border-emerald-500/30 gap-1 active:scale-[0.98]"
+                                    className="h-7 px-2.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-lg border-emerald-500/30 gap-1 active:scale-[0.98] transition-all duration-200"
+                                    title="Add to Transactions"
                                   >
-                                    <CheckCircle2 className="h-3 w-3" />
-                                    <span>Mark Paid</span>
+                                    <PlusCircle className="h-3 w-3" />
+                                    <span>Add Tx</span>
                                   </Button>
                                 )}
                               </div>
@@ -2409,6 +2610,377 @@ export function AISubscriptionsCard() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 8. SUBSCRIPTION FULL DETAILS MODAL */}
+      <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
+        <DialogContent className="max-w-lg rounded-3xl bg-card border border-slate-200 dark:border-slate-800 shadow-2xl p-6">
+          <DialogHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-lg">
+                  {selectedSubForDetails?.merchant ? selectedSubForDetails.merchant[0].toUpperCase() : "S"}
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    {selectedSubForDetails?.name}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                    {selectedSubForDetails?.merchant} • {selectedSubForDetails?.category}
+                  </DialogDescription>
+                </div>
+              </div>
+              {selectedSubForDetails && (
+                <Badge className={`text-xs px-2.5 py-0.5 font-bold ${getStatusBadgeStyle(selectedSubForDetails.status).className}`}>
+                  {selectedSubForDetails.status}
+                </Badge>
+              )}
+            </div>
+          </DialogHeader>
+
+          {selectedSubForDetails && (() => {
+            const linkedTxs = getSubLinkedTransactions(selectedSubForDetails);
+            const hasLinked = linkedTxs.length > 0;
+            const latestTx = linkedTxs[0];
+
+            return (
+              <div className="space-y-4 pt-2 text-xs">
+                {/* Amount and Frequency Highlight */}
+                <div className="grid grid-cols-3 gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-center">
+                  <div>
+                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Recurring Cost</div>
+                    <div className="text-base font-extrabold text-slate-900 dark:text-slate-100 font-mono mt-0.5">
+                      ₹{selectedSubForDetails.amount.toLocaleString("en-IN")}
+                    </div>
+                    <div className="text-[10px] text-slate-500 capitalize">/ {selectedSubForDetails.billingCycle}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Monthly Equiv.</div>
+                    <div className="text-base font-extrabold text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">
+                      ₹{selectedSubForDetails.monthlyAmount.toLocaleString("en-IN")}
+                    </div>
+                    <div className="text-[10px] text-slate-500">per month</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 uppercase font-semibold">Annual Run-Rate</div>
+                    <div className="text-base font-extrabold text-slate-900 dark:text-slate-100 font-mono mt-0.5">
+                      ₹{selectedSubForDetails.annualizedCost.toLocaleString("en-IN")}
+                    </div>
+                    <div className="text-[10px] text-slate-500">projected/yr</div>
+                  </div>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 gap-2.5 text-slate-700 dark:text-slate-300">
+                  <div className="p-2.5 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase block">Next Payment Date</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 block">
+                      {selectedSubForDetails.nextBillingDate}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase block">Last Paid Date</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 block">
+                      {selectedSubForDetails.lastPaymentDate || "Not recorded yet"}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase block">Payment Method</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 block">
+                      {selectedSubForDetails.paymentMethod}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase block">Auto-Renewal & Alerts</span>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 block">
+                      {selectedSubForDetails.autoRenewal ? "Auto-Renews" : "Manual Renewal"} • {selectedSubForDetails.reminderDays}d reminder
+                    </span>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {selectedSubForDetails.description && (
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] text-slate-400 uppercase block font-semibold mb-1">Notes / Description</span>
+                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {selectedSubForDetails.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Linked Transaction Status Banner */}
+                <div className="pt-1">
+                  {hasLinked ? (
+                    <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                        <div>
+                          <div className="font-semibold text-emerald-700 dark:text-emerald-300">
+                            Linked to Verified Transaction #{latestTx.id}
+                          </div>
+                          <div className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80">
+                            ₹{latestTx.amount.toLocaleString("en-IN")} on {latestTx.date || "recent"} • {linkedTxs.length} record(s) in history
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsDetailsModalOpen(false);
+                          handleOpenRemoveFromTransactions(selectedSubForDetails);
+                        }}
+                        className="text-xs h-7 rounded-lg border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                      >
+                        Remove Tx
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                        <div>
+                          <div className="font-semibold text-amber-700 dark:text-amber-300">
+                            No Transaction Linked
+                          </div>
+                          <div className="text-[10px] text-amber-600/80 dark:text-amber-400/80">
+                            No ledger payment transaction recorded for current cycle.
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsDetailsModalOpen(false);
+                          handleOpenTransactionDialog(selectedSubForDetails);
+                        }}
+                        className="text-xs h-7 rounded-lg border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
+                      >
+                        Add to Transactions
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsDetailsModalOpen(false)}
+                    className="rounded-xl border-slate-300 dark:border-slate-700 text-xs h-9"
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setIsDetailsModalOpen(false);
+                      handleOpenEditModal(selectedSubForDetails);
+                    }}
+                    className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold gap-1.5 text-xs h-9"
+                  >
+                    <Edit3 className="h-3.5 w-3.5" />
+                    Edit Subscription
+                  </Button>
+                </DialogFooter>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* 9. REMOVE FROM TRANSACTIONS CONFIRMATION DIALOG */}
+      <Dialog open={isRemoveTxDialogOpen} onOpenChange={setIsRemoveTxDialogOpen}>
+        <DialogContent className="max-w-md rounded-3xl bg-card border border-slate-200 dark:border-slate-800 shadow-2xl p-6">
+          <DialogHeader className="border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                  Remove from Transactions
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Manage the linked expense transaction for this subscription
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {subForRemoveTx && (() => {
+            const linkedTxs = getSubLinkedTransactions(subForRemoveTx);
+            const targetTx = linkedTxs[0];
+            const isSettled = targetTx?.status === "settled" || targetTx?.status === "approved";
+
+            return (
+              <div className="space-y-4 pt-2 text-xs">
+                {/* Target Transaction Summary */}
+                {targetTx ? (
+                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 space-y-2">
+                    <div className="flex items-center justify-between font-semibold text-slate-900 dark:text-slate-100">
+                      <span className="truncate max-w-[200px]">{targetTx.title}</span>
+                      <span className="font-mono text-sm text-emerald-600 dark:text-emerald-400">
+                        ₹{targetTx.amount.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-500 text-[11px]">
+                      <span>Date: {targetTx.date || "Recent"}</span>
+                      <span>Method: {targetTx.paymentMethod || "UPI"}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        Tx #{targetTx.id}
+                      </Badge>
+                      <Badge
+                        className={`text-[10px] ${
+                          isSettled
+                            ? "bg-purple-500/15 text-purple-600 border-purple-500/30"
+                            : "bg-emerald-500/15 text-emerald-600 border-emerald-500/30"
+                        }`}
+                      >
+                        Status: {targetTx.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300">
+                    No active transaction details found.
+                  </div>
+                )}
+
+                {/* If Settled Warning */}
+                {isSettled ? (
+                  <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300 space-y-2">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <AlertCircle className="h-4 w-4 text-rose-500 flex-shrink-0" />
+                      <span>Transaction Cannot Be Deleted Directly</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed">
+                      This transaction has already been settled or approved in group balances. Financial compliance standards do not permit deleting settled records. You can issue a compensating <strong>Reversal</strong> to offset the amount.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Financial Impact Explanation */}
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 space-y-1.5 text-[11px]">
+                      <div className="font-semibold flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        Financial Impact & Safety
+                      </div>
+                      <ul className="list-disc list-inside space-y-1 text-slate-600 dark:text-slate-300">
+                        <li>Subscription payment status will revert to <strong>Pending / Due</strong>.</li>
+                        <li>Next payment date will roll back by one billing cycle.</li>
+                        <li>All KPI metrics, upcoming outflows, and reports will recalculate.</li>
+                      </ul>
+                    </div>
+
+                    {/* Action Mode Selector */}
+                    <div className="space-y-2 pt-1">
+                      <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Select Action:
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRemoveMode("delete")}
+                          className={`p-3 rounded-2xl border text-left transition-all ${
+                            removeMode === "delete"
+                              ? "border-rose-500 bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-2 ring-rose-500/20"
+                              : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          <div className="font-semibold flex items-center gap-1.5">
+                            <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            Remove from Ledger
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            Soft-deletes transaction from expenses with audit trail.
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRemoveMode("unlink")}
+                          className={`p-3 rounded-2xl border text-left transition-all ${
+                            removeMode === "unlink"
+                              ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/20"
+                              : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          <div className="font-semibold flex items-center gap-1.5">
+                            <RotateCcw className="h-3.5 w-3.5 text-amber-500" />
+                            Unlink Only
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-1">
+                            Retains transaction in ledger but removes subscription link.
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsRemoveTxDialogOpen(false)}
+                    disabled={isRemovingTx}
+                    className="rounded-xl border-slate-300 dark:border-slate-700 text-xs h-9"
+                  >
+                    Cancel
+                  </Button>
+                  {isSettled ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setIsRemoveTxDialogOpen(false);
+                        if (targetTx) {
+                          handleOpenCorrection(targetTx, "reverse");
+                        }
+                      }}
+                      className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5 text-xs h-9"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Reverse Transaction Instead
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleConfirmRemoveTx}
+                      disabled={isRemovingTx || !targetTx}
+                      className={`rounded-xl font-semibold gap-1.5 text-white text-xs h-9 ${
+                        removeMode === "delete"
+                          ? "bg-rose-600 hover:bg-rose-700"
+                          : "bg-amber-600 hover:bg-amber-700"
+                      }`}
+                    >
+                      {isRemovingTx ? (
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      ) : removeMode === "delete" ? (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      ) : (
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      )}
+                      {isRemovingTx
+                        ? "Processing..."
+                        : removeMode === "delete"
+                        ? "Confirm & Remove"
+                        : "Confirm & Unlink"}
+                    </Button>
+                  )}
+                </DialogFooter>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

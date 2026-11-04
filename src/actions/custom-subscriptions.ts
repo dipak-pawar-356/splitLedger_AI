@@ -44,6 +44,7 @@ export async function getUserSubscriptions(): Promise<{
   success: boolean;
   customSubscriptions: UserSubscription[];
   detectedSubscriptions: UserSubscription[];
+  linkedTransactionsMap: Record<string, LinkedSubscriptionTransaction[]>;
   error?: string;
 }> {
   try {
@@ -105,10 +106,87 @@ export async function getUserSubscriptions(): Promise<{
       console.warn("Could not compute detected subscriptions from ledger:", e);
     }
 
+    // 3. Query verified transactions from the ledger to establish real linked relationships
+    const userTx = await db
+      .select({
+        id: transactions.id,
+        publicId: transactions.publicId,
+        title: transactions.title,
+        description: transactions.description,
+        amount: transactions.amount,
+        type: transactions.type,
+        date: transactions.date,
+        paymentMethod: transactions.paymentMethod,
+        notes: transactions.notes,
+        status: transactions.status,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, user.id),
+          eq(transactions.isDeleted, false)
+        )
+      )
+      .orderBy(desc(transactions.date))
+      .limit(300);
+
+    const linkedTransactionsMap: Record<string, LinkedSubscriptionTransaction[]> = {};
+
+    const attachLinkedTx = (sub: UserSubscription): UserSubscription => {
+      const subId = sub.id;
+      const matched = userTx.filter((t) => {
+        const notes = t.notes || "";
+        const desc = t.description || "";
+        if (notes.includes(`[SubId:${subId}]`) || desc.includes(`[SubId:${subId}]`)) {
+          return true;
+        }
+        if (!sub.isCustom && sub.name && t.title) {
+          return t.title.toLowerCase().includes(sub.name.toLowerCase());
+        }
+        return false;
+      });
+
+      const formattedMatched: LinkedSubscriptionTransaction[] = matched.map((t) => ({
+        id: t.id,
+        publicId: t.publicId,
+        title: t.title || "Subscription Payment",
+        description: t.description,
+        amount: Math.round(Number(t.amount) / 100),
+        type: t.type,
+        date: t.date ? new Date(t.date).toISOString().split("T")[0] : "",
+        paymentMethod: t.paymentMethod || "UPI",
+        notes: t.notes || undefined,
+        status: t.status,
+        isReversal: t.notes?.includes("[Reversal") || t.title?.toLowerCase().startsWith("reversal"),
+      }));
+
+      linkedTransactionsMap[subId] = formattedMatched;
+
+      const latestTx = formattedMatched.length > 0 ? formattedMatched[0] : null;
+      let finalStatus = sub.status;
+      // If marked Paid but has no active linked transaction, dynamically restore pending/upcoming
+      if (sub.status === "Paid" && formattedMatched.length === 0) {
+        finalStatus = computeSubscriptionStatus(sub.nextBillingDate, "Active");
+      } else if (formattedMatched.length > 0 && sub.status !== "Paused" && sub.status !== "Cancelled") {
+        finalStatus = "Paid";
+      }
+
+      return {
+        ...sub,
+        status: finalStatus,
+        linkedTransactionCount: formattedMatched.length,
+        latestLinkedTransaction: latestTx,
+      };
+    };
+
+    const enrichedCustomSubs = customSubs.map(attachLinkedTx);
+    const enrichedDetectedSubs = detectedSubs.map(attachLinkedTx);
+
     return {
       success: true,
-      customSubscriptions: customSubs,
-      detectedSubscriptions: detectedSubs,
+      customSubscriptions: enrichedCustomSubs,
+      detectedSubscriptions: enrichedDetectedSubs,
+      linkedTransactionsMap,
     };
   } catch (error: any) {
     console.error("Error fetching user subscriptions:", error);
@@ -116,6 +194,7 @@ export async function getUserSubscriptions(): Promise<{
       success: false,
       customSubscriptions: [],
       detectedSubscriptions: [],
+      linkedTransactionsMap: {},
       error: error?.message || "Authentication or network error while loading subscriptions",
     };
   }
@@ -415,7 +494,12 @@ export async function recordSubscriptionPayment(
     date?: string;
     notes?: string;
   }
-): Promise<{ success: boolean; updatedSubscription?: UserSubscription; error?: string }> {
+): Promise<{
+  success: boolean;
+  updatedSubscription?: UserSubscription;
+  transaction?: LinkedSubscriptionTransaction;
+  error?: string;
+}> {
   try {
     const user = await requireAuth();
 
@@ -441,6 +525,48 @@ export async function recordSubscriptionPayment(
       date: txnData.date ? new Date(txnData.date) : new Date(),
       notes: structuredNotes,
     });
+
+    // Query the newly created transaction to establish verified link metadata
+    const [createdTx] = await db
+      .select({
+        id: transactions.id,
+        publicId: transactions.publicId,
+        title: transactions.title,
+        description: transactions.description,
+        amount: transactions.amount,
+        type: transactions.type,
+        date: transactions.date,
+        paymentMethod: transactions.paymentMethod,
+        notes: transactions.notes,
+        status: transactions.status,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, user.id),
+          eq(transactions.isDeleted, false),
+          ilike(transactions.notes, `%[SubId:${subId}]%`)
+        )
+      )
+      .orderBy(desc(transactions.id))
+      .limit(1);
+
+    const formattedTx: LinkedSubscriptionTransaction | undefined = createdTx
+      ? {
+          id: createdTx.id,
+          publicId: createdTx.publicId,
+          title: createdTx.title || txnData.title,
+          description: createdTx.description,
+          amount: Math.round(Number(createdTx.amount) / 100),
+          type: createdTx.type,
+          date: createdTx.date
+            ? new Date(createdTx.date).toISOString().split("T")[0]
+            : txnData.date || new Date().toISOString().split("T")[0],
+          paymentMethod: createdTx.paymentMethod || txnData.paymentMethod || "UPI",
+          notes: createdTx.notes || undefined,
+          status: createdTx.status,
+        }
+      : undefined;
 
     // 2. Fetch existing profile preferences to update the subscription
     const [userProfile] = await db
@@ -469,6 +595,8 @@ export async function recordSubscriptionPayment(
         lastPaymentDate: todayStr,
         nextBillingDate: nextDate,
         status: "Paid",
+        linkedTransactionCount: (targetSub.linkedTransactionCount || 0) + 1,
+        latestLinkedTransaction: formattedTx || null,
         updatedAt: new Date().toISOString(),
       };
 
@@ -490,7 +618,7 @@ export async function recordSubscriptionPayment(
       revalidatePath("/dashboard/transactions");
     } catch (_) {}
 
-    return { success: true, updatedSubscription: updatedSub };
+    return { success: true, updatedSubscription: updatedSub, transaction: formattedTx };
   } catch (error: any) {
     console.error("Error recording subscription payment:", error);
     return { success: false, error: error.message || "Failed to record payment" };
@@ -670,9 +798,10 @@ export async function reverseSubscriptionTransaction(
 }
 
 /**
- * Delete a subscription payment transaction:
+ * Delete / Remove a subscription payment transaction:
  * Uses existing soft delete engine with audit logging.
  * Reverts subscription's payment status and rolls back billing schedule if this was the latest payment.
+ * Ensures transactions that are settled or approved cannot be deleted directly without reversal.
  */
 export async function deleteSubscriptionTransaction(
   subId: string,
@@ -682,8 +811,35 @@ export async function deleteSubscriptionTransaction(
   try {
     const user = await requireAuth();
 
+    // Verify transaction eligibility
+    const isNumeric = typeof transactionId === "number" || /^\d+$/.test(String(transactionId));
+    const [targetTx] = await db
+      .select()
+      .from(transactions)
+      .where(
+        isNumeric
+          ? eq(transactions.id, Number(transactionId))
+          : eq(transactions.publicId, String(transactionId))
+      )
+      .limit(1);
+
+    if (!targetTx || targetTx.userId !== user.id) {
+      return { success: false, error: "Transaction not found or access denied" };
+    }
+
+    if (targetTx.status === "settled" || targetTx.status === "approved") {
+      return {
+        success: false,
+        error:
+          "This transaction is settled or approved in group balances and cannot be deleted directly. Please use the Reversal workflow to issue an offsetting correction entry.",
+      };
+    }
+
     // 1. Delete transaction through existing transaction delete engine
-    const delResult = await deleteTransaction(transactionId, reason || "Subscription transaction correction");
+    const delResult = await deleteTransaction(
+      transactionId,
+      reason || "Subscription transaction removed by user"
+    );
     if (!delResult.success) {
       return { success: false, error: "Failed to delete transaction" };
     }
@@ -706,7 +862,18 @@ export async function deleteSubscriptionTransaction(
     if (targetSub) {
       // Find remaining active transactions for this subscription
       const remainingTx = await db
-        .select({ date: transactions.date })
+        .select({
+          id: transactions.id,
+          publicId: transactions.publicId,
+          title: transactions.title,
+          description: transactions.description,
+          amount: transactions.amount,
+          type: transactions.type,
+          date: transactions.date,
+          paymentMethod: transactions.paymentMethod,
+          notes: transactions.notes,
+          status: transactions.status,
+        })
         .from(transactions)
         .where(
           and(
@@ -718,24 +885,45 @@ export async function deleteSubscriptionTransaction(
             )
           )
         )
-        .orderBy(desc(transactions.date))
-        .limit(1);
+        .orderBy(desc(transactions.date));
 
-      const latestRemainingDate = remainingTx.length > 0 && remainingTx[0].date
-        ? new Date(remainingTx[0].date).toISOString().split("T")[0]
-        : undefined;
+      const latestRemainingDate =
+        remainingTx.length > 0 && remainingTx[0].date
+          ? new Date(remainingTx[0].date).toISOString().split("T")[0]
+          : undefined;
 
       const rolledBackNextDate = rollbackDateByBillingCycle(
         targetSub.nextBillingDate,
         targetSub.billingCycle
       );
-      const newStatus = computeSubscriptionStatus(rolledBackNextDate, "Active");
+      const newStatus =
+        remainingTx.length > 0
+          ? "Paid"
+          : computeSubscriptionStatus(rolledBackNextDate, "Active");
 
       updatedSub = {
         ...targetSub,
         lastPaymentDate: latestRemainingDate,
         nextBillingDate: rolledBackNextDate,
         status: newStatus,
+        linkedTransactionCount: remainingTx.length,
+        latestLinkedTransaction:
+          remainingTx.length > 0
+            ? {
+                id: remainingTx[0].id,
+                publicId: remainingTx[0].publicId,
+                title: remainingTx[0].title || "Subscription Payment",
+                description: remainingTx[0].description,
+                amount: Math.round(Number(remainingTx[0].amount) / 100),
+                type: remainingTx[0].type,
+                date: remainingTx[0].date
+                  ? new Date(remainingTx[0].date).toISOString().split("T")[0]
+                  : "",
+                paymentMethod: remainingTx[0].paymentMethod || "UPI",
+                notes: remainingTx[0].notes || undefined,
+                status: remainingTx[0].status,
+              }
+            : null,
         updatedAt: new Date().toISOString(),
       };
 
@@ -761,6 +949,154 @@ export async function deleteSubscriptionTransaction(
   } catch (error: any) {
     console.error("Error deleting subscription transaction:", error);
     return { success: false, error: error.message || "Failed to delete transaction" };
+  }
+}
+
+/**
+ * Unlink a transaction from a subscription without deleting it from the financial ledger:
+ * 1. Strips [SubId:...] reference tag from transaction notes & description
+ * 2. Recalculates subscription lastPaymentDate, nextBillingDate, and status
+ */
+export async function unlinkSubscriptionTransaction(
+  subId: string,
+  transactionId: number | string
+): Promise<{ success: boolean; updatedSubscription?: UserSubscription; error?: string }> {
+  try {
+    const user = await requireAuth();
+
+    const isNumeric = typeof transactionId === "number" || /^\d+$/.test(String(transactionId));
+    const [targetTx] = await db
+      .select()
+      .from(transactions)
+      .where(
+        isNumeric
+          ? eq(transactions.id, Number(transactionId))
+          : eq(transactions.publicId, String(transactionId))
+      )
+      .limit(1);
+
+    if (!targetTx || targetTx.userId !== user.id) {
+      return { success: false, error: "Transaction not found or access denied" };
+    }
+
+    // Strip [SubId:...] tag from notes and description
+    const subTagPattern = new RegExp(`\\[SubId:${subId}\\]`, "g");
+    const updatedNotes = (targetTx.notes || "").replace(subTagPattern, "").trim();
+    const updatedDescription = (targetTx.description || "").replace(subTagPattern, "").trim();
+
+    await db
+      .update(transactions)
+      .set({
+        notes: updatedNotes || null,
+        description: updatedDescription || targetTx.description,
+        updatedAt: new Date(),
+      })
+      .where(eq(transactions.id, targetTx.id));
+
+    // Fetch remaining active transactions for this subscription
+    const [userProfile] = await db
+      .select({ preferences: profiles.preferences })
+      .from(profiles)
+      .where(eq(profiles.userId, user.id))
+      .limit(1);
+
+    const existingPrefs = (userProfile?.preferences as Record<string, any>) || {};
+    const currentSubs: UserSubscription[] = Array.isArray(existingPrefs.customSubscriptions)
+      ? existingPrefs.customSubscriptions
+      : [];
+
+    const targetSub = currentSubs.find((s) => s.id === subId);
+    let updatedSub: UserSubscription | undefined;
+
+    if (targetSub) {
+      const remainingTx = await db
+        .select({
+          id: transactions.id,
+          publicId: transactions.publicId,
+          title: transactions.title,
+          description: transactions.description,
+          amount: transactions.amount,
+          type: transactions.type,
+          date: transactions.date,
+          paymentMethod: transactions.paymentMethod,
+          notes: transactions.notes,
+          status: transactions.status,
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, user.id),
+            eq(transactions.isDeleted, false),
+            or(
+              ilike(transactions.notes, `%[SubId:${subId}]%`),
+              ilike(transactions.description, `%[SubId:${subId}]%`)
+            )
+          )
+        )
+        .orderBy(desc(transactions.date));
+
+      const latestRemainingDate =
+        remainingTx.length > 0 && remainingTx[0].date
+          ? new Date(remainingTx[0].date).toISOString().split("T")[0]
+          : undefined;
+
+      const rolledBackNextDate = rollbackDateByBillingCycle(
+        targetSub.nextBillingDate,
+        targetSub.billingCycle
+      );
+      const newStatus =
+        remainingTx.length > 0
+          ? "Paid"
+          : computeSubscriptionStatus(rolledBackNextDate, "Active");
+
+      updatedSub = {
+        ...targetSub,
+        lastPaymentDate: latestRemainingDate,
+        nextBillingDate: rolledBackNextDate,
+        status: newStatus,
+        linkedTransactionCount: remainingTx.length,
+        latestLinkedTransaction:
+          remainingTx.length > 0
+            ? {
+                id: remainingTx[0].id,
+                publicId: remainingTx[0].publicId,
+                title: remainingTx[0].title || "Subscription Payment",
+                description: remainingTx[0].description,
+                amount: Math.round(Number(remainingTx[0].amount) / 100),
+                type: remainingTx[0].type,
+                date: remainingTx[0].date
+                  ? new Date(remainingTx[0].date).toISOString().split("T")[0]
+                  : "",
+                paymentMethod: remainingTx[0].paymentMethod || "UPI",
+                notes: remainingTx[0].notes || undefined,
+                status: remainingTx[0].status,
+              }
+            : null,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const updatedSubs = currentSubs.map((s) => (s.id === subId ? updatedSub! : s));
+
+      await db
+        .update(profiles)
+        .set({
+          preferences: {
+            ...existingPrefs,
+            customSubscriptions: updatedSubs,
+          },
+        })
+        .where(eq(profiles.userId, user.id));
+    }
+
+    try {
+      revalidatePath("/dashboard/ai");
+      revalidatePath("/dashboard/transactions");
+    } catch (_) {}
+
+    return { success: true, updatedSubscription: updatedSub };
+  } catch (error: any) {
+    console.error("Error unlinking subscription transaction:", error);
+    return { success: false, error: error.message || "Failed to unlink transaction" };
   }
 }
 

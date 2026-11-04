@@ -20,6 +20,20 @@ export interface UserSubscription {
   savingRecommendation?: string;
   createdAt: string;
   updatedAt: string;
+  linkedTransactionCount?: number;
+  latestLinkedTransaction?: {
+    id: number;
+    publicId: string;
+    title: string;
+    description: string;
+    amount: number;
+    type: string;
+    date: string;
+    paymentMethod?: string;
+    notes?: string;
+    status: string;
+    isReversal?: boolean;
+  } | null;
 }
 
 export function advanceDateByBillingCycle(
