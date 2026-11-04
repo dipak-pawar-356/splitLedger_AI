@@ -19,11 +19,15 @@ import {
   TrendingUp, 
   Calendar, 
   Sparkles, 
-  AlertCircle, 
   CheckCircle2, 
   ArrowRight,
-  ShieldAlert,
-  Coins
+  Coins,
+  Plus,
+  ArrowUpRight,
+  Clock,
+  FileText,
+  ShieldCheck,
+  Zap
 } from "lucide-react";
 
 interface BudgetIncreaseModalProps {
@@ -58,6 +62,7 @@ export function BudgetIncreaseModal({
   const newRemainingBudget = Math.max(0, updatedTotalBudget - currentSpent);
   const newDailyAllowance = Math.round(newRemainingBudget / remainingDays);
   const currentDailyAllowance = Math.round(budget.remainingAmount / remainingDays);
+  const allowanceDelta = Math.max(0, newDailyAllowance - currentDailyAllowance);
   const currentVersionNumber = (budget.increases?.length || 0) + 1;
   const newVersionNumber = currentVersionNumber + 1;
 
@@ -69,6 +74,17 @@ export function BudgetIncreaseModal({
     "Higher seasonal pricing",
     "Monthly revision",
   ];
+
+  const QUICK_INCREMENTS = [500, 1000, 2000, 5000, 10000];
+
+  const handleQuickAdd = (amt: number) => {
+    const current = parseFloat(additionalAmount) || 0;
+    setAdditionalAmount((current + amt).toString());
+  };
+
+  const handleQuickSet = (amt: number) => {
+    setAdditionalAmount(amt.toString());
+  };
 
   const handleSubmit = async () => {
     if (addAmt <= 0) {
@@ -103,193 +119,268 @@ export function BudgetIncreaseModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl w-[95vw] h-[88vh] max-h-[720px] flex flex-col rounded-3xl p-0 overflow-hidden bg-card/95 backdrop-blur-xl border border-emerald-500/20 shadow-2xl">
+      <DialogContent className="sm:max-w-xl w-[95vw] max-h-[92vh] flex flex-col rounded-3xl p-0 overflow-hidden bg-card/98 dark:bg-slate-900/98 backdrop-blur-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xl transition-all">
         {/* Sticky Fixed Header */}
-        <DialogHeader className="p-5 sm:p-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-card/95 backdrop-blur-md z-10">
+        <DialogHeader className="p-5 sm:p-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-card/95 dark:bg-slate-900/95 backdrop-blur-md z-10">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shadow-xs shrink-0">
               <Coins className="h-5 w-5" />
             </div>
-            <div>
-              <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <div className="space-y-0.5">
+              <DialogTitle className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 flex-wrap">
                 <span>Increase Active Budget</span>
-                <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
+                <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 font-bold px-2 py-0.5">
                   {budget.name}
                 </Badge>
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-500 mt-0.5">
-                Revise spending limit during the active duration while preserving complete audit history.
+              <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
+                Revise spending limit during active duration while preserving complete audit history.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        {/* Scrollable Body with min-h-0 */}
+        {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto min-h-0 p-5 sm:p-6 space-y-4 text-xs scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 overscroll-contain">
-          {/* Inputs Section */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">
-                Additional Amount (₹): <span className="text-rose-500">*</span>
+          {/* Top Inputs: Amount & Date */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
+            {/* Additional Amount (7 Cols) */}
+            <div className="sm:col-span-7 space-y-1.5">
+              <label className="font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-between text-xs">
+                <span>
+                  Additional Amount (₹) <span className="text-rose-500">*</span>
+                </span>
+                {addAmt > 0 && (
+                  <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                    +{formatCurrency(addAmt, budget.currency)}
+                  </span>
+                )}
               </label>
-              <Input
-                type="number"
-                placeholder="e.g. 5000"
-                value={additionalAmount}
-                onChange={(e) => setAdditionalAmount(e.target.value)}
-                className="h-10 text-sm font-bold font-mono rounded-xl focus:border-emerald-500 bg-background"
-                autoFocus
-              />
+
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400 dark:text-slate-500 select-none">
+                  ₹
+                </span>
+                <Input
+                  type="number"
+                  min="1"
+                  step="100"
+                  placeholder="e.g. 2000"
+                  value={additionalAmount}
+                  onChange={(e) => setAdditionalAmount(e.target.value)}
+                  className="h-10 pl-7 text-sm font-black font-mono tracking-tight rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  autoFocus
+                />
+              </div>
+
+              {/* Quick Increment Shortcut Pills */}
+              <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                <span className="text-[10px] text-slate-400 font-medium">Quick add:</span>
+                {QUICK_INCREMENTS.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => handleQuickSet(q)}
+                    className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-semibold bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/40 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 border border-slate-200/80 dark:border-slate-700 hover:border-emerald-500/40 transition-colors budget-btn-press"
+                  >
+                    +₹{q.toLocaleString("en-IN")}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Effective Date:</label>
+            {/* Effective Date (5 Cols) */}
+            <div className="sm:col-span-5 space-y-1.5">
+              <label className="font-semibold text-slate-700 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                <span>Effective Date</span>
+              </label>
               <Input
                 type="date"
                 value={effectiveDate}
                 onChange={(e) => setEffectiveDate(e.target.value)}
-                className="h-10 text-xs rounded-xl focus:border-emerald-500 bg-background"
+                className="h-10 text-xs rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20"
               />
+              <p className="text-[10px] text-slate-400">Timestamp logged to ledger</p>
             </div>
           </div>
 
           {/* Quick Reason Suggestions */}
-          <div className="space-y-1.5">
-            <label className="font-semibold text-slate-700 dark:text-slate-300">Revision Reason:</label>
-            <div className="flex flex-wrap gap-1.5">
-              {REASON_SUGGESTIONS.map((sug) => (
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-slate-700 dark:text-slate-200 text-xs">
+                Revision Reason:
+              </label>
+              {reason && (
                 <button
-                  key={sug}
                   type="button"
-                  onClick={() => setReason(sug)}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-medium border transition-colors budget-btn-press ${
-                    reason === sug
-                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/40 font-bold"
-                      : "bg-background border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300"
-                  }`}
+                  onClick={() => setReason("")}
+                  className="text-[10px] text-slate-400 hover:text-rose-500 transition-colors"
                 >
-                  {sug}
+                  Clear reason
                 </button>
-              ))}
+              )}
             </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {REASON_SUGGESTIONS.map((sug) => {
+                const isSelected = reason === sug;
+
+                return (
+                  <button
+                    key={sug}
+                    type="button"
+                    onClick={() => setReason(isSelected ? "" : sug)}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-medium border transition-all duration-150 budget-btn-press ${
+                      isSelected
+                        ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs scale-[1.02]"
+                        : "bg-slate-100/80 hover:bg-slate-200/80 dark:bg-slate-800/80 dark:hover:bg-slate-700/80 border-slate-200/90 dark:border-slate-700/80 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    {sug}
+                  </button>
+                );
+              })}
+            </div>
+
             <Input
               placeholder="Or type custom reason..."
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="h-9 text-xs rounded-xl mt-1.5 bg-background"
+              className="h-9 text-xs rounded-xl mt-1.5 bg-slate-50/70 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 focus-visible:border-emerald-500"
             />
           </div>
 
           {/* Additional Notes */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-slate-700 dark:text-slate-300">Notes / Audit Memo:</label>
+            <label className="font-semibold text-slate-700 dark:text-slate-200 text-xs flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-slate-400" />
+              <span>Notes / Audit Memo (Optional):</span>
+            </label>
             <Input
               placeholder="e.g. Approved by management for unexpected logistics"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="h-9 text-xs rounded-xl bg-background"
+              className="h-9 text-xs rounded-xl bg-slate-50/70 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 focus-visible:border-emerald-500"
             />
           </div>
 
           {/* Real-time Dynamic Revision Impact Intelligence Box */}
-          <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent p-4 space-y-3 shadow-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-emerald-500" />
-                Dynamic Revision Intelligence
+          <div className="rounded-2xl border border-emerald-500/30 dark:border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent p-4 sm:p-4.5 space-y-3.5 shadow-xs backdrop-blur-md">
+            {/* Intelligence Header */}
+            <div className="flex items-center justify-between pb-1 border-b border-emerald-500/15">
+              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-emerald-500 shrink-0" />
+                <span>Dynamic Revision Intelligence</span>
               </span>
-              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-0 text-[10px] font-bold">
+              <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5">
                 Version {newVersionNumber}
               </Badge>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-              <div className="p-2.5 rounded-xl bg-background border border-emerald-500/30 flex items-center justify-between">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Total Budget</span>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-slate-400 font-mono line-through">
-                      {formatCurrency(currentBudgetAmt, budget.currency)}
-                    </span>
-                    <ArrowRight className="h-3 w-3 text-emerald-500" />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">
-                      {formatCurrency(updatedTotalBudget, budget.currency)}
-                    </span>
-                  </div>
+            {/* 4 Clean Micro-Cards with Separated Badge & Non-Crammed Numbers */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Micro-Card 1: Total Budget */}
+              <div className="p-3 rounded-xl bg-card/90 dark:bg-slate-950/80 border border-emerald-500/25 flex flex-col justify-between gap-1 shadow-xs hover:border-emerald-500/40 transition-colors">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-slate-500 dark:text-slate-400 text-[10px] font-semibold uppercase tracking-wider">
+                    Total Budget
+                  </span>
+                  <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono font-bold border border-emerald-500/30 px-1.5 py-0">
+                    +{formatCurrency(addAmt, budget.currency)}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">
-                  +{formatCurrency(addAmt, budget.currency)}
-                </Badge>
+                <div className="flex items-baseline justify-between gap-2 pt-0.5">
+                  <span className="text-sm sm:text-base font-black font-mono text-emerald-600 dark:text-emerald-400 tracking-tight">
+                    {formatCurrency(updatedTotalBudget, budget.currency)}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 line-through">
+                    {formatCurrency(currentBudgetAmt, budget.currency)}
+                  </span>
+                </div>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-background border border-cyan-500/30 flex items-center justify-between">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Daily Spending Allowance</span>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-slate-400 font-mono line-through">
-                      {formatCurrency(currentDailyAllowance, budget.currency)}/d
-                    </span>
-                    <ArrowRight className="h-3 w-3 text-cyan-500" />
-                    <span className="text-cyan-600 dark:text-cyan-400 font-bold font-mono">
-                      {formatCurrency(newDailyAllowance, budget.currency)}/d
-                    </span>
-                  </div>
+              {/* Micro-Card 2: Daily Spending Allowance */}
+              <div className="p-3 rounded-xl bg-card/90 dark:bg-slate-950/80 border border-cyan-500/25 flex flex-col justify-between gap-1 shadow-xs hover:border-cyan-500/40 transition-colors">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-slate-500 dark:text-slate-400 text-[10px] font-semibold uppercase tracking-wider">
+                    Daily Allowance
+                  </span>
+                  <Badge className="bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 text-[10px] font-mono font-bold border border-cyan-500/30 px-1.5 py-0">
+                    +{formatCurrency(allowanceDelta, budget.currency)}/d
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="text-[10px] text-cyan-600 border-cyan-500/30">
-                  +{formatCurrency(Math.max(0, newDailyAllowance - currentDailyAllowance), budget.currency)}/d
-                </Badge>
+                <div className="flex items-baseline justify-between gap-2 pt-0.5">
+                  <span className="text-sm sm:text-base font-black font-mono text-cyan-600 dark:text-cyan-400 tracking-tight">
+                    {formatCurrency(newDailyAllowance, budget.currency)}/d
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 line-through">
+                    {formatCurrency(currentDailyAllowance, budget.currency)}/d
+                  </span>
+                </div>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-background border border-sky-500/30 flex items-center justify-between">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Total Cumulative Added</span>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-slate-400 font-mono line-through">
-                      {formatCurrency(previousAddedAmt, budget.currency)}
-                    </span>
-                    <ArrowRight className="h-3 w-3 text-sky-500" />
-                    <span className="text-sky-600 dark:text-sky-400 font-bold font-mono">
-                      {formatCurrency(newTotalAdded, budget.currency)}
-                    </span>
-                  </div>
+              {/* Micro-Card 3: Total Cumulative Added */}
+              <div className="p-3 rounded-xl bg-card/90 dark:bg-slate-950/80 border border-sky-500/25 flex flex-col justify-between gap-1 shadow-xs hover:border-sky-500/40 transition-colors">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-slate-500 dark:text-slate-400 text-[10px] font-semibold uppercase tracking-wider">
+                    Cumulative Added
+                  </span>
+                  <Badge className="bg-sky-500/15 text-sky-600 dark:text-sky-400 text-[10px] font-mono font-bold border border-sky-500/30 px-1.5 py-0">
+                    v{newVersionNumber}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="text-[10px] text-sky-600 border-sky-500/30">
-                  v{newVersionNumber}
-                </Badge>
+                <div className="flex items-baseline justify-between gap-2 pt-0.5">
+                  <span className="text-sm sm:text-base font-black font-mono text-sky-600 dark:text-sky-400 tracking-tight">
+                    +{formatCurrency(newTotalAdded, budget.currency)}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 line-through">
+                    {formatCurrency(previousAddedAmt, budget.currency)}
+                  </span>
+                </div>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-background border border-teal-500/30 flex items-center justify-between">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Remaining Budget</span>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-slate-400 font-mono line-through">
-                      {formatCurrency(budget.remainingAmount, budget.currency)}
-                    </span>
-                    <ArrowRight className="h-3 w-3 text-teal-500" />
-                    <span className="text-teal-600 dark:text-teal-400 font-bold font-mono">
-                      {formatCurrency(newRemainingBudget, budget.currency)}
-                    </span>
-                  </div>
+              {/* Micro-Card 4: Remaining Budget */}
+              <div className="p-3 rounded-xl bg-card/90 dark:bg-slate-950/80 border border-teal-500/25 flex flex-col justify-between gap-1 shadow-xs hover:border-teal-500/40 transition-colors">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-slate-500 dark:text-slate-400 text-[10px] font-semibold uppercase tracking-wider">
+                    Remaining Buffer
+                  </span>
+                  <Badge className="bg-teal-500/15 text-teal-600 dark:text-teal-400 text-[10px] font-mono font-bold border border-teal-500/30 px-1.5 py-0">
+                    +{formatCurrency(addAmt, budget.currency)}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="text-[10px] text-teal-600 border-teal-500/30">
-                  +{formatCurrency(addAmt, budget.currency)}
-                </Badge>
+                <div className="flex items-baseline justify-between gap-2 pt-0.5">
+                  <span className="text-sm sm:text-base font-black font-mono text-teal-600 dark:text-teal-400 tracking-tight">
+                    {formatCurrency(newRemainingBudget, budget.currency)}
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 line-through">
+                    {formatCurrency(budget.remainingAmount, budget.currency)}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/80 text-[11px]">
-              <span className="text-slate-500">
-                Revision Date: <strong className="text-slate-900 dark:text-slate-100">{effectiveDate}</strong> • Remaining Days: <strong className="text-slate-900 dark:text-slate-100">{remainingDays} Days</strong>
-              </span>
-              <span className="text-slate-500">
-                Reason: <strong className="text-slate-700 dark:text-slate-300">{reason || "Revision"}</strong>
-              </span>
+            {/* Intelligence Footer */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-2 border-t border-emerald-500/15 text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span>
+                  Date: <strong className="text-slate-800 dark:text-slate-200 font-mono">{effectiveDate}</strong>
+                </span>
+                <span>•</span>
+                <span>
+                  Remaining: <strong className="text-slate-800 dark:text-slate-200 font-mono">{remainingDays} Days</strong>
+                </span>
+              </div>
+              <div>
+                Reason: <strong className="text-emerald-600 dark:text-emerald-400 font-medium">{reason || "Standard Revision"}</strong>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Sticky Fixed Footer */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-background/95 backdrop-blur-md flex items-center justify-end gap-2.5 z-10">
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-card/95 dark:bg-slate-900/95 backdrop-blur-md flex items-center justify-end gap-2.5 z-10">
           <Button
             type="button"
             size="sm"
@@ -305,10 +396,10 @@ export function BudgetIncreaseModal({
             size="sm"
             onClick={handleSubmit}
             disabled={isSubmitting || addAmt <= 0}
-            className="rounded-xl text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 shadow-sm gap-1.5 budget-btn-press"
+            className="rounded-xl text-xs h-9 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-5 shadow-md shadow-emerald-500/20 gap-1.5 budget-btn-press transition-all"
           >
             {isSubmitting ? (
-              "Creating Revision..."
+              "Applying Revision..."
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4" />

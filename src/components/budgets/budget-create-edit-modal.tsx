@@ -221,9 +221,9 @@ export function BudgetCreateEditModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl w-[95vw] h-[88vh] max-h-[740px] flex flex-col rounded-3xl p-0 overflow-hidden bg-card/95 backdrop-blur-xl border border-primary/20 shadow-2xl">
+      <DialogContent className="sm:max-w-xl w-[95vw] max-h-[92vh] flex flex-col rounded-3xl p-0 overflow-hidden bg-card/98 dark:bg-slate-900/98 backdrop-blur-2xl border border-slate-200/90 dark:border-slate-800 shadow-2xl transition-all">
         {/* Sticky Fixed Header */}
-        <DialogHeader className="p-5 sm:p-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-card/95 backdrop-blur-md z-10">
+        <DialogHeader className="p-5 sm:p-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-card/95 dark:bg-slate-900/95 backdrop-blur-md z-10">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-2xl bg-gradient-to-br from-primary/15 to-indigo-500/15 text-primary border border-primary/20 shadow-xs">
               <CalendarDays className="h-5 w-5" />
@@ -510,7 +510,11 @@ export function BudgetCreateEditModal({
         </div>
 
         {/* Sticky Fixed Footer */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-background/95 backdrop-blur-md flex items-center justify-between z-10">
+        <DialogHeader className="sr-only">
+          <DialogTitle>Budget Settings</DialogTitle>
+          <DialogDescription>Configure and save budget limits and durations</DialogDescription>
+        </DialogHeader>
+        <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-card/95 dark:bg-slate-900/95 backdrop-blur-md flex items-center justify-between z-10">
           <div className="text-[11px] text-slate-500 hidden sm:block">
             {budgetAmount ? (
               <span>
