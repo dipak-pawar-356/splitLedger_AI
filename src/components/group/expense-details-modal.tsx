@@ -212,6 +212,7 @@ export function ExpenseDetailsModal({
                 </a>
               </div>
               <div className="rounded-xl overflow-hidden max-h-48 border border-slate-700">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={expense.receiptUrl}
                   alt="Receipt Preview"
@@ -308,3 +309,4 @@ export function ExpenseDetailsModal({
     </Dialog>
   );
 }
+

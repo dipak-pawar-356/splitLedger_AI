@@ -67,6 +67,7 @@ export function GroupUpiSettlementHub({
     if (!initialData) {
       fetchFreshSettlements(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
   if (isLoading) {

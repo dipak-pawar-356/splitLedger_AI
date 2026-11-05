@@ -171,7 +171,7 @@ export function GroupExpenseInsightsModal({
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3.5 rounded-2xl bg-slate-800/40 border border-slate-700/60">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Today's Spend</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Today&apos;s Spend</span>
                   <span className="text-xl font-black font-mono text-indigo-400 block mt-0.5">
                     {formatCurrency(expenseSummary.todayExpense)}
                   </span>
@@ -339,3 +339,4 @@ export function GroupExpenseInsightsModal({
     </Dialog>
   );
 }
+
