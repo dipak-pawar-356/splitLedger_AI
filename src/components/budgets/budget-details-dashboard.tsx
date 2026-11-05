@@ -71,6 +71,15 @@ import {
   ReferenceLine,
 } from "recharts";
 import { BudgetProgressRing } from "./budget-progress-ring";
+import {
+  BudgetOverviewInspectionModal,
+  OverviewPanelType,
+} from "./budget-overview-inspection-modal";
+import {
+  BudgetMilestoneInspectionModal,
+  TimelineMilestone,
+} from "./budget-milestone-inspection-modal";
+import { toast } from "sonner";
 
 interface CustomTooltipProps {
   active?: boolean;
@@ -192,6 +201,14 @@ export function BudgetDetailsDashboard({
   const [isMounted, setIsMounted] = useState(false);
   const [selectedChartTab, setSelectedChartTab] = useState<"trend" | "burn_rate" | "comparison">("trend");
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
+  const [overviewModalType, setOverviewModalType] = useState<OverviewPanelType | null>(null);
+  const [selectedMilestone, setSelectedMilestone] = useState<TimelineMilestone | null>(null);
+
+  const handleCopyLedger = (e: React.MouseEvent, ref: string) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(ref);
+    toast.success(`Copied ledger reference ${ref}`);
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -1207,7 +1224,7 @@ export function BudgetDetailsDashboard({
       {/* =========================================================================
           4. DYNAMIC BUDGET OVERVIEW & ENTERPRISE VERIFICATION LEDGER
           Provides structured governance, compliance parameters, and audit controls
-          without duplicating the 12 numeric cards above.
+          without duplicating the 12 numeric cards above. Interactive inspection cards.
           ========================================================================= */}
       <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1217,23 +1234,35 @@ export function BudgetDetailsDashboard({
               Dynamic Budget Overview & Verification Ledger
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Comprehensive ledger synchronization of active policy constraints, cycle parameters, and audit controls.
+              Comprehensive ledger synchronization of active policy constraints, cycle parameters, and audit controls. Click any card to inspect full audit specifications.
             </p>
           </div>
-          <Badge className="bg-primary/10 text-primary text-[10px] font-bold border-0">
-            Real-Time Verified Ledger
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge className="bg-primary/10 text-primary text-[10px] font-bold border-0">
+              Real-Time Verified Ledger
+            </Badge>
+            <Badge variant="outline" className="text-[10px] text-slate-400 border-slate-700 hidden sm:inline-flex">
+              Interactive Audit Cards
+            </Badge>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
           {/* Panel 1: Budget Policy & Scope */}
-          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between space-y-3">
+          <div
+            onClick={() => setOverviewModalType("policy")}
+            className="budget-card-interactive glow-indigo group rounded-2xl border border-indigo-500/30 hover:border-indigo-500/80 bg-gradient-to-b from-card via-card to-indigo-500/[0.04] p-4 flex flex-col justify-between space-y-3 cursor-pointer shadow-xs hover:shadow-[0_10px_25px_-5px_rgba(99,102,241,0.25)] hover:-translate-y-1.5 hover:scale-[1.01] transition-all duration-200 select-none"
+          >
             <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-2">
-              <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                <Target className="h-3.5 w-3.5 text-indigo-500" />
-                Policy & Scope
-              </span>
-              <Badge variant="outline" className="text-[9px] font-semibold uppercase">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-500 group-hover:scale-110 group-hover:rotate-6 transition-transform">
+                  <Target className="h-3.5 w-3.5" />
+                </div>
+                <span className="font-bold text-slate-900 dark:text-slate-100">
+                  Policy & Scope
+                </span>
+              </div>
+              <Badge variant="outline" className="text-[9px] font-semibold uppercase text-indigo-600 dark:text-indigo-400 border-indigo-500/30 bg-indigo-500/5">
                 {budget.budgetType || "Personal"}
               </Badge>
             </div>
@@ -1244,26 +1273,37 @@ export function BudgetDetailsDashboard({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Enforcement Mode:</span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">Strict Approved</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Strict Approved
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Settlement Policy:</span>
                 <span className="text-slate-600 dark:text-slate-300">Transfers Excluded</span>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-200/40 dark:border-slate-800">
-              Only approved debits within cycle boundaries affect headroom.
-            </p>
+            <div className="pt-2 border-t border-slate-200/50 dark:border-slate-800 flex items-center justify-between text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold group-hover:translate-x-0.5 transition-transform">
+              <span>Inspect Policy Specs</span>
+              <ArrowRight className="h-3 w-3" />
+            </div>
           </div>
 
           {/* Panel 2: Authorized Ceilings & Thresholds */}
-          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between space-y-3">
+          <div
+            onClick={() => setOverviewModalType("ceiling")}
+            className="budget-card-interactive glow-sky group rounded-2xl border border-sky-500/30 hover:border-sky-500/80 bg-gradient-to-b from-card via-card to-sky-500/[0.04] p-4 flex flex-col justify-between space-y-3 cursor-pointer shadow-xs hover:shadow-[0_10px_25px_-5px_rgba(14,165,233,0.25)] hover:-translate-y-1.5 hover:scale-[1.01] transition-all duration-200 select-none"
+          >
             <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-2">
-              <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                <ShieldAlert className="h-3.5 w-3.5 text-sky-500" />
-                Ceiling & Thresholds
-              </span>
-              <Badge variant="outline" className="text-[9px] font-semibold text-sky-600 border-sky-500/30">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-xl bg-sky-500/10 text-sky-500 group-hover:scale-110 group-hover:rotate-6 transition-transform">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                </div>
+                <span className="font-bold text-slate-900 dark:text-slate-100">
+                  Ceiling & Thresholds
+                </span>
+              </div>
+              <Badge variant="outline" className="text-[9px] font-semibold text-sky-600 dark:text-sky-400 border-sky-500/30 bg-sky-500/5">
                 {budget.alertThresholds?.[0]?.percent || 80}% Threshold
               </Badge>
             </div>
@@ -1274,7 +1314,7 @@ export function BudgetDetailsDashboard({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Authorized Ceiling:</span>
-                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{formatCurrency(currentBudget, currency)}</span>
+                <span className="font-mono font-bold text-sky-600 dark:text-sky-400">{formatCurrency(currentBudget, currency)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Alert Trigger At:</span>
@@ -1283,19 +1323,27 @@ export function BudgetDetailsDashboard({
                 </span>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-200/40 dark:border-slate-800">
-              {increaseCount > 0 ? `${increaseCount} approved revisions recorded (+${formatCurrency(additionalBudget, currency)})` : "Baseline ceiling is unamended."}
-            </p>
+            <div className="pt-2 border-t border-slate-200/50 dark:border-slate-800 flex items-center justify-between text-[10px] text-sky-600 dark:text-sky-400 font-semibold group-hover:translate-x-0.5 transition-transform">
+              <span>Inspect Ceiling & Alerts</span>
+              <ArrowRight className="h-3 w-3" />
+            </div>
           </div>
 
           {/* Panel 3: Cycle Timeline & Term Boundaries */}
-          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between space-y-3">
+          <div
+            onClick={() => setOverviewModalType("cycle")}
+            className="budget-card-interactive glow-purple group rounded-2xl border border-purple-500/30 hover:border-purple-500/80 bg-gradient-to-b from-card via-card to-purple-500/[0.04] p-4 flex flex-col justify-between space-y-3 cursor-pointer shadow-xs hover:shadow-[0_10px_25px_-5px_rgba(168,85,247,0.25)] hover:-translate-y-1.5 hover:scale-[1.01] transition-all duration-200 select-none"
+          >
             <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-2">
-              <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                <CalendarDays className="h-3.5 w-3.5 text-purple-500" />
-                Cycle Boundaries
-              </span>
-              <Badge variant="outline" className="text-[9px] font-semibold text-purple-600 border-purple-500/30">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-xl bg-purple-500/10 text-purple-500 group-hover:scale-110 group-hover:rotate-6 transition-transform">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                </div>
+                <span className="font-bold text-slate-900 dark:text-slate-100">
+                  Cycle Boundaries
+                </span>
+              </div>
+              <Badge variant="outline" className="text-[9px] font-semibold text-purple-600 dark:text-purple-400 border-purple-500/30 bg-purple-500/5">
                 {totalDurationDays} Days Total
               </Badge>
             </div>
@@ -1315,19 +1363,27 @@ export function BudgetDetailsDashboard({
                 </span>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-200/40 dark:border-slate-800">
-              {targetMonth ? `Synchronized with ${targetMonth}` : "Real-time calendar duration"}
-            </p>
+            <div className="pt-2 border-t border-slate-200/50 dark:border-slate-800 flex items-center justify-between text-[10px] text-purple-600 dark:text-purple-400 font-semibold group-hover:translate-x-0.5 transition-transform">
+              <span>Inspect Calendar Pacing</span>
+              <ArrowRight className="h-3 w-3" />
+            </div>
           </div>
 
           {/* Panel 4: Mathematical Forecasting & Runout */}
-          <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800 flex flex-col justify-between space-y-3">
+          <div
+            onClick={() => setOverviewModalType("forecasting")}
+            className="budget-card-interactive glow-cyan group rounded-2xl border border-cyan-500/30 hover:border-cyan-500/80 bg-gradient-to-b from-card via-card to-cyan-500/[0.04] p-4 flex flex-col justify-between space-y-3 cursor-pointer shadow-xs hover:shadow-[0_10px_25px_-5px_rgba(6,182,212,0.25)] hover:-translate-y-1.5 hover:scale-[1.01] transition-all duration-200 select-none"
+          >
             <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-2">
-              <span className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                <Activity className="h-3.5 w-3.5 text-cyan-500" />
-                Forecasting & Runout
-              </span>
-              <Badge variant="outline" className="text-[9px] font-semibold text-cyan-600 border-cyan-500/30">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-xl bg-cyan-500/10 text-cyan-500 group-hover:scale-110 group-hover:rotate-6 transition-transform">
+                  <Activity className="h-3.5 w-3.5" />
+                </div>
+                <span className="font-bold text-slate-900 dark:text-slate-100">
+                  Forecasting & Runout
+                </span>
+              </div>
+              <Badge variant="outline" className="text-[9px] font-semibold text-cyan-600 dark:text-cyan-400 border-cyan-500/30 bg-cyan-500/5">
                 {forecastAccuracy}% Accuracy
               </Badge>
             </div>
@@ -1351,15 +1407,16 @@ export function BudgetDetailsDashboard({
                 </span>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 italic pt-1 border-t border-slate-200/40 dark:border-slate-800">
-              {expectedOverspend > 0 ? `Alert: Overspend risk of ${formatCurrency(expectedOverspend, currency)}` : "Tracking safely within approved limits."}
-            </p>
+            <div className="pt-2 border-t border-slate-200/50 dark:border-slate-800 flex items-center justify-between text-[10px] text-cyan-600 dark:text-cyan-400 font-semibold group-hover:translate-x-0.5 transition-transform">
+              <span>Inspect Forecast Model</span>
+              <ArrowRight className="h-3 w-3" />
+            </div>
           </div>
         </div>
       </Card>
 
       {/* =========================================================================
-          5. ENTERPRISE BUDGET TIMELINE (HOVER REVEALS COMPLETE LEDGER DETAILS)
+          5. ENTERPRISE BUDGET TIMELINE (CLICK OR HOVER REVEALS COMPLETE AUDIT MODAL)
           ========================================================================= */}
       <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 sm:p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1369,12 +1426,15 @@ export function BudgetDetailsDashboard({
               Enterprise Budget Timeline & Verified Milestones
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Tracks budget inception, dynamic revisions, threshold breaches, and savings achieved.
+              Tracks budget inception, dynamic revisions, threshold breaches, and savings achieved. Click any node or card to inspect verified ledger proofs.
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <Badge variant="outline" className="border-purple-500/30 text-purple-600 font-mono font-bold">
+            <Badge variant="outline" className="border-purple-500/30 text-purple-600 dark:text-purple-400 font-mono font-bold bg-purple-500/5">
               {timelineMilestones.length} Events Logged
+            </Badge>
+            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold border-0 hidden sm:inline-flex">
+              Cryptographically Verified
             </Badge>
           </div>
         </div>
@@ -1405,21 +1465,22 @@ export function BudgetDetailsDashboard({
                     <TooltipTrigger asChild>
                       <button
                         type="button"
+                        onClick={() => setSelectedMilestone(milestone)}
                         onMouseEnter={() => setHoveredEventId(milestone.id)}
                         onMouseLeave={() => setHoveredEventId(null)}
                         className="relative z-10 flex flex-col items-center group focus:outline-none cursor-pointer"
                       >
                         <div
-                          className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-black ring-4 ring-background transition-all duration-200 ${
+                          className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-black ring-4 ring-background transition-all duration-200 ${
                             milestone.colorClass
                           } ${nodePulseClass} group-hover:scale-125 group-hover:shadow-xl`}
                         >
                           {idx + 1}
                         </div>
-                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-1 max-w-[85px] truncate text-center group-hover:text-primary transition-colors">
+                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-1.5 max-w-[110px] text-center leading-tight line-clamp-1 group-hover:text-primary transition-colors">
                           {milestone.title}
                         </span>
-                        <span className="text-[9px] text-slate-400 font-mono">
+                        <span className="text-[9px] text-slate-400 font-mono mt-0.5">
                           {formatDate(milestone.date)}
                         </span>
                       </button>
@@ -1455,11 +1516,9 @@ export function BudgetDetailsDashboard({
                           {milestone.isCurrent ? "Current Milestone" : milestone.isCompleted ? "Verified Completed" : "Upcoming Target"}
                         </Badge>
                       </div>
-                      {milestone.notes && (
-                        <p className="text-[10px] text-slate-400 italic pt-0.5">
-                          {milestone.notes}
-                        </p>
-                      )}
+                      <p className="text-[10px] text-primary font-semibold pt-0.5">
+                        Click node to inspect complete ledger record →
+                      </p>
                     </TooltipContent>
                   </Tooltip>
                 );
@@ -1469,43 +1528,77 @@ export function BudgetDetailsDashboard({
         </div>
 
         {/* Milestone Detail Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 pt-2">
           {timelineMilestones.map((milestone) => {
             const isHovered = hoveredEventId === milestone.id;
+
+            // Semantic color matching for card border & hover
+            let cardColorStyle = "border-purple-500/30 hover:border-purple-500 hover:shadow-[0_8px_25px_rgba(168,85,247,0.2)] bg-gradient-to-b from-card via-card to-purple-500/[0.04]";
+            let amountTextColor = "text-purple-600 dark:text-purple-400";
+            if (milestone.eventType === "started") {
+              cardColorStyle = "border-blue-500/30 hover:border-blue-500 hover:shadow-[0_8px_25px_rgba(59,130,246,0.2)] bg-gradient-to-b from-card via-card to-blue-500/[0.04]";
+              amountTextColor = "text-blue-600 dark:text-blue-400";
+            } else if (milestone.eventType === "revised" || milestone.eventType === "added") {
+              cardColorStyle = "border-sky-500/30 hover:border-sky-500 hover:shadow-[0_8px_25px_rgba(14,165,233,0.2)] bg-gradient-to-b from-card via-card to-sky-500/[0.04]";
+              amountTextColor = "text-sky-600 dark:text-sky-400";
+            } else if (milestone.eventType === "savings_achieved") {
+              cardColorStyle = "border-emerald-500/30 hover:border-emerald-500 hover:shadow-[0_8px_25px_rgba(16,185,129,0.2)] bg-gradient-to-b from-card via-card to-emerald-500/[0.04]";
+              amountTextColor = "text-emerald-600 dark:text-emerald-400";
+            } else if (milestone.eventType === "near_limit") {
+              cardColorStyle = "border-amber-500/30 hover:border-amber-500 hover:shadow-[0_8px_25px_rgba(245,158,11,0.2)] bg-gradient-to-b from-card via-card to-amber-500/[0.04]";
+              amountTextColor = "text-amber-600 dark:text-amber-400";
+            } else if (milestone.eventType === "crossed") {
+              cardColorStyle = "border-rose-500/30 hover:border-rose-500 hover:shadow-[0_8px_25px_rgba(244,63,94,0.2)] bg-gradient-to-b from-card via-card to-rose-500/[0.04]";
+              amountTextColor = "text-rose-600 dark:text-rose-400";
+            }
 
             return (
               <div
                 key={milestone.id}
+                onClick={() => setSelectedMilestone(milestone)}
                 onMouseEnter={() => setHoveredEventId(milestone.id)}
                 onMouseLeave={() => setHoveredEventId(null)}
-                className={`budget-card-interactive glow-purple p-3.5 rounded-2xl border transition-all duration-180 cursor-pointer ${
-                  isHovered
-                    ? "border-purple-500 bg-purple-500/10 shadow-lg -translate-y-1.5 scale-[1.02]"
-                    : "border-slate-200/60 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/30"
+                className={`budget-card-interactive group p-4 rounded-2xl border transition-all duration-200 cursor-pointer select-none flex flex-col justify-between space-y-3 ${cardColorStyle} ${
+                  isHovered ? "-translate-y-1.5 scale-[1.02] shadow-xl" : "hover:-translate-y-1 hover:scale-[1.01]"
                 }`}
               >
-                <div className="flex items-center justify-between pb-1.5">
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                    <span className={`h-2 w-2 rounded-full ${milestone.isCurrent ? "bg-purple-500 animate-ping" : milestone.isCompleted ? "bg-emerald-500" : "bg-slate-400"}`} />
-                    {milestone.title}
+                <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-200/50 dark:border-slate-800">
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 truncate">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${milestone.isCurrent ? "bg-purple-500 animate-ping" : milestone.isCompleted ? "bg-emerald-500" : "bg-slate-400"}`} />
+                    <span className="truncate">{milestone.title}</span>
                   </span>
-                  <Badge variant="outline" className="text-[9px] font-mono border-slate-300 dark:border-slate-700">
-                    {milestone.ledgerReference}
-                  </Badge>
+                  <button
+                    type="button"
+                    onClick={(e) => handleCopyLedger(e, milestone.ledgerReference)}
+                    className="shrink-0 px-2 py-0.5 rounded-lg text-[9px] font-mono border border-slate-300 dark:border-slate-700 hover:border-primary hover:text-primary transition-colors flex items-center gap-1 bg-slate-100 dark:bg-slate-800"
+                    title="Copy ledger reference"
+                  >
+                    <span>{milestone.ledgerReference}</span>
+                    <Copy className="h-2.5 w-2.5 opacity-60 hover:opacity-100" />
+                  </button>
                 </div>
-                <div className="text-[11px] space-y-0.5 text-slate-600 dark:text-slate-300">
-                  <p>
-                    <span className="text-slate-400">Date:</span> {formatDate(milestone.date)} ({milestone.time})
-                  </p>
-                  <p>
-                    <span className="text-slate-400">Amount:</span> <strong className="font-mono text-emerald-600 dark:text-emerald-400">{formatCurrency(milestone.amount, currency)}</strong>
-                  </p>
-                  <p>
-                    <span className="text-slate-400">Remaining Cap:</span> <span className="font-mono">{formatCurrency(milestone.remainingBudget, currency)}</span>
-                  </p>
-                  <p className="text-[10px] text-slate-400 pt-0.5 italic truncate">
+
+                <div className="text-[11px] space-y-1 text-slate-600 dark:text-slate-300">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Timestamp:</span>
+                    <span className="font-mono text-slate-700 dark:text-slate-300">{formatDate(milestone.date)} ({milestone.time})</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Amount:</span>
+                    <strong className={`font-mono font-bold ${amountTextColor}`}>{formatCurrency(milestone.amount, currency)}</strong>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Remaining Cap:</span>
+                    <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{formatCurrency(milestone.remainingBudget, currency)}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 pt-1 italic line-clamp-2 leading-relaxed">
                     {milestone.notes || "Verified record"}
                   </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/50 dark:border-slate-800 flex items-center justify-between text-[10px] font-semibold text-primary opacity-80 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">
+                  <span>Inspect Audit Record</span>
+                  <ArrowRight className="h-3 w-3" />
                 </div>
               </div>
             );
@@ -1921,6 +2014,44 @@ export function BudgetDetailsDashboard({
           </div>
         )}
       </Card>
+
+      {/* Dynamic Budget Overview Inspection Modal */}
+      <BudgetOverviewInspectionModal
+        isOpen={overviewModalType !== null}
+        onClose={() => setOverviewModalType(null)}
+        activeType={overviewModalType}
+        budget={budget}
+        currency={currency}
+        originalBudget={originalBudget}
+        currentBudget={currentBudget}
+        additionalBudget={additionalBudget}
+        totalSpent={totalSpent}
+        remainingBudget={remainingBudget}
+        utilizationPercent={utilizationPercent}
+        increaseCount={increaseCount}
+        totalDurationDays={totalDurationDays}
+        daysPassed={daysPassed}
+        daysRemaining={daysRemaining}
+        timelinePercentage={timelinePercentage}
+        averageDailySpend={averageDailySpend}
+        dailyAllowance={dailyAllowance}
+        expectedRemaining={expectedRemaining}
+        expectedOverspend={expectedOverspend}
+        forecastAccuracy={forecastAccuracy}
+        projectedExhaustionDate={projectedExhaustionDate}
+        targetMonth={targetMonth}
+        onRequestRevision={() => onOpenIncreaseModal(budget)}
+      />
+
+      {/* Enterprise Budget Timeline Milestone Inspection Modal */}
+      <BudgetMilestoneInspectionModal
+        isOpen={selectedMilestone !== null}
+        onClose={() => setSelectedMilestone(null)}
+        milestone={selectedMilestone}
+        currency={currency}
+        budgetName={budget.name}
+        totalDurationDays={totalDurationDays}
+      />
     </div>
   );
 }
