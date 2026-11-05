@@ -16,10 +16,16 @@ export const metadata: Metadata = createPageMetadata({
 export const dynamic = "force-dynamic";
 
 export default async function BudgetsPage(props: {
-  searchParams?: Promise<{ month?: string }>;
+  searchParams?: Promise<{ month?: string | string[] }>;
 }) {
-  const searchParams = props.searchParams ? await props.searchParams : {};
-  const month = searchParams.month;
+  let month: string | undefined;
+  try {
+    const searchParams = props?.searchParams ? await props.searchParams : {};
+    const rawMonth = searchParams?.month;
+    month = Array.isArray(rawMonth) ? rawMonth[0] : rawMonth;
+  } catch {
+    month = undefined;
+  }
 
   try {
     await requireAuth();

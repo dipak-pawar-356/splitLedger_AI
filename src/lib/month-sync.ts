@@ -27,7 +27,7 @@ export const MONTH_EVENT_NAME = "splitledger:month-change";
  * Pure date and boundary calculator for month synchronization.
  * Handles month boundaries, year transitions, leap years, and timezones accurately.
  */
-export function parseMonthParam(param?: string | null): MonthInfo {
+export function parseMonthParam(param?: string | string[] | null | undefined): MonthInfo {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1; // 1-based
@@ -35,8 +35,11 @@ export function parseMonthParam(param?: string | null): MonthInfo {
   let year = currentYear;
   let month = currentMonth;
 
-  if (param && typeof param === "string") {
-    const match = param.trim().match(/^(\d{4})-(\d{1,2})$/);
+  const raw = Array.isArray(param) ? param[0] : param;
+
+  if (raw && typeof raw === "string") {
+    const trimmed = raw.trim();
+    const match = trimmed.match(/^(\d{4})-(\d{1,2})$/);
     if (match) {
       const parsedYear = parseInt(match[1], 10);
       const parsedMonth = parseInt(match[2], 10);

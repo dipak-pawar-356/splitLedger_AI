@@ -24,6 +24,17 @@ export default function BudgetsError({
     }
   };
 
+  const handleResetCurrentMonth = () => {
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("splitledger_selected_month");
+        window.location.href = "/dashboard/budgets";
+      }
+    } catch {
+      window.location.href = "/dashboard/budgets";
+    }
+  };
+
   return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center space-y-5">
       <div className="p-3.5 bg-amber-500/10 dark:bg-amber-500/20 rounded-2xl text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-sm">
@@ -32,10 +43,10 @@ export default function BudgetsError({
 
       <div className="space-y-2 max-w-md">
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-          Budget Planning Center Sync Issue
+          Budget Planning Center Sync Notice
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-          An issue occurred while rendering your budget intelligence dashboard. All your verified ledger records and transactions are safe.
+          An issue occurred while rendering your budget intelligence dashboard for the requested cycle. All your verified ledger records and transactions are safe.
         </p>
       </div>
 
@@ -47,10 +58,17 @@ export default function BudgetsError({
           <RefreshCw className="h-3.5 w-3.5" />
           <span>Reload Budget View</span>
         </Button>
+        <Button
+          onClick={handleResetCurrentMonth}
+          variant="outline"
+          className="rounded-xl text-xs font-semibold gap-1.5 h-10 px-5 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+        >
+          <span>Switch to Current Month</span>
+        </Button>
         <Link href="/dashboard">
           <Button
-            variant="outline"
-            className="rounded-xl text-xs font-semibold gap-1.5 h-10 px-5"
+            variant="ghost"
+            className="rounded-xl text-xs font-semibold gap-1.5 h-10 px-5 text-slate-600 dark:text-slate-300"
           >
             <LayoutDashboard className="h-3.5 w-3.5" />
             <span>Return to Dashboard</span>

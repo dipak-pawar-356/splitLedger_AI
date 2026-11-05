@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { BudgetRecord, BudgetType, BudgetDurationPreset } from "@/lib/types/budgets";
 import { createBudget, updateBudget } from "@/actions/budgets";
 import { calculateBudgetDatesFromPreset, parseSafeDate, getSafeIsoDateStr } from "@/lib/budget-utils";
+import { parseMonthParam } from "@/lib/month-sync";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ interface BudgetCreateEditModalProps {
   onClose: () => void;
   editingBudget: BudgetRecord | null;
   onBudgetSaved: (savedBudget: BudgetRecord, isNew: boolean) => void;
+  defaultMonth?: string;
 }
 
 const DURATION_PRESETS: Array<{ id: BudgetDurationPreset; label: string; daysLabel: string }> = [
@@ -55,6 +57,7 @@ export function BudgetCreateEditModal({
   onClose,
   editingBudget,
   onBudgetSaved,
+  defaultMonth,
 }: BudgetCreateEditModalProps) {
   const [budgetName, setBudgetName] = useState("");
   const [budgetCategory, setBudgetCategory] = useState("General");
@@ -83,13 +86,19 @@ export function BudgetCreateEditModal({
       setBudgetCategory("General");
       setBudgetType("personal");
       setDurationPreset("monthly");
-      const { startDate: dStart, endDate: dEnd } = calculateBudgetDatesFromPreset("monthly");
-      setStartDate(getSafeIsoDateStr(dStart));
-      setEndDate(getSafeIsoDateStr(dEnd));
+      if (defaultMonth) {
+        const targetInfo = parseMonthParam(defaultMonth);
+        setStartDate(getSafeIsoDateStr(targetInfo.startDate));
+        setEndDate(getSafeIsoDateStr(targetInfo.endDate));
+      } else {
+        const { startDate: dStart, endDate: dEnd } = calculateBudgetDatesFromPreset("monthly");
+        setStartDate(getSafeIsoDateStr(dStart));
+        setEndDate(getSafeIsoDateStr(dEnd));
+      }
       setBudgetAmount("");
       setBudgetDescription("");
     }
-  }, [editingBudget, isOpen]);
+  }, [editingBudget, isOpen, defaultMonth]);
 
   // When duration preset changes (except custom), automatically calculate start & end dates
   const handleDurationPresetChange = (preset: BudgetDurationPreset) => {

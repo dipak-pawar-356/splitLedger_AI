@@ -689,19 +689,102 @@ export function BudgetsDashboardView({ initialMetrics, initialMonth }: BudgetsDa
               />
             </ErrorBoundary>
           ) : (
-            <div className="py-20 text-center border-2 border-dashed rounded-3xl p-8 bg-slate-50/50 dark:bg-slate-900/30 space-y-3">
-              <PieChart className="h-12 w-12 text-slate-400 mx-auto" />
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                No Active Budget Configured Yet
-              </h3>
-              <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Set up a monthly, weekly, quarterly, or category spending target to unlock real-time timeline tracking, dynamic budget revisions, and verified savings insights.
-              </p>
-              <Button onClick={openCreateModal} className="rounded-xl text-xs font-bold gap-1.5 h-10 px-5 shadow-sm">
-                <Plus className="h-4 w-4" />
-                <span>Create Your First Financial Budget</span>
-              </Button>
-            </div>
+            <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-br from-card via-card to-blue-500/[0.03] shadow-md overflow-hidden">
+              <CardContent className="p-8 sm:p-14 text-center max-w-2xl mx-auto space-y-6">
+                <div className="relative mx-auto w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/10 via-indigo-500/10 to-emerald-500/10 border border-primary/20 flex items-center justify-center shadow-inner">
+                  <PieChart className="h-10 w-10 text-primary animate-pulse" />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-xs font-bold text-primary border-primary/30 bg-primary/5 uppercase">
+                      Cycle: {monthInfo.label}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-semibold border ${
+                        monthInfo.status === "current"
+                          ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
+                          : monthInfo.status === "past"
+                          ? "bg-slate-500/10 text-slate-400 border-slate-500/30"
+                          : "bg-blue-500/10 text-blue-400 border-blue-500/30"
+                      }`}
+                    >
+                      {monthInfo.status === "current" ? "Active Cycle" : monthInfo.status === "past" ? "Historical Cycle" : "Upcoming Planned Cycle"}
+                    </Badge>
+                  </div>
+
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                    No Budget Targets Allocated for {monthInfo.label}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto leading-relaxed">
+                    Set up an authorized spending ceiling for {monthInfo.label} to unlock dynamic timeline velocity, daily allowances, automated alerts, and verified savings tracking.
+                  </p>
+                </div>
+
+                {/* 4-Stat verified ledger fact strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-left pt-2">
+                  <div className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Verified Inflow</span>
+                    <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                      {formatCurrency(metrics.verifiedIncome || 0, metrics.currency || "INR")}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Recorded Debits</span>
+                    <span className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100">
+                      {formatCurrency(metrics.verifiedExpenses || 0, metrics.currency || "INR")}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Cycle Duration</span>
+                    <span className="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                      {monthInfo.totalDays} Days
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Cycle Pacing</span>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                      {monthInfo.isCurrentMonth
+                        ? `${monthInfo.remainingDays}d left`
+                        : monthInfo.isPastMonth
+                        ? "Completed"
+                        : "Upcoming"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
+                  <Button
+                    onClick={openCreateModal}
+                    className="rounded-xl text-xs font-bold gap-2 h-10 px-5 shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground w-full sm:w-auto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Create Budget for {monthInfo.shortLabel}</span>
+                  </Button>
+
+                  <Link href={`/dashboard/ai?month=${selectedMonth}`} className="w-full sm:w-auto">
+                    <Button
+                      variant="outline"
+                      className="rounded-xl text-xs font-bold gap-2 h-10 px-5 border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 w-full sm:w-auto"
+                    >
+                      <Sparkles className="h-4 w-4 text-purple-500" />
+                      <span>Explore AI Insights for {monthInfo.shortLabel} →</span>
+                    </Button>
+                  </Link>
+
+                  {!monthInfo.isCurrentMonth && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => goToCurrentMonth()}
+                      className="rounded-xl text-xs font-semibold gap-1.5 h-10 px-4 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 w-full sm:w-auto"
+                    >
+                      <span>Return to Current Month</span>
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
@@ -1029,6 +1112,7 @@ export function BudgetsDashboardView({ initialMetrics, initialMonth }: BudgetsDa
         onClose={() => setIsCreateEditModalOpen(false)}
         editingBudget={editingBudget}
         onBudgetSaved={handleBudgetSaved}
+        defaultMonth={selectedMonth}
       />
 
       {/* Contribute Funds to Savings Goal Modal */}
