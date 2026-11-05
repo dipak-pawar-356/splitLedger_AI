@@ -27,6 +27,8 @@ import {
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { retryFailedEmailLog, getSettlementEmailLogs } from "@/actions/admin-settlements";
+import { ReminderLogInspectionModal } from "./reminder-log-inspection-modal";
+import { Maximize2 } from "lucide-react";
 
 export interface SettlementEmailLogItem {
   id: number;
@@ -68,6 +70,7 @@ export function SettlementReminderLogsTab({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [retryingLogId, setRetryingLogId] = useState<number | null>(null);
+  const [selectedLog, setSelectedLog] = useState<SettlementEmailLogItem | null>(null);
 
   useEffect(() => {
     setLogs(initialLogs);
@@ -234,16 +237,17 @@ export function SettlementReminderLogsTab({
                   {filteredLogs.map((log) => (
                     <tr
                       key={log.id}
-                      className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors"
+                      onClick={() => setSelectedLog(log)}
+                      className="hover:bg-slate-100/70 dark:hover:bg-slate-800/60 transition-colors cursor-pointer group/row"
                     >
                       {/* Member column */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
-                          <Avatar className="h-7 w-7 border border-slate-200 dark:border-slate-700 text-[10px] font-bold">
+                          <Avatar className="h-7 w-7 border border-slate-200 dark:border-slate-700 text-[10px] font-bold group-hover/row:ring-2 group-hover/row:ring-primary/40 transition-all">
                             <AvatarFallback>{getInitials(log.recipientName)}</AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            <p className="font-semibold text-slate-900 dark:text-slate-100 truncate group-hover/row:text-primary transition-colors">
                               {log.recipientName}
                             </p>
                             <p className="text-[11px] text-slate-400 truncate">
@@ -278,7 +282,7 @@ export function SettlementReminderLogsTab({
                       </td>
 
                       {/* Amount Due */}
-                      <td className="py-3 px-3 font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                      <td className="py-3 px-3 font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap font-mono">
                         {formatCurrency(log.amountDueRupees)}
                       </td>
 
@@ -300,21 +304,30 @@ export function SettlementReminderLogsTab({
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
-                        {log.status === "failed" ? (
+                      <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {log.status === "failed" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRetry(log.id)}
+                              disabled={retryingLogId === log.id}
+                              className="h-7 px-2.5 rounded-lg text-xs gap-1 text-rose-600 hover:text-rose-700 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                            >
+                              <RotateCcw className={`h-3 w-3 ${retryingLogId === log.id ? "animate-spin" : ""}`} />
+                              <span>{retryingLogId === log.id ? "Retrying..." : "Retry"}</span>
+                            </Button>
+                          )}
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            onClick={() => handleRetry(log.id)}
-                            disabled={retryingLogId === log.id}
-                            className="h-7 px-2.5 rounded-lg text-xs gap-1 text-rose-600 hover:text-rose-700 border-rose-200 dark:border-rose-900 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                            onClick={() => setSelectedLog(log)}
+                            className="h-7 w-7 p-0 text-slate-400 hover:text-primary rounded-lg"
+                            title="Inspect Log Entry"
                           >
-                            <RotateCcw className={`h-3 w-3 ${retryingLogId === log.id ? "animate-spin" : ""}`} />
-                            <span>{retryingLogId === log.id ? "Retrying..." : "Retry"}</span>
+                            <Maximize2 className="h-3.5 w-3.5" />
                           </Button>
-                        ) : (
-                          <span className="text-[11px] text-slate-400">—</span>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -336,6 +349,18 @@ export function SettlementReminderLogsTab({
           )}
         </CardContent>
       </Card>
+
+      {/* Pop-up Reminder Log Inspection Modal */}
+      <ReminderLogInspectionModal
+        isOpen={selectedLog !== null}
+        onClose={() => setSelectedLog(null)}
+        log={selectedLog}
+        onRetry={(logId) => {
+          handleRetry(logId);
+          setSelectedLog(null);
+        }}
+        isRetrying={Boolean(selectedLog && retryingLogId === selectedLog.id)}
+      />
     </div>
   );
 }

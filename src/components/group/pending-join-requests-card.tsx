@@ -20,6 +20,8 @@ import { approveJoinRequestAction, rejectJoinRequestAction } from "@/actions/gro
 import { formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { ApplicantInspectionModal } from "./applicant-inspection-modal";
+import { Maximize2 } from "lucide-react";
 
 export interface PendingJoinRequestItem {
   id: number;
@@ -51,6 +53,7 @@ export function PendingJoinRequestsCard({
 }: PendingJoinRequestsCardProps) {
   const router = useRouter();
   const [requests, setRequests] = useState<PendingJoinRequestItem[]>(initialRequests);
+  const [inspectRequest, setInspectRequest] = useState<PendingJoinRequestItem | null>(null);
   
   // Track selected decision per request ID: "included" | "excluded" | null
   const [decisions, setDecisions] = useState<Record<number, "included" | "excluded">>({});
@@ -194,17 +197,21 @@ export function PendingJoinRequestsCard({
           return (
             <div
               key={req.id}
-              className="rounded-2xl border border-border/80 bg-card p-5 space-y-4 shadow-sm transition-all"
+              className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card p-5 space-y-4 shadow-sm hover:shadow-2xl hover:border-amber-500/60 hover:-translate-y-1.5 hover:scale-[1.008] transition-all duration-300 relative group/applicant overflow-hidden"
             >
-              {/* REQUIREMENT 5: User Profile, Name, Email, Join Date & Time, Status */}
+              <div className="h-1 w-full bg-gradient-to-r from-amber-500 via-orange-400 to-yellow-400 absolute top-0 left-0 opacity-0 group-hover/applicant:opacity-100 transition-opacity" />
+              {/* User Profile, Name, Email, Join Date & Time, Status */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-primary/10 text-primary font-black text-base flex items-center justify-center shrink-0 border border-primary/20 shadow-xs">
+                <div 
+                  onClick={() => setInspectRequest(req)}
+                  className="flex items-center gap-3.5 cursor-pointer"
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-primary/10 text-primary font-black text-base flex items-center justify-center shrink-0 border border-primary/20 shadow-xs group-hover/applicant:ring-2 group-hover/applicant:ring-amber-500/30 transition-all">
                     {(req.userName || req.userEmail).charAt(0).toUpperCase()}
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-extrabold text-foreground text-sm">
+                      <h4 className="font-extrabold text-foreground text-sm group-hover/applicant:text-amber-500 transition-colors">
                         {req.userName || "New Member"}
                       </h4>
                       <Badge
@@ -219,12 +226,22 @@ export function PendingJoinRequestsCard({
                       {req.userEmail}
                     </p>
                     <p className="text-[11px] text-muted-foreground/75 mt-0.5">
-                      Requested on {formattedDate} at {formattedTime}
+                      Requested on {formattedDate} at {formattedTime} • <span className="text-amber-500 font-medium">Click to inspect →</span>
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 self-end sm:self-center">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setInspectRequest(req)}
+                    className="h-9 w-9 p-0 text-slate-400 hover:text-amber-500 rounded-xl"
+                    title="Inspect Applicant Profile"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+
                   <Button
                     size="sm"
                     variant="outline"
@@ -246,7 +263,7 @@ export function PendingJoinRequestsCard({
                     disabled={isSubmitting || isRejecting}
                     className={`h-9 px-4 text-xs font-bold rounded-xl gap-1.5 transition-all shadow-sm ${
                       selectedDecision
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20"
                         : "bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
                     }`}
                   >
@@ -360,6 +377,27 @@ export function PendingJoinRequestsCard({
           );
         })}
       </CardContent>
+
+      {/* Pop-up Applicant Inspection Modal */}
+      <ApplicantInspectionModal
+        isOpen={inspectRequest !== null}
+        onClose={() => setInspectRequest(null)}
+        request={inspectRequest}
+        selectedDecision={inspectRequest ? decisions[inspectRequest.id] : undefined}
+        onSelectDecision={(decision) => {
+          if (inspectRequest) handleSelectDecision(inspectRequest.id, decision);
+        }}
+        onApprove={(req) => {
+          handleApprove(req);
+          setInspectRequest(null);
+        }}
+        onReject={(req) => {
+          handleReject(req);
+          setInspectRequest(null);
+        }}
+        isSubmitting={Boolean(inspectRequest && submittingId === inspectRequest.id)}
+        isRejecting={Boolean(inspectRequest && rejectingId === inspectRequest.id)}
+      />
     </Card>
   );
 }

@@ -179,16 +179,19 @@ export function MemberFinancialSummary({
 
   return (
     <>
-      <Card className={`w-full group hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden bg-card rounded-3xl ${
+      <Card className={`w-full group hover:-translate-y-1.5 hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between overflow-hidden bg-card rounded-3xl ${
         isReceivable 
-          ? "border-2 border-emerald-500/60 shadow-md shadow-emerald-500/10 dark:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/15 hover:border-emerald-400 dark:hover:border-emerald-400" 
+          ? "border-2 border-emerald-500/60 shadow-md shadow-emerald-500/10 dark:border-emerald-500/50 hover:shadow-2xl hover:shadow-emerald-500/25 hover:border-emerald-400 dark:hover:border-emerald-400 bg-gradient-to-b from-card via-card to-emerald-500/[0.03]" 
           : isPayable 
-          ? "border-2 border-rose-500/60 shadow-md shadow-rose-500/10 dark:border-rose-500/50 hover:shadow-2xl hover:shadow-rose-500/15 hover:border-rose-400 dark:hover:border-rose-400" 
-          : "border border-slate-200/90 dark:border-slate-800 hover:shadow-xl hover:border-primary/40"
+          ? "border-2 border-rose-500/60 shadow-md shadow-rose-500/10 dark:border-rose-500/50 hover:shadow-2xl hover:shadow-rose-500/25 hover:border-rose-400 dark:hover:border-rose-400 bg-gradient-to-b from-card via-card to-rose-500/[0.03]" 
+          : "border border-slate-200/90 dark:border-slate-800 hover:shadow-xl hover:border-primary/60 bg-gradient-to-b from-card via-card to-primary/[0.02]"
       }`}>
         <div>
-          {/* Card Header: Avatar, Name, Role, Badges */}
-          <CardHeader className="flex flex-row items-center gap-3.5 p-5 pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40">
+          {/* Card Header: Avatar, Name, Role, Badges - Clickable to open Profile Modal */}
+          <CardHeader
+            onClick={() => setIsProfileModalOpen(true)}
+            className="flex flex-row items-center gap-3.5 p-5 pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/40 cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors"
+          >
             <Avatar className={`h-12 w-12 rounded-2xl ring-2 shrink-0 group-hover:scale-105 transition-transform duration-300 ${
               isReceivable 
                 ? "ring-emerald-500/40" 

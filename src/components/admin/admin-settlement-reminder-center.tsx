@@ -182,9 +182,9 @@ export function AdminSettlementReminderCenter({
     <div className="space-y-6">
       {/* Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-slate-200/80 dark:border-slate-800 bg-card/60 backdrop-blur-sm shadow-sm">
+        <Card className="border-slate-200/80 dark:border-slate-800 bg-card/80 backdrop-blur-sm shadow-sm hover:shadow-xl hover:border-amber-500/60 hover:-translate-y-1 hover:scale-105 transition-all duration-300">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+            <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-500 border border-amber-500/30">
               <BellRing className="h-5 w-5" />
             </div>
             <div>
@@ -207,37 +207,37 @@ export function AdminSettlementReminderCenter({
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/80 dark:border-slate-800 bg-card/60 backdrop-blur-sm shadow-sm">
+        <Card className="border-slate-200/80 dark:border-slate-800 bg-card/80 backdrop-blur-sm shadow-sm hover:shadow-xl hover:border-rose-500/60 hover:-translate-y-1 hover:scale-105 transition-all duration-300">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
+            <div className="p-2.5 rounded-2xl bg-rose-500/15 text-rose-500 border border-rose-500/30">
               <Users className="h-5 w-5" />
             </div>
             <div>
               <p className="text-xs text-slate-500 font-medium">Debtors Pending</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 font-mono">
                 {debtorsCount} {debtorsCount === 1 ? "member" : "members"}
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/80 dark:border-slate-800 bg-card/60 backdrop-blur-sm shadow-sm">
+        <Card className="border-slate-200/80 dark:border-slate-800 bg-card/80 backdrop-blur-sm shadow-sm hover:shadow-xl hover:border-blue-500/60 hover:-translate-y-1 hover:scale-105 transition-all duration-300">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-500 border border-blue-500/20">
+            <div className="p-2.5 rounded-2xl bg-blue-500/15 text-blue-500 border border-blue-500/30">
               <Clock className="h-5 w-5" />
             </div>
             <div>
               <p className="text-xs text-slate-500 font-medium">Outstanding Debt</p>
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 font-mono">
                 {formatCurrency(totalPendingAmount)}
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/80 dark:border-slate-800 bg-card/60 backdrop-blur-sm shadow-sm">
+        <Card className="border-slate-200/80 dark:border-slate-800 bg-card/80 backdrop-blur-sm shadow-sm hover:shadow-xl hover:border-indigo-500/60 hover:-translate-y-1 hover:scale-105 transition-all duration-300">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+            <div className="p-2.5 rounded-2xl bg-indigo-500/15 text-indigo-500 border border-indigo-500/30">
               <Calendar className="h-5 w-5" />
             </div>
             <div>

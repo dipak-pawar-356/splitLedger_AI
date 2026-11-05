@@ -136,18 +136,19 @@ export function SettlementVerificationModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] rounded-3xl p-0 overflow-hidden border-slate-200/80 dark:border-slate-800 bg-card">
+      <DialogContent className="sm:max-w-[560px] rounded-3xl p-0 overflow-hidden border-2 border-emerald-500/70 ring-1 ring-emerald-500/40 shadow-[0_0_40px_rgba(16,185,129,0.25)] bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-2xl text-slate-100">
+        <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 animate-pulse" />
         {/* Modal Header */}
-        <div className="bg-slate-50/80 dark:bg-slate-900/60 p-6 border-b border-slate-100 dark:border-slate-800">
+        <div className="bg-slate-900/60 p-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+            <div className="p-2.5 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-bold tracking-tight">
+              <DialogTitle className="text-lg font-bold tracking-tight text-white">
                 Admin Settlement Approval
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-500 mt-0.5">
+              <DialogDescription className="text-xs text-slate-400 mt-0.5">
                 Confirm offline payment between group members and update balance ledger
               </DialogDescription>
             </div>

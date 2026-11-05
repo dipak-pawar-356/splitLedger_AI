@@ -172,7 +172,8 @@ export function DynamicUpiSettlementCard({
 
   return (
     <>
-      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden bg-card hover:shadow-md transition-shadow">
+      <Card className="rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden bg-card hover:shadow-2xl hover:border-emerald-500/60 hover:-translate-y-1.5 hover:scale-[1.008] transition-all duration-300 relative group/card">
+        <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 opacity-60 group-hover/card:opacity-100 transition-opacity" />
         {/* Header with Receiver Identity */}
         <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
           <div className="flex items-center justify-between gap-3">
@@ -378,134 +379,140 @@ export function DynamicUpiSettlementCard({
 
       {/* Mark As Paid Dialog */}
       <Dialog open={isMarkPaidModalOpen} onOpenChange={setIsMarkPaidModalOpen}>
-        <DialogContent className="sm:max-w-[425px] rounded-3xl p-6">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-              <span>Record Settlement Payment</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
-              Confirm your direct UPI transfer to {receiverName} for {formattedAmount}.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[440px] rounded-3xl p-0 overflow-hidden border-2 border-emerald-500/70 ring-1 ring-emerald-500/40 shadow-[0_0_40px_rgba(16,185,129,0.25)] bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-2xl text-slate-100">
+          <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 animate-pulse" />
+          <div className="p-6 pb-2">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2 text-white">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                <span>Record Settlement Payment</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-400">
+                Confirm your direct UPI transfer to {receiverName} for {formattedAmount}.
+              </DialogDescription>
+            </DialogHeader>
 
-          <form onSubmit={handleConfirmMarkAsPaid} className="space-y-4 pt-2">
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-500">Receiver:</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">{receiverName}</span>
+            <form onSubmit={handleConfirmMarkAsPaid} className="space-y-4 pt-3">
+              <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Receiver:</span>
+                  <span className="font-bold text-white">{receiverName}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Exact Amount:</span>
+                  <span className="font-bold font-mono text-emerald-400">{formattedAmount}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-400">Payment Mode:</span>
+                  <span className="font-bold text-slate-200">UPI Instant Settlement</span>
+                </div>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-500">Exact Amount:</span>
-                <span className="font-bold font-mono text-emerald-600">{formattedAmount}</span>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-300">UPI Reference / UTR Number (Optional)</Label>
+                <Input
+                  value={utrNumber}
+                  onChange={(e) => setUtrNumber(e.target.value)}
+                  placeholder="12-digit UPI Ref ID from your banking app"
+                  className="rounded-xl text-xs font-mono bg-slate-800/80 border-slate-700 text-white placeholder:text-slate-500"
+                  maxLength={30}
+                />
+                <span className="text-[10px] text-slate-400">
+                  Helps verify the payment in settlement audit history
+                </span>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-500">Payment Mode:</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">UPI Instant Settlement</span>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-300">Payment Notes (Optional)</Label>
+                <Input
+                  value={paymentNote}
+                  onChange={(e) => setPaymentNote(e.target.value)}
+                  placeholder="e.g. Paid via Google Pay"
+                  className="rounded-xl text-xs bg-slate-800/80 border-slate-700 text-white placeholder:text-slate-500"
+                  maxLength={80}
+                />
               </div>
-            </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">UPI Reference / UTR Number (Optional)</Label>
-              <Input
-                value={utrNumber}
-                onChange={(e) => setUtrNumber(e.target.value)}
-                placeholder="12-digit UPI Ref ID from your banking app"
-                className="rounded-xl text-xs font-mono bg-background"
-                maxLength={30}
-              />
-              <span className="text-[10px] text-slate-400">
-                Helps verify the payment in settlement audit history
-              </span>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Payment Notes (Optional)</Label>
-              <Input
-                value={paymentNote}
-                onChange={(e) => setPaymentNote(e.target.value)}
-                placeholder="e.g. Paid via Google Pay"
-                className="rounded-xl text-xs bg-background"
-                maxLength={80}
-              />
-            </div>
-
-            <DialogFooter className="gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsMarkPaidModalOpen(false)}
-                className="rounded-xl text-xs"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={isMarkingPaid}
-                className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-              >
-                {isMarkingPaid ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span>Confirming...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-3.5 w-3.5" />
-                    <span>Confirm & Settle Debt</span>
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
+              <DialogFooter className="gap-2 pt-3 border-t border-slate-800">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsMarkPaidModalOpen(false)}
+                  className="rounded-xl text-xs text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isMarkingPaid}
+                  className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5 shadow-md"
+                >
+                  {isMarkingPaid ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Confirming...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      <span>Confirm & Settle Debt</span>
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Enlarge QR Modal */}
       {qrCodeDataUrl && (
         <Dialog open={isZoomModalOpen} onOpenChange={setIsZoomModalOpen}>
-          <DialogContent className="sm:max-w-[360px] rounded-3xl p-6 text-center">
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold">
-                Scan to Pay {receiverName}
-              </DialogTitle>
-              <DialogDescription className="text-xs text-slate-500 font-mono">
-                {formattedAmount} via {receiverUpiId}
-              </DialogDescription>
-            </DialogHeader>
+          <DialogContent className="sm:max-w-[380px] rounded-3xl p-0 overflow-hidden border-2 border-indigo-500/70 ring-1 ring-indigo-500/40 shadow-[0_0_40px_rgba(99,102,241,0.25)] bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-2xl text-center text-slate-100">
+            <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-400 animate-pulse" />
+            <div className="p-6">
+              <DialogHeader>
+                <DialogTitle className="text-base font-bold text-white">
+                  Scan to Pay {receiverName}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-indigo-400 font-mono mt-0.5">
+                  {formattedAmount} via {receiverUpiId}
+                </DialogDescription>
+              </DialogHeader>
 
-            <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mx-auto my-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={qrCodeDataUrl}
-                alt="Enlarged QR Code"
-                width={260}
-                height={260}
-                className="rounded-xl mx-auto"
-              />
+              <div className="p-4 bg-white rounded-2xl shadow-md border border-slate-200 dark:border-slate-700 mx-auto my-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={qrCodeDataUrl}
+                  alt="Enlarged QR Code"
+                  width={260}
+                  height={260}
+                  className="rounded-xl mx-auto"
+                />
+              </div>
+
+              <DialogFooter className="justify-center sm:justify-center gap-2 pt-2 border-t border-slate-800">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownloadQr}
+                  className="rounded-xl text-xs gap-1.5 border-slate-700 text-slate-200 hover:bg-slate-800"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Save QR Image</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handlePayNow}
+                  className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5 shadow-md"
+                >
+                  <Smartphone className="h-3.5 w-3.5" />
+                  <span>Pay Now</span>
+                </Button>
+              </DialogFooter>
             </div>
-
-            <DialogFooter className="justify-center sm:justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownloadQr}
-                className="rounded-xl text-xs gap-1.5"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Save QR Image</span>
-              </Button>
-              <Button
-                size="sm"
-                onClick={handlePayNow}
-                className="rounded-xl text-xs font-bold bg-emerald-600 text-white gap-1.5"
-              >
-                <Smartphone className="h-3.5 w-3.5" />
-                <span>Pay Now</span>
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}

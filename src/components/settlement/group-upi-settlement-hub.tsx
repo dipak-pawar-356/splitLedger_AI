@@ -25,6 +25,7 @@ import {
 } from "@/actions/upi-settlements";
 import { DynamicUpiSettlementCard } from "./dynamic-upi-settlement-card";
 import { UpiQuickPayDialog } from "./upi-quick-pay-dialog";
+import { SettlementMetricsInspectionModal, type SettlementMetricType } from "./settlement-metrics-inspection-modal";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -42,6 +43,7 @@ export function GroupUpiSettlementHub({
   const [data, setData] = useState<GroupUpiSettlementsResponse | null>(initialData || null);
   const [isLoading, setIsLoading] = useState(!initialData);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeMetric, setActiveMetric] = useState<SettlementMetricType | null>(null);
 
   const fetchFreshSettlements = async (silent = false) => {
     if (!silent) setIsRefreshing(true);
@@ -141,52 +143,70 @@ export function GroupUpiSettlementHub({
       {/* Gross vs Outstanding Financial Metrics Breakdown */}
       {data?.financialBreakdown && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="p-3 rounded-2xl border bg-card/60 space-y-1">
-            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Gross Paid</p>
+          <div 
+            onClick={() => setActiveMetric("gross_paid")}
+            className="p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card/80 space-y-1 hover:border-indigo-500/70 hover:shadow-lg hover:-translate-y-1 hover:scale-105 transition-all duration-200 cursor-pointer group/tile relative"
+          >
+            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider group-hover/tile:text-indigo-500 transition-colors">Gross Paid</p>
             <p className="text-sm font-extrabold text-foreground font-mono">
               ₹{data.financialBreakdown.grossExpensePaid.toFixed(2)}
             </p>
-            <p className="text-[10px] text-muted-foreground/70">Expenses created</p>
+            <p className="text-[10px] text-muted-foreground/70">Expenses created →</p>
           </div>
 
-          <div className="p-3 rounded-2xl border bg-card/60 space-y-1">
-            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Gross Share</p>
+          <div 
+            onClick={() => setActiveMetric("gross_share")}
+            className="p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-card/80 space-y-1 hover:border-purple-500/70 hover:shadow-lg hover:-translate-y-1 hover:scale-105 transition-all duration-200 cursor-pointer group/tile relative"
+          >
+            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider group-hover/tile:text-purple-500 transition-colors">Gross Share</p>
             <p className="text-sm font-extrabold text-foreground font-mono">
               ₹{data.financialBreakdown.grossShare.toFixed(2)}
             </p>
-            <p className="text-[10px] text-muted-foreground/70">Your responsibility</p>
+            <p className="text-[10px] text-muted-foreground/70">Your responsibility →</p>
           </div>
 
-          <div className="p-3 rounded-2xl border bg-card/60 space-y-1">
+          <div 
+            onClick={() => setActiveMetric("settled_sent")}
+            className="p-3.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 space-y-1 hover:border-emerald-500/70 hover:shadow-lg hover:-translate-y-1 hover:scale-105 transition-all duration-200 cursor-pointer group/tile relative"
+          >
             <p className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">Settled Sent</p>
             <p className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 font-mono">
               ₹{data.financialBreakdown.completedSettlementPaid.toFixed(2)}
             </p>
-            <p className="text-[10px] text-muted-foreground/70">Paid settlements</p>
+            <p className="text-[10px] text-muted-foreground/70">Paid settlements →</p>
           </div>
 
-          <div className="p-3 rounded-2xl border bg-card/60 space-y-1">
+          <div 
+            onClick={() => setActiveMetric("settled_recv")}
+            className="p-3.5 rounded-2xl border border-blue-500/20 bg-blue-500/5 space-y-1 hover:border-blue-500/70 hover:shadow-lg hover:-translate-y-1 hover:scale-105 transition-all duration-200 cursor-pointer group/tile relative"
+          >
             <p className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 tracking-wider">Settled Recv</p>
             <p className="text-sm font-extrabold text-blue-600 dark:text-blue-400 font-mono">
               ₹{data.financialBreakdown.completedSettlementReceived.toFixed(2)}
             </p>
-            <p className="text-[10px] text-muted-foreground/70">Collected money</p>
+            <p className="text-[10px] text-muted-foreground/70">Collected money →</p>
           </div>
 
-          <div className="p-3 rounded-2xl border bg-card/60 space-y-1 border-rose-500/20 bg-rose-500/5">
+          <div 
+            onClick={() => setActiveMetric("remain_pay")}
+            className="p-3.5 rounded-2xl border border-rose-500/30 bg-rose-500/5 space-y-1 hover:border-rose-500/70 hover:shadow-lg hover:-translate-y-1 hover:scale-105 transition-all duration-200 cursor-pointer group/tile relative"
+          >
             <p className="text-[10px] uppercase font-bold text-rose-600 tracking-wider">Remain To Pay</p>
             <p className="text-sm font-extrabold text-rose-600 font-mono">
               ₹{data.financialBreakdown.outstandingPayable.toFixed(2)}
             </p>
-            <p className="text-[10px] text-rose-600/70">Unpaid debts</p>
+            <p className="text-[10px] text-rose-600/70">Unpaid debts →</p>
           </div>
 
-          <div className="p-3 rounded-2xl border bg-card/60 space-y-1 border-emerald-500/20 bg-emerald-500/5">
+          <div 
+            onClick={() => setActiveMetric("remain_recv")}
+            className="p-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 space-y-1 hover:border-emerald-500/70 hover:shadow-lg hover:-translate-y-1 hover:scale-105 transition-all duration-200 cursor-pointer group/tile relative"
+          >
             <p className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Remain To Recv</p>
             <p className="text-sm font-extrabold text-emerald-600 font-mono">
               ₹{data.financialBreakdown.outstandingReceivable.toFixed(2)}
             </p>
-            <p className="text-[10px] text-emerald-600/70">Pending credit</p>
+            <p className="text-[10px] text-emerald-600/70">Pending credit →</p>
           </div>
         </div>
       )}
@@ -265,7 +285,11 @@ export function GroupUpiSettlementHub({
         {receivables.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {receivables.map((recv) => (
-              <Card key={`recv-${recv.payerId}`} className="rounded-3xl border border-slate-200/80 dark:border-slate-800 p-4 bg-card shadow-sm">
+              <Card 
+                key={`recv-${recv.payerId}`} 
+                className="rounded-3xl border border-slate-200/80 dark:border-slate-800 p-4 bg-card shadow-sm hover:shadow-2xl hover:border-emerald-500/60 hover:-translate-y-1.5 hover:scale-[1.01] transition-all duration-300 relative group/recv"
+              >
+                <div className="h-1 w-full bg-gradient-to-r from-emerald-500 to-teal-400 absolute top-0 left-0 rounded-t-3xl opacity-0 group-hover/recv:opacity-100 transition-opacity" />
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <Avatar className="h-10 w-10 border-2 border-emerald-500/30 shrink-0">
@@ -275,7 +299,7 @@ export function GroupUpiSettlementHub({
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                      <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate group-hover/recv:text-emerald-500 transition-colors">
                         {recv.payerName}
                       </p>
                       <span className="text-[10px] text-slate-400 uppercase tracking-wider block mt-0.5">
@@ -332,6 +356,17 @@ export function GroupUpiSettlementHub({
           </Card>
         )}
       </div>
+
+      {/* Pop-up Metrics Inspection Modal */}
+      {data?.financialBreakdown && (
+        <SettlementMetricsInspectionModal
+          isOpen={activeMetric !== null}
+          onClose={() => setActiveMetric(null)}
+          type={activeMetric}
+          financialBreakdown={data.financialBreakdown}
+          groupName={groupName}
+        />
+      )}
     </div>
   );
 }

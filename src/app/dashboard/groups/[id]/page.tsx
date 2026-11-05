@@ -421,61 +421,66 @@ export default async function GroupDetailPage({
           <TabsList className="bg-slate-900/90 backdrop-blur-md border border-slate-800/90 p-1.5 rounded-2xl shadow-xl flex md:flex-wrap h-auto gap-1.5 transition-all w-max md:w-full min-w-full">
             <TabsTrigger
               value="overview"
-              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:text-slate-100 hover:bg-slate-800/70 flex items-center gap-1.5"
             >
-              Member Financials ({members.length})
+              <Users className="h-3.5 w-3.5" />
+              <span>Member Financials ({members.length})</span>
             </TabsTrigger>
             <TabsTrigger
               value="insights"
-              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:text-slate-100 hover:bg-slate-800/70 flex items-center gap-1.5"
             >
-              Expense Insights & Stats
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Expense Insights & Stats</span>
             </TabsTrigger>
             <TabsTrigger
               value="expenses"
-              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:text-slate-100 hover:bg-slate-800/70 flex items-center gap-1.5"
             >
-              Expenses History ({groupExpenses.length})
+              <Receipt className="h-3.5 w-3.5" />
+              <span>Expenses History ({groupExpenses.length})</span>
             </TabsTrigger>
             <TabsTrigger
               value="settlements"
-              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:text-slate-100 hover:bg-slate-800/70 flex items-center gap-1.5"
             >
-              Settlement Audit ({visiblePendingSettlements.length > 0 ? `${visiblePendingSettlements.length} Pending` : `${visibleSettlementSuggestions.length} Dues`})
+              <QrCode className="h-3.5 w-3.5" />
+              <span>Settlement Audit ({visiblePendingSettlements.length > 0 ? `${visiblePendingSettlements.length} Pending` : `${visibleSettlementSuggestions.length} Dues`})</span>
             </TabsTrigger>
             <TabsTrigger
               value="activity"
-              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:text-slate-100 hover:bg-slate-800/70"
+              className="rounded-xl text-xs font-semibold px-4 py-2 shrink-0 transition-all duration-200 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg hover:text-slate-100 hover:bg-slate-800/70 flex items-center gap-1.5"
             >
-              Group Activity ({groupActivities.length})
+              <History className="h-3.5 w-3.5" />
+              <span>Group Activity ({groupActivities.length})</span>
             </TabsTrigger>
 
             {(group.isAdmin || group.isOwner) && (
               <>
                 <TabsTrigger
                   value="member-approvals"
-                  className="rounded-xl text-xs font-semibold px-3.5 py-2 shrink-0 text-amber-400 hover:text-amber-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-200 data-[state=active]:border data-[state=active]:border-amber-500/40"
+                  className="rounded-xl text-xs font-semibold px-3.5 py-2 shrink-0 text-amber-400 hover:text-amber-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-200 data-[state=active]:border data-[state=active]:border-amber-500/40 flex items-center"
                 >
                   <UserPlus className="h-3.5 w-3.5" />
                   <span>Member Approvals ({pendingJoinRequests.length})</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="admin-approvals"
-                  className="rounded-xl text-xs font-semibold px-3.5 py-2 shrink-0 text-emerald-400 hover:text-emerald-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-200 data-[state=active]:border data-[state=active]:border-emerald-500/40"
+                  className="rounded-xl text-xs font-semibold px-3.5 py-2 shrink-0 text-emerald-400 hover:text-emerald-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-200 data-[state=active]:border data-[state=active]:border-emerald-500/40 flex items-center"
                 >
                   <ShieldCheck className="h-3.5 w-3.5" />
                   <span>Approval Center</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="admin-reminders"
-                  className="rounded-xl text-xs font-semibold px-3.5 py-2 shrink-0 text-amber-400 hover:text-amber-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-200 data-[state=active]:border data-[state=active]:border-amber-500/40"
+                  className="rounded-xl text-xs font-semibold px-3.5 py-2 shrink-0 text-amber-400 hover:text-amber-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-200 data-[state=active]:border data-[state=active]:border-amber-500/40 flex items-center"
                 >
                   <BellRing className="h-3.5 w-3.5" />
                   <span>Reminder Center</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="admin-logs"
-                  className="rounded-xl text-xs font-semibold px-3.5 py-2 shrink-0 text-blue-400 hover:text-blue-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-200 data-[state=active]:border data-[state=active]:border-blue-500/40"
+                  className="rounded-xl text-xs font-semibold px-3.5 py-2 shrink-0 text-blue-400 hover:text-blue-300 gap-1.5 transition-all duration-200 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-200 data-[state=active]:border data-[state=active]:border-blue-500/40 flex items-center"
                 >
                   <Mail className="h-3.5 w-3.5" />
                   <span>Reminder Logs</span>
@@ -609,8 +614,9 @@ export default async function GroupDetailPage({
                     {visiblePendingSettlements.map((st) => (
                       <div
                         key={st.id}
-                        className="group p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:shadow-md hover:border-amber-400/60 hover:-translate-y-0.5 transition-all duration-200"
+                        className="group p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:shadow-xl hover:border-amber-400/80 hover:-translate-y-1 hover:scale-[1.008] transition-all duration-300 relative overflow-hidden"
                       >
+                        <div className="h-0.5 w-full bg-gradient-to-r from-amber-500 to-orange-400 absolute top-0 left-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                         <div>
                           <p className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                             {st.fromName} owes {st.toName}
@@ -619,7 +625,7 @@ export default async function GroupDetailPage({
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-black text-amber-600">
+                          <span className="text-sm font-black text-amber-600 font-mono">
                             {formatCurrency(st.amount)}
                           </span>
                           <MarkPaidButton
@@ -653,13 +659,14 @@ export default async function GroupDetailPage({
                     {visibleSettlementSuggestions.map((sg, idx) => (
                       <div
                         key={idx}
-                        className="group p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-emerald-500/60 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                        className="group p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-3 hover:border-emerald-500/80 hover:shadow-xl hover:-translate-y-1 hover:scale-[1.008] transition-all duration-300 relative overflow-hidden"
                       >
+                        <div className="h-0.5 w-full bg-gradient-to-r from-emerald-500 to-teal-400 absolute top-0 left-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                         <div>
                           <p className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                             {sg.fromName} owes {sg.toName}
                           </p>
-                          <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                          <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 block mt-0.5 font-mono">
                             {formatCurrency(sg.amount)}
                           </span>
                         </div>

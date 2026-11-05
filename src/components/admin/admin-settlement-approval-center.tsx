@@ -190,8 +190,10 @@ export function AdminSettlementApprovalCenter({
                   {pendingSettlements.map((item, idx) => (
                     <div
                       key={idx}
-                      className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between gap-4 hover:-translate-y-[2px] hover:shadow-md transition-all duration-200"
+                      onClick={() => setSelectedPending(item)}
+                      className="p-5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between gap-4 hover:-translate-y-1.5 hover:scale-[1.008] hover:shadow-2xl hover:border-emerald-500/60 transition-all duration-300 relative group/pending cursor-pointer overflow-hidden"
                     >
+                      <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 absolute top-0 left-0 opacity-0 group-hover/pending:opacity-100 transition-opacity" />
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <Avatar className="h-10 w-10 border-2 border-rose-500/30 ring-2 ring-rose-500/10 shrink-0">
@@ -201,7 +203,7 @@ export function AdminSettlementApprovalCenter({
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate group-hover/pending:text-emerald-500 transition-colors">
                               {item.fromName}
                             </p>
                             <span className="text-[10px] text-rose-500 font-semibold uppercase tracking-wider block">
@@ -211,7 +213,7 @@ export function AdminSettlementApprovalCenter({
                         </div>
 
                         <div className="flex flex-col items-center px-2">
-                          <span className="text-lg font-black text-slate-900 dark:text-slate-100">
+                          <span className="text-lg font-black text-slate-900 dark:text-slate-100 font-mono">
                             {formatCurrency(item.amount)}
                           </span>
                           <div className="flex items-center gap-1 text-emerald-500 mt-0.5">
@@ -222,7 +224,7 @@ export function AdminSettlementApprovalCenter({
 
                         <div className="flex items-center gap-3 min-w-0 text-right justify-end">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate group-hover/pending:text-emerald-500 transition-colors">
                               {item.toName}
                             </p>
                             <span className="text-[10px] text-emerald-500 font-semibold uppercase tracking-wider block">
@@ -244,16 +246,21 @@ export function AdminSettlementApprovalCenter({
                             <Clock className="h-3 w-3 mr-1" />
                             Pending Offline Settlement
                           </Badge>
+                          <span className="text-[10px] text-slate-400 opacity-0 group-hover/pending:opacity-100 transition-opacity">
+                            Click card to verify →
+                          </span>
                         </div>
 
-                        <Button
-                          size="sm"
-                          onClick={() => setSelectedPending(item)}
-                          className="rounded-xl text-xs font-semibold gap-1.5 bg-[#0F9D58] hover:bg-[#0d874b] text-white shadow-[0_0_12px_rgba(15,157,88,0.35)] transition-all hover:scale-[1.03]"
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          <span>Mark as Settled</span>
-                        </Button>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="sm"
+                            onClick={() => setSelectedPending(item)}
+                            className="rounded-xl text-xs font-semibold gap-1.5 bg-[#0F9D58] hover:bg-[#0d874b] text-white shadow-[0_0_12px_rgba(15,157,88,0.35)] transition-all hover:scale-[1.03]"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            <span>Mark as Settled</span>
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

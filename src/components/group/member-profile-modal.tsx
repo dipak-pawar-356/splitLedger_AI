@@ -49,9 +49,31 @@ export function MemberProfileModal({
     member.userId && currentUserId && Number(member.userId) === Number(currentUserId)
   );
 
+  let theme = {
+    borderClass: "border-2 border-primary/70 ring-1 ring-primary/40",
+    glowClass: "shadow-[0_0_40px_rgba(59,130,246,0.3)]",
+    topBarGradient: "from-primary via-indigo-500 to-cyan-400",
+  };
+  if (isReceive) {
+    theme = {
+      borderClass: "border-2 border-emerald-500/70 ring-1 ring-emerald-500/40",
+      glowClass: "shadow-[0_0_40px_rgba(16,185,129,0.3)]",
+      topBarGradient: "from-emerald-500 via-teal-400 to-cyan-400",
+    };
+  } else if (isPay) {
+    theme = {
+      borderClass: "border-2 border-rose-500/70 ring-1 ring-rose-500/40",
+      glowClass: "shadow-[0_0_40px_rgba(244,63,94,0.3)]",
+      topBarGradient: "from-rose-500 via-red-500 to-amber-500",
+    };
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] rounded-3xl border shadow-2xl p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
+      <DialogContent className={`sm:max-w-[480px] rounded-3xl p-0 overflow-hidden max-h-[90vh] overflow-y-auto bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-2xl ${theme.borderClass} ${theme.glowClass}`}>
+        {/* Top Glowing Animated Gradient Banner Matching Border */}
+        <div className={`h-2 w-full bg-gradient-to-r ${theme.topBarGradient} animate-pulse`} />
+
         {/* Top Header Background */}
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 text-white relative">
           <div className="flex items-center gap-4">

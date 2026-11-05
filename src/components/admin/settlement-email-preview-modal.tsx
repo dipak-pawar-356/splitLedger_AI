@@ -49,25 +49,26 @@ export function SettlementEmailPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[760px] max-h-[90vh] rounded-3xl p-0 overflow-hidden border-slate-200/80 dark:border-slate-800 bg-card flex flex-col">
+      <DialogContent className="sm:max-w-[760px] max-h-[90vh] rounded-3xl p-0 overflow-hidden border-2 border-blue-500/70 ring-1 ring-blue-500/40 shadow-[0_0_40px_rgba(59,130,246,0.25)] bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-2xl text-slate-100 flex flex-col">
+        <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400 animate-pulse" />
         {/* Header */}
-        <div className="bg-slate-50/80 dark:bg-slate-900/60 p-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+        <div className="bg-slate-900/60 p-5 border-b border-slate-800 shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-2xl bg-blue-500/10 text-blue-500 border border-blue-500/20">
+              <div className="p-2 rounded-2xl bg-blue-500/15 text-blue-400 border border-blue-500/30">
                 <Mail className="h-5 w-5" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-bold tracking-tight">
+                <DialogTitle className="text-lg font-bold tracking-tight text-white">
                   Dynamic Email Previews
                 </DialogTitle>
-                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                <DialogDescription className="text-xs text-slate-400 mt-0.5">
                   Live rendered settlement emails generated from real-time database calculations
                 </DialogDescription>
               </div>
             </div>
 
-            <Badge variant="outline" className="text-xs font-mono font-semibold py-1">
+            <Badge variant="outline" className="text-xs font-mono font-semibold py-1 bg-slate-800 border-slate-700 text-slate-300">
               {debtorPreviews.length} Debtors • {creditorPreviews.length} Creditors
             </Badge>
           </div>
